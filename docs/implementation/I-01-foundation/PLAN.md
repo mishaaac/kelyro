@@ -607,7 +607,7 @@ feat(platform): add cross-platform path abstraction
 
 ## Paso 5 — Implementar creación, descubrimiento y validación del Kelyro Workspace
 
-- [ ] Paso 5 completado
+- [x] Paso 5 completado
 
 ### Objetivo
 

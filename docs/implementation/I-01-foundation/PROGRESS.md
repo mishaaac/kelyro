@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 4
+Last completed step: 5
 Current release: unreleased
 
 ## Registro
@@ -135,3 +135,31 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 5 no se ha iniciado y requiere autorización explícita.
+
+## Step 05 — Ciclo de vida local del workspace
+
+Status: completed
+Date: 2026-08-12
+Commit: 7141dfc
+Release: unreleased
+
+### Delivered
+- Creación idempotente de `.kelyro/`, metadata estable y `LEARNING.md` human-readable mediante `kelyro init`.
+- Discovery ascendente, validación de estructura, protección contra nesting accidental y rollback ante fallos de inicialización.
+- Adaptador filesystem aislado, integración de aplicación/CLI y reglas explícitas de ownership.
+
+### Decisions
+- `.kelyro/` es machine-owned; `LEARNING.md` y los demás archivos visibles son student-owned y no se sobrescriben automáticamente.
+- La excepción para workspaces anidados requiere `--allow-nested`; no se añadieron dependencias externas ni se creó la base de datos reservada.
+- La inicialización publica internals preparados en staging y revierte todo artefacto nuevo ante errores reportados.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step5-gocache GOMODCACHE=/tmp/kelyro-step5-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step5-gocache GOMODCACHE=/tmp/kelyro-step5-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step5-gocache GOMODCACHE=/tmp/kelyro-step5-modcache go build -o /tmp/kelyro-step5 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` using `go test -exec=/bin/true ./...`.
+- Prueba CLI real de init nuevo/repetido, estructura, metadata, ruta con espacios y nesting explícito.
+- `git diff --check`
+
+### Notes for next session
+- El Paso 6 no se ha iniciado y requiere autorización explícita.
