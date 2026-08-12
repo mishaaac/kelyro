@@ -20,6 +20,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/session"
 	"github.com/mishaaac/kelyro/internal/storage"
+	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -41,6 +42,7 @@ const (
 	ActionBackup  Action = "backup"
 	ActionExport  Action = "export"
 	ActionImport  Action = "import"
+	ActionUpdate  Action = "update"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -68,6 +70,7 @@ type Command struct {
 	ImportArchive   string
 	ImportDryRun    bool
 	ImportConflicts portability.ConflictStrategy
+	UpdateOperation string
 	Verbose         bool
 }
 
@@ -80,6 +83,7 @@ type Result struct {
 	Audit       []audit.Entry
 	Backups     []backup.Info
 	Portability *portability.Report
+	Update      *update.Result
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -101,6 +105,7 @@ type Service struct {
 	audits           audit.WorkspaceStoreFactory
 	backups          backup.Service
 	portability      portability.Service
+	updates          update.Checker
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -114,6 +119,13 @@ func (service *Service) WithBackups(backups backup.Service) *Service {
 // WithPortability attaches portable workspace archive operations.
 func (service *Service) WithPortability(portable portability.Service) *Service {
 	service.portability = portable
+	return service
+}
+
+// WithUpdates attaches version-aware metadata checks. It does not provide an
+// installer and therefore cannot modify the running binary.
+func (service *Service) WithUpdates(checker update.Checker) *Service {
+	service.updates = checker
 	return service
 }
 
@@ -209,6 +221,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionExport || command.Action == ActionImport {
 		return service.executePortability(ctx, command)
+	}
+	if command.Action == ActionUpdate {
+		return service.executeUpdate(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

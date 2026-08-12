@@ -165,6 +165,21 @@ func TestGlobalConfigPathUsesNativeConfigDirectory(t *testing.T) {
 	}
 }
 
+func TestGlobalUpdateCachePathUsesNativeCacheDirectory(t *testing.T) {
+	t.Parallel()
+	directory, err := GlobalCacheDir()
+	if err != nil {
+		t.Fatalf("GlobalCacheDir() error = %v", err)
+	}
+	path, err := GlobalUpdateCachePath()
+	if err != nil {
+		t.Fatalf("GlobalUpdateCachePath() error = %v", err)
+	}
+	if want := filepath.Join(directory, "updates.json"); path != want {
+		t.Errorf("GlobalUpdateCachePath() = %q, want %q", path, want)
+	}
+}
+
 func TestStandardDirectoriesAreCleanAbsolutePaths(t *testing.T) {
 	t.Parallel()
 

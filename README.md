@@ -50,6 +50,18 @@ and usage telemetry additionally require `privacy.allow_ai_content` and
 network-capable component, including plugins and update checks, must use the
 same deny-by-default privacy gate.
 
+Run `kelyro update check` for an explicit version-aware release check. Checks
+use `updates.channel = "stable"` by default; set it to `"prerelease"` to opt
+into prerelease metadata, or set `updates.check = false` to disable checks.
+Results are cached in the native user cache for 24 hours. A refresh occurs only
+when network access is allowed, and offline or temporarily unavailable metadata
+is reported without breaking other commands. Kelyro never checks automatically
+as a side effect of ordinary commands, and the test suite uses fake providers
+without external requests. Kelyro never downloads or installs an update
+silently. `kelyro update` remains intentionally unsupported until release
+artifacts can be verified by checksum/signature and installed with explicit
+consent.
+
 The TUI and the `status`, `roadmap`, `doctor`, `config`, `backup`, and `export`
 commands remain local. `kelyro roadmap` prints the location of the generated
 local `ROADMAP.md`; documentation links shown by Doctor are never fetched or

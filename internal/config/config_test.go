@@ -30,6 +30,9 @@ func TestDefaultsAreSafeAndIndependent(t *testing.T) {
 	if got := second[KeyUpdateCheck].String(); got != "true" {
 		t.Errorf("updates.check default = %q, want true", got)
 	}
+	if got := second[KeyUpdateChannel].String(); got != "stable" {
+		t.Errorf("updates.channel default = %q, want stable", got)
+	}
 	if got := second[KeyMasteryThreshold].String(); got != "0.85" {
 		t.Errorf("learning.mastery_threshold default = %q, want 0.85", got)
 	}
@@ -80,6 +83,7 @@ func TestParseValueAndValidateLayerRejectInvalidConfiguration(t *testing.T) {
 	}{
 		{name: "unknown key", key: "ai.api_key", value: "secret", want: "unknown configuration key"},
 		{name: "invalid color", key: KeyUIColor, value: "sometimes", want: "auto, always, or never"},
+		{name: "invalid update channel", key: KeyUpdateChannel, value: "nightly", want: "stable or prerelease"},
 		{name: "invalid bool", key: KeyAllowNetwork, value: "yes", want: "expects true or false"},
 		{name: "invalid threshold", key: KeyMasteryThreshold, value: "1.1", want: "at most 1"},
 		{name: "non-finite threshold", key: KeyMasteryThreshold, value: "NaN", want: "at most 1"},

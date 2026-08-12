@@ -67,7 +67,9 @@ or infrastructure adapters merely to perform work.
 | `internal/backup` | Neutral backup manifests, summaries, validation, and lifecycle contracts. |
 | `internal/infra/backupfs` | Atomic allowlisted workspace backups, retention, integrity validation, and rollback-safe restore. |
 | `internal/privacy` | Local-first policy and deny-by-default network authorization contract. |
-| `internal/update` | Future update-check services. |
+| `internal/update` | SemVer comparison, release-provider/cache contracts, channels, and update-check policy. |
+| `internal/infra/updatecache` | Versioned atomic update metadata cache in the native user cache directory. |
+| `internal/infra/updategithub` | Optional bounded GitHub REST release-metadata adapter. |
 | `internal/version` | Build metadata independent of Git at runtime. |
 
 Reserved packages document ownership only. Their functionality is introduced by
@@ -343,6 +345,11 @@ Editor configuration includes the executable-only `editor.command` and the
 choice for an optional TUI open-after-generation prompt; explicit `kelyro open`
 commands always open immediately.
 
+Update configuration includes `updates.check`, enabled by default, and
+`updates.channel`, which accepts `stable` (the default) or `prerelease`.
+Enabling checks does not grant network permission; `privacy.allow_network`
+remains the independent opt-in boundary.
+
 Both files carry an optional `schema_version`; newly written files use version
 1, and unsupported versions fail before any values are used. The filesystem
 adapter accepts the strict scalar TOML subset required by the known schema:
@@ -391,9 +398,8 @@ allow_usage_telemetry = false
 resources, update checks, plugins, and AI-provider integrations. General
 external access requires `allow_network`. Sending AI content or usage telemetry
 also requires its dedicated opt-in; enabling either dedicated setting without
-general network access does not bypass offline mode. The existing
-`updates.check` preference can express interest in checks, but it cannot bypass
-the privacy gate when update checks are implemented.
+general network access does not bypass offline mode. The `updates.check`
+preference expresses interest in checks, but it cannot bypass the privacy gate.
 
 Authorization requests and denial-specific metadata contain only a bounded
 stable operation identifier and a declared purpose. URLs, filesystem paths,
@@ -403,6 +409,37 @@ errors and recorded best-effort in the workspace-local structured log with the
 operation, purpose, and `privacy` category. The ordinary local log record still
 identifies its workspace as described above. A logging failure never permits
 network access or replaces the denial.
+
+### Version-aware update checks
+
+`internal/update` parses and compares SemVer 2.0 versions, including numeric and
+alphanumeric prerelease precedence. A conventional leading `v` is accepted and
+build metadata does not affect precedence. Stable checks reject prereleases;
+the explicitly configured prerelease channel considers both stable and
+prerelease versions. A published version equal to or older than the embedded
+build never produces an update or downgrade offer.
+
+`update.ReleaseProvider` exposes only provider-neutral release metadata. The
+optional production adapter lists public releases from the fixed Kelyro GitHub
+repository using the versioned REST API, a ten-second HTTP timeout, required
+GitHub headers, a two-MiB response limit, and no credential. Drafts and
+malformed tags are ignored. No GitHub or HTTP type crosses into the core.
+
+`kelyro update check` first honors `updates.check`, then uses a fresh result from
+the native global cache when available. Otherwise it consults the privacy gate
+before calling the provider. Successful checks, including an empty release
+list, are cached per channel for 24 hours in a bounded, schema-versioned JSON
+file written atomically with restrictive permissions. Corrupt or stale cache
+data is disposable and triggers a refresh; cache failures do not replace a
+valid provider result.
+
+Offline privacy denials and temporary provider failures are successful,
+informative check results so they cannot prevent the rest of Foundation from
+running. Malformed current or selected release versions remain explicit errors.
+Checks show metadata as text only: they never open a release URL, download an
+artifact, or change the executable. `kelyro update` fails safely with an
+explanation until release artifacts have checksum/signature verification and a
+separate explicit-consent installation design.
 
 ### Secure secret storage
 

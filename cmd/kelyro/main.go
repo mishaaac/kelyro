@@ -22,9 +22,12 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
 	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
+	"github.com/mishaaac/kelyro/internal/infra/updatecache"
+	"github.com/mishaaac/kelyro/internal/infra/updategithub"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
 	"github.com/mishaaac/kelyro/internal/storage/sqlite"
 	"github.com/mishaaac/kelyro/internal/tui"
+	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
@@ -33,6 +36,7 @@ func main() {
 	configs := configfs.New()
 	backups := backupfs.New(version.Version, sqlite.SnapshotValidator{})
 	portable := portabilityfs.New(version.Version, sqlite.SnapshotValidator{})
+	updates := update.New(version.Version, updategithub.New(version.Version), updatecache.New())
 	migrationBackup := func(ctx context.Context, databasePath string, migration sqlite.MigrationInfo) error {
 		root := filepath.Dir(filepath.Dir(databasePath))
 		global, err := configs.LoadGlobal()
@@ -67,7 +71,8 @@ func main() {
 		WithLogging(logfs.New()).
 		WithAudit(auditsqlite.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithBackups(backups).
-		WithPortability(portable)
+		WithPortability(portable).
+		WithUpdates(updates)
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).

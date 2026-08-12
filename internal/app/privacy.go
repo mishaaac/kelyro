@@ -19,6 +19,10 @@ func (service *Service) NetworkGate(command Command) (privacy.NetworkGate, error
 	if err != nil {
 		return nil, err
 	}
+	return service.networkGate(settings, command)
+}
+
+func (service *Service) networkGate(settings config.Settings, command Command) (privacy.NetworkGate, error) {
 	policy, err := policyFromSettings(settings)
 	if err != nil {
 		return nil, err

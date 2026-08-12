@@ -14,6 +14,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/portability"
+	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
@@ -45,6 +46,7 @@ Commands:
   backup   Create, list, or restore workspace backups
   export   Export readable documents or a full portable workspace
   import   Validate and import a portable workspace archive
+  update   Check for releases; installation remains unsupported
 
 Options:
   -h, --help          Show this help message
@@ -92,6 +94,10 @@ Backup commands:
 Portability commands:
   kelyro export [--full] [--output <file>]
   kelyro import <file> [--dry-run] [--conflict fail|keep|overwrite]
+
+Update commands:
+  kelyro update check
+  kelyro update
 `
 
 var actions = map[string]app.Action{
@@ -107,6 +113,7 @@ var actions = map[string]app.Action{
 	"backup":  app.ActionBackup,
 	"export":  app.ActionExport,
 	"import":  app.ActionImport,
+	"update":  app.ActionUpdate,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -205,6 +212,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		ImportArchive:   invocation.importArchive,
 		ImportDryRun:    invocation.importDryRun,
 		ImportConflicts: invocation.importConflicts,
+		UpdateOperation: invocation.updateOperation,
 		Verbose:         invocation.verbose,
 	}
 	if invocation.noColor {
@@ -274,6 +282,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatBackups(result.Backups))
 	} else if result.Portability != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatPortability(*result.Portability))
+	} else if result.Update != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatUpdate(*result.Update))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -282,6 +292,34 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatUpdate(result update.Result) string {
+	source := ""
+	if result.Source != update.SourceNone {
+		source = fmt.Sprintf("; source=%s", result.Source)
+	}
+	switch result.Status {
+	case update.UpdateAvailable:
+		message := fmt.Sprintf("Update available: %s -> %s (channel=%s%s)", result.CurrentVersion, result.LatestVersion, result.Channel, source)
+		if result.ReleaseURL != "" {
+			message += "\nRelease: " + result.ReleaseURL
+		}
+		return message + "\nAutomatic installation is unavailable until signed artifacts and checksums can be verified."
+	case update.UpToDate:
+		if result.LatestVersion == "" {
+			return fmt.Sprintf("No published releases found (current=%s channel=%s%s).", result.CurrentVersion, result.Channel, source)
+		}
+		message := fmt.Sprintf("Kelyro %s is up to date (latest=%s channel=%s%s).", result.CurrentVersion, result.LatestVersion, result.Channel, source)
+		if result.Detail != "" {
+			message += " " + result.Detail
+		}
+		return message
+	case update.Unavailable:
+		return fmt.Sprintf("Update check unavailable (current=%s channel=%s): %s.", result.CurrentVersion, result.Channel, result.Detail)
+	default:
+		return "Update check returned an unknown status."
+	}
 }
 
 func formatPortability(report portability.Report) string {
@@ -417,6 +455,7 @@ type invocation struct {
 	importDryRun    bool
 	importConflicts portability.ConflictStrategy
 	conflictSet     bool
+	updateOperation string
 }
 
 func parse(args []string) (invocation, error) {
@@ -575,6 +614,10 @@ func parse(args []string) (invocation, error) {
 			return invocation{}, fmt.Errorf("import requires exactly one archive file")
 		}
 		result.importArchive = result.arguments[0]
+	case "update":
+		if err := parseUpdateArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -600,6 +643,18 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseUpdateArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		result.updateOperation = "install"
+		return nil
+	}
+	if len(result.arguments) == 1 && result.arguments[0] == "check" {
+		result.updateOperation = "check"
+		return nil
+	}
+	return fmt.Errorf("update accepts only the optional check command")
 }
 
 func parseBackupArguments(result *invocation) error {

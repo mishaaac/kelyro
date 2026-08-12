@@ -20,6 +20,7 @@ const (
 	KeyAllowAIContent   = "privacy.allow_ai_content"
 	KeyAllowTelemetry   = "privacy.allow_usage_telemetry"
 	KeyUpdateCheck      = "updates.check"
+	KeyUpdateChannel    = "updates.channel"
 	KeyWorkspaceName    = "workspace.name"
 	KeyMasteryThreshold = "learning.mastery_threshold"
 	KeyBackupRetention  = "backup.retention"
@@ -91,6 +92,7 @@ var definitions = map[string]Definition{
 	KeyAllowAIContent:   {Kind: Boolean, Common: true},
 	KeyAllowTelemetry:   {Kind: Boolean, Common: true},
 	KeyUpdateCheck:      {Kind: Boolean, Common: true},
+	KeyUpdateChannel:    {Kind: String},
 	KeyWorkspaceName:    {Kind: String, ProjectOnly: true, Common: true},
 	KeyMasteryThreshold: {Kind: Number, ProjectOnly: true, Common: true},
 	KeyBackupRetention:  {Kind: Number},
@@ -106,6 +108,7 @@ func Defaults() Settings {
 		KeyAllowAIContent:   BoolValue(false),
 		KeyAllowTelemetry:   BoolValue(false),
 		KeyUpdateCheck:      BoolValue(true),
+		KeyUpdateChannel:    StringValue("stable"),
 		KeyWorkspaceName:    StringValue(""),
 		KeyMasteryThreshold: NumberValue(0.85),
 		KeyBackupRetention:  NumberValue(5),
@@ -205,6 +208,10 @@ func validateValue(key string, value Value) error {
 	case KeyUIColor:
 		if value.stringV != "auto" && value.stringV != "always" && value.stringV != "never" {
 			return fmt.Errorf("configuration key %q expects auto, always, or never", key)
+		}
+	case KeyUpdateChannel:
+		if value.stringV != "stable" && value.stringV != "prerelease" {
+			return fmt.Errorf("configuration key %q expects stable or prerelease", key)
 		}
 	case KeyWorkspaceName:
 		if strings.TrimSpace(value.stringV) == "" {

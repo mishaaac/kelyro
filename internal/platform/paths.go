@@ -10,6 +10,7 @@ import (
 const (
 	applicationDirectoryName      = "kelyro"
 	globalConfigFileName          = "config.toml"
+	globalUpdateCacheFileName     = "updates.json"
 	workspaceDirectoryName        = ".kelyro"
 	workspaceConfigFileName       = "config.toml"
 	workspaceDatabaseFileName     = "learning.db"
@@ -110,6 +111,15 @@ func GlobalCacheDir() (string, error) {
 	}
 
 	return childPath(base, applicationDirectoryName)
+}
+
+// GlobalUpdateCachePath returns the disposable update metadata cache path.
+func GlobalUpdateCachePath() (string, error) {
+	directory, err := GlobalCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return childPath(directory, globalUpdateCacheFileName)
 }
 
 // WorkspaceInternalDir returns the machine-owned directory for a workspace.

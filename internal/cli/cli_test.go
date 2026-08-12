@@ -14,6 +14,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/portability"
+	"github.com/mishaaac/kelyro/internal/update"
 )
 
 func TestRunnerDispatchesFoundationCommands(t *testing.T) {
@@ -36,6 +37,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "audit", args: []string{"audit"}, wantAction: app.ActionAudit},
 		{name: "export", args: []string{"export"}, wantAction: app.ActionExport},
 		{name: "import", args: []string{"import", "workspace.tar.gz"}, wantAction: app.ActionImport},
+		{name: "update check", args: []string{"update", "check"}, wantAction: app.ActionUpdate},
 	}
 
 	for _, test := range tests {
@@ -63,6 +65,37 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerParsesAndRendersUpdateChecks(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{result: app.Result{Update: &update.Result{
+		Status: update.UpdateAvailable, Source: update.SourceCache, Channel: update.Prerelease,
+		CurrentVersion: "1.0.0", LatestVersion: "1.1.0-beta.1", ReleaseURL: "https://github.com/mishaaac/kelyro/releases/tag/v1.1.0-beta.1",
+	}}}
+	var stdout, stderr bytes.Buffer
+	exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"update", "check"})
+	if exitCode != ExitOK || stderr.Len() != 0 || len(service.commands) != 1 {
+		t.Fatalf("Run(update check) exit=%d commands=%+v stderr=%q", exitCode, service.commands, stderr.String())
+	}
+	if service.commands[0].UpdateOperation != "check" {
+		t.Fatalf("update operation = %q", service.commands[0].UpdateOperation)
+	}
+	for _, want := range []string{"Update available: 1.0.0 -> 1.1.0-beta.1", "source=cache", "Release:", "signed artifacts and checksums"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("update output = %q, want %q", stdout.String(), want)
+		}
+	}
+
+	service = &fakeService{result: app.Result{Message: "unused"}}
+	stdout.Reset()
+	stderr.Reset()
+	if exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"update"}); exitCode != ExitOK {
+		t.Fatalf("Run(update) exit=%d stderr=%q", exitCode, stderr.String())
+	}
+	if service.commands[0].UpdateOperation != "install" {
+		t.Fatalf("default update operation = %q", service.commands[0].UpdateOperation)
 	}
 }
 
@@ -465,6 +498,7 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "import missing archive", args: []string{"import"}, message: "import requires exactly one archive file"},
 		{name: "dry-run without import", args: []string{"status", "--dry-run"}, message: "option --dry-run requires the import command"},
 		{name: "invalid conflict", args: []string{"import", "archive.tar.gz", "--conflict", "merge"}, message: "option --conflict requires fail, keep, or overwrite"},
+		{name: "unknown update operation", args: []string{"update", "now"}, message: "update accepts only the optional check command"},
 	}
 
 	for _, test := range tests {

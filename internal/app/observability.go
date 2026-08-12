@@ -9,6 +9,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/logging"
 	"github.com/mishaaac/kelyro/internal/privacy"
+	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -146,6 +147,8 @@ func (service *Service) logEntry(command Command, root string, level logging.Lev
 		suboperation = command.LogOperation
 	case ActionBackup:
 		suboperation = command.BackupOperation
+	case ActionUpdate:
+		suboperation = command.UpdateOperation
 	}
 	if suboperation != "" {
 		operation += "." + suboperation
@@ -171,6 +174,8 @@ func errorCategory(err error) string {
 		return "workspace"
 	case errors.Is(err, privacy.ErrNetworkBlocked):
 		return "privacy"
+	case errors.Is(err, update.ErrProviderUnavailable):
+		return "network"
 	case strings.Contains(strings.ToLower(err.Error()), "config"):
 		return "configuration"
 	case strings.Contains(strings.ToLower(err.Error()), "database"), strings.Contains(strings.ToLower(err.Error()), "sqlite"):

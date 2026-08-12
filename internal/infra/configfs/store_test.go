@@ -82,6 +82,7 @@ func TestLoadRejectsInvalidTOMLWithReadableKeyErrors(t *testing.T) {
 		{name: "unknown key", content: "[privacy]\napi_key = \"secret\"\n", want: `unknown configuration key "privacy.api_key"`},
 		{name: "wrong type", content: "[privacy]\nallow_network = \"false\"\n", want: `configuration key "privacy.allow_network" expects true or false`},
 		{name: "invalid value", content: "[ui]\ncolor = \"rainbow\"\n", want: `configuration key "ui.color" expects auto, always, or never`},
+		{name: "invalid update channel", content: "[updates]\nchannel = \"nightly\"\n", want: `configuration key "updates.channel" expects stable or prerelease`},
 		{name: "unsupported schema", content: "schema_version = 99\n", want: "unsupported schema_version 99"},
 		{name: "duplicate key", content: "[updates]\ncheck = true\ncheck = false\n", want: `duplicate key "updates.check"`},
 		{name: "unknown table", content: "[provider]\n", want: `unknown configuration table "provider"`},
