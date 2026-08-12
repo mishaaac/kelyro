@@ -6,8 +6,9 @@ and reproducible build date. `SHA256SUMS` detects accidental corruption; it is
 not a cryptographic signature or proof of publisher identity.
 
 Release-specific scope and limitations are recorded under [`docs/releases/`](releases/).
-The first Foundation pre-release is
-[`v0.1.0-alpha.1`](releases/v0.1.0-alpha.1.md).
+The current Foundation pre-release is
+[`v0.1.0-alpha.2`](releases/v0.1.0-alpha.2.md); the initial Foundation release
+remains documented as [`v0.1.0-alpha.1`](releases/v0.1.0-alpha.1.md).
 
 ## Manual installation
 

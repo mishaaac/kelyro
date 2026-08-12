@@ -4,7 +4,7 @@
 
 Current step: none (I-01 complete)
 Last completed step: 25
-Current release: v0.1.0-alpha.1
+Current release: v0.1.0-alpha.2
 
 ## Registro
 
@@ -755,7 +755,7 @@ I-02 Student & Learning Core
 Status: completed
 Date: 2026-08-12
 Commit: `fix(update): handle development builds without SemVer metadata`
-Release: unreleased
+Release: v0.1.0-alpha.2
 
 ### Finding
 - Los builds locales usan `dev` por defecto, pero `update check` intentaba parsearlo siempre como SemVer y terminaba con `malformed semantic version` antes de aplicar el flujo offline.
@@ -773,4 +773,4 @@ Release: unreleased
 - `git diff --check`
 
 ### Release note
-- La corrección permanece `unreleased`; `v0.1.0-alpha.2` es únicamente el próximo candidato y no se creó tag ni release.
+- La corrección se distribuye como prerelease `v0.1.0-alpha.2`; `v0.1.0-alpha.1` permanece intacta como la release inicial de Foundation.
