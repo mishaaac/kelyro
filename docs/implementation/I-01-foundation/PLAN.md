@@ -8,7 +8,7 @@
 
 ## Paso 0 — Establecer el protocolo de trabajo SDD y la memoria persistente del repositorio
 
-- [ ] Paso 0 completado
+- [x] Paso 0 completado
 
 ### Objetivo
 
@@ -2230,7 +2230,7 @@ El tag se crea después sobre el commit correcto.
 
 ## Protocolo y repositorio
 
-- [ ] Paso 0 — Protocolo SDD y memoria persistente del repositorio
+- [x] Paso 0 — Protocolo SDD y memoria persistente del repositorio
 - [ ] Paso 1 — Bootstrap Go e identidad del proyecto
 - [ ] Paso 2 — Arquitectura y contratos Foundation
 - [ ] Paso 3 — CLI base
