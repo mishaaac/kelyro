@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 17
+Last completed step: 18
 Current release: unreleased
 
 ## Registro
@@ -511,3 +511,31 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 18 no se ha iniciado y requiere autorización explícita.
+
+## Step 18 — Export e import portables
+
+Status: completed
+Date: 2026-08-12
+Commit: 0f2236b
+Release: unreleased
+
+### Delivered
+- Exports `tar.gz` humanos de Markdown visible y exports full con estado machine-owned allowlisted, manifest versionado y SHA-256.
+- Import validado completamente en staging, dry-run, políticas `fail`/`keep`/`overwrite`, rollback y auditoría `import.completed`.
+- Protección multiplataforma contra traversal, separadores extranjeros, paths reservados, colisiones de case y symlinks, sin secrets ni datos descartables.
+
+### Decisions
+- El modo human selecciona Markdown visible; el modo full añade solamente base SQLite, configuración de proyecto, identidad y state.
+- `fail` es la estrategia de conflictos por defecto; solo `overwrite` constituye autorización explícita para reemplazar contenido diferente.
+- El formato usa `tar.gz` de la biblioteca estándar y paths POSIX relativos; no se añadieron dependencias externas.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step18-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step18-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step18-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step18 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba CLI real de export human/full, dry-run, import full y auditoría en rutas con espacios.
+- `go mod tidy`, `go mod verify`, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 19 no se ha iniciado y requiere autorización explícita.

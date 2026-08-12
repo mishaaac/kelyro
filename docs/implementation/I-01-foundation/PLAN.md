@@ -1581,7 +1581,7 @@ feat(backup): add safe workspace backup and restore
 
 ## Paso 18 — Implementar export e import portables
 
-- [ ] Paso 18 completado
+- [x] Paso 18 completado
 
 ### Objetivo
 
