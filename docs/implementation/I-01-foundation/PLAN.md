@@ -853,7 +853,7 @@ feat(security): add cross-platform secret storage abstraction
 
 ## Paso 8 — Implementar SQLite, repositorios internos y sistema de migraciones
 
-- [ ] Paso 8 completado
+- [x] Paso 8 completado
 
 ### Objetivo
 

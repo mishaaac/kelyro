@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 7
+Last completed step: 8
 Current release: unreleased
 
 ## Registro
@@ -221,3 +221,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 8 no se ha iniciado y requiere autorización explícita.
+
+## Step 08 — SQLite, repositorios internos y migraciones
+
+Status: completed
+Date: 2026-08-12
+Commit: ab46653
+Release: unreleased
+
+### Delivered
+- Base `.kelyro/learning.db` con apertura/cierre explícitos, timeouts, foreign keys, chequeo de integridad y schema Foundation versionado.
+- Runner incremental transaccional con checksums, rollback seguro, diagnóstico de migration y bloqueo de cambios destructivos sin backup.
+- Repositorios neutrales para metadata, estado, índice de artifacts y auditoría, incluyendo unidad de trabajo transaccional.
+
+### Decisions
+- `modernc.org/sqlite v1.45.0` es el único módulo directo: provee SQLite sin CGO y conserva Go 1.24.
+- La migration inicial solo crea tablas Foundation; los modelos educativos continúan fuera de alcance.
+- El backup concreto queda para el Paso 17; hasta entonces una migration destructiva falla si no recibe y completa un callback de backup.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step8-gocache GOMODCACHE=/tmp/kelyro-step8-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step8-race-gocache GOMODCACHE=/tmp/kelyro-step8-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step8-vet-gocache GOMODCACHE=/tmp/kelyro-step8-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step8-build-gocache GOMODCACHE=/tmp/kelyro-step8-modcache go build -o /tmp/kelyro-step8 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` with `CGO_ENABLED=0` using `go test -exec=/bin/true ./...`.
+- `go mod verify`
+- `git diff --check`
+
+### Notes for next session
+- El Paso 9 no se ha iniciado y requiere autorización explícita.
