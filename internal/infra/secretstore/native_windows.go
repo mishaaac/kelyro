@@ -55,19 +55,18 @@ func (windowsCredentialManager) Get(name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode credential target: %w", err)
 	}
-	var pointer uintptr
+	var credential *windowsCredential
 	result, _, callErr := procCredRead.Call(
 		uintptr(unsafe.Pointer(target)),
 		credentialTypeGeneric,
 		0,
-		uintptr(unsafe.Pointer(&pointer)),
+		uintptr(unsafe.Pointer(&credential)),
 	)
 	if result == 0 {
 		return "", windowsCredentialError("read", callErr)
 	}
-	defer procCredFree.Call(pointer)
-	credential := (*windowsCredential)(unsafe.Pointer(pointer))
-	if credential.CredentialBlobSize == 0 || credential.CredentialBlob == nil {
+	defer procCredFree.Call(uintptr(unsafe.Pointer(credential)))
+	if credential == nil || credential.CredentialBlobSize == 0 || credential.CredentialBlob == nil {
 		return "", storage.ErrSecretNotFound
 	}
 	value := unsafe.Slice(credential.CredentialBlob, int(credential.CredentialBlobSize))
