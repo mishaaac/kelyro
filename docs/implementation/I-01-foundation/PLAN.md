@@ -1523,7 +1523,7 @@ feat(observability): add structured logging and audit trail
 
 ## Paso 17 — Implementar backups y recovery antes de operaciones riesgosas
 
-- [ ] Paso 17 completado
+- [x] Paso 17 completado
 
 ### Objetivo
 

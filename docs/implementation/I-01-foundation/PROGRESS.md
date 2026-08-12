@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 16
+Last completed step: 17
 Current release: unreleased
 
 ## Registro
@@ -483,3 +483,31 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 17 no se ha iniciado y requiere autorización explícita.
+
+## Step 17 — Backups y recovery seguro
+
+Status: completed
+Date: 2026-08-12
+Commit: 1347331
+Release: unreleased
+
+### Delivered
+- Backups atómicos de SQLite, configuración de proyecto, metadata y estado, con manifest versionado, hashes SHA-256 y validación SQLite read-only.
+- CLI `backup create`, `list` y `restore`, confirmación destructiva, retención configurable y auditoría de create/restore.
+- Restore completo desde staging con verificación previa, identidad de workspace y rollback de originales ante fallos de commit.
+
+### Decisions
+- El allowlist excluye secrets, caches, logs, backups anidados y archivos internos no reconocidos; el artifact index viaja dentro de `learning.db`.
+- `backup.retention` acepta de 1 a 100 copias, usa cinco por defecto y puede configurarse globalmente o por proyecto.
+- Todos los entry points SQLite de producción reciben el callback que crea un backup antes de una migration marcada como destructiva.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step17-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step17-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step17-build-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step17 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba CLI real de create/list/restore en un workspace con espacios y comprobación de restauración de configuración.
+- `go mod tidy`, `go mod verify`, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 18 no se ha iniciado y requiere autorización explícita.
