@@ -929,7 +929,7 @@ feat(storage): add SQLite persistence and migration engine
 
 ## Paso 9 — Implementar ownership de archivos, integridad y sandbox del workspace
 
-- [ ] Paso 9 completado
+- [x] Paso 9 completado
 
 ### Objetivo
 

@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 8
+Last completed step: 9
 Current release: unreleased
 
 ## Registro
@@ -250,3 +250,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 9 no se ha iniciado y requiere autorización explícita.
+
+## Step 09 — Ownership, integridad y sandbox del workspace
+
+Status: completed
+Date: 2026-08-12
+Commit: 4d7cdc4
+Release: unreleased
+
+### Delivered
+- Clasificación obligatoria y artifact index con creador, SHA-256, tiempos de generación y versión esperada persistidos mediante una migration incremental.
+- Escritura atómica multiplataforma que protege contenido student-owned, no indexado o modificado externamente sin sobrescribirlo.
+- Sandbox de rutas relativas con bloqueo de traversal, rutas absolutas y escapes por symlink.
+
+### Decisions
+- Un artifact human-readable existente sin índice requiere una decisión explícita; un hash divergente devuelve conflicto y conserva tanto archivo como metadata.
+- Las rutas del índice se guardan normalizadas con separadores portables y los archivos machine-owned se limitan a `.kelyro/`.
+- No se añadieron dependencias externas ni se generaron todavía los Markdown o ejercicios reservados para pasos posteriores.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step9-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step9-race-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step9-vet-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step9-build-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step9 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` with `CGO_ENABLED=0` using `go test -exec=/bin/true ./...`.
+- `go mod verify`
+- `git diff --check`
+
+### Notes for next session
+- El Paso 10 no se ha iniciado y requiere autorización explícita.
