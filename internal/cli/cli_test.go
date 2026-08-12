@@ -24,6 +24,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "init", args: []string{"init"}, wantAction: app.ActionInit},
 		{name: "doctor", args: []string{"doctor"}, wantAction: app.ActionDoctor},
 		{name: "config", args: []string{"config"}, wantAction: app.ActionConfig},
+		{name: "secrets", args: []string{"secrets", "status"}, wantAction: app.ActionSecrets},
 		{name: "status", args: []string{"status"}, wantAction: app.ActionStatus},
 		{name: "open", args: []string{"open"}, wantAction: app.ActionOpen},
 	}
@@ -138,6 +139,61 @@ func TestRunnerParsesConfigCommandsScopesAndOverrides(t *testing.T) {
 	}
 }
 
+func TestRunnerParsesAndDispatchesSecretCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		args          []string
+		wantOperation string
+		wantName      string
+	}{
+		{name: "status", args: []string{"secrets", "status"}, wantOperation: "status"},
+		{name: "delete", args: []string{"secrets", "delete", "openai"}, wantOperation: "delete", wantName: "openai"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			service := &fakeService{}
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			runner := NewRunner(service, &stdout, &stderr)
+			if exitCode := runner.Run(context.Background(), test.args); exitCode != ExitOK {
+				t.Fatalf("Run() exit code = %d; stderr = %q", exitCode, stderr.String())
+			}
+			command := service.commands[0]
+			if command.SecretOperation != test.wantOperation || command.SecretName != test.wantName {
+				t.Fatalf("secret command = %#v", command)
+			}
+		})
+	}
+}
+
+func TestRunnerReadsSecretOutsideArgumentsAndOutput(t *testing.T) {
+	t.Parallel()
+
+	secret := "sensitive-manual-input"
+	service := &fakeService{result: app.Result{Message: "configured"}}
+	reader := &fakeSecretReader{value: secret}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr).WithSecretReader(reader)
+
+	if exitCode := runner.Run(context.Background(), []string{"secrets", "set", "openai"}); exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d; stderr = %q", exitCode, stderr.String())
+	}
+	if reader.prompt != "Secret value: " {
+		t.Fatalf("secret prompt = %q", reader.prompt)
+	}
+	if len(service.commands) != 1 || service.commands[0].SecretValue != secret || service.commands[0].SecretName != "openai" {
+		t.Fatalf("commands = %#v", service.commands)
+	}
+	if strings.Contains(stdout.String(), secret) || strings.Contains(stderr.String(), secret) {
+		t.Fatal("CLI output exposed secret")
+	}
+}
+
 func TestRunnerHelp(t *testing.T) {
 	t.Parallel()
 
@@ -210,6 +266,10 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "get missing key", args: []string{"config", "get"}, message: "config get requires exactly one key"},
 		{name: "set missing value", args: []string{"config", "set", "ui.color"}, message: "config set requires a key and value"},
 		{name: "show extra argument", args: []string{"config", "show", "extra"}, message: "config show does not accept arguments"},
+		{name: "secrets missing operation", args: []string{"secrets"}, message: "secrets requires status, set, or delete"},
+		{name: "unknown secrets operation", args: []string{"secrets", "get", "openai"}, message: `unknown secrets command "get"`},
+		{name: "secrets status extra", args: []string{"secrets", "status", "openai"}, message: "secrets status does not accept arguments"},
+		{name: "secrets set missing name", args: []string{"secrets", "set"}, message: "secrets set requires exactly one name"},
 	}
 
 	for _, test := range tests {
@@ -282,6 +342,17 @@ type fakeService struct {
 	commands []app.Command
 	result   app.Result
 	err      error
+}
+
+type fakeSecretReader struct {
+	value  string
+	err    error
+	prompt string
+}
+
+func (reader *fakeSecretReader) ReadSecret(prompt string) (string, error) {
+	reader.prompt = prompt
+	return reader.value, reader.err
 }
 
 func (service *fakeService) Execute(_ context.Context, command app.Command) (app.Result, error) {

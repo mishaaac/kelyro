@@ -32,6 +32,7 @@ Commands:
   init     Initialize a workspace
   doctor   Run Foundation diagnostics (placeholder)
   config   Show or update layered configuration
+  secrets  Manage secure credential references
   status   Show workspace status (placeholder)
   open     Open the workspace (placeholder)
 
@@ -51,14 +52,20 @@ Config commands:
   kelyro config path
   kelyro config get <key>
   kelyro config set <key> <value>
+
+Secret commands:
+  kelyro secrets status
+  kelyro secrets set <name>
+  kelyro secrets delete <name>
 `
 
 var actions = map[string]app.Action{
-	"init":   app.ActionInit,
-	"doctor": app.ActionDoctor,
-	"config": app.ActionConfig,
-	"status": app.ActionStatus,
-	"open":   app.ActionOpen,
+	"init":    app.ActionInit,
+	"doctor":  app.ActionDoctor,
+	"config":  app.ActionConfig,
+	"secrets": app.ActionSecrets,
+	"status":  app.ActionStatus,
+	"open":    app.ActionOpen,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -67,11 +74,19 @@ type Runner struct {
 	service app.FoundationService
 	stdout  io.Writer
 	stderr  io.Writer
+	secrets SecretReader
 }
 
 // NewRunner creates a testable CLI runner with explicit dependencies.
 func NewRunner(service app.FoundationService, stdout, stderr io.Writer) Runner {
 	return Runner{service: service, stdout: stdout, stderr: stderr}
+}
+
+// WithSecretReader attaches the terminal adapter used to collect secret values
+// without placing them in process arguments or normal command output.
+func (r Runner) WithSecretReader(reader SecretReader) Runner {
+	r.secrets = reader
+	return r
 }
 
 // Run parses args, renders immediate CLI output, or dispatches one Foundation
@@ -121,6 +136,21 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		command.ConfigKey = invocation.configKey
 		command.ConfigValue = invocation.configValue
 	}
+	if action == app.ActionSecrets {
+		command.SecretOperation = invocation.secretOperation
+		command.SecretName = invocation.secretName
+		if command.SecretOperation == "set" {
+			if r.secrets == nil {
+				fmt.Fprintln(r.stderr, "kelyro secrets: secure terminal input is unavailable")
+				return ExitFailure
+			}
+			command.SecretValue, err = r.secrets.ReadSecret("Secret value: ")
+			if err != nil {
+				fmt.Fprintf(r.stderr, "kelyro secrets: read secret: %v\n", err)
+				return ExitFailure
+			}
+		}
+	}
 
 	result, err := r.service.Execute(ctx, command)
 	if err != nil {
@@ -148,6 +178,8 @@ type invocation struct {
 	configOperation string
 	configKey       string
 	configValue     string
+	secretOperation string
+	secretName      string
 }
 
 func parse(args []string) (invocation, error) {
@@ -229,6 +261,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseConfigArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "secrets":
+		if err := parseSecretArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -236,6 +272,27 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseSecretArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		return fmt.Errorf("secrets requires status, set, or delete")
+	}
+	result.secretOperation = result.arguments[0]
+	switch result.secretOperation {
+	case "status":
+		if len(result.arguments) != 1 {
+			return fmt.Errorf("secrets status does not accept arguments")
+		}
+	case "set", "delete":
+		if len(result.arguments) != 2 {
+			return fmt.Errorf("secrets %s requires exactly one name", result.secretOperation)
+		}
+		result.secretName = result.arguments[1]
+	default:
+		return fmt.Errorf("unknown secrets command %q", result.secretOperation)
+	}
+	return nil
 }
 
 func parseConfigArguments(result *invocation) error {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -16,12 +17,13 @@ import (
 type Action string
 
 const (
-	ActionTUI    Action = "tui"
-	ActionInit   Action = "init"
-	ActionDoctor Action = "doctor"
-	ActionConfig Action = "config"
-	ActionStatus Action = "status"
-	ActionOpen   Action = "open"
+	ActionTUI     Action = "tui"
+	ActionInit    Action = "init"
+	ActionDoctor  Action = "doctor"
+	ActionConfig  Action = "config"
+	ActionSecrets Action = "secrets"
+	ActionStatus  Action = "status"
+	ActionOpen    Action = "open"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -34,6 +36,9 @@ type Command struct {
 	ConfigKey       string
 	ConfigValue     string
 	ConfigOverrides config.Settings
+	SecretOperation string
+	SecretName      string
+	SecretValue     string
 }
 
 // Result contains presentation-independent output from a Foundation action.
@@ -51,6 +56,7 @@ type FoundationService interface {
 type Service struct {
 	workspaces       workspace.Service
 	configs          config.Store
+	secrets          storage.SecretStore
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -69,6 +75,13 @@ func (service *Service) WithConfig(configs config.Store) *Service {
 	return service
 }
 
+// WithSecrets attaches replaceable secret storage without exposing its native
+// backend to application policy.
+func (service *Service) WithSecrets(secrets storage.SecretStore) *Service {
+	service.secrets = secrets
+	return service
+}
+
 // Execute initializes workspaces and delegates future actions to placeholders.
 func (service *Service) Execute(ctx context.Context, command Command) (Result, error) {
 	if err := ctx.Err(); err != nil {
@@ -76,6 +89,9 @@ func (service *Service) Execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionConfig {
 		return service.executeConfig(command)
+	}
+	if command.Action == ActionSecrets {
+		return service.executeSecrets(command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)
@@ -122,13 +138,56 @@ func (service *Service) executeConfig(command Command) (Result, error) {
 			}
 			return Result{Message: value.String()}, nil
 		}
-		return Result{Message: formatSettings(settings)}, nil
+		message := formatSettings(settings)
+		if service.secrets != nil {
+			statuses, err := service.secrets.Status()
+			if err != nil {
+				return Result{}, err
+			}
+			if rendered := formatSecretStatuses(statuses); rendered != "" {
+				message += "\n" + rendered
+			}
+		}
+		return Result{Message: message}, nil
 	case "path":
 		return service.configPaths(command)
 	case "set":
 		return service.setConfig(command)
 	default:
 		return Result{}, fmt.Errorf("unsupported config operation %q", command.ConfigOperation)
+	}
+}
+
+func (service *Service) executeSecrets(command Command) (Result, error) {
+	if service.secrets == nil {
+		return Result{}, fmt.Errorf("secret store is unavailable")
+	}
+
+	switch command.SecretOperation {
+	case "status":
+		statuses, err := service.secrets.Status()
+		if err != nil {
+			return Result{}, err
+		}
+		message := formatSecretStatuses(statuses)
+		if err := service.secrets.Availability(); err != nil {
+			message += "\nkeychain: unavailable (" + err.Error() + ")"
+		} else {
+			message += "\nkeychain: available"
+		}
+		return Result{Message: message}, nil
+	case "set":
+		if err := service.secrets.Set(command.SecretName, command.SecretValue); err != nil {
+			return Result{}, errors.New(storage.Redact(err.Error(), command.SecretValue))
+		}
+		return Result{Message: fmt.Sprintf("Secret %q configured in the OS keychain (reference: %s)", command.SecretName, command.SecretName)}, nil
+	case "delete":
+		if err := service.secrets.Delete(command.SecretName); err != nil {
+			return Result{}, err
+		}
+		return Result{Message: fmt.Sprintf("Secret %q deleted from the OS keychain; environment variables are unchanged", command.SecretName)}, nil
+	default:
+		return Result{}, fmt.Errorf("unsupported secrets operation %q", command.SecretOperation)
 	}
 }
 
@@ -267,6 +326,22 @@ func formatSettings(settings config.Settings) string {
 			rendered = strconv.Quote(text)
 		}
 		lines = append(lines, fmt.Sprintf("%s = %s", key, rendered))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSecretStatuses(statuses []storage.SecretStatus) string {
+	lines := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		state := "not configured"
+		if status.Configured {
+			state = "configured"
+		}
+		label := "secret." + status.Name
+		if status.Name == "<name>" {
+			label = "secret"
+		}
+		lines = append(lines, fmt.Sprintf("%s = %s (reference: %s)", label, state, status.Reference))
 	}
 	return strings.Join(lines, "\n")
 }

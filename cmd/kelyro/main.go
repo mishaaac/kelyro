@@ -7,13 +7,17 @@ import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/cli"
 	"github.com/mishaaac/kelyro/internal/infra/configfs"
+	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
 func main() {
 	workspaces := workspacefs.New(version.Version)
-	service := app.NewService(workspaces, os.Getwd).WithConfig(configfs.New())
-	runner := cli.NewRunner(service, os.Stdout, os.Stderr)
+	service := app.NewService(workspaces, os.Getwd).
+		WithConfig(configfs.New()).
+		WithSecrets(secretstore.New())
+	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
+		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr))
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

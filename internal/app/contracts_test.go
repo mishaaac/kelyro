@@ -62,9 +62,11 @@ func (fakeStateStore) Delete(string, string) error              { return nil }
 
 type fakeSecretStore struct{}
 
-func (fakeSecretStore) Get(string) (string, error) { return "", nil }
-func (fakeSecretStore) Set(string, string) error   { return nil }
-func (fakeSecretStore) Delete(string) error        { return nil }
+func (fakeSecretStore) Get(string) (string, error)              { return "", nil }
+func (fakeSecretStore) Set(string, string) error                { return nil }
+func (fakeSecretStore) Delete(string) error                     { return nil }
+func (fakeSecretStore) Status() ([]storage.SecretStatus, error) { return nil, nil }
+func (fakeSecretStore) Availability() error                     { return nil }
 
 type fakeAuditRecorder struct{}
 

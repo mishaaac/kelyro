@@ -2,14 +2,15 @@
 
 Kelyro is a local-first, cross-platform learning workspace. This repository is
 currently in its foundation phase: it provides the executable, local workspace
-lifecycle, and layered configuration needed to build the product incrementally.
+lifecycle, layered configuration, and secure secret references needed to build
+the product incrementally.
 
 ## Status
 
 Early pre-release (`v0.1.0-alpha.1` development line). The current executable
-provides workspace initialization and global/project configuration commands;
-other Foundation commands remain explicit placeholders. It does not include an
-interactive TUI or learning features yet.
+provides workspace initialization, global/project configuration, and secret
+management commands; other Foundation commands remain explicit placeholders.
+It does not include an interactive TUI or learning features yet.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
 
@@ -37,6 +38,16 @@ Configuration is available through `kelyro config show`, `path`, `get`, and
 `set`. Use `--global` or `--project` to choose a scope explicitly. Kelyro stores
 ordinary settings only; API keys and other secrets do not belong in these TOML
 files.
+
+Secrets are managed with `kelyro secrets status`, `set <name>`, and
+`delete <name>`. Manual values are read without terminal echo and are stored in
+the operating-system credential service: Secret Service/libsecret on Linux,
+Keychain on macOS, or Credential Manager on Windows. Linux requires
+`secret-tool` and an active Secret Service session. In headless environments,
+set `KELYRO_SECRET_<NAME>` instead; for example, the name `provider.token` maps
+to `KELYRO_SECRET_PROVIDER_TOKEN`. Environment variables take precedence and
+are never copied into Kelyro files. Status and configuration output show only
+`configured` or `not configured` plus the reference name.
 
 Build metadata can be injected without changing source code:
 

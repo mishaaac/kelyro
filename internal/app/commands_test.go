@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -202,6 +203,86 @@ func TestServiceConfigPathDistinguishesScopes(t *testing.T) {
 	}
 }
 
+func TestServiceShowsSecretStateWithoutValuesInConfig(t *testing.T) {
+	t.Parallel()
+
+	secret := "must-never-appear-in-config-output"
+	secrets := &recordingSecretStore{
+		statuses: []storage.SecretStatus{{Name: "openai", Reference: "KELYRO_SECRET_OPENAI", Configured: true}},
+		values:   map[string]string{"openai": secret},
+	}
+	service := NewService(&recordingWorkspaceService{}, func() (string, error) { return "/outside", nil }).
+		WithConfig(&recordingConfigStore{}).
+		WithSecrets(secrets)
+
+	result, err := service.Execute(context.Background(), Command{Action: ActionConfig, ConfigOperation: "show"})
+	if err != nil {
+		t.Fatalf("Execute(config show) error = %v", err)
+	}
+	if !strings.Contains(result.Message, "secret.openai = configured (reference: KELYRO_SECRET_OPENAI)") {
+		t.Fatalf("config show output = %q", result.Message)
+	}
+	if strings.Contains(result.Message, secret) {
+		t.Fatal("config show exposed secret value")
+	}
+}
+
+func TestServiceExecutesSecretCommandsWithoutRenderingValues(t *testing.T) {
+	t.Parallel()
+
+	secret := "manual-sensitive-value"
+	secrets := &recordingSecretStore{
+		statuses: []storage.SecretStatus{{Name: "provider", Reference: "keychain:kelyro/provider", Configured: true}},
+		values:   make(map[string]string),
+	}
+	service := NewService(nil, nil).WithSecrets(secrets)
+
+	setResult, err := service.Execute(context.Background(), Command{
+		Action:          ActionSecrets,
+		SecretOperation: "set",
+		SecretName:      "provider",
+		SecretValue:     secret,
+	})
+	if err != nil {
+		t.Fatalf("Execute(secrets set) error = %v", err)
+	}
+	if secrets.values["provider"] != secret {
+		t.Fatal("secret store did not receive the supplied value")
+	}
+	if strings.Contains(setResult.Message, secret) {
+		t.Fatal("set result exposed secret value")
+	}
+
+	statusResult, err := service.Execute(context.Background(), Command{Action: ActionSecrets, SecretOperation: "status"})
+	if err != nil {
+		t.Fatalf("Execute(secrets status) error = %v", err)
+	}
+	if !strings.Contains(statusResult.Message, "configured") || strings.Contains(statusResult.Message, secret) {
+		t.Fatalf("status result = %q", statusResult.Message)
+	}
+
+	if _, err := service.Execute(context.Background(), Command{Action: ActionSecrets, SecretOperation: "delete", SecretName: "provider"}); err != nil {
+		t.Fatalf("Execute(secrets delete) error = %v", err)
+	}
+	if _, found := secrets.values["provider"]; found {
+		t.Fatal("delete left secret in fake store")
+	}
+}
+
+func TestServiceRedactsSecretStoreErrors(t *testing.T) {
+	t.Parallel()
+
+	secret := "backend-echoed-secret"
+	secrets := &recordingSecretStore{setErr: errors.New("backend rejected " + secret)}
+	service := NewService(nil, nil).WithSecrets(secrets)
+	_, err := service.Execute(context.Background(), Command{
+		Action: ActionSecrets, SecretOperation: "set", SecretName: "provider", SecretValue: secret,
+	})
+	if err == nil || strings.Contains(err.Error(), secret) || !strings.Contains(err.Error(), "[REDACTED]") {
+		t.Fatalf("Execute(secrets set) error = %v", err)
+	}
+}
+
 func TestBootstrapServiceRejectsUnknownAction(t *testing.T) {
 	t.Parallel()
 
@@ -262,6 +343,43 @@ type recordingConfigStore struct {
 	setProjectKey   string
 	setProjectValue config.Value
 }
+
+type recordingSecretStore struct {
+	values       map[string]string
+	statuses     []storage.SecretStatus
+	availability error
+	setErr       error
+}
+
+func (store *recordingSecretStore) Get(name string) (string, error) {
+	value, found := store.values[name]
+	if !found {
+		return "", storage.ErrSecretNotFound
+	}
+	return value, nil
+}
+
+func (store *recordingSecretStore) Set(name, value string) error {
+	if store.setErr != nil {
+		return store.setErr
+	}
+	if store.values == nil {
+		store.values = make(map[string]string)
+	}
+	store.values[name] = value
+	return nil
+}
+
+func (store *recordingSecretStore) Delete(name string) error {
+	delete(store.values, name)
+	return nil
+}
+
+func (store *recordingSecretStore) Status() ([]storage.SecretStatus, error) {
+	return store.statuses, nil
+}
+
+func (store *recordingSecretStore) Availability() error { return store.availability }
 
 func (store *recordingConfigStore) GlobalPath() (string, error) {
 	return store.globalPath, nil

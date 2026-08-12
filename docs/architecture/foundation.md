@@ -48,6 +48,7 @@ or infrastructure adapters merely to perform work.
 | `internal/config` | Format-independent schema, validation, precedence, and global/project persistence contract. |
 | `internal/infra/configfs` | Strict TOML and atomic filesystem adapter for configuration. |
 | `internal/storage` | Opaque state and secret persistence contracts. |
+| `internal/infra/secretstore` | Environment and native OS-keychain adapters for secret references. |
 | `internal/artifacts` | Ownership classification for generated and human-authored files. |
 | `internal/audit` | Boundary for recording critical actions, without an event bus. |
 | `internal/editor` | Future editor integration adapters. |
@@ -200,6 +201,38 @@ global configuration outside a workspace. The schema exposes metadata for a
 future common-settings wizard, while advanced editing remains available through
 the paths reported by `config path`. Configuration files never accept API keys
 or other secrets.
+
+### Secure secret storage
+
+`storage.SecretStore` is the only secret-value boundary visible to application
+code. It supports named reads, writes, deletion, reference-only status, and a
+backend availability check. The contract exposes `ErrSecretNotFound` and
+`ErrSecretStoreUnavailable` without revealing native credential APIs. A fake or
+another future adapter can replace the production store without changing the
+core.
+
+The production adapter resolves `KELYRO_SECRET_<NAME>` first, normalizing dots
+and hyphens to underscores, then uses the native credential service. Linux uses
+the Secret Service through `secret-tool`, macOS uses Keychain through
+`security`, and Windows calls Credential Manager directly. A small sorted index
+of reference names is stored inside the same keychain so status can enumerate
+entries; the index contains no values. No credential data or index is written
+under `.kelyro`, into global or project TOML, or into a repository file.
+
+`kelyro secrets set <name>` obtains the value through the CLI's terminal-input
+adapter with echo disabled. The value is not accepted as an argument. Status,
+success messages, and `config show` render only `configured`,
+`not configured`, and a reference such as `KELYRO_SECRET_PROVIDER_TOKEN` or
+`keychain:kelyro/provider.token`. Backend errors are actionable and values are
+redacted defensively before they cross into CLI output.
+
+When a native service is absent or inaccessible, the adapter remains usable for
+environment-backed reads and reports the exact `KELYRO_SECRET_*` alternative.
+Environment values take precedence and are not copied into native storage.
+Deletion affects the keychain only and explicitly leaves environment variables
+unchanged. Logs, audit events, backups, and exports have no secret-value path;
+future implementations of those reserved packages may carry reference names or
+configuration state only, never the result of `SecretStore.Get`.
 
 ## Why UI and persistence stay outside the core
 
