@@ -38,6 +38,7 @@ Commands:
   config   Show or update layered configuration
   secrets  Manage secure credential references
   status   Show workspace status (placeholder)
+  roadmap  Show the local roadmap file location
   open     Open LEARNING.md or the roadmap in an editor
   logs     Inspect workspace diagnostic log location
   audit    Show persistent workspace audit events
@@ -99,6 +100,7 @@ var actions = map[string]app.Action{
 	"config":  app.ActionConfig,
 	"secrets": app.ActionSecrets,
 	"status":  app.ActionStatus,
+	"roadmap": app.ActionRoadmap,
 	"open":    app.ActionOpen,
 	"logs":    app.ActionLogs,
 	"audit":   app.ActionAudit,

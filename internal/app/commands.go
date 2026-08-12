@@ -34,6 +34,7 @@ const (
 	ActionConfig  Action = "config"
 	ActionSecrets Action = "secrets"
 	ActionStatus  Action = "status"
+	ActionRoadmap Action = "roadmap"
 	ActionOpen    Action = "open"
 	ActionLogs    Action = "logs"
 	ActionAudit   Action = "audit"
@@ -191,6 +192,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	if command.Action == ActionOpen {
 		return service.executeOpen(ctx, command)
 	}
+	if command.Action == ActionRoadmap {
+		return service.executeRoadmap(command)
+	}
 	if command.Action == ActionDoctor {
 		return service.executeDoctor(ctx, command)
 	}
@@ -277,6 +281,18 @@ func (service *Service) executeOpen(ctx context.Context, command Command) (Resul
 		return Result{}, err
 	}
 	return Result{Message: fmt.Sprintf("Opened %s with %s", filepath.Base(target), selection.Name)}, nil
+}
+
+func (service *Service) executeRoadmap(command Command) (Result, error) {
+	found, err := service.discoverWorkspace(command)
+	if err != nil {
+		return Result{}, err
+	}
+	path, err := platform.WorkspaceRoadmapPath(found.Root)
+	if err != nil {
+		return Result{}, fmt.Errorf("resolve roadmap path: %w", err)
+	}
+	return Result{Message: path}, nil
 }
 
 func (service *Service) discoverWorkspace(command Command) (workspace.Workspace, error) {

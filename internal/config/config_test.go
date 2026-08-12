@@ -18,6 +18,12 @@ func TestDefaultsAreSafeAndIndependent(t *testing.T) {
 	if got := second[KeyAllowNetwork].String(); got != "false" {
 		t.Errorf("privacy.allow_network default = %q, want false", got)
 	}
+	if got := second[KeyAllowAIContent].String(); got != "false" {
+		t.Errorf("privacy.allow_ai_content default = %q, want false", got)
+	}
+	if got := second[KeyAllowTelemetry].String(); got != "false" {
+		t.Errorf("privacy.allow_usage_telemetry default = %q, want false", got)
+	}
 	if got := second[KeyEditorPrompt].String(); got != "true" {
 		t.Errorf("editor.prompt default = %q, want true", got)
 	}
@@ -54,6 +60,12 @@ func TestResolveUsesMostSpecificLayer(t *testing.T) {
 	}
 	if got := resolved[KeyAllowNetwork].String(); got != "false" {
 		t.Errorf("privacy.allow_network = %q, want default false", got)
+	}
+	if got := resolved[KeyAllowAIContent].String(); got != "false" {
+		t.Errorf("privacy.allow_ai_content = %q, want default false", got)
+	}
+	if got := resolved[KeyAllowTelemetry].String(); got != "false" {
+		t.Errorf("privacy.allow_usage_telemetry = %q, want default false", got)
 	}
 }
 

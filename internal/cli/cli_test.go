@@ -30,6 +30,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "config", args: []string{"config"}, wantAction: app.ActionConfig},
 		{name: "secrets", args: []string{"secrets", "status"}, wantAction: app.ActionSecrets},
 		{name: "status", args: []string{"status"}, wantAction: app.ActionStatus},
+		{name: "roadmap", args: []string{"roadmap"}, wantAction: app.ActionRoadmap},
 		{name: "open", args: []string{"open"}, wantAction: app.ActionOpen},
 		{name: "logs path", args: []string{"logs", "path"}, wantAction: app.ActionLogs},
 		{name: "audit", args: []string{"audit"}, wantAction: app.ActionAudit},

@@ -1,2 +1,2 @@
-// Package privacy is reserved for privacy inspection application services.
+// Package privacy defines Kelyro's local-first network authorization boundary.
 package privacy

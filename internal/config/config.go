@@ -17,6 +17,8 @@ const (
 	KeyEditorCommand    = "editor.command"
 	KeyEditorPrompt     = "editor.prompt"
 	KeyAllowNetwork     = "privacy.allow_network"
+	KeyAllowAIContent   = "privacy.allow_ai_content"
+	KeyAllowTelemetry   = "privacy.allow_usage_telemetry"
 	KeyUpdateCheck      = "updates.check"
 	KeyWorkspaceName    = "workspace.name"
 	KeyMasteryThreshold = "learning.mastery_threshold"
@@ -86,6 +88,8 @@ var definitions = map[string]Definition{
 	KeyEditorCommand:    {Kind: String, Common: true},
 	KeyEditorPrompt:     {Kind: Boolean, Common: true},
 	KeyAllowNetwork:     {Kind: Boolean, Common: true},
+	KeyAllowAIContent:   {Kind: Boolean, Common: true},
+	KeyAllowTelemetry:   {Kind: Boolean, Common: true},
 	KeyUpdateCheck:      {Kind: Boolean, Common: true},
 	KeyWorkspaceName:    {Kind: String, ProjectOnly: true, Common: true},
 	KeyMasteryThreshold: {Kind: Number, ProjectOnly: true, Common: true},
@@ -99,6 +103,8 @@ func Defaults() Settings {
 		KeyEditorCommand:    StringValue(""),
 		KeyEditorPrompt:     BoolValue(true),
 		KeyAllowNetwork:     BoolValue(false),
+		KeyAllowAIContent:   BoolValue(false),
+		KeyAllowTelemetry:   BoolValue(false),
 		KeyUpdateCheck:      BoolValue(true),
 		KeyWorkspaceName:    StringValue(""),
 		KeyMasteryThreshold: NumberValue(0.85),

@@ -16,10 +16,12 @@ func TestStoreSaveReloadAndProjectOverride(t *testing.T) {
 
 	store, globalPath, root := testStore(t)
 	global := config.Settings{
-		config.KeyUIColor:       config.StringValue("always"),
-		config.KeyAllowNetwork:  config.BoolValue(false),
-		config.KeyEditorCommand: config.StringValue("code"),
-		config.KeyEditorPrompt:  config.BoolValue(false),
+		config.KeyUIColor:        config.StringValue("always"),
+		config.KeyAllowNetwork:   config.BoolValue(false),
+		config.KeyAllowAIContent: config.BoolValue(false),
+		config.KeyAllowTelemetry: config.BoolValue(false),
+		config.KeyEditorCommand:  config.StringValue("code"),
+		config.KeyEditorPrompt:   config.BoolValue(false),
 	}
 	project := config.Settings{
 		config.KeyUIColor:          config.StringValue("never"),
@@ -59,7 +61,10 @@ func TestStoreSaveReloadAndProjectOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(global): %v", err)
 	}
-	for _, want := range []string{"schema_version = 1", "[ui]", `color = "always"`, "[privacy]", "allow_network = false"} {
+	for _, want := range []string{
+		"schema_version = 1", "[ui]", `color = "always"`, "[privacy]",
+		"allow_ai_content = false", "allow_network = false", "allow_usage_telemetry = false",
+	} {
 		if !bytes.Contains(encoded, []byte(want)) {
 			t.Errorf("global TOML does not contain %q:\n%s", want, encoded)
 		}

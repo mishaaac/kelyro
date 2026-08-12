@@ -80,6 +80,24 @@ func TestServiceOpensFoundationArtifactsWithResolvedEditor(t *testing.T) {
 	}
 }
 
+func TestServiceReportsLocalRoadmapPath(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(string(filepath.Separator), "workspace with spaces")
+	service := NewService(
+		&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}},
+		func() (string, error) { return filepath.Join(root, "lesson"), nil },
+	)
+
+	result, err := service.Execute(context.Background(), Command{Action: ActionRoadmap})
+	if err != nil {
+		t.Fatalf("Execute(roadmap) error = %v", err)
+	}
+	want := filepath.Join(root, "00-roadmap", "ROADMAP.md")
+	if result.Message != want {
+		t.Errorf("Execute(roadmap) = %q, want %q", result.Message, want)
+	}
+}
+
 func TestServiceOpenHonorsWorkspaceOverrideAndPropagatesFailures(t *testing.T) {
 	t.Parallel()
 

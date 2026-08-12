@@ -8,6 +8,7 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/logging"
+	"github.com/mishaaac/kelyro/internal/privacy"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -168,6 +169,8 @@ func errorCategory(err error) string {
 		return "canceled"
 	case errors.Is(err, workspace.ErrNotFound), errors.Is(err, workspace.ErrInvalid), errors.Is(err, workspace.ErrNested):
 		return "workspace"
+	case errors.Is(err, privacy.ErrNetworkBlocked):
+		return "privacy"
 	case strings.Contains(strings.ToLower(err.Error()), "config"):
 		return "configuration"
 	case strings.Contains(strings.ToLower(err.Error()), "database"), strings.Contains(strings.ToLower(err.Error()), "sqlite"):

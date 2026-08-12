@@ -66,7 +66,7 @@ or infrastructure adapters merely to perform work.
 | `internal/infra/logfs` | Bounded workspace-local JSONL logging with restrictive permissions and rotation. |
 | `internal/backup` | Neutral backup manifests, summaries, validation, and lifecycle contracts. |
 | `internal/infra/backupfs` | Atomic allowlisted workspace backups, retention, integrity validation, and rollback-safe restore. |
-| `internal/privacy` | Future privacy inspection services. |
+| `internal/privacy` | Local-first policy and deny-by-default network authorization contract. |
 | `internal/update` | Future update-check services. |
 | `internal/version` | Build metadata independent of Git at runtime. |
 
@@ -368,6 +368,41 @@ global configuration outside a workspace. The schema exposes metadata for a
 future common-settings wizard, while advanced editing remains available through
 the paths reported by `config path`. Configuration files never accept API keys
 or other secrets.
+
+### Local-first privacy and offline boundary
+
+Foundation persists its database, Markdown, configuration, logs, backups, and
+portable exports on the local machine. It performs no hidden HTTP requests and
+emits no automatic usage telemetry. The TUI, `status`, `roadmap`, `doctor`,
+`config`, `backup`, and `export` workflows operate without Internet access;
+Doctor's maintained documentation links are rendered as text and are not
+opened or fetched automatically.
+
+The resolved privacy policy is deny-by-default:
+
+```toml
+[privacy]
+allow_network = false
+allow_ai_content = false
+allow_usage_telemetry = false
+```
+
+`internal/privacy.NetworkGate` is the mandatory boundary for future external
+resources, update checks, plugins, and AI-provider integrations. General
+external access requires `allow_network`. Sending AI content or usage telemetry
+also requires its dedicated opt-in; enabling either dedicated setting without
+general network access does not bypass offline mode. The existing
+`updates.check` preference can express interest in checks, but it cannot bypass
+the privacy gate when update checks are implemented.
+
+Authorization requests and denial-specific metadata contain only a bounded
+stable operation identifier and a declared purpose. URLs, filesystem paths,
+student content, prompts, and credentials are deliberately absent, preventing
+accidental disclosure through the boundary. Denials are returned as typed
+errors and recorded best-effort in the workspace-local structured log with the
+operation, purpose, and `privacy` category. The ordinary local log record still
+identifies its workspace as described above. A logging failure never permits
+network access or replaces the denial.
 
 ### Secure secret storage
 

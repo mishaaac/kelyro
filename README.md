@@ -41,6 +41,22 @@ Configuration is available through `kelyro config show`, `path`, `get`, and
 ordinary settings only; API keys and other secrets do not belong in these TOML
 files.
 
+Kelyro is local-first and Foundation works offline. SQLite, Markdown,
+configuration, logs, backups, and exports stay on the local machine; there is
+no automatic telemetry or hidden HTTP request. Network use is opt-in through
+`privacy.allow_network`, which defaults to `false`. Future AI content transfer
+and usage telemetry additionally require `privacy.allow_ai_content` and
+`privacy.allow_usage_telemetry`, both also `false` by default. Every future
+network-capable component, including plugins and update checks, must use the
+same deny-by-default privacy gate.
+
+The TUI and the `status`, `roadmap`, `doctor`, `config`, `backup`, and `export`
+commands remain local. `kelyro roadmap` prints the location of the generated
+local `ROADMAP.md`; documentation links shown by Doctor are never fetched or
+opened automatically. Privacy denials are written to the workspace-local
+diagnostic log; their authorization metadata contains no URL, user path,
+student content, prompt, or secret.
+
 Secrets are managed with `kelyro secrets status`, `set <name>`, and
 `delete <name>`. Manual values are read without terminal echo and are stored in
 the operating-system credential service: Secret Service/libsecret on Linux,
