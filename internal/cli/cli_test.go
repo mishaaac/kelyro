@@ -2,40 +2,237 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mishaaac/kelyro/internal/app"
 )
 
-func TestRunHelp(t *testing.T) {
+func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 	t.Parallel()
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	tests := []struct {
+		name       string
+		args       []string
+		wantAction app.Action
+	}{
+		{name: "default TUI", wantAction: app.ActionTUI},
+		{name: "init", args: []string{"init"}, wantAction: app.ActionInit},
+		{name: "doctor", args: []string{"doctor"}, wantAction: app.ActionDoctor},
+		{name: "config", args: []string{"config"}, wantAction: app.ActionConfig},
+		{name: "status", args: []string{"status"}, wantAction: app.ActionStatus},
+		{name: "open", args: []string{"open"}, wantAction: app.ActionOpen},
+	}
 
-	if exitCode := Run([]string{"--help"}, &stdout, &stderr); exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0", exitCode)
-	}
-	if !strings.Contains(stdout.String(), "Usage:") {
-		t.Errorf("Run() output = %q, want usage information", stdout.String())
-	}
-	if stderr.Len() != 0 {
-		t.Errorf("Run() stderr = %q, want empty", stderr.String())
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &fakeService{result: app.Result{Message: "done"}}
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			runner := NewRunner(service, &stdout, &stderr)
+
+			if exitCode := runner.Run(context.Background(), test.args); exitCode != ExitOK {
+				t.Fatalf("Run() exit code = %d, want %d", exitCode, ExitOK)
+			}
+			if len(service.commands) != 1 {
+				t.Fatalf("service calls = %d, want 1", len(service.commands))
+			}
+			if got := service.commands[0].Action; got != test.wantAction {
+				t.Errorf("dispatched action = %q, want %q", got, test.wantAction)
+			}
+			if got, want := stdout.String(), "done\n"; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("stderr = %q, want empty", stderr.String())
+			}
+		})
 	}
 }
 
-func TestRunVersion(t *testing.T) {
+func TestRunnerPassesWorkspaceAndAcceptsReservedFlags(t *testing.T) {
+	t.Parallel()
+
+	workspacePath := filepath.Join("projects", "learning")
+	service := &fakeService{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr)
+
+	args := []string{"--no-color", "status", "--verbose", "--workspace", workspacePath}
+	if exitCode := runner.Run(context.Background(), args); exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d, want %d; stderr = %q", exitCode, ExitOK, stderr.String())
+	}
+	if len(service.commands) != 1 {
+		t.Fatalf("service calls = %d, want 1", len(service.commands))
+	}
+	if got := service.commands[0].Workspace; got != workspacePath {
+		t.Errorf("workspace = %q, want %q", got, workspacePath)
+	}
+}
+
+func TestRunnerHelp(t *testing.T) {
+	t.Parallel()
+
+	for _, args := range [][]string{{"help"}, {"--help"}, {"init", "--help"}} {
+		service := &fakeService{}
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		runner := NewRunner(service, &stdout, &stderr)
+
+		if exitCode := runner.Run(context.Background(), args); exitCode != ExitOK {
+			t.Fatalf("Run(%q) exit code = %d, want %d", args, exitCode, ExitOK)
+		}
+		for _, expected := range []string{"Usage:", "Commands:", "init", "doctor", "--no-color", "--workspace PATH"} {
+			if !strings.Contains(stdout.String(), expected) {
+				t.Errorf("Run(%q) output does not contain %q", args, expected)
+			}
+		}
+		if len(service.commands) != 0 {
+			t.Errorf("Run(%q) dispatched %d service calls, want 0", args, len(service.commands))
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("Run(%q) stderr = %q, want empty", args, stderr.String())
+		}
+	}
+}
+
+func TestRunnerVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, args := range [][]string{{"version"}, {"--version"}} {
+		service := &fakeService{}
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		runner := NewRunner(service, &stdout, &stderr)
+
+		if exitCode := runner.Run(context.Background(), args); exitCode != ExitOK {
+			t.Fatalf("Run(%q) exit code = %d, want %d", args, exitCode, ExitOK)
+		}
+		if got, want := stdout.String(), "kelyro dev (commit unknown, built unknown)\n"; got != want {
+			t.Errorf("Run(%q) output = %q, want %q", args, got, want)
+		}
+		if len(service.commands) != 0 {
+			t.Errorf("Run(%q) dispatched %d service calls, want 0", args, len(service.commands))
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("Run(%q) stderr = %q, want empty", args, stderr.String())
+		}
+	}
+}
+
+func TestRunnerRejectsInvalidArguments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		args    []string
+		message string
+	}{
+		{name: "unknown command", args: []string{"learn"}, message: `unknown command "learn"`},
+		{name: "unknown option", args: []string{"--json"}, message: `unknown option "--json"`},
+		{name: "missing workspace", args: []string{"--workspace"}, message: "option --workspace requires a path"},
+		{name: "empty workspace", args: []string{"--workspace="}, message: "option --workspace requires a path"},
+		{name: "extra argument", args: []string{"status", "extra"}, message: `unexpected argument "extra"`},
+		{name: "conflicting output modes", args: []string{"--verbose", "--quiet"}, message: "options --verbose and --quiet cannot be combined"},
+		{name: "version with command", args: []string{"init", "--version"}, message: "option --version cannot be combined with a command"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &fakeService{}
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			runner := NewRunner(service, &stdout, &stderr)
+
+			if exitCode := runner.Run(context.Background(), test.args); exitCode != ExitUsage {
+				t.Fatalf("Run() exit code = %d, want %d", exitCode, ExitUsage)
+			}
+			if stdout.Len() != 0 {
+				t.Errorf("stdout = %q, want empty", stdout.String())
+			}
+			if !strings.Contains(stderr.String(), "kelyro: "+test.message) {
+				t.Errorf("stderr = %q, want error containing %q", stderr.String(), test.message)
+			}
+			if !strings.Contains(stderr.String(), "Run 'kelyro help' for usage.") {
+				t.Errorf("stderr = %q, want usage hint", stderr.String())
+			}
+			if len(service.commands) != 0 {
+				t.Errorf("service calls = %d, want 0", len(service.commands))
+			}
+		})
+	}
+}
+
+func TestRunnerReturnsFailureForServiceError(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{err: errors.New("diagnostic failed")}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr)
+
+	if exitCode := runner.Run(context.Background(), []string{"doctor"}); exitCode != ExitFailure {
+		t.Fatalf("Run() exit code = %d, want %d", exitCode, ExitFailure)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want empty", stdout.String())
+	}
+	if got, want := stderr.String(), "kelyro doctor: diagnostic failed\n"; got != want {
+		t.Errorf("stderr = %q, want %q", got, want)
+	}
+}
+
+func TestRunnerQuietSuppressesSuccessfulOutput(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{result: app.Result{Message: "hidden"}}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr)
+
+	if exitCode := runner.Run(context.Background(), []string{"--quiet", "status"}); exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d, want %d", exitCode, ExitOK)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout = %q, want empty", stdout.String())
+	}
+	if len(service.commands) != 1 || service.commands[0].Action != app.ActionStatus {
+		t.Errorf("commands = %#v, want one status command", service.commands)
+	}
+}
+
+func TestRunUsesBootstrapService(t *testing.T) {
 	t.Parallel()
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if exitCode := Run([]string{"--version"}, &stdout, &stderr); exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0", exitCode)
+	if exitCode := Run([]string{"init"}, &stdout, &stderr); exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d, want %d", exitCode, ExitOK)
 	}
-	if got, want := stdout.String(), "kelyro dev (commit unknown, built unknown)\n"; got != want {
-		t.Errorf("Run() output = %q, want %q", got, want)
+	if !strings.Contains(stdout.String(), "not implemented yet") {
+		t.Errorf("stdout = %q, want explicit placeholder", stdout.String())
 	}
 	if stderr.Len() != 0 {
-		t.Errorf("Run() stderr = %q, want empty", stderr.String())
+		t.Errorf("stderr = %q, want empty", stderr.String())
 	}
+}
+
+type fakeService struct {
+	commands []app.Command
+	result   app.Result
+	err      error
+}
+
+func (service *fakeService) Execute(_ context.Context, command app.Command) (app.Result, error) {
+	service.commands = append(service.commands, command)
+	return service.result, service.err
 }

@@ -7,7 +7,8 @@ project conventions needed to build the product incrementally.
 ## Status
 
 Early pre-release (`v0.1.0-alpha.1` development line). The current executable
-exposes project help and build-version information; it does not include a TUI
+provides the Foundation command router and explicit placeholders for operations
+that will be implemented in later steps. It does not include an interactive TUI
 or learning features yet.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
@@ -28,6 +29,9 @@ go build ./cmd/kelyro
 
 Run the resulting binary with `./kelyro` on Linux or macOS, or
 `kelyro.exe` on Windows.
+
+Run `kelyro help` to list the available Foundation commands. Invoking `kelyro`
+without a command enters the current TUI bootstrap placeholder.
 
 Build metadata can be injected without changing source code:
 
