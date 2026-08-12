@@ -64,7 +64,8 @@ or infrastructure adapters merely to perform work.
 | `internal/infra/doctorsqlite` | SQLite health, migration-version, and artifact-index diagnostic adapter. |
 | `internal/logging` | Structured diagnostic levels, entries, redaction, and workspace logger contracts. |
 | `internal/infra/logfs` | Bounded workspace-local JSONL logging with restrictive permissions and rotation. |
-| `internal/backup` | Future backup and restore services. |
+| `internal/backup` | Neutral backup manifests, summaries, validation, and lifecycle contracts. |
+| `internal/infra/backupfs` | Atomic allowlisted workspace backups, retention, integrity validation, and rollback-safe restore. |
 | `internal/privacy` | Future privacy inspection services. |
 | `internal/update` | Future update-check services. |
 | `internal/version` | Build metadata independent of Git at runtime. |
@@ -419,8 +420,9 @@ The runner validates existing history, skips already applied versions, and
 applies each pending migration in its own transaction. Errors identify the
 migration and statement, and both DDL and its history record roll back together.
 A migration marked destructive fails closed unless an injected backup callback
-succeeds before its SQL begins. The concrete backup implementation remains in
-the later backup/recovery step.
+succeeds before its SQL begins. Every production SQLite entry point receives
+the filesystem backup callback, so the same preflight protects artifact,
+session, audit, and Doctor-triggered database opens.
 
 State, workspace metadata, artifact ownership, and audit recording are exposed
 through their core interfaces. Independent operations are atomic SQL statements;
@@ -430,8 +432,34 @@ no secret is stored in SQLite.
 Environment values take precedence and are not copied into native storage.
 Deletion affects the keychain only and explicitly leaves environment variables
 unchanged. Logs, audit events, backups, and exports have no secret-value path;
-future implementations of those reserved packages may carry reference names or
-configuration state only, never the result of `SecretStore.Get`.
+they may carry reference names or configuration state only, never the result of
+`SecretStore.Get`.
+
+### Backup and restore boundary
+
+`backup.Service` is independent of filesystem and SQLite types. The
+`backupfs` adapter publishes each backup by renaming a fully written staging
+directory beneath `.kelyro/backups`. Its JSON manifest records format, app,
+workspace, and database schema versions, a UTC timestamp, operation reason,
+and a SHA-256 plus size for every copied file. The allowlist is limited to
+`learning.db`, project `config.toml`, `workspace.json`, and files below
+`state`; logs, caches, nested backups, arbitrary internal files, global config,
+and native/environment secrets are never traversed.
+
+`backup.retention` defaults to five and accepts integer values from one through
+one hundred at global or project scope. Retention runs only after a new backup
+has been atomically published. Listing verifies every recorded file. Database
+snapshots are additionally opened read-only for `quick_check` and immutable
+migration-history validation.
+
+Restore requires presentation-level confirmation and application-level proof
+of that confirmation. Before touching live state, the adapter verifies the
+manifest and hashes, copies every file to staging, validates the staged
+database read-only, and checks workspace identity. It then swaps the four
+managed components (`learning.db`, project config, metadata, and the complete
+state directory) on the same filesystem. Any failed swap rolls back already
+replaced components; if rollback itself cannot finish, the preserved originals
+remain in a reported recovery directory rather than being deleted.
 
 ## Why UI and persistence stay outside the core
 

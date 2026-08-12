@@ -2,13 +2,18 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/mishaaac/kelyro/internal/app"
+	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/cli"
+	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/infra/artifactfs"
 	"github.com/mishaaac/kelyro/internal/infra/auditsqlite"
+	"github.com/mishaaac/kelyro/internal/infra/backupfs"
 	"github.com/mishaaac/kelyro/internal/infra/configfs"
 	"github.com/mishaaac/kelyro/internal/infra/doctoros"
 	"github.com/mishaaac/kelyro/internal/infra/doctorsqlite"
@@ -17,23 +22,52 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
+	"github.com/mishaaac/kelyro/internal/storage/sqlite"
 	"github.com/mishaaac/kelyro/internal/tui"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
 func main() {
 	workspaces := workspacefs.New(version.Version)
+	configs := configfs.New()
+	backups := backupfs.New(version.Version, sqlite.SnapshotValidator{})
+	migrationBackup := func(ctx context.Context, databasePath string, migration sqlite.MigrationInfo) error {
+		root := filepath.Dir(filepath.Dir(databasePath))
+		global, err := configs.LoadGlobal()
+		if err != nil {
+			return err
+		}
+		project, err := configs.LoadProject(root)
+		if err != nil {
+			return err
+		}
+		settings, err := config.Resolve(global, project)
+		if err != nil {
+			return err
+		}
+		retention, ok := settings[config.KeyBackupRetention].NumberField()
+		if !ok {
+			return fmt.Errorf("backup retention configuration is invalid")
+		}
+		_, err = backups.Create(ctx, root, backup.CreateOptions{
+			Reason:    fmt.Sprintf("migration-%d-%s", migration.Version, migration.Name),
+			Retention: int(retention),
+		})
+		return err
+	}
 	service := app.NewService(workspaces, os.Getwd).
-		WithConfig(configfs.New()).
+		WithConfig(configs).
 		WithSecrets(secretstore.New()).
-		WithArtifactStores(artifactfs.NewFactory(version.Version)).
-		WithSessionStores(sessiondb.NewFactory(version.Version)).
+		WithArtifactStores(artifactfs.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
+		WithSessionStores(sessiondb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithEditor(editoros.New()).
-		WithDoctor(doctor.New(doctoros.New(), doctorsqlite.New(), doctor.DefaultRegistry())).
+		WithDoctor(doctor.New(doctoros.New(), doctorsqlite.New().WithMigrationBackup(migrationBackup), doctor.DefaultRegistry())).
 		WithLogging(logfs.New()).
-		WithAudit(auditsqlite.NewFactory(version.Version))
+		WithAudit(auditsqlite.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
+		WithBackups(backups)
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
+		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).
 		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout))
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

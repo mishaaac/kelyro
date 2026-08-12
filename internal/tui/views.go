@@ -69,7 +69,7 @@ func (model Model) configView(width int) []string {
 		lines = append(lines, model.styles.muted.Render(line))
 	}
 	lines = append(lines, "")
-	keys := config.Keys()
+	keys := config.CommonKeys()
 	for index, key := range keys {
 		marker := "  "
 		lineStyle := model.styles.muted

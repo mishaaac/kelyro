@@ -143,6 +143,8 @@ func (service *Service) logEntry(command Command, root string, level logging.Lev
 		suboperation = command.SecretOperation
 	case ActionLogs:
 		suboperation = command.LogOperation
+	case ActionBackup:
+		suboperation = command.BackupOperation
 	}
 	if suboperation != "" {
 		operation += "." + suboperation

@@ -27,6 +27,9 @@ func TestDefaultsAreSafeAndIndependent(t *testing.T) {
 	if got := second[KeyMasteryThreshold].String(); got != "0.85" {
 		t.Errorf("learning.mastery_threshold default = %q, want 0.85", got)
 	}
+	if got := second[KeyBackupRetention].String(); got != "5" {
+		t.Errorf("backup.retention default = %q, want 5", got)
+	}
 }
 
 func TestResolveUsesMostSpecificLayer(t *testing.T) {
@@ -68,6 +71,8 @@ func TestParseValueAndValidateLayerRejectInvalidConfiguration(t *testing.T) {
 		{name: "invalid bool", key: KeyAllowNetwork, value: "yes", want: "expects true or false"},
 		{name: "invalid threshold", key: KeyMasteryThreshold, value: "1.1", want: "at most 1"},
 		{name: "non-finite threshold", key: KeyMasteryThreshold, value: "NaN", want: "at most 1"},
+		{name: "fractional backup retention", key: KeyBackupRetention, value: "2.5", want: "integer from 1 to 100"},
+		{name: "zero backup retention", key: KeyBackupRetention, value: "0", want: "integer from 1 to 100"},
 		{name: "empty project name", key: KeyWorkspaceName, value: " ", want: "must not be empty"},
 	}
 	for _, test := range tests {
@@ -90,10 +95,13 @@ func TestDefinitionsPrepareCommonSettingsWizard(t *testing.T) {
 	t.Parallel()
 
 	definitions := Definitions()
-	for _, key := range Keys() {
+	for _, key := range CommonKeys() {
 		if !definitions[key].Common {
 			t.Errorf("definition %q is not marked common", key)
 		}
+	}
+	if definitions[KeyBackupRetention].Common {
+		t.Error("backup.retention should remain CLI/file-only in the minimal wizard")
 	}
 	delete(definitions, KeyUIColor)
 	if _, ok := Definitions()[KeyUIColor]; !ok {

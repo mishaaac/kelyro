@@ -12,6 +12,14 @@ import (
 // Factory opens durable workspace audit trails.
 type Factory struct {
 	appVersion string
+	backup     sqlite.BackupFunc
+}
+
+// WithMigrationBackup installs the mandatory preflight for future destructive
+// SQLite migrations.
+func (factory *Factory) WithMigrationBackup(create sqlite.BackupFunc) *Factory {
+	factory.backup = create
+	return factory
 }
 
 // NewFactory creates an audit factory that stamps the running app version.
@@ -21,7 +29,7 @@ func NewFactory(appVersion string) *Factory {
 
 // Open owns one database handle until the returned store is closed.
 func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (audit.Store, error) {
-	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion))
+	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion), sqlite.WithDestructiveMigrationBackup(factory.backup))
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/artifacts"
 	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
 	"github.com/mishaaac/kelyro/internal/audit"
+	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/editor"
@@ -35,6 +36,7 @@ const (
 	ActionOpen    Action = "open"
 	ActionLogs    Action = "logs"
 	ActionAudit   Action = "audit"
+	ActionBackup  Action = "backup"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -54,6 +56,9 @@ type Command struct {
 	DoctorContext   doctor.Context
 	DoctorExplain   string
 	LogOperation    string
+	BackupOperation string
+	BackupID        string
+	BackupConfirmed bool
 	Verbose         bool
 }
 
@@ -64,6 +69,7 @@ type Result struct {
 	Guidance    *doctor.Guidance
 	Failed      bool
 	Audit       []audit.Entry
+	Backups     []backup.Info
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -83,8 +89,15 @@ type Service struct {
 	diagnostics      DoctorRunner
 	loggers          logging.WorkspaceFactory
 	audits           audit.WorkspaceStoreFactory
+	backups          backup.Service
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
+}
+
+// WithBackups attaches safe workspace backup and restore operations.
+func (service *Service) WithBackups(backups backup.Service) *Service {
+	service.backups = backups
+	return service
 }
 
 // NewService creates the application service with explicit infrastructure
@@ -170,6 +183,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionAudit {
 		return service.executeAudit(ctx, command)
+	}
+	if command.Action == ActionBackup {
+		return service.executeBackup(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

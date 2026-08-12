@@ -13,6 +13,14 @@ import (
 // integrity index.
 type Factory struct {
 	appVersion string
+	backup     sqlite.BackupFunc
+}
+
+// WithMigrationBackup installs the mandatory preflight for future destructive
+// SQLite migrations.
+func (factory *Factory) WithMigrationBackup(create sqlite.BackupFunc) *Factory {
+	factory.backup = create
+	return factory
 }
 
 // NewFactory creates a workspace artifact-store factory.
@@ -27,7 +35,7 @@ func NewFactory(appVersion ...string) *Factory {
 // Open creates the workspace database when needed and binds its artifact index
 // to an ownership-aware filesystem store.
 func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (artifacts.WorkspaceStore, error) {
-	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion))
+	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion), sqlite.WithDestructiveMigrationBackup(factory.backup))
 	if err != nil {
 		return nil, err
 	}

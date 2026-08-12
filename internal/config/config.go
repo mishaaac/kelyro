@@ -20,6 +20,7 @@ const (
 	KeyUpdateCheck      = "updates.check"
 	KeyWorkspaceName    = "workspace.name"
 	KeyMasteryThreshold = "learning.mastery_threshold"
+	KeyBackupRetention  = "backup.retention"
 )
 
 // Scope identifies the file in which a configuration value is persisted.
@@ -88,6 +89,7 @@ var definitions = map[string]Definition{
 	KeyUpdateCheck:      {Kind: Boolean, Common: true},
 	KeyWorkspaceName:    {Kind: String, ProjectOnly: true, Common: true},
 	KeyMasteryThreshold: {Kind: Number, ProjectOnly: true, Common: true},
+	KeyBackupRetention:  {Kind: Number},
 }
 
 // Defaults returns a fresh copy of Kelyro's safe default settings.
@@ -100,6 +102,7 @@ func Defaults() Settings {
 		KeyUpdateCheck:      BoolValue(true),
 		KeyWorkspaceName:    StringValue(""),
 		KeyMasteryThreshold: NumberValue(0.85),
+		KeyBackupRetention:  NumberValue(5),
 	}
 }
 
@@ -118,6 +121,18 @@ func Keys() []string {
 	keys := make([]string, 0, len(definitions))
 	for key := range definitions {
 		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// CommonKeys returns settings suitable for the minimal interactive wizard.
+func CommonKeys() []string {
+	keys := make([]string, 0, len(definitions))
+	for key, definition := range definitions {
+		if definition.Common {
+			keys = append(keys, key)
+		}
 	}
 	sort.Strings(keys)
 	return keys
@@ -192,6 +207,10 @@ func validateValue(key string, value Value) error {
 	case KeyMasteryThreshold:
 		if math.IsNaN(value.numberV) || math.IsInf(value.numberV, 0) || value.numberV <= 0 || value.numberV > 1 {
 			return fmt.Errorf("configuration key %q must be greater than 0 and at most 1", key)
+		}
+	case KeyBackupRetention:
+		if math.IsNaN(value.numberV) || math.IsInf(value.numberV, 0) || value.numberV < 1 || value.numberV > 100 || math.Trunc(value.numberV) != value.numberV {
+			return fmt.Errorf("configuration key %q must be an integer from 1 to 100", key)
 		}
 	}
 	return nil

@@ -10,6 +10,7 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/audit"
+	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/version"
@@ -39,6 +40,7 @@ Commands:
   open     Open LEARNING.md or the roadmap in an editor
   logs     Inspect workspace diagnostic log location
   audit    Show persistent workspace audit events
+  backup   Create, list, or restore workspace backups
 
 Options:
   -h, --help          Show this help message
@@ -48,6 +50,7 @@ Options:
       --quiet         Suppress successful command output
       --workspace PATH  Override workspace discovery
       --allow-nested  Confirm initialization inside another workspace
+      --yes           Confirm a destructive backup restore non-interactively
       --global        Use global configuration scope
       --project       Use project configuration scope
 
@@ -72,6 +75,11 @@ Doctor commands:
 
 Log commands:
   kelyro logs path
+
+Backup commands:
+  kelyro backup create
+  kelyro backup list
+  kelyro backup restore <id>
 `
 
 var actions = map[string]app.Action{
@@ -83,6 +91,7 @@ var actions = map[string]app.Action{
 	"open":    app.ActionOpen,
 	"logs":    app.ActionLogs,
 	"audit":   app.ActionAudit,
+	"backup":  app.ActionBackup,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -93,6 +102,12 @@ type Runner struct {
 	stderr      io.Writer
 	secrets     SecretReader
 	interactive InteractiveRunner
+	confirmer   Confirmer
+}
+
+// Confirmer obtains explicit consent before destructive operations.
+type Confirmer interface {
+	Confirm(prompt string) (bool, error)
 }
 
 // InteractiveRunner owns the full-screen terminal lifecycle for the default
@@ -117,6 +132,12 @@ func (r Runner) WithSecretReader(reader SecretReader) Runner {
 // explicit CLI command is provided.
 func (r Runner) WithInteractive(interactive InteractiveRunner) Runner {
 	r.interactive = interactive
+	return r
+}
+
+// WithConfirmer attaches interactive confirmation for destructive restore.
+func (r Runner) WithConfirmer(confirmer Confirmer) Runner {
+	r.confirmer = confirmer
 	return r
 }
 
@@ -155,14 +176,16 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	command := app.Command{
-		Action:        action,
-		Workspace:     invocation.workspace,
-		AllowNested:   invocation.allowNested,
-		ConfigScope:   invocation.configScope,
-		OpenTarget:    invocation.openTarget,
-		DoctorExplain: invocation.doctorExplain,
-		LogOperation:  invocation.logOperation,
-		Verbose:       invocation.verbose,
+		Action:          action,
+		Workspace:       invocation.workspace,
+		AllowNested:     invocation.allowNested,
+		ConfigScope:     invocation.configScope,
+		OpenTarget:      invocation.openTarget,
+		DoctorExplain:   invocation.doctorExplain,
+		LogOperation:    invocation.logOperation,
+		BackupOperation: invocation.backupOperation,
+		BackupID:        invocation.backupID,
+		Verbose:         invocation.verbose,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -194,6 +217,27 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 			}
 		}
 	}
+	if action == app.ActionBackup && command.BackupOperation == "restore" {
+		command.BackupConfirmed = invocation.yes
+		if !command.BackupConfirmed {
+			if r.confirmer == nil {
+				fmt.Fprintln(r.stderr, "kelyro backup: restore confirmation input is unavailable; use --yes to confirm")
+				return ExitFailure
+			}
+			confirmed, confirmErr := r.confirmer.Confirm(fmt.Sprintf("Restore backup %s? This replaces managed workspace state [y/N]: ", command.BackupID))
+			if confirmErr != nil {
+				fmt.Fprintf(r.stderr, "kelyro backup: confirm restore: %v\n", confirmErr)
+				return ExitFailure
+			}
+			if !confirmed {
+				if !invocation.quiet {
+					fmt.Fprintln(r.stdout, "Restore canceled.")
+				}
+				return ExitOK
+			}
+			command.BackupConfirmed = true
+		}
+	}
 
 	result, err := r.service.Execute(ctx, command)
 	if err != nil {
@@ -206,6 +250,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatDiagnostics(*result.Diagnostics))
 	} else if result.Audit != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatAudit(result.Audit))
+	} else if result.Backups != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatBackups(result.Backups))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -214,6 +260,19 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatBackups(backups []backup.Info) string {
+	if len(backups) == 0 {
+		return "No backups."
+	}
+	lines := make([]string, 0, len(backups))
+	for _, item := range backups {
+		lines = append(lines, fmt.Sprintf("%s  %s  reason=%s  schema=%d  files=%d  bytes=%d  version=%s",
+			item.ID, item.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"), item.Reason,
+			item.DatabaseSchemaVersion, item.FileCount, item.TotalSize, item.AppVersion))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatAudit(entries []audit.Entry) string {
@@ -310,6 +369,9 @@ type invocation struct {
 	openTarget      string
 	doctorExplain   string
 	logOperation    string
+	backupOperation string
+	backupID        string
+	yes             bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -330,6 +392,8 @@ func parse(args []string) (invocation, error) {
 			result.quiet = true
 		case argument == "--allow-nested":
 			result.allowNested = true
+		case argument == "--yes":
+			result.yes = true
 		case argument == "--explain":
 			index++
 			if index >= len(args) || strings.TrimSpace(args[index]) == "" || strings.HasPrefix(args[index], "-") {
@@ -380,6 +444,9 @@ func parse(args []string) (invocation, error) {
 	if result.allowNested && result.command != "init" {
 		return invocation{}, fmt.Errorf("option --allow-nested requires the init command")
 	}
+	if result.yes && result.command != "backup" {
+		return invocation{}, fmt.Errorf("option --yes requires the backup restore command")
+	}
 	if result.configScope != "" && result.command != "config" {
 		return invocation{}, fmt.Errorf("configuration scope options require the config command")
 	}
@@ -425,13 +492,41 @@ func parse(args []string) (invocation, error) {
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("audit does not accept positional arguments")
 		}
+	case "backup":
+		if err := parseBackupArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
 		}
 	}
+	if result.yes && (result.command != "backup" || result.backupOperation != "restore") {
+		return invocation{}, fmt.Errorf("option --yes requires the backup restore command")
+	}
 
 	return result, nil
+}
+
+func parseBackupArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		return fmt.Errorf("backup requires create, list, or restore")
+	}
+	result.backupOperation = result.arguments[0]
+	switch result.backupOperation {
+	case "create", "list":
+		if len(result.arguments) != 1 {
+			return fmt.Errorf("backup %s does not accept arguments", result.backupOperation)
+		}
+	case "restore":
+		if len(result.arguments) != 2 {
+			return fmt.Errorf("backup restore requires exactly one id")
+		}
+		result.backupID = result.arguments[1]
+	default:
+		return fmt.Errorf("unknown backup command %q", result.backupOperation)
+	}
+	return nil
 }
 
 func parseLogArguments(result *invocation) error {

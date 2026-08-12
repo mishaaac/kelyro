@@ -290,7 +290,7 @@ func screenFromSession(view session.View) screen {
 }
 
 func (model Model) updateConfig(key string) (tea.Model, tea.Cmd) {
-	keys := config.Keys()
+	keys := config.CommonKeys()
 	switch key {
 	case "up", "k":
 		if model.configCursor > 0 {

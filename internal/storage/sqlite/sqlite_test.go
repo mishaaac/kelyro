@@ -111,6 +111,22 @@ SELECT COUNT(*), MAX(applied_at) FROM schema_migrations`,
 	}
 }
 
+func TestSnapshotValidatorChecksIntegrityAndMigrationHistoryReadOnly(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	validator := SnapshotValidator{}
+	version, err := validator.Validate(context.Background(), database.Path())
+	if err != nil || version != LatestSchemaVersion() {
+		t.Fatalf("Validate() = (%d, %v), want schema %d", version, err, LatestSchemaVersion())
+	}
+	if _, err := database.sql.ExecContext(context.Background(),
+		"UPDATE schema_migrations SET checksum = ? WHERE version = 1", strings.Repeat("0", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validator.Validate(context.Background(), database.Path()); !errors.Is(err, ErrMigrationHistory) {
+		t.Fatalf("Validate(tampered) error = %v, want ErrMigrationHistory", err)
+	}
+}
+
 func TestMigrationRollsBackAndReportsFailingStatement(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	migrations := append([]migration(nil), foundationMigrations...)

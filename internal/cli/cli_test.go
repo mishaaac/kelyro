@@ -409,6 +409,10 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "explain followed by option", args: []string{"doctor", "--explain", "--quiet"}, message: "option --explain requires a tool id"},
 		{name: "explain without doctor", args: []string{"status", "--explain", "git"}, message: "option --explain requires the doctor command"},
 		{name: "doctor positional argument", args: []string{"doctor", "git"}, message: "doctor does not accept positional arguments"},
+		{name: "backup missing operation", args: []string{"backup"}, message: "backup requires create, list, or restore"},
+		{name: "backup unknown operation", args: []string{"backup", "copy"}, message: `unknown backup command "copy"`},
+		{name: "backup restore missing id", args: []string{"backup", "restore"}, message: "backup restore requires exactly one id"},
+		{name: "yes without restore", args: []string{"backup", "create", "--yes"}, message: "option --yes requires the backup restore command"},
 	}
 
 	for _, test := range tests {

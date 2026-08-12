@@ -15,6 +15,14 @@ import (
 type Factory struct {
 	now        func() time.Time
 	appVersion string
+	backup     sqlite.BackupFunc
+}
+
+// WithMigrationBackup installs the mandatory preflight for future destructive
+// SQLite migrations.
+func (factory *Factory) WithMigrationBackup(create sqlite.BackupFunc) *Factory {
+	factory.backup = create
+	return factory
 }
 
 // NewFactory creates a SQLite-backed session-store factory.
@@ -29,7 +37,7 @@ func NewFactory(appVersion ...string) *Factory {
 // Open opens the existing Foundation database and binds session operations to
 // its transaction runner.
 func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (session.Store, error) {
-	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion))
+	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion), sqlite.WithDestructiveMigrationBackup(factory.backup))
 	if err != nil {
 		return nil, err
 	}

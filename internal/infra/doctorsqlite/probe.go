@@ -11,12 +11,19 @@ import (
 )
 
 // Probe opens and independently inspects one workspace database.
-type Probe struct{}
+type Probe struct{ backup sqlite.BackupFunc }
 
 func New() *Probe { return &Probe{} }
 
-func (*Probe) Check(ctx context.Context, workspaceRoot string) (health doctor.StorageHealth) {
-	database, err := sqlite.Open(ctx, workspaceRoot)
+// WithMigrationBackup installs the mandatory preflight for future destructive
+// SQLite migrations discovered by Doctor.
+func (probe *Probe) WithMigrationBackup(create sqlite.BackupFunc) *Probe {
+	probe.backup = create
+	return probe
+}
+
+func (probe *Probe) Check(ctx context.Context, workspaceRoot string) (health doctor.StorageHealth) {
+	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithDestructiveMigrationBackup(probe.backup))
 	if err != nil {
 		health.DatabaseError = err
 		health.MigrationError = err
