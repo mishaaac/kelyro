@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 20
+Last completed step: 21
 Current release: unreleased
 
 ## Registro
@@ -597,3 +597,29 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 21 no se ha iniciado y requiere autorización explícita.
+
+## Step 21 — Calidad automática y CI multiplataforma
+
+Status: completed
+Date: 2026-08-12
+Commit: e05d721
+Release: unreleased
+
+### Delivered
+- Runner Go-native `tools/quality` para tests, `vet`, race, build y smoke tests de versión/ayuda, sin exigir Make ni scripts de shell.
+- Workflow de GitHub Actions con tests, análisis, build y smoke en Linux, macOS y Windows, más race obligatorio en Linux.
+- Versiones concretas de acciones oficiales, permisos de solo lectura, cache de módulos y verificación explícita de dependencias.
+
+### Decisions
+- El mismo runner define los gates locales y de CI para evitar divergencias entre plataformas.
+- Race se exige en Linux por su soporte estable de CGO/toolchain; queda disponible localmente en otras plataformas compatibles.
+- Los binarios de smoke se construyen en un directorio temporal nativo y se eliminan al terminar.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step21-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go run ./tools/quality all`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- `actionlint .github/workflows/ci.yml`
+- `go mod tidy`, `go mod verify`, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 22 no se ha iniciado y requiere autorización explícita.

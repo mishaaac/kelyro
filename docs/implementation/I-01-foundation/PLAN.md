@@ -1782,7 +1782,7 @@ feat(update): add version-aware update checks
 
 ## Paso 21 — Configurar calidad automática, CI y matriz multiplataforma
 
-- [ ] Paso 21 completado
+- [x] Paso 21 completado
 
 ### Objetivo
 
