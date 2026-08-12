@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -391,8 +392,8 @@ func TestOpenRejectsCorruptDatabase(t *testing.T) {
 		_ = database.Close()
 		t.Fatal("Open() returned a database for corrupt input")
 	}
-	if err == nil {
-		t.Fatal("Open() error = nil for corrupt input")
+	if !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("Open() error = %v, want ErrIntegrity", err)
 	}
 	got, readErr := os.ReadFile(databasePath)
 	if readErr != nil {
@@ -400,6 +401,66 @@ func TestOpenRejectsCorruptDatabase(t *testing.T) {
 	}
 	if string(got) != string(original) {
 		t.Fatal("Open() silently replaced the corrupt database")
+	}
+}
+
+func TestOpenRejectsSymlinkedDatabaseAndInternalDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks may require elevated Windows privileges")
+	}
+
+	t.Run("database", func(t *testing.T) {
+		root := newWorkspaceRoot(t)
+		databasePath, _ := platform.WorkspaceDBPath(root)
+		target := filepath.Join(t.TempDir(), "outside.db")
+		if err := os.WriteFile(target, []byte("outside"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, databasePath); err != nil {
+			t.Fatal(err)
+		}
+		if database, err := Open(context.Background(), root); err == nil || database != nil {
+			t.Fatalf("Open() = (%v, %v), want symlink rejection", database, err)
+		}
+	})
+
+	t.Run("internal directory", func(t *testing.T) {
+		root := t.TempDir()
+		target := t.TempDir()
+		internal, _ := platform.WorkspaceInternalDir(root)
+		if err := os.Symlink(target, internal); err != nil {
+			t.Fatal(err)
+		}
+		if database, err := Open(context.Background(), root); err == nil || database != nil {
+			t.Fatalf("Open() = (%v, %v), want symlink rejection", database, err)
+		}
+	})
+}
+
+func TestOpenReportsLockedDatabaseWithoutMisclassifyingCorruption(t *testing.T) {
+	database, root := openTestDatabase(t)
+	if _, err := database.sql.ExecContext(context.Background(), "BEGIN EXCLUSIVE"); err != nil {
+		t.Fatalf("BEGIN EXCLUSIVE error = %v", err)
+	}
+
+	locked, err := Open(context.Background(), root, WithOperationTimeout(100*time.Millisecond))
+	if locked != nil {
+		_ = locked.Close()
+		t.Fatal("Open() returned a database while an exclusive lock was held")
+	}
+	if err == nil || errors.Is(err, ErrIntegrity) {
+		t.Fatalf("Open(locked) error = %v, want operational lock error", err)
+	}
+	if _, rollbackErr := database.sql.ExecContext(context.Background(), "ROLLBACK"); rollbackErr != nil {
+		t.Fatalf("ROLLBACK error = %v", rollbackErr)
+	}
+
+	reopened, err := Open(context.Background(), root)
+	if err != nil {
+		t.Fatalf("Open() after releasing lock error = %v", err)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
 	}
 }
 

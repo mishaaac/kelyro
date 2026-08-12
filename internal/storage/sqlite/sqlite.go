@@ -16,7 +16,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/storage"
-	_ "modernc.org/sqlite"
+	sqliteDriver "modernc.org/sqlite"
 )
 
 const defaultOperationTimeout = 5 * time.Second
@@ -127,12 +127,19 @@ func Open(ctx context.Context, workspaceRoot string, configured ...Option) (*Dat
 		return nil, fmt.Errorf("resolve workspace database path: %w", err)
 	}
 	parent := filepath.Dir(databasePath)
-	info, err := os.Stat(parent)
+	info, err := os.Lstat(parent)
 	if err != nil {
 		return nil, fmt.Errorf("inspect workspace database directory %s: %w", parent, err)
 	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("workspace database directory %s is not a directory", parent)
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("workspace database directory %s is not a regular directory", parent)
+	}
+	if databaseInfo, statErr := os.Lstat(databasePath); statErr == nil {
+		if !databaseInfo.Mode().IsRegular() || databaseInfo.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("workspace database %s is not a regular file", databasePath)
+		}
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("inspect workspace database %s: %w", databasePath, statErr)
 	}
 
 	handle, err := sql.Open("sqlite", databaseURI(databasePath, settings.timeout))
@@ -160,7 +167,7 @@ func Open(ctx context.Context, workspaceRoot string, configured ...Option) (*Dat
 	operationContext, cancel := database.operationContext(ctx)
 	if err := handle.PingContext(operationContext); err != nil {
 		cancel()
-		return nil, fmt.Errorf("connect to workspace database: %w", err)
+		return nil, sqliteOperationError("connect to workspace database", err)
 	}
 	cancel()
 
@@ -264,7 +271,7 @@ func (database *Database) checkIntegrity(ctx context.Context) error {
 
 	rows, err := database.sql.QueryContext(operationContext, "PRAGMA quick_check")
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrIntegrity, err)
+		return sqliteOperationError("check SQLite integrity", err)
 	}
 	defer rows.Close()
 
@@ -280,12 +287,23 @@ func (database *Database) checkIntegrity(ctx context.Context) error {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrIntegrity, err)
+		return sqliteOperationError("check SQLite integrity", err)
 	}
 	if !checked {
 		return fmt.Errorf("%w: no result", ErrIntegrity)
 	}
 	return nil
+}
+
+func sqliteOperationError(operation string, err error) error {
+	var driverErr *sqliteDriver.Error
+	if errors.As(err, &driverErr) {
+		switch driverErr.Code() & 0xff {
+		case 11, 26: // SQLITE_CORRUPT and SQLITE_NOTADB, including extended codes.
+			return fmt.Errorf("%w: %s: %v", ErrIntegrity, operation, err)
+		}
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }
 
 func databaseURI(path string, timeout time.Duration) string {
