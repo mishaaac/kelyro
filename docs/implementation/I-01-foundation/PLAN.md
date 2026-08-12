@@ -1257,7 +1257,7 @@ feat(tui): add Foundation terminal interface
 
 ## Paso 13 — Implementar persistencia de sesión, resume y crash-safe state
 
-- [ ] Paso 13 completado
+- [x] Paso 13 completado
 
 ### Objetivo
 

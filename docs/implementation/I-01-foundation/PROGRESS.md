@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 12
+Last completed step: 13
 Current release: unreleased
 
 ## Registro
@@ -368,3 +368,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 13 no se ha iniciado y requiere autorización explícita.
+
+## Step 13 — Persistencia, resume y estado crash-safe de sesión
+
+Status: completed
+Date: 2026-08-12
+Commit: 984b4cf
+Release: unreleased
+
+### Delivered
+- Estado de sesión versionado con última vista, artifact, comando significativo, flags de setup, timestamp y marcador seguro de resume.
+- Resume transaccional en SQLite, detección de sesiones incompletas, defaults ante metadata inválida y recovery auditado.
+- Checkpoints TUI serializados solo en transiciones relevantes y cierre persistido tanto con `q` como con Ctrl+C.
+
+### Decisions
+- `internal/session` conserva formato y política independientes de SQLite/Bubble Tea; `internal/infra/sessiondb` enlaza cada operación a una transacción de estado y auditoría.
+- El payload completo ocupa una sola entrada de `app_state`; el marcador `active` actúa como crash marker sin añadir una migration de esquema.
+- Los errores de metadata secundaria no bloquean la TUI y los snapshots reconstruibles no se persisten.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step13-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step13-race-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step13-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step13-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step13 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba TUI real en PTY de checkpoint, salida limpia y resume en Roadmap dentro de un workspace con espacios.
+- `go mod tidy`, `go mod verify`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 14 no se ha iniciado y requiere autorización explícita.
