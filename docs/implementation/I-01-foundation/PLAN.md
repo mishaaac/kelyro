@@ -1093,7 +1093,7 @@ feat(artifacts): add human-readable learning workspace documents
 
 ## Paso 11 — Implementar detección de editores y apertura de archivos
 
-- [ ] Paso 11 completado
+- [x] Paso 11 completado
 
 ### Objetivo
 

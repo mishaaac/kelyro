@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 10
+Last completed step: 11
 Current release: unreleased
 
 ## Registro
@@ -309,3 +309,33 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 11 no se ha iniciado y requiere autorización explícita.
+
+## Step 11 — Detección de editores y apertura segura
+
+Status: completed
+Date: 2026-08-12
+Commit: 7c9715f
+Release: unreleased
+
+### Delivered
+- Detección configurable y automática de VS Code, Neovim, Vim, Zed y Cursor, con fallback nativo para Linux, macOS y Windows.
+- CLI funcional `kelyro open` y `kelyro open roadmap`, con discovery del workspace, configuración por capas y paths con espacios.
+- Contrato sustituible y construcción testeable de procesos con ejecutable y argumentos separados, además de `editor.prompt` para el futuro flujo TUI opcional.
+
+### Decisions
+- `editor.command` acepta un único nombre o path de ejecutable; no interpreta argumentos ni strings de shell.
+- Un editor configurado pero ausente produce un error accionable; la detección y el fallback sólo aplican cuando no existe configuración explícita.
+- No se añadieron dependencias externas ni se implementó la TUI reservada al Paso 12.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step11-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step11-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step11-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step11-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step11 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` with `CGO_ENABLED=0` using `go test -exec=/bin/true ./...`.
+- Prueba CLI real de `open` y `open roadmap` en un workspace con espacios usando un ejecutable inocuo configurado.
+- `GOCACHE=/tmp/kelyro-step11-verify-gocache go mod verify`
+- `git diff --check`
+
+### Notes for next session
+- El Paso 12 no se ha iniciado y requiere autorización explícita.
