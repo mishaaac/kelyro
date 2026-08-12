@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 13
+Last completed step: 14
 Current release: unreleased
 
 ## Registro
@@ -397,3 +397,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 14 no se ha iniciado y requiere autorización explícita.
+
+## Step 14 — Doctor y registry contextual de herramientas
+
+Status: completed
+Date: 2026-08-12
+Commit: 0e724d3
+Release: unreleased
+
+### Delivered
+- `kelyro doctor` funcional con checks de plataforma, escritura, configuración, SQLite, migrations, índice de artifacts y herramientas Foundation.
+- Registry extensible con niveles required/recommended/optional, plataformas, candidatos, propósito, documentación y contexto por módulo.
+- Reporte tipado compartido por CLI/TUI, detección y versiones seguras con timeout, output acotado y directorio temporal aislado.
+
+### Decisions
+- Solo los checks required determinan el exit code; recommended y optional son informativos y siempre explican su propósito.
+- El dominio Doctor permanece independiente de `os/exec`, SQLite y Bubble Tea mediante resolver, environment y storage probe sustituibles.
+- No se añadieron dependencias externas; los probes ejecutan exclusivamente argumentos definidos por el registry y nunca usan shell.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step14-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step14-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step14-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step14-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step14 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba CLI real de reporte saludable y de workspace ausente con exit code 1, en una ruta con espacios.
+- `go mod verify`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 15 no se ha iniciado y requiere autorización explícita.

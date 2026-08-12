@@ -1307,7 +1307,7 @@ feat(state): persist and safely resume Kelyro sessions
 
 ## Paso 14 — Implementar `doctor` y el registry de herramientas
 
-- [ ] Paso 14 completado
+- [x] Paso 14 completado
 
 ### Objetivo
 
