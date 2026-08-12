@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -53,6 +54,9 @@ func TestInitCreatesWorkspaceAndIsIdempotent(t *testing.T) {
 		}
 		if !info.IsDir() {
 			t.Errorf("required path %q is not a directory", path)
+		}
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
+			t.Errorf("required path %q permissions = %o, want 700", path, info.Mode().Perm())
 		}
 	}
 	metadataPath, _ := platform.WorkspaceMetadataPath(root)
@@ -237,6 +241,49 @@ func TestValidateRejectsMalformedMetadata(t *testing.T) {
 
 	if err := service.Validate(root); !errors.Is(err, workspace.ErrInvalid) {
 		t.Fatalf("Validate() error = %v, want ErrInvalid", err)
+	}
+}
+
+func TestValidateRejectsSymlinksInMachineOwnedStructure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks may require elevated Windows privileges")
+	}
+
+	for _, replace := range []string{".kelyro", "state", "workspace.json"} {
+		t.Run(replace, func(t *testing.T) {
+			root := t.TempDir()
+			service := deterministicService(time.Now())
+			if _, err := service.Init(root, workspace.InitOptions{}); err != nil {
+				t.Fatalf("Init() error = %v", err)
+			}
+
+			internal, _ := platform.WorkspaceInternalDir(root)
+			target := filepath.Join(t.TempDir(), replace)
+			link := internal
+			switch replace {
+			case ".kelyro":
+				if err := os.Rename(internal, target); err != nil {
+					t.Fatal(err)
+				}
+			case "state":
+				link = filepath.Join(internal, replace)
+				if err := os.Rename(link, target); err != nil {
+					t.Fatal(err)
+				}
+			case "workspace.json":
+				link = filepath.Join(internal, replace)
+				if err := os.Rename(link, target); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Symlink(target, link); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := service.Validate(root); !errors.Is(err, workspace.ErrInvalid) {
+				t.Fatalf("Validate() error = %v, want ErrInvalid", err)
+			}
+		})
 	}
 }
 

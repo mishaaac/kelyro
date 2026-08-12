@@ -19,6 +19,7 @@ import (
 
 type fileSystem interface {
 	Stat(string) (fs.FileInfo, error)
+	Lstat(string) (fs.FileInfo, error)
 	ReadFile(string) ([]byte, error)
 	MkdirTemp(string, string) (string, error)
 	MkdirAll(string, fs.FileMode) error
@@ -29,8 +30,9 @@ type fileSystem interface {
 
 type osFileSystem struct{}
 
-func (osFileSystem) Stat(name string) (fs.FileInfo, error) { return os.Stat(name) }
-func (osFileSystem) ReadFile(name string) ([]byte, error)  { return os.ReadFile(name) }
+func (osFileSystem) Stat(name string) (fs.FileInfo, error)  { return os.Stat(name) }
+func (osFileSystem) Lstat(name string) (fs.FileInfo, error) { return os.Lstat(name) }
+func (osFileSystem) ReadFile(name string) ([]byte, error)   { return os.ReadFile(name) }
 func (osFileSystem) MkdirTemp(dir, pattern string) (string, error) {
 	return os.MkdirTemp(dir, pattern)
 }
@@ -78,11 +80,11 @@ func (service *Service) Discover(startDir string) (workspace.Workspace, error) {
 			return workspace.Workspace{}, pathErr
 		}
 
-		info, statErr := service.fs.Stat(internal)
+		info, statErr := service.fs.Lstat(internal)
 		switch {
 		case statErr == nil:
-			if !info.IsDir() {
-				return workspace.Workspace{}, fmt.Errorf("%w: %s is not a directory", workspace.ErrInvalid, internal)
+			if !regularDirectory(info) {
+				return workspace.Workspace{}, fmt.Errorf("%w: %s is not a regular directory", workspace.ErrInvalid, internal)
 			}
 			return service.load(root)
 		case !errors.Is(statErr, fs.ErrNotExist):
@@ -111,7 +113,7 @@ func (service *Service) Init(root string, options workspace.InitOptions) (worksp
 	if err != nil {
 		return workspace.Workspace{}, err
 	}
-	if _, statErr := service.fs.Stat(internal); statErr == nil {
+	if _, statErr := service.fs.Lstat(internal); statErr == nil {
 		return service.load(normalizedRoot)
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
 		return workspace.Workspace{}, fmt.Errorf("inspect workspace target %s: %w", internal, statErr)
@@ -147,7 +149,7 @@ func (service *Service) Init(root string, options workspace.InitOptions) (worksp
 	defer service.fs.RemoveAll(staging) // Best-effort cleanup before or after rename.
 
 	for _, directory := range []string{"state", "cache", "backups", "logs"} {
-		if err := service.fs.MkdirAll(filepath.Join(staging, directory), 0o755); err != nil {
+		if err := service.fs.MkdirAll(filepath.Join(staging, directory), 0o700); err != nil {
 			return workspace.Workspace{}, fmt.Errorf("create workspace %s directory: %w", directory, err)
 		}
 	}
@@ -193,18 +195,22 @@ func (service *Service) load(root string) (workspace.Workspace, error) {
 		if pathErr != nil {
 			return workspace.Workspace{}, pathErr
 		}
-		info, statErr := service.fs.Stat(path)
+		info, statErr := service.fs.Lstat(path)
 		if statErr != nil {
 			return workspace.Workspace{}, fmt.Errorf("%w: required directory %s: %v", workspace.ErrInvalid, path, statErr)
 		}
-		if !info.IsDir() {
-			return workspace.Workspace{}, fmt.Errorf("%w: %s is not a directory", workspace.ErrInvalid, path)
+		if !regularDirectory(info) {
+			return workspace.Workspace{}, fmt.Errorf("%w: %s is not a regular directory", workspace.ErrInvalid, path)
 		}
 	}
 
 	metadataPath, err := platform.WorkspaceMetadataPath(normalizedRoot)
 	if err != nil {
 		return workspace.Workspace{}, err
+	}
+	metadataInfo, err := service.fs.Lstat(metadataPath)
+	if err != nil || !metadataInfo.Mode().IsRegular() || metadataInfo.Mode()&os.ModeSymlink != 0 {
+		return workspace.Workspace{}, fmt.Errorf("%w: metadata %s is not a regular file", workspace.ErrInvalid, metadataPath)
 	}
 	encoded, err := service.fs.ReadFile(metadataPath)
 	if err != nil {
@@ -229,6 +235,10 @@ func (service *Service) load(root string) (workspace.Workspace, error) {
 	}
 
 	return workspace.Workspace{Root: normalizedRoot, Metadata: metadata}, nil
+}
+
+func regularDirectory(info fs.FileInfo) bool {
+	return info.IsDir() && info.Mode()&os.ModeSymlink == 0
 }
 
 func (service *Service) existingDirectory(path string) (string, error) {
