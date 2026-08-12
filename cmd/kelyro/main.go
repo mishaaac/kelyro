@@ -19,6 +19,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/doctorsqlite"
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
+	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
 	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
@@ -31,6 +32,7 @@ func main() {
 	workspaces := workspacefs.New(version.Version)
 	configs := configfs.New()
 	backups := backupfs.New(version.Version, sqlite.SnapshotValidator{})
+	portable := portabilityfs.New(version.Version, sqlite.SnapshotValidator{})
 	migrationBackup := func(ctx context.Context, databasePath string, migration sqlite.MigrationInfo) error {
 		root := filepath.Dir(filepath.Dir(databasePath))
 		global, err := configs.LoadGlobal()
@@ -64,7 +66,8 @@ func main() {
 		WithDoctor(doctor.New(doctoros.New(), doctorsqlite.New().WithMigrationBackup(migrationBackup), doctor.DefaultRegistry())).
 		WithLogging(logfs.New()).
 		WithAudit(auditsqlite.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
-		WithBackups(backups)
+		WithBackups(backups).
+		WithPortability(portable)
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).

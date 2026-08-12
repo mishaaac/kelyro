@@ -60,6 +60,15 @@ shell command; for example, `kelyro config set editor.command code`. The
 open-after-generation prompt; it defaults to `true` and does not affect the
 explicit CLI command.
 
+Create a readable Markdown archive with `kelyro export`, or add the allowlisted
+workspace database, project configuration, identity, and session state with
+`kelyro export --full`. Use `--output <file>` to choose the archive path. Before
+importing, `kelyro import <file> --dry-run` validates the entire archive and
+reports conflicts without changing the destination. Imports fail on different
+existing files by default; choose `--conflict keep` to preserve them or
+`--conflict overwrite` to explicitly authorize replacement. Secrets, logs,
+caches, and nested backups are excluded from portable exports.
+
 Build metadata can be injected without changing source code:
 
 ```sh

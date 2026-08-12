@@ -13,6 +13,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
+	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
@@ -41,6 +42,8 @@ Commands:
   logs     Inspect workspace diagnostic log location
   audit    Show persistent workspace audit events
   backup   Create, list, or restore workspace backups
+  export   Export readable documents or a full portable workspace
+  import   Validate and import a portable workspace archive
 
 Options:
   -h, --help          Show this help message
@@ -51,6 +54,10 @@ Options:
       --workspace PATH  Override workspace discovery
       --allow-nested  Confirm initialization inside another workspace
       --yes           Confirm a destructive backup restore non-interactively
+      --full          Include allowlisted machine state in an export
+      --output FILE   Set the export archive path
+      --dry-run       Validate and preview an import without writing
+      --conflict MODE Resolve import conflicts with fail, keep, or overwrite
       --global        Use global configuration scope
       --project       Use project configuration scope
 
@@ -80,6 +87,10 @@ Backup commands:
   kelyro backup create
   kelyro backup list
   kelyro backup restore <id>
+
+Portability commands:
+  kelyro export [--full] [--output <file>]
+  kelyro import <file> [--dry-run] [--conflict fail|keep|overwrite]
 `
 
 var actions = map[string]app.Action{
@@ -92,6 +103,8 @@ var actions = map[string]app.Action{
 	"logs":    app.ActionLogs,
 	"audit":   app.ActionAudit,
 	"backup":  app.ActionBackup,
+	"export":  app.ActionExport,
+	"import":  app.ActionImport,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -185,6 +198,11 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		LogOperation:    invocation.logOperation,
 		BackupOperation: invocation.backupOperation,
 		BackupID:        invocation.backupID,
+		ExportMode:      invocation.exportMode,
+		ExportOutput:    invocation.exportOutput,
+		ImportArchive:   invocation.importArchive,
+		ImportDryRun:    invocation.importDryRun,
+		ImportConflicts: invocation.importConflicts,
 		Verbose:         invocation.verbose,
 	}
 	if invocation.noColor {
@@ -252,6 +270,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatAudit(result.Audit))
 	} else if result.Backups != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatBackups(result.Backups))
+	} else if result.Portability != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatPortability(*result.Portability))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -260,6 +280,23 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatPortability(report portability.Report) string {
+	if report.Destination == "" {
+		return fmt.Sprintf("Exported %s workspace to %s (files=%d bytes=%d)", report.Mode, report.ArchivePath, report.FileCount, report.TotalSize)
+	}
+	prefix := "Imported"
+	if report.DryRun {
+		prefix = "Import dry run"
+	}
+	line := fmt.Sprintf("%s %s into %s (files=%d create=%d replace=%d skip=%d conflicts=%d)",
+		prefix, report.ArchivePath, report.Destination, report.FileCount,
+		len(report.Creates), len(report.Replaces), len(report.Skips), len(report.Conflicts))
+	if len(report.Conflicts) > 0 {
+		line += "\nConflicts: " + strings.Join(report.Conflicts, ", ")
+	}
+	return line
 }
 
 func formatBackups(backups []backup.Info) string {
@@ -372,10 +409,16 @@ type invocation struct {
 	backupOperation string
 	backupID        string
 	yes             bool
+	exportMode      portability.Mode
+	exportOutput    string
+	importArchive   string
+	importDryRun    bool
+	importConflicts portability.ConflictStrategy
+	conflictSet     bool
 }
 
 func parse(args []string) (invocation, error) {
-	var result invocation
+	result := invocation{exportMode: portability.ModeHuman, importConflicts: portability.ConflictFail}
 
 	for index := 0; index < len(args); index++ {
 		argument := args[index]
@@ -394,6 +437,31 @@ func parse(args []string) (invocation, error) {
 			result.allowNested = true
 		case argument == "--yes":
 			result.yes = true
+		case argument == "--full":
+			result.exportMode = portability.ModeFull
+		case argument == "--dry-run":
+			result.importDryRun = true
+		case argument == "--output":
+			index++
+			if index >= len(args) || strings.TrimSpace(args[index]) == "" || strings.HasPrefix(args[index], "-") {
+				return invocation{}, fmt.Errorf("option --output requires a file")
+			}
+			result.exportOutput = args[index]
+		case strings.HasPrefix(argument, "--output="):
+			result.exportOutput = strings.TrimSpace(strings.TrimPrefix(argument, "--output="))
+			if result.exportOutput == "" {
+				return invocation{}, fmt.Errorf("option --output requires a file")
+			}
+		case argument == "--conflict":
+			index++
+			if index >= len(args) {
+				return invocation{}, fmt.Errorf("option --conflict requires fail, keep, or overwrite")
+			}
+			result.importConflicts = portability.ConflictStrategy(args[index])
+			result.conflictSet = true
+		case strings.HasPrefix(argument, "--conflict="):
+			result.importConflicts = portability.ConflictStrategy(strings.TrimSpace(strings.TrimPrefix(argument, "--conflict=")))
+			result.conflictSet = true
 		case argument == "--explain":
 			index++
 			if index >= len(args) || strings.TrimSpace(args[index]) == "" || strings.HasPrefix(args[index], "-") {
@@ -496,6 +564,15 @@ func parse(args []string) (invocation, error) {
 		if err := parseBackupArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "export":
+		if len(result.arguments) != 0 {
+			return invocation{}, fmt.Errorf("export does not accept positional arguments")
+		}
+	case "import":
+		if len(result.arguments) != 1 {
+			return invocation{}, fmt.Errorf("import requires exactly one archive file")
+		}
+		result.importArchive = result.arguments[0]
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -503,6 +580,21 @@ func parse(args []string) (invocation, error) {
 	}
 	if result.yes && (result.command != "backup" || result.backupOperation != "restore") {
 		return invocation{}, fmt.Errorf("option --yes requires the backup restore command")
+	}
+	if result.exportMode == portability.ModeFull && result.command != "export" {
+		return invocation{}, fmt.Errorf("option --full requires the export command")
+	}
+	if result.exportOutput != "" && result.command != "export" {
+		return invocation{}, fmt.Errorf("option --output requires the export command")
+	}
+	if result.importDryRun && result.command != "import" {
+		return invocation{}, fmt.Errorf("option --dry-run requires the import command")
+	}
+	if result.conflictSet && result.command != "import" {
+		return invocation{}, fmt.Errorf("option --conflict requires the import command")
+	}
+	if !result.importConflicts.Valid() {
+		return invocation{}, fmt.Errorf("option --conflict requires fail, keep, or overwrite")
 	}
 
 	return result, nil

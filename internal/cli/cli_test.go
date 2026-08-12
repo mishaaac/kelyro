@@ -13,6 +13,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
+	"github.com/mishaaac/kelyro/internal/portability"
 )
 
 func TestRunnerDispatchesFoundationCommands(t *testing.T) {
@@ -32,6 +33,8 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "open", args: []string{"open"}, wantAction: app.ActionOpen},
 		{name: "logs path", args: []string{"logs", "path"}, wantAction: app.ActionLogs},
 		{name: "audit", args: []string{"audit"}, wantAction: app.ActionAudit},
+		{name: "export", args: []string{"export"}, wantAction: app.ActionExport},
+		{name: "import", args: []string{"import", "workspace.tar.gz"}, wantAction: app.ActionImport},
 	}
 
 	for _, test := range tests {
@@ -83,6 +86,48 @@ func TestRunnerPassesWorkspaceAndAcceptsReservedFlags(t *testing.T) {
 	}
 	if !service.commands[0].Verbose {
 		t.Error("verbose flag was not forwarded to the application")
+	}
+}
+
+func TestRunnerParsesAndRendersPortabilityCommands(t *testing.T) {
+	t.Parallel()
+
+	exportService := &fakeService{result: app.Result{Portability: &portability.Report{
+		ArchivePath: "/tmp/workspace.tar.gz", Mode: portability.ModeFull, FileCount: 4, TotalSize: 120,
+	}}}
+	var stdout, stderr bytes.Buffer
+	exitCode := NewRunner(exportService, &stdout, &stderr).Run(context.Background(), []string{
+		"export", "--full", "--output", "/tmp/workspace.tar.gz",
+	})
+	if exitCode != ExitOK || len(exportService.commands) != 1 {
+		t.Fatalf("Run(export) = %d, commands=%+v, stderr=%q", exitCode, exportService.commands, stderr.String())
+	}
+	exportCommand := exportService.commands[0]
+	if exportCommand.ExportMode != portability.ModeFull || exportCommand.ExportOutput != "/tmp/workspace.tar.gz" {
+		t.Fatalf("export command = %+v", exportCommand)
+	}
+	if !strings.Contains(stdout.String(), "Exported full workspace") || !strings.Contains(stdout.String(), "files=4 bytes=120") {
+		t.Fatalf("export stdout = %q", stdout.String())
+	}
+
+	importService := &fakeService{result: app.Result{Portability: &portability.Report{
+		ArchivePath: "/tmp/workspace.tar.gz", Destination: "/tmp/target", Mode: portability.ModeFull,
+		DryRun: true, FileCount: 4, Creates: []string{"LEARNING.md"}, Conflicts: []string{"notes.md"},
+	}}}
+	stdout.Reset()
+	stderr.Reset()
+	exitCode = NewRunner(importService, &stdout, &stderr).Run(context.Background(), []string{
+		"import", "/tmp/workspace.tar.gz", "--dry-run", "--conflict=overwrite",
+	})
+	if exitCode != ExitOK || len(importService.commands) != 1 {
+		t.Fatalf("Run(import) = %d, commands=%+v, stderr=%q", exitCode, importService.commands, stderr.String())
+	}
+	importCommand := importService.commands[0]
+	if !importCommand.ImportDryRun || importCommand.ImportConflicts != portability.ConflictOverwrite || importCommand.ImportArchive != "/tmp/workspace.tar.gz" {
+		t.Fatalf("import command = %+v", importCommand)
+	}
+	if !strings.Contains(stdout.String(), "Import dry run") || !strings.Contains(stdout.String(), "Conflicts: notes.md") {
+		t.Fatalf("import stdout = %q", stdout.String())
 	}
 }
 
@@ -413,6 +458,12 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "backup unknown operation", args: []string{"backup", "copy"}, message: `unknown backup command "copy"`},
 		{name: "backup restore missing id", args: []string{"backup", "restore"}, message: "backup restore requires exactly one id"},
 		{name: "yes without restore", args: []string{"backup", "create", "--yes"}, message: "option --yes requires the backup restore command"},
+		{name: "full without export", args: []string{"status", "--full"}, message: "option --full requires the export command"},
+		{name: "output without export", args: []string{"status", "--output", "archive.tar.gz"}, message: "option --output requires the export command"},
+		{name: "export positional", args: []string{"export", "archive.tar.gz"}, message: "export does not accept positional arguments"},
+		{name: "import missing archive", args: []string{"import"}, message: "import requires exactly one archive file"},
+		{name: "dry-run without import", args: []string{"status", "--dry-run"}, message: "option --dry-run requires the import command"},
+		{name: "invalid conflict", args: []string{"import", "archive.tar.gz", "--conflict", "merge"}, message: "option --conflict requires fail, keep, or overwrite"},
 	}
 
 	for _, test := range tests {

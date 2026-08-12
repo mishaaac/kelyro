@@ -461,6 +461,40 @@ state directory) on the same filesystem. Any failed swap rolls back already
 replaced components; if rollback itself cannot finish, the preserved originals
 remain in a reported recovery directory rather than being deleted.
 
+### Portable export and import boundary
+
+`portability.Service` keeps archive policy independent of tar, gzip, SQLite,
+and the operating system. The default human export selects visible Markdown
+documents below the workspace root, including Foundation documents and
+student-authored Markdown notes. Hidden paths, symlinks, non-Markdown files,
+and all `.kelyro` internals are excluded. A full export contains the same
+readable selection plus only `.kelyro/learning.db`, project `config.toml`,
+`workspace.json`, and regular files below `.kelyro/state`. Global settings,
+credential providers, environment values, logs, caches, backups, and unknown
+machine internals have no path into either mode.
+
+Exports are gzip-compressed tar archives with a JSON manifest as their first
+entry. The manifest records format and schema versions, mode, app and workspace
+identity, UTC creation time, ownership, relative POSIX path, size, and SHA-256
+for every file. Export rejects paths that cannot round-trip safely on supported
+platforms, including traversal, backslashes, drive syntax, Windows reserved
+names, and case-insensitive collisions. Publication uses a same-directory
+temporary file followed by rename and never intentionally replaces an existing
+archive.
+
+Import extracts only declared regular files into temporary staging, verifies
+the complete manifest, entry set, sizes, hashes, workspace metadata, and any
+SQLite database before creating or changing the destination. It rejects
+absolute/traversing paths, duplicate entries, foreign separators, symlinked
+destination components, undeclared files, and non-allowlisted machine state.
+The explicit conflict strategies are `fail` (default), `keep`, and `overwrite`;
+only `overwrite` authorizes replacement of different student-owned files. A
+dry-run performs the same validation and conflict preflight without writing to
+the destination. Real imports stage each replacement and retain originals for
+rollback until the complete commit succeeds. Full imports recreate empty
+managed directories required by workspace validation, and successful imports
+into a valid workspace append `import.completed` to the audit trail.
+
 ## Why UI and persistence stay outside the core
 
 The TUI is one way to operate Kelyro, alongside the CLI and possible future

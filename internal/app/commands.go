@@ -17,6 +17,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/editor"
 	"github.com/mishaaac/kelyro/internal/logging"
 	"github.com/mishaaac/kelyro/internal/platform"
+	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/session"
 	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
@@ -37,6 +38,8 @@ const (
 	ActionLogs    Action = "logs"
 	ActionAudit   Action = "audit"
 	ActionBackup  Action = "backup"
+	ActionExport  Action = "export"
+	ActionImport  Action = "import"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -59,6 +62,11 @@ type Command struct {
 	BackupOperation string
 	BackupID        string
 	BackupConfirmed bool
+	ExportMode      portability.Mode
+	ExportOutput    string
+	ImportArchive   string
+	ImportDryRun    bool
+	ImportConflicts portability.ConflictStrategy
 	Verbose         bool
 }
 
@@ -70,6 +78,7 @@ type Result struct {
 	Failed      bool
 	Audit       []audit.Entry
 	Backups     []backup.Info
+	Portability *portability.Report
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -90,6 +99,7 @@ type Service struct {
 	loggers          logging.WorkspaceFactory
 	audits           audit.WorkspaceStoreFactory
 	backups          backup.Service
+	portability      portability.Service
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -97,6 +107,12 @@ type Service struct {
 // WithBackups attaches safe workspace backup and restore operations.
 func (service *Service) WithBackups(backups backup.Service) *Service {
 	service.backups = backups
+	return service
+}
+
+// WithPortability attaches portable workspace archive operations.
+func (service *Service) WithPortability(portable portability.Service) *Service {
+	service.portability = portable
 	return service
 }
 
@@ -186,6 +202,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionBackup {
 		return service.executeBackup(ctx, command)
+	}
+	if command.Action == ActionExport || command.Action == ActionImport {
+		return service.executePortability(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)
