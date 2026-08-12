@@ -50,6 +50,9 @@ func TestFoundationWorkspaceLifecycle(t *testing.T) {
 	})
 
 	t.Run("reopen and resume", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("piped stdin is not a Windows console handle; session and TUI state are covered by unit tests")
+		}
 		test := newScenario(t, binary)
 		test.mustRun("init")
 		workspaceLabel := "Workspace: " + filepath.Base(test.workspace)
