@@ -749,3 +749,28 @@ Known limitations:
 
 Ready for:
 I-02 Student & Learning Core
+
+## Post-I-01 correction — Development build update checks
+
+Status: completed
+Date: 2026-08-12
+Commit: `fix(update): handle development builds without SemVer metadata`
+Release: unreleased
+
+### Finding
+- Los builds locales usan `dev` por defecto, pero `update check` intentaba parsearlo siempre como SemVer y terminaba con `malformed semantic version` antes de aplicar el flujo offline.
+
+### Resolution
+- `dev` y `unknown` se clasifican de forma exacta como builds de desarrollo; el parser de releases permanece estrictamente SemVer.
+- El checker devuelve `Unavailable` con detalle `development build` antes de consultar cache, privacy gate o release provider.
+- Cualquier otra versión actual malformada continúa fallando explícitamente.
+
+### Verification
+- `go test ./internal/version ./internal/update ./internal/app ./internal/cli`
+- `go test ./...`
+- `go vet ./...`
+- Smoke tests de binarios `dev` y SemVer inyectado mediante `-ldflags`.
+- `git diff --check`
+
+### Release note
+- La corrección permanece `unreleased`; `v0.1.0-alpha.2` es únicamente el próximo candidato y no se creó tag ni release.

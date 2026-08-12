@@ -41,9 +41,18 @@ func TestParseVersionFollowsSemVerPrecedence(t *testing.T) {
 
 func TestParseVersionRejectsMalformedVersions(t *testing.T) {
 	t.Parallel()
-	for _, value := range []string{"", "dev", "1", "1.2", "01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "1.2.3-", "1.2.3+", "v1.2.3 extra"} {
+	for _, value := range []string{"", "dev", "unknown", "arbitrary", "1", "1.2", "01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "1.2.3-", "1.2.3+", "v1.2.3 extra"} {
 		if _, err := ParseVersion(value); !errors.Is(err, ErrMalformedVersion) {
 			t.Errorf("ParseVersion(%q) error = %v, want ErrMalformedVersion", value, err)
+		}
+	}
+}
+
+func TestParseVersionAcceptsReleaseVersions(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"v0.1.0-alpha.1", "0.1.0-alpha.1", "0.1.0", "1.2.3"} {
+		if _, err := ParseVersion(value); err != nil {
+			t.Errorf("ParseVersion(%q) error = %v", value, err)
 		}
 	}
 }
@@ -112,6 +121,29 @@ func TestCheckerUsesFreshCacheBeforePrivacyGateOrProvider(t *testing.T) {
 	}
 }
 
+func TestCheckerTreatsDevelopmentBuildsAsUnavailableWithoutDependencies(t *testing.T) {
+	t.Parallel()
+	for _, current := range []string{"dev", "unknown"} {
+		t.Run(current, func(t *testing.T) {
+			t.Parallel()
+			cache := &fakeCache{err: errors.New("must not run")}
+			provider := &fakeProvider{err: errors.New("must not run")}
+			gate := &recordingGate{err: errors.New("must not run")}
+			result, err := New(current, provider, cache).Check(context.Background(), Stable, gate)
+			if err != nil {
+				t.Fatalf("Check(%q) error = %v", current, err)
+			}
+			if result.Status != Unavailable || result.Source != SourceNone || result.Channel != Stable ||
+				result.CurrentVersion != current || result.Detail != "development build" {
+				t.Fatalf("Check(%q) = %+v", current, result)
+			}
+			if cache.loads != 0 || cache.saves != 0 || gate.calls != 0 || provider.calls != 0 {
+				t.Fatalf("dependency calls for %q: cache loads=%d saves=%d gate=%d provider=%d", current, cache.loads, cache.saves, gate.calls, provider.calls)
+			}
+		})
+	}
+}
+
 func TestCheckerRefreshesExpiredCacheAndCachesEmptyResult(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 12, 18, 0, 0, 0, time.UTC)
@@ -155,7 +187,7 @@ func TestCheckerTreatsProviderUnavailabilityAsNonFatal(t *testing.T) {
 
 func TestCheckerRejectsMalformedCurrentAndProviderVersions(t *testing.T) {
 	t.Parallel()
-	_, err := New("dev", &fakeProvider{}, nil).Check(context.Background(), Stable, allowGate{})
+	_, err := New("not-a-version", &fakeProvider{}, nil).Check(context.Background(), Stable, allowGate{})
 	if !errors.Is(err, ErrMalformedVersion) {
 		t.Fatalf("Check(malformed current) error = %v", err)
 	}
@@ -184,10 +216,12 @@ type fakeCache struct {
 	found bool
 	err   error
 	saved CachedCheck
+	loads int
 	saves int
 }
 
 func (cache *fakeCache) Load(context.Context, Channel) (CachedCheck, bool, error) {
+	cache.loads++
 	return cache.check, cache.found, cache.err
 }
 

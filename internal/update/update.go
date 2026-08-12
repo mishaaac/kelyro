@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/privacy"
+	buildversion "github.com/mishaaac/kelyro/internal/version"
 )
 
 const DefaultCacheTTL = 24 * time.Hour
@@ -252,6 +253,12 @@ func (service *Service) Check(ctx context.Context, channel Channel, gate privacy
 	}
 	if !channel.Valid() {
 		return Result{}, fmt.Errorf("invalid update channel %q", channel)
+	}
+	if buildversion.IsDevelopment(service.current) {
+		return Result{
+			Status: Unavailable, Source: SourceNone, Channel: channel,
+			CurrentVersion: service.current, Detail: "development build",
+		}, nil
 	}
 	current, err := ParseVersion(service.current)
 	if err != nil {

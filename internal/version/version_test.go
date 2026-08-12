@@ -31,3 +31,29 @@ func TestInfoString(t *testing.T) {
 		t.Errorf("Info.String() = %q, want %q", got, want)
 	}
 }
+
+func TestIsDevelopmentUsesExactBuildIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{value: "dev", want: true},
+		{value: "unknown", want: true},
+		{value: "v0.1.0-alpha.1"},
+		{value: "0.1.0-alpha.1"},
+		{value: "0.1.0"},
+		{value: "1.2.3"},
+		{value: "not-a-version"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.value, func(t *testing.T) {
+			t.Parallel()
+			if got := IsDevelopment(test.value); got != test.want {
+				t.Errorf("IsDevelopment(%q) = %t, want %t", test.value, got, test.want)
+			}
+		})
+	}
+}

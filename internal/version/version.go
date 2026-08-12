@@ -26,6 +26,13 @@ func Current() Info {
 	}
 }
 
+// IsDevelopment reports whether value is one of Kelyro's exact development
+// build identifiers. Release versions are classified separately by the update
+// package's SemVer parser.
+func IsDevelopment(value string) bool {
+	return value == "dev" || value == "unknown"
+}
+
 // String returns a stable human-readable representation of build metadata.
 func (i Info) String() string {
 	return fmt.Sprintf("%s (commit %s, built %s)", i.Version, i.Commit, i.Date)

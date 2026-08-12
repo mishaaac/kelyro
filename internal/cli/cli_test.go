@@ -99,6 +99,24 @@ func TestRunnerParsesAndRendersUpdateChecks(t *testing.T) {
 	}
 }
 
+func TestRunnerRendersDevelopmentUpdateCheck(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{result: app.Result{Update: &update.Result{
+		Status: update.Unavailable, Source: update.SourceNone, Channel: update.Stable,
+		CurrentVersion: "dev", Detail: "development build",
+	}}}
+	var stdout, stderr bytes.Buffer
+
+	exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"update", "check"})
+	if exitCode != ExitOK || stderr.Len() != 0 {
+		t.Fatalf("Run(update check) exit=%d stderr=%q", exitCode, stderr.String())
+	}
+	const want = "Update check unavailable (current=dev channel=stable): development build.\n"
+	if got := stdout.String(); got != want {
+		t.Fatalf("update output = %q, want %q", got, want)
+	}
+}
+
 func TestRunnerPassesWorkspaceAndAcceptsReservedFlags(t *testing.T) {
 	t.Parallel()
 

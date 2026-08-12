@@ -68,6 +68,26 @@ func TestServiceUpdateCheckHonorsEnabledChannelAndReportsAvailable(t *testing.T)
 	}
 }
 
+func TestServiceUpdateCheckReportsDevelopmentBuildWithoutNetwork(t *testing.T) {
+	t.Parallel()
+	provider := &recordingReleaseProvider{release: update.Release{Version: "2.0.0"}, found: true}
+	service := NewService(&recordingWorkspaceService{}, func() (string, error) { return "/outside", nil }).
+		WithConfig(&recordingConfigStore{}).
+		WithUpdates(update.New("dev", provider, nil))
+
+	result, err := service.Execute(context.Background(), Command{Action: ActionUpdate, UpdateOperation: "check"})
+	if err != nil {
+		t.Fatalf("Execute(update check) error = %v", err)
+	}
+	if result.Update == nil || result.Update.Status != update.Unavailable ||
+		result.Update.CurrentVersion != "dev" || result.Update.Detail != "development build" {
+		t.Fatalf("Execute(update check) result = %+v", result)
+	}
+	if provider.calls != 0 {
+		t.Fatalf("provider calls = %d, want zero for development build", provider.calls)
+	}
+}
+
 func TestServiceUpdateCheckCanBeDisabledWithoutCallingChecker(t *testing.T) {
 	t.Parallel()
 	checker := &recordingUpdateChecker{}
