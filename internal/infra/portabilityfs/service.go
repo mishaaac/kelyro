@@ -707,8 +707,13 @@ func allowedInternalPath(portable string) bool {
 }
 
 func validPortablePath(portable string) bool {
-	if portable == "" || portable == "." || !fs.ValidPath(portable) || strings.ContainsAny(portable, "\\:\x00") {
+	if portable == "" || portable == "." || !fs.ValidPath(portable) || strings.ContainsAny(portable, "\\:\x00<>\"|?*") {
 		return false
+	}
+	for _, character := range portable {
+		if character < 0x20 || character == 0x7f {
+			return false
+		}
 	}
 	for _, component := range strings.Split(portable, "/") {
 		if strings.HasSuffix(component, " ") || strings.HasSuffix(component, ".") || windowsReserved(component) {

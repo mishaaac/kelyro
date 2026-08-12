@@ -160,9 +160,18 @@ func TestExportExcludesSecretsAndUsesPortablePaths(t *testing.T) {
 			t.Errorf("archive leaked excluded or non-portable data in %q", name)
 		}
 	}
-	for _, invalid := range []string{"../notes.md", `notes\\ideas.md`, "C:/notes.md", "notes/CON.md", "notes/trailing. "} {
+	for _, invalid := range []string{
+		"../notes.md", `notes\\ideas.md`, "C:/notes.md", "notes/CON.md", "notes/trailing. ",
+		"notes/question?.md", "notes/star*.md", "notes/quote\".md", "notes/less<than.md",
+		"notes/greater>than.md", "notes/pipe|name.md", "notes/new\nline.md", "notes/delete\x7f.md",
+	} {
 		if validPortablePath(invalid) {
 			t.Errorf("validPortablePath(%q) = true", invalid)
+		}
+	}
+	for _, valid := range []string{"notes/learning plan.md", "notas/ámbito-世界.md"} {
+		if !validPortablePath(valid) {
+			t.Errorf("validPortablePath(%q) = false", valid)
 		}
 	}
 }
