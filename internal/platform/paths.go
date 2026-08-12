@@ -8,17 +8,19 @@ import (
 )
 
 const (
-	applicationDirectoryName     = "kelyro"
-	globalConfigFileName         = "config.toml"
-	workspaceDirectoryName       = ".kelyro"
-	workspaceConfigFileName      = "config.toml"
-	workspaceDatabaseFileName    = "learning.db"
-	workspaceMetadataFileName    = "workspace.json"
-	workspaceStateDirectoryName  = "state"
-	workspaceCacheDirectoryName  = "cache"
-	workspaceBackupDirectoryName = "backups"
-	workspaceLogDirectoryName    = "logs"
-	workspaceLearningFileName    = "LEARNING.md"
+	applicationDirectoryName      = "kelyro"
+	globalConfigFileName          = "config.toml"
+	workspaceDirectoryName        = ".kelyro"
+	workspaceConfigFileName       = "config.toml"
+	workspaceDatabaseFileName     = "learning.db"
+	workspaceMetadataFileName     = "workspace.json"
+	workspaceStateDirectoryName   = "state"
+	workspaceCacheDirectoryName   = "cache"
+	workspaceBackupDirectoryName  = "backups"
+	workspaceLogDirectoryName     = "logs"
+	workspaceLearningFileName     = "LEARNING.md"
+	workspaceRoadmapDirectoryName = "00-roadmap"
+	workspaceRoadmapFileName      = "ROADMAP.md"
 )
 
 var errEmptyPath = errors.New("path must not be empty")
@@ -153,6 +155,15 @@ func WorkspaceLogDir(root string) (string, error) {
 // WorkspaceLearningPath returns the human-owned learning document path.
 func WorkspaceLearningPath(root string) (string, error) {
 	return childPath(root, workspaceLearningFileName)
+}
+
+// WorkspaceRoadmapPath returns the visible Foundation roadmap document path.
+func WorkspaceRoadmapPath(root string) (string, error) {
+	directory, err := childPath(root, workspaceRoadmapDirectoryName)
+	if err != nil {
+		return "", err
+	}
+	return childPath(directory, workspaceRoadmapFileName)
 }
 
 func workspaceChildPath(root, name string) (string, error) {

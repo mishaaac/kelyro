@@ -11,6 +11,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/artifacts"
 	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/editor"
+	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
@@ -42,6 +44,7 @@ type Command struct {
 	SecretOperation string
 	SecretName      string
 	SecretValue     string
+	OpenTarget      string
 }
 
 // Result contains presentation-independent output from a Foundation action.
@@ -61,6 +64,7 @@ type Service struct {
 	configs          config.Store
 	secrets          storage.SecretStore
 	artifactStores   artifacts.WorkspaceStoreFactory
+	editors          editor.Service
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -93,7 +97,15 @@ func (service *Service) WithArtifactStores(stores artifacts.WorkspaceStoreFactor
 	return service
 }
 
-// Execute initializes workspaces and delegates future actions to placeholders.
+// WithEditor attaches the native editor integration behind its replaceable
+// application contract.
+func (service *Service) WithEditor(editors editor.Service) *Service {
+	service.editors = editors
+	return service
+}
+
+// Execute coordinates implemented Foundation actions and delegates future
+// actions to explicit placeholders.
 func (service *Service) Execute(ctx context.Context, command Command) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
@@ -103,6 +115,9 @@ func (service *Service) Execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionSecrets {
 		return service.executeSecrets(command)
+	}
+	if command.Action == ActionOpen {
+		return service.executeOpen(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)
@@ -132,6 +147,78 @@ func (service *Service) Execute(ctx context.Context, command Command) (Result, e
 	}
 
 	return Result{Message: fmt.Sprintf("Kelyro workspace ready at %s", created.Root)}, nil
+}
+
+func (service *Service) executeOpen(ctx context.Context, command Command) (Result, error) {
+	if service.editors == nil {
+		return Result{}, fmt.Errorf("editor service is unavailable")
+	}
+	if service.configs == nil {
+		return Result{}, fmt.Errorf("configuration store is unavailable")
+	}
+
+	targetWorkspace, err := service.discoverWorkspace(command)
+	if err != nil {
+		return Result{}, err
+	}
+	settings, err := service.resolvedConfigForWorkspace(targetWorkspace.Root, command.ConfigOverrides)
+	if err != nil {
+		return Result{}, err
+	}
+	configured, _ := settings[config.KeyEditorCommand].StringField()
+
+	var target string
+	switch command.OpenTarget {
+	case "":
+		target, err = platform.WorkspaceLearningPath(targetWorkspace.Root)
+	case "roadmap":
+		target, err = platform.WorkspaceRoadmapPath(targetWorkspace.Root)
+	default:
+		return Result{}, fmt.Errorf("unsupported artifact %q", command.OpenTarget)
+	}
+	if err != nil {
+		return Result{}, fmt.Errorf("resolve artifact path: %w", err)
+	}
+
+	selection, err := service.editors.Open(ctx, target, configured)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Message: fmt.Sprintf("Opened %s with %s", filepath.Base(target), selection.Name)}, nil
+}
+
+func (service *Service) discoverWorkspace(command Command) (workspace.Workspace, error) {
+	if service.workspaces == nil {
+		return workspace.Workspace{}, fmt.Errorf("workspace service is unavailable")
+	}
+	start := command.Workspace
+	if start == "" {
+		if service.currentDirectory == nil {
+			return workspace.Workspace{}, fmt.Errorf("current directory provider is unavailable")
+		}
+		var err error
+		start, err = service.currentDirectory()
+		if err != nil {
+			return workspace.Workspace{}, fmt.Errorf("find current directory: %w", err)
+		}
+	}
+	found, err := service.workspaces.Discover(start)
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	return found, nil
+}
+
+func (service *Service) resolvedConfigForWorkspace(root string, overrides config.Settings) (config.Settings, error) {
+	global, err := service.configs.LoadGlobal()
+	if err != nil {
+		return nil, err
+	}
+	project, err := service.configs.LoadProject(root)
+	if err != nil {
+		return nil, err
+	}
+	return config.Resolve(global, project, overrides)
 }
 
 func (service *Service) generateFoundationDocuments(ctx context.Context, target workspace.Workspace) error {
@@ -410,8 +497,6 @@ func (BootstrapService) Execute(ctx context.Context, command Command) (Result, e
 		return Result{Message: "kelyro doctor: diagnostics are not implemented yet."}, nil
 	case ActionStatus:
 		return Result{Message: "kelyro status: workspace status is not implemented yet."}, nil
-	case ActionOpen:
-		return Result{Message: "kelyro open: workspace opening is not implemented yet."}, nil
 	default:
 		return Result{}, fmt.Errorf("unsupported Foundation action %q", command.Action)
 	}

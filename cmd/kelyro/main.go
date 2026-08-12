@@ -8,6 +8,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/cli"
 	"github.com/mishaaac/kelyro/internal/infra/artifactfs"
 	"github.com/mishaaac/kelyro/internal/infra/configfs"
+	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
 	"github.com/mishaaac/kelyro/internal/version"
@@ -18,7 +19,8 @@ func main() {
 	service := app.NewService(workspaces, os.Getwd).
 		WithConfig(configfs.New()).
 		WithSecrets(secretstore.New()).
-		WithArtifactStores(artifactfs.NewFactory())
+		WithArtifactStores(artifactfs.NewFactory()).
+		WithEditor(editoros.New())
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr))
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))

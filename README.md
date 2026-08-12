@@ -8,8 +8,9 @@ structured persistence needed to build the product incrementally.
 ## Status
 
 Early pre-release (`v0.1.0-alpha.1` development line). The current executable
-provides workspace initialization, global/project configuration, and secret
-management commands; other Foundation commands remain explicit placeholders.
+provides workspace initialization, global/project configuration, secret
+management, and safe opening of Foundation documents; other Foundation commands
+remain explicit placeholders.
 It does not include an interactive TUI or learning features yet.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
@@ -48,6 +49,15 @@ set `KELYRO_SECRET_<NAME>` instead; for example, the name `provider.token` maps
 to `KELYRO_SECRET_PROVIDER_TOKEN`. Environment variables take precedence and
 are never copied into Kelyro files. Status and configuration output show only
 `configured` or `not configured` plus the reference name.
+
+Use `kelyro open` to open `LEARNING.md` or `kelyro open roadmap` to open the
+Foundation roadmap. Kelyro honors `editor.command`, detects `code`, `nvim`,
+`vim`, `zed`, or `cursor`, and finally tries the operating system's default
+file opener. Configure an executable name or complete executable path, not a
+shell command; for example, `kelyro config set editor.command code`. The
+`editor.prompt` boolean controls whether the future interactive TUI offers an
+open-after-generation prompt; it defaults to `true` and does not affect the
+explicit CLI command.
 
 Build metadata can be injected without changing source code:
 

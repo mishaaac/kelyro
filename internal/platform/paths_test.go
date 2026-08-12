@@ -81,6 +81,7 @@ func TestWorkspacePaths(t *testing.T) {
 			assertPathHelper(t, "WorkspaceBackupDir", WorkspaceBackupDir, test.root, filepath.Join(root, ".kelyro", "backups"))
 			assertPathHelper(t, "WorkspaceLogDir", WorkspaceLogDir, test.root, filepath.Join(root, ".kelyro", "logs"))
 			assertPathHelper(t, "WorkspaceLearningPath", WorkspaceLearningPath, test.root, filepath.Join(root, "LEARNING.md"))
+			assertPathHelper(t, "WorkspaceRoadmapPath", WorkspaceRoadmapPath, test.root, filepath.Join(root, "00-roadmap", "ROADMAP.md"))
 		})
 	}
 }
@@ -101,6 +102,7 @@ func TestWorkspacePathsRejectEmptyRoot(t *testing.T) {
 		{name: "WorkspaceBackupDir", call: WorkspaceBackupDir},
 		{name: "WorkspaceLogDir", call: WorkspaceLogDir},
 		{name: "WorkspaceLearningPath", call: WorkspaceLearningPath},
+		{name: "WorkspaceRoadmapPath", call: WorkspaceRoadmapPath},
 	}
 
 	for _, helper := range helpers {

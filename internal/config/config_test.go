@@ -18,6 +18,9 @@ func TestDefaultsAreSafeAndIndependent(t *testing.T) {
 	if got := second[KeyAllowNetwork].String(); got != "false" {
 		t.Errorf("privacy.allow_network default = %q, want false", got)
 	}
+	if got := second[KeyEditorPrompt].String(); got != "true" {
+		t.Errorf("editor.prompt default = %q, want true", got)
+	}
 	if got := second[KeyUpdateCheck].String(); got != "true" {
 		t.Errorf("updates.check default = %q, want true", got)
 	}

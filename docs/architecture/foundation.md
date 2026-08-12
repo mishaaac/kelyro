@@ -54,7 +54,8 @@ or infrastructure adapters merely to perform work.
 | `internal/artifacts/markdown` | Pure rendering of stable human-readable Foundation documents. |
 | `internal/infra/artifactfs` | Ownership-aware atomic writes and workspace path sandbox. |
 | `internal/audit` | Boundary for recording critical actions, without an event bus. |
-| `internal/editor` | Future editor integration adapters. |
+| `internal/editor` | Neutral editor discovery and file-opening contract. |
+| `internal/infra/editoros` | Native executable discovery and safe process-launch adapter. |
 | `internal/doctor` | Future Foundation diagnostics. |
 | `internal/logging` | Future structured logging infrastructure. |
 | `internal/backup` | Future backup and restore services. |
@@ -88,6 +89,15 @@ Neither implementation detail is visible to application callers.
 `platform.Platform` owns OS-specific discovery and actions, including standard
 user directories, command lookup, and opening paths or URLs.
 
+The narrower `editor.Service` is the application-facing boundary for selecting
+and launching editors. `editoros` resolves executable names with the native
+process lookup, passes the artifact path as a distinct argument, and never
+evaluates a shell command string. An explicit `editor.command` must be one
+executable name or path; if it is absent, detection checks `code`, `nvim`,
+`vim`, `zed`, and `cursor` in that order before using the platform's default
+file opener. A configured but missing executable fails visibly instead of
+silently selecting something else.
+
 ### Path conventions
 
 All path construction and normalization goes through `internal/platform` and
@@ -114,7 +124,8 @@ Workspace data never moves into those global directories:
 `learning.db`, metadata is `workspace.json`, state is under `state`, disposable
 cache is under `cache`, backups are under `backups`, and logs are under `logs`.
 `WorkspaceConfigPath` resolves `.kelyro/config.toml`, and
-`WorkspaceLearningPath` resolves the visible `LEARNING.md` document. These
+`WorkspaceLearningPath` resolves the visible `LEARNING.md` document and
+`WorkspaceRoadmapPath` resolves `00-roadmap/ROADMAP.md`. These
 helpers accept relative roots and paths containing spaces. They do not create
 directories or validate workspace identity; those lifecycle operations belong
 to the filesystem adapter behind the workspace contract. The application opens
@@ -211,6 +222,11 @@ without persisting it. Global files accept UI, editor, privacy, and update
 settings. Project files may also define those keys as overrides and add
 `workspace.name` and `learning.mastery_threshold`; the threshold is schema only
 and has no educational behavior yet.
+
+Editor configuration includes the executable-only `editor.command` and the
+`editor.prompt` boolean. The latter defaults to enabled and reserves the user's
+choice for an optional TUI open-after-generation prompt; explicit `kelyro open`
+commands always open immediately.
 
 Both files carry an optional `schema_version`; newly written files use version
 1, and unsupported versions fail before any values are used. The filesystem

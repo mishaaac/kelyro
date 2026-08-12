@@ -18,7 +18,8 @@ func TestStoreSaveReloadAndProjectOverride(t *testing.T) {
 	global := config.Settings{
 		config.KeyUIColor:       config.StringValue("always"),
 		config.KeyAllowNetwork:  config.BoolValue(false),
-		config.KeyEditorCommand: config.StringValue("code --wait"),
+		config.KeyEditorCommand: config.StringValue("code"),
+		config.KeyEditorPrompt:  config.BoolValue(false),
 	}
 	project := config.Settings{
 		config.KeyUIColor:          config.StringValue("never"),
@@ -47,8 +48,11 @@ func TestStoreSaveReloadAndProjectOverride(t *testing.T) {
 	if got := resolved[config.KeyUIColor].String(); got != "never" {
 		t.Errorf("resolved ui.color = %q, want project override never", got)
 	}
-	if got := resolved[config.KeyEditorCommand].String(); got != "code --wait" {
+	if got := resolved[config.KeyEditorCommand].String(); got != "code" {
 		t.Errorf("resolved editor.command = %q", got)
+	}
+	if got := resolved[config.KeyEditorPrompt].String(); got != "false" {
+		t.Errorf("resolved editor.prompt = %q", got)
 	}
 
 	encoded, err := os.ReadFile(globalPath)

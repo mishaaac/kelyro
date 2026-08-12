@@ -15,6 +15,7 @@ const SchemaVersion = 1
 const (
 	KeyUIColor          = "ui.color"
 	KeyEditorCommand    = "editor.command"
+	KeyEditorPrompt     = "editor.prompt"
 	KeyAllowNetwork     = "privacy.allow_network"
 	KeyUpdateCheck      = "updates.check"
 	KeyWorkspaceName    = "workspace.name"
@@ -82,6 +83,7 @@ type Definition struct {
 var definitions = map[string]Definition{
 	KeyUIColor:          {Kind: String, Common: true},
 	KeyEditorCommand:    {Kind: String, Common: true},
+	KeyEditorPrompt:     {Kind: Boolean, Common: true},
 	KeyAllowNetwork:     {Kind: Boolean, Common: true},
 	KeyUpdateCheck:      {Kind: Boolean, Common: true},
 	KeyWorkspaceName:    {Kind: String, ProjectOnly: true, Common: true},
@@ -93,6 +95,7 @@ func Defaults() Settings {
 	return Settings{
 		KeyUIColor:          StringValue("auto"),
 		KeyEditorCommand:    StringValue(""),
+		KeyEditorPrompt:     BoolValue(true),
 		KeyAllowNetwork:     BoolValue(false),
 		KeyUpdateCheck:      BoolValue(true),
 		KeyWorkspaceName:    StringValue(""),

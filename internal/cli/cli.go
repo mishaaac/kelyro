@@ -34,7 +34,7 @@ Commands:
   config   Show or update layered configuration
   secrets  Manage secure credential references
   status   Show workspace status (placeholder)
-  open     Open the workspace (placeholder)
+  open     Open LEARNING.md or the roadmap in an editor
 
 Options:
   -h, --help          Show this help message
@@ -57,6 +57,10 @@ Secret commands:
   kelyro secrets status
   kelyro secrets set <name>
   kelyro secrets delete <name>
+
+Open commands:
+  kelyro open
+  kelyro open roadmap
 `
 
 var actions = map[string]app.Action{
@@ -90,7 +94,8 @@ func (r Runner) WithSecretReader(reader SecretReader) Runner {
 }
 
 // Run parses args, renders immediate CLI output, or dispatches one Foundation
-// action. It returns a process exit code and never starts a child process.
+// action. It returns a process exit code and does not construct native process
+// commands itself.
 func (r Runner) Run(ctx context.Context, args []string) int {
 	invocation, err := parse(args)
 	if err != nil {
@@ -127,6 +132,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		Workspace:   invocation.workspace,
 		AllowNested: invocation.allowNested,
 		ConfigScope: invocation.configScope,
+		OpenTarget:  invocation.openTarget,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -180,6 +186,7 @@ type invocation struct {
 	configValue     string
 	secretOperation string
 	secretName      string
+	openTarget      string
 }
 
 func parse(args []string) (invocation, error) {
@@ -265,6 +272,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseSecretArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "open":
+		if err := parseOpenArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -272,6 +283,17 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseOpenArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		return nil
+	}
+	if len(result.arguments) != 1 || result.arguments[0] != "roadmap" {
+		return fmt.Errorf("open accepts only the optional roadmap artifact")
+	}
+	result.openTarget = "roadmap"
+	return nil
 }
 
 func parseSecretArguments(result *invocation) error {

@@ -10,6 +10,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/artifacts"
 	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/editor"
 	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
@@ -21,7 +22,6 @@ func TestBootstrapServiceSupportsFoundationActions(t *testing.T) {
 		ActionTUI,
 		ActionDoctor,
 		ActionStatus,
-		ActionOpen,
 	} {
 		t.Run(string(action), func(t *testing.T) {
 			t.Parallel()
@@ -34,6 +34,70 @@ func TestBootstrapServiceSupportsFoundationActions(t *testing.T) {
 				t.Errorf("Execute() message = %q, want explicit placeholder", result.Message)
 			}
 		})
+	}
+}
+
+func TestServiceOpensFoundationArtifactsWithResolvedEditor(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(string(filepath.Separator), "workspace with spaces")
+	workspaces := &recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}
+	configs := &recordingConfigStore{
+		global:  config.Settings{config.KeyEditorCommand: config.StringValue("vim")},
+		project: config.Settings{config.KeyEditorCommand: config.StringValue("code")},
+	}
+	editors := &recordingEditorService{selection: editor.Selection{Name: "Visual Studio Code", Executable: "/usr/bin/code"}}
+	service := NewService(workspaces, func() (string, error) { return filepath.Join(root, "lessons"), nil }).
+		WithConfig(configs).
+		WithEditor(editors)
+
+	tests := []struct {
+		name       string
+		openTarget string
+		wantPath   string
+	}{
+		{name: "learning by default", wantPath: filepath.Join(root, "LEARNING.md")},
+		{name: "roadmap", openTarget: "roadmap", wantPath: filepath.Join(root, "00-roadmap", "ROADMAP.md")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := service.Execute(context.Background(), Command{Action: ActionOpen, OpenTarget: test.openTarget})
+			if err != nil {
+				t.Fatalf("Execute(open) error = %v", err)
+			}
+			if editors.target != test.wantPath || editors.configured != "code" {
+				t.Errorf("Open() target = %q configured = %q, want %q and code", editors.target, editors.configured, test.wantPath)
+			}
+			if result.Message != "Opened "+filepath.Base(test.wantPath)+" with Visual Studio Code" {
+				t.Errorf("Execute(open) message = %q", result.Message)
+			}
+		})
+	}
+	if workspaces.discoverStart != filepath.Join(root, "lessons") {
+		t.Errorf("Discover() start = %q", workspaces.discoverStart)
+	}
+	if configs.projectRoot != root {
+		t.Errorf("LoadProject() root = %q, want %q", configs.projectRoot, root)
+	}
+}
+
+func TestServiceOpenHonorsWorkspaceOverrideAndPropagatesFailures(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("configured editor missing")
+	workspaces := &recordingWorkspaceService{discovered: workspace.Workspace{Root: "/project"}}
+	editors := &recordingEditorService{err: wantErr}
+	service := NewService(workspaces, func() (string, error) {
+		t.Fatal("current directory called with workspace override")
+		return "", nil
+	}).WithConfig(&recordingConfigStore{}).WithEditor(editors)
+
+	_, err := service.Execute(context.Background(), Command{Action: ActionOpen, Workspace: "/project/subdirectory"})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Execute(open) error = %v, want editor error", err)
+	}
+	if workspaces.discoverStart != "/project/subdirectory" {
+		t.Errorf("Discover() start = %q", workspaces.discoverStart)
 	}
 }
 
@@ -337,12 +401,13 @@ func TestBootstrapServiceHonorsCancellation(t *testing.T) {
 }
 
 type recordingWorkspaceService struct {
-	initRoot    string
-	initOptions workspace.InitOptions
-	workspace   workspace.Workspace
-	err         error
-	discovered  workspace.Workspace
-	discoverErr error
+	initRoot      string
+	initOptions   workspace.InitOptions
+	workspace     workspace.Workspace
+	err           error
+	discovered    workspace.Workspace
+	discoverErr   error
+	discoverStart string
 }
 
 type recordingArtifactStoreFactory struct {
@@ -384,7 +449,8 @@ func assertGeneratedRequest(t *testing.T, request artifacts.WriteRequest, path, 
 	}
 }
 
-func (service *recordingWorkspaceService) Discover(string) (workspace.Workspace, error) {
+func (service *recordingWorkspaceService) Discover(start string) (workspace.Workspace, error) {
+	service.discoverStart = start
 	if service.discoverErr != nil {
 		return workspace.Workspace{}, service.discoverErr
 	}
@@ -392,6 +458,23 @@ func (service *recordingWorkspaceService) Discover(string) (workspace.Workspace,
 		return workspace.Workspace{}, workspace.ErrNotFound
 	}
 	return service.discovered, nil
+}
+
+type recordingEditorService struct {
+	selection  editor.Selection
+	target     string
+	configured string
+	err        error
+}
+
+func (service *recordingEditorService) Detect(string) (editor.Selection, error) {
+	return service.selection, service.err
+}
+
+func (service *recordingEditorService) Open(_ context.Context, target, configured string) (editor.Selection, error) {
+	service.target = target
+	service.configured = configured
+	return service.selection, service.err
 }
 
 func (service *recordingWorkspaceService) Init(root string, options workspace.InitOptions) (workspace.Workspace, error) {

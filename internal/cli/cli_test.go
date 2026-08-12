@@ -94,6 +94,32 @@ func TestRunnerPassesExplicitNestedInitialization(t *testing.T) {
 	}
 }
 
+func TestRunnerParsesOpenTargets(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		args       []string
+		wantTarget string
+	}{
+		{name: "learning by default", args: []string{"open"}},
+		{name: "roadmap", args: []string{"open", "roadmap"}, wantTarget: "roadmap"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			service := &fakeService{}
+			var stderr bytes.Buffer
+			runner := NewRunner(service, &bytes.Buffer{}, &stderr)
+			if exitCode := runner.Run(context.Background(), test.args); exitCode != ExitOK {
+				t.Fatalf("Run() exit code = %d; stderr = %q", exitCode, stderr.String())
+			}
+			if len(service.commands) != 1 || service.commands[0].OpenTarget != test.wantTarget {
+				t.Errorf("commands = %#v, want open target %q", service.commands, test.wantTarget)
+			}
+		})
+	}
+}
+
 func TestRunnerParsesConfigCommandsScopesAndOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -270,6 +296,8 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "unknown secrets operation", args: []string{"secrets", "get", "openai"}, message: `unknown secrets command "get"`},
 		{name: "secrets status extra", args: []string{"secrets", "status", "openai"}, message: "secrets status does not accept arguments"},
 		{name: "secrets set missing name", args: []string{"secrets", "set"}, message: "secrets set requires exactly one name"},
+		{name: "unknown open artifact", args: []string{"open", "lesson"}, message: "open accepts only the optional roadmap artifact"},
+		{name: "too many open artifacts", args: []string{"open", "roadmap", "extra"}, message: "open accepts only the optional roadmap artifact"},
 	}
 
 	for _, test := range tests {
