@@ -11,6 +11,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/artifacts"
 	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/editor"
 	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/session"
@@ -46,11 +47,14 @@ type Command struct {
 	SecretName      string
 	SecretValue     string
 	OpenTarget      string
+	DoctorContext   doctor.Context
 }
 
 // Result contains presentation-independent output from a Foundation action.
 type Result struct {
-	Message string
+	Message     string
+	Diagnostics *doctor.Report
+	Failed      bool
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -67,6 +71,7 @@ type Service struct {
 	artifactStores   artifacts.WorkspaceStoreFactory
 	sessionStores    session.WorkspaceStoreFactory
 	editors          editor.Service
+	diagnostics      DoctorRunner
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -112,6 +117,12 @@ func (service *Service) WithEditor(editors editor.Service) *Service {
 	return service
 }
 
+// WithDoctor attaches the presentation-independent diagnostics engine.
+func (service *Service) WithDoctor(diagnostics DoctorRunner) *Service {
+	service.diagnostics = diagnostics
+	return service
+}
+
 // Execute coordinates implemented Foundation actions and delegates future
 // actions to explicit placeholders.
 func (service *Service) Execute(ctx context.Context, command Command) (Result, error) {
@@ -126,6 +137,9 @@ func (service *Service) Execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionOpen {
 		return service.executeOpen(ctx, command)
+	}
+	if command.Action == ActionDoctor {
+		return service.executeDoctor(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)
@@ -501,8 +515,6 @@ func (BootstrapService) Execute(ctx context.Context, command Command) (Result, e
 	switch command.Action {
 	case ActionTUI:
 		return Result{Message: "Kelyro TUI bootstrap: interactive mode is not implemented yet."}, nil
-	case ActionDoctor:
-		return Result{Message: "kelyro doctor: diagnostics are not implemented yet."}, nil
 	case ActionStatus:
 		return Result{Message: "kelyro status: workspace status is not implemented yet."}, nil
 	default:

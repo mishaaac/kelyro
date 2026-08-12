@@ -20,7 +20,6 @@ func TestBootstrapServiceSupportsFoundationActions(t *testing.T) {
 
 	for _, action := range []Action{
 		ActionTUI,
-		ActionDoctor,
 		ActionStatus,
 	} {
 		t.Run(string(action), func(t *testing.T) {

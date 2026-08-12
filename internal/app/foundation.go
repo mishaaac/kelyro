@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/doctor"
 )
 
 // FoundationCheck is one presentation-independent health result shown by the
@@ -25,6 +26,7 @@ type FoundationSnapshot struct {
 	Checks        []FoundationCheck
 	Settings      config.Settings
 	LearningPath  bool
+	Diagnostics   doctor.Report
 }
 
 // LoadFoundation gathers the independently testable state consumed by the
@@ -83,5 +85,6 @@ func (service *Service) LoadFoundation(ctx context.Context, command Command) (Fo
 
 	// Keep the Home order aligned with the product specification.
 	snapshot.Checks = append(snapshot.Checks, databaseCheck, configCheck)
+	snapshot.Diagnostics = service.doctorReport(ctx, command, found)
 	return snapshot, nil
 }

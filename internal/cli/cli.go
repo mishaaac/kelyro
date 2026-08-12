@@ -10,6 +10,7 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
@@ -30,7 +31,7 @@ Commands:
   help     Show this help message
   version  Show build version information
   init     Initialize a workspace
-  doctor   Run Foundation diagnostics (placeholder)
+  doctor   Run Foundation diagnostics
   config   Show or update layered configuration
   secrets  Manage secure credential references
   status   Show workspace status (placeholder)
@@ -184,11 +185,49 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintf(r.stderr, "kelyro %s: %v\n", commandName, err)
 		return ExitFailure
 	}
-	if !invocation.quiet && result.Message != "" {
+	if result.Diagnostics != nil && (!invocation.quiet || result.Failed) {
+		fmt.Fprintln(r.stdout, formatDiagnostics(*result.Diagnostics))
+	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
+	}
+	if result.Failed {
+		return ExitFailure
 	}
 
 	return ExitOK
+}
+
+func formatDiagnostics(report doctor.Report) string {
+	var lines []string
+	for _, section := range report.Sections() {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, section)
+		for _, check := range report.ChecksIn(section) {
+			marker := "✓"
+			if check.State == doctor.Fail {
+				marker = "✗"
+			} else if check.State == doctor.Miss {
+				marker = "○"
+			}
+			label := check.DisplayName
+			if check.Requirement != doctor.Required {
+				label += " [" + string(check.Requirement) + "]"
+			}
+			if check.Detail != "" {
+				label += " — " + check.Detail
+			}
+			lines = append(lines, marker+" "+label)
+			if check.WhyNeeded != "" {
+				lines = append(lines, "  Why: "+check.WhyNeeded)
+			}
+			if check.State != doctor.Pass && check.LearnMore != "" {
+				lines = append(lines, "  Learn more: "+check.LearnMore)
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 type invocation struct {

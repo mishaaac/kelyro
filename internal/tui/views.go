@@ -53,7 +53,11 @@ func (model Model) homeView(width int) []string {
 
 func (model Model) doctorView(width int) []string {
 	lines := []string{model.styles.title.Render("Doctor"), truncate("Workspace: "+model.snapshot.WorkspaceRoot, width), ""}
-	lines = append(lines, statusLines(model.snapshot.Checks, true, model.styles, width)...)
+	if len(model.snapshot.Diagnostics.Checks) > 0 {
+		lines = append(lines, diagnosticLines(model.snapshot.Diagnostics, model.styles, width)...)
+	} else {
+		lines = append(lines, statusLines(model.snapshot.Checks, true, model.styles, width)...)
+	}
 	lines = append(lines, "")
 	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
 	return lines

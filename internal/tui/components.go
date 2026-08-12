@@ -6,7 +6,50 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mishaaac/kelyro/internal/app"
+	"github.com/mishaaac/kelyro/internal/doctor"
 )
+
+func diagnosticLines(report doctor.Report, style styles, width int) []string {
+	var lines []string
+	for _, section := range report.Sections() {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, style.heading.Render(section))
+		for _, check := range report.ChecksIn(section) {
+			marker := "✓"
+			lineStyle := style.success
+			if check.State == doctor.Fail {
+				marker = "✗"
+				lineStyle = style.failure
+			} else if check.State == doctor.Miss {
+				marker = "○"
+				lineStyle = style.muted
+			}
+			label := check.DisplayName
+			if check.Requirement != doctor.Required {
+				label += " [" + string(check.Requirement) + "]"
+			}
+			lines = append(lines, lineStyle.Render(marker)+" "+truncate(label, max(1, width-2)))
+			if check.Detail != "" {
+				for _, detail := range wrapText(check.Detail, max(12, width-2)) {
+					lines = append(lines, style.muted.Render("  "+detail))
+				}
+			}
+			if check.WhyNeeded != "" {
+				for _, why := range wrapText("Why: "+check.WhyNeeded, max(12, width-2)) {
+					lines = append(lines, style.muted.Render("  "+why))
+				}
+			}
+			if check.State != doctor.Pass && check.LearnMore != "" {
+				for _, link := range wrapText("Learn more: "+check.LearnMore, max(12, width-2)) {
+					lines = append(lines, style.muted.Render("  "+link))
+				}
+			}
+		}
+	}
+	return lines
+}
 
 func statusLines(checks []app.FoundationCheck, doctor bool, style styles, width int) []string {
 	lines := make([]string, 0, len(checks)*2)

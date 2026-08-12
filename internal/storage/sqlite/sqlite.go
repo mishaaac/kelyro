@@ -187,6 +187,19 @@ func (database *Database) Repositories() Repositories {
 	return newRepositories(database.sql, database.timeout, database.now)
 }
 
+// CheckArtifactIndex verifies that the Foundation artifact index exists and is
+// readable without exposing SQL details to diagnostics callers.
+func (database *Database) CheckArtifactIndex(ctx context.Context) error {
+	operationContext, cancel := database.operationContext(ctx)
+	defer cancel()
+
+	var count int
+	if err := database.sql.QueryRowContext(operationContext, "SELECT COUNT(*) FROM artifact_index").Scan(&count); err != nil {
+		return fmt.Errorf("check artifact index: %w", err)
+	}
+	return nil
+}
+
 // WithTransaction runs repository work in one transaction. Returning an error
 // from work rolls back every write.
 func (database *Database) WithTransaction(ctx context.Context, work func(Repositories) error) error {

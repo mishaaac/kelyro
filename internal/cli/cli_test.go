@@ -10,6 +10,7 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/doctor"
 )
 
 func TestRunnerDispatchesFoundationCommands(t *testing.T) {
@@ -385,6 +386,53 @@ func TestRunnerReturnsFailureForServiceError(t *testing.T) {
 	}
 	if got, want := stderr.String(), "kelyro doctor: diagnostic failed\n"; got != want {
 		t.Errorf("stderr = %q, want %q", got, want)
+	}
+}
+
+func TestRunnerRendersDoctorReportAndFailsOnlyForRequiredChecks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		report   doctor.Report
+		wantExit int
+	}{
+		{
+			name: "missing recommended tool remains successful",
+			report: doctor.Report{Checks: []doctor.Check{
+				{ID: "platform.os", Section: doctor.SectionPlatform, DisplayName: "OS detected", Requirement: doctor.Required, State: doctor.Pass, Detail: "linux"},
+				{ID: "tool.git", Section: doctor.SectionDevelopment, DisplayName: "Git", Requirement: doctor.Recommended, State: doctor.Miss, Detail: "not found", WhyNeeded: "Track changes.", LearnMore: "https://git-scm.com/"},
+			}},
+			wantExit: ExitOK,
+		},
+		{
+			name:     "missing required tool fails",
+			report:   doctor.Report{Checks: []doctor.Check{{ID: "tool.docker", Section: doctor.SectionDevelopment, DisplayName: "Docker", Requirement: doctor.Required, State: doctor.Miss, Detail: "not found"}}},
+			wantExit: ExitFailure,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			service := &fakeService{result: app.Result{Diagnostics: &test.report, Failed: test.report.Failed()}}
+			var stdout, stderr bytes.Buffer
+			exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"doctor"})
+			if exitCode != test.wantExit {
+				t.Fatalf("Run() exit code = %d, want %d", exitCode, test.wantExit)
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("stderr = %q", stderr.String())
+			}
+			for _, text := range []string{test.report.Checks[0].Section, test.report.Checks[0].DisplayName, test.report.Checks[0].Detail} {
+				if !strings.Contains(stdout.String(), text) {
+					t.Errorf("stdout = %q, want %q", stdout.String(), text)
+				}
+			}
+			if test.wantExit == ExitOK && (!strings.Contains(stdout.String(), "[recommended]") || !strings.Contains(stdout.String(), "Why: Track changes.")) {
+				t.Errorf("stdout lacks requirement metadata: %q", stdout.String())
+			}
+		})
 	}
 }
 

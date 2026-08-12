@@ -6,8 +6,11 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/cli"
+	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/infra/artifactfs"
 	"github.com/mishaaac/kelyro/internal/infra/configfs"
+	"github.com/mishaaac/kelyro/internal/infra/doctoros"
+	"github.com/mishaaac/kelyro/internal/infra/doctorsqlite"
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
@@ -23,7 +26,8 @@ func main() {
 		WithSecrets(secretstore.New()).
 		WithArtifactStores(artifactfs.NewFactory()).
 		WithSessionStores(sessiondb.NewFactory()).
-		WithEditor(editoros.New())
+		WithEditor(editoros.New()).
+		WithDoctor(doctor.New(doctoros.New(), doctorsqlite.New(), doctor.DefaultRegistry()))
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout))

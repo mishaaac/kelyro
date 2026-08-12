@@ -58,7 +58,9 @@ or infrastructure adapters merely to perform work.
 | `internal/audit` | Boundary for recording critical actions, without an event bus. |
 | `internal/editor` | Neutral editor discovery and file-opening contract. |
 | `internal/infra/editoros` | Native executable discovery and safe process-launch adapter. |
-| `internal/doctor` | Future Foundation diagnostics. |
+| `internal/doctor` | Typed diagnostics, tool registry, contextual requirements, and failure policy. |
+| `internal/infra/doctoros` | Native writable-path, executable-resolution, and bounded version probes. |
+| `internal/infra/doctorsqlite` | SQLite health, migration-version, and artifact-index diagnostic adapter. |
 | `internal/logging` | Future structured logging infrastructure. |
 | `internal/backup` | Future backup and restore services. |
 | `internal/privacy` | Future privacy inspection services. |
@@ -96,7 +98,8 @@ coordinated by the application service; Bubble Tea's `Update` handles only UI
 messages, screen state, keyboard navigation, and resize events.
 
 Home reports workspace, database, and configuration health without relying on
-color alone. Doctor exposes the same typed checks with PASS/FAIL labels. Config
+color alone. Doctor groups its typed report by Platform, Kelyro, Development,
+and Optional, using explicit markers as well as color. Config
 reads every resolved setting and provides a deliberately small wizard for
 cycling `ui.color` and toggling common booleans; other scalar values remain
 available through `kelyro config set`. Roadmap renders the intentional empty
@@ -109,6 +112,28 @@ visible keys. `NO_COLOR`, `--no-color`, and `ui.color = "never"` disable styling
 The runner uses Bubble Tea's alternate-screen lifecycle and adds a recovery
 boundary so a panic unwinds Bubble Tea's terminal cleanup before becoming a
 normal CLI error.
+
+### Environment diagnostics and tool registry
+
+`internal/doctor` owns presentation-neutral checks, requirements, reports, and
+the registry metadata for Go, Git, VS Code, Neovim, Docker, and lazygit. Tool
+metadata includes command candidates, supported platforms, requirement level,
+purpose, documentation URL, and safe version arguments. A future curriculum
+phase can supply a `doctor.Context` that selects only relevant tools and can
+strengthen a registry entry—for example, making Docker required for one module
+with a module-specific explanation.
+
+The application supplies resolved configuration and workspace paths, while the
+native adapters probe write access and SQLite health. Executables are resolved
+without a shell. Version commands use only registry-owned arguments, bounded
+output, and a per-command timeout; failure to obtain a version does not erase a
+successful executable detection. SQLite checks independently cover integrity,
+the latest applied migration, and readability of the artifact index.
+
+Both `kelyro doctor` and the Doctor TUI screen render the same typed report.
+Required failures produce an unsuccessful CLI exit, while missing recommended
+or optional tools remain informative and always include their purpose and an
+installation link when absent.
 
 ### Session persistence and recovery
 

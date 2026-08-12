@@ -78,6 +78,9 @@ ORDER BY name`)
 	if foreignKeys != 1 {
 		t.Fatalf("foreign_keys = %d, want 1", foreignKeys)
 	}
+	if err := database.CheckArtifactIndex(context.Background()); err != nil {
+		t.Fatalf("CheckArtifactIndex() error = %v", err)
+	}
 }
 
 func TestMigrateRepeatedDoesNotReapply(t *testing.T) {
