@@ -60,6 +60,21 @@ var foundationMigrations = []migration{
 			`CREATE INDEX audit_events_occurred_at_idx ON audit_events (occurred_at, id)`,
 		},
 	},
+	{
+		version: 2,
+		name:    "artifact integrity metadata",
+		statements: []string{
+			`ALTER TABLE artifact_index ADD COLUMN created_by TEXT NOT NULL DEFAULT 'legacy'`,
+			`ALTER TABLE artifact_index ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE artifact_index ADD COLUMN created_at TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE artifact_index ADD COLUMN last_generated_at TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE artifact_index ADD COLUMN expected_version TEXT NOT NULL DEFAULT ''`,
+			`UPDATE artifact_index
+SET created_at = updated_at,
+    last_generated_at = updated_at
+WHERE created_at = '' OR last_generated_at = ''`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

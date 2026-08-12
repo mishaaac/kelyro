@@ -211,10 +211,19 @@ func (repository *artifactRepository) Get(ctx context.Context, path string) (art
 	defer cancel()
 
 	artifact := artifacts.Artifact{Path: path}
+	var createdAt, lastGeneratedAt string
 	err := repository.executor.QueryRowContext(operationContext,
-		"SELECT ownership FROM artifact_index WHERE path = ?",
+		`SELECT ownership, created_by, content_hash, created_at, last_generated_at, expected_version
+FROM artifact_index WHERE path = ?`,
 		path,
-	).Scan(&artifact.Ownership)
+	).Scan(
+		&artifact.Ownership,
+		&artifact.CreatedBy,
+		&artifact.ContentHash,
+		&createdAt,
+		&lastGeneratedAt,
+		&artifact.ExpectedVersion,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return artifacts.Artifact{}, false, nil
 	}
@@ -224,33 +233,62 @@ func (repository *artifactRepository) Get(ctx context.Context, path string) (art
 	if !artifact.Ownership.Valid() {
 		return artifacts.Artifact{}, false, fmt.Errorf("artifact %s has invalid ownership %q", path, artifact.Ownership)
 	}
+	artifact.CreatedAt, err = parseArtifactTime(path, "creation", createdAt)
+	if err != nil {
+		return artifacts.Artifact{}, false, err
+	}
+	artifact.LastGeneratedAt, err = parseArtifactTime(path, "generation", lastGeneratedAt)
+	if err != nil {
+		return artifacts.Artifact{}, false, err
+	}
 	return artifact, true, nil
 }
 
 func (repository *artifactRepository) Put(ctx context.Context, artifact artifacts.Artifact) error {
-	if err := requireName("artifact path", artifact.Path); err != nil {
+	if err := artifact.Validate(); err != nil {
 		return err
-	}
-	if !artifact.Ownership.Valid() {
-		return fmt.Errorf("artifact ownership %q is invalid", artifact.Ownership)
 	}
 
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
 	_, err := repository.executor.ExecContext(operationContext, `
-INSERT INTO artifact_index (path, ownership, updated_at)
-VALUES (?, ?, ?)
+INSERT INTO artifact_index (
+    path, ownership, created_by, content_hash, created_at,
+    last_generated_at, expected_version, updated_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(path) DO UPDATE SET
     ownership = excluded.ownership,
+	created_by = excluded.created_by,
+	content_hash = excluded.content_hash,
+	created_at = excluded.created_at,
+	last_generated_at = excluded.last_generated_at,
+	expected_version = excluded.expected_version,
     updated_at = excluded.updated_at`,
 		artifact.Path,
 		artifact.Ownership,
+		artifact.CreatedBy,
+		artifact.ContentHash,
+		artifact.CreatedAt.UTC().Format(timestampFormat),
+		artifact.LastGeneratedAt.UTC().Format(timestampFormat),
+		artifact.ExpectedVersion,
 		repository.now().UTC().Format(timestampFormat),
 	)
 	if err != nil {
 		return fmt.Errorf("write artifact %s: %w", artifact.Path, err)
 	}
 	return nil
+}
+
+func parseArtifactTime(path, field, encoded string) (time.Time, error) {
+	if encoded == "" {
+		return time.Time{}, nil // Records created before schema version 2 are legacy metadata.
+	}
+	parsed, err := time.Parse(timestampFormat, encoded)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("artifact %s has invalid %s time: %w", path, field, err)
+	}
+	return parsed, nil
 }
 
 func (repository *artifactRepository) Delete(ctx context.Context, path string) error {

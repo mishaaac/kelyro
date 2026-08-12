@@ -50,7 +50,8 @@ or infrastructure adapters merely to perform work.
 | `internal/storage` | Opaque state and secret persistence contracts. |
 | `internal/infra/secretstore` | Environment and native OS-keychain adapters for secret references. |
 | `internal/storage/sqlite` | Workspace-local SQLite adapter, migrations, transactions, and Foundation repositories. |
-| `internal/artifacts` | Ownership classification for generated and human-authored files. |
+| `internal/artifacts` | Ownership, hashing, and integrity metadata contracts for workspace files. |
+| `internal/infra/artifactfs` | Ownership-aware atomic writes and workspace path sandbox. |
 | `internal/audit` | Boundary for recording critical actions, without an event bus. |
 | `internal/editor` | Future editor integration adapters. |
 | `internal/doctor` | Future Foundation diagnostics. |
@@ -145,8 +146,9 @@ Ownership rules are intentionally narrow:
   schema. `.kelyro/config.toml` is the explicit exception intended for advanced
   manual editing; Kelyro validates it strictly and preserves comments during
   single-key CLI updates.
-- `LEARNING.md` is student-owned. Initialization may create it only when the
-  path is absent; Kelyro never overwrites existing content automatically.
+- Initialization may create `LEARNING.md` only when the path is absent. That
+  initial file has no artifact-index record and is therefore protected as
+  untracked content until a later explicit workflow adopts or replaces it.
 - Every other visible file is student-owned by default. Kelyro requires an
   explicit, operation-specific confirmation before modifying or deleting it.
 - Workspace internals contain no secrets. Credential storage remains behind
@@ -163,6 +165,28 @@ so callers never encode storage policy or place secrets in repository files.
 - `system-generated-human-readable` generated output people may inspect;
 - `student-owned` human-authored material that must not be overwritten without
   explicit confirmation.
+
+Known generated Markdown names receive the human-readable classification, but
+classification alone never grants overwrite permission. `artifactfs.Store`
+requires a matching artifact-index entry and compares the current SHA-256 hash
+with the hash from the last successful generation. An absent index entry or a
+different hash returns a conflict without changing the file or metadata;
+student-owned paths are never written by this adapter. Machine-owned writes are
+restricted to `.kelyro/` by the same path classification check.
+
+Successful writes use a temporary file in the destination directory, sync it,
+and atomically replace the destination. The index stores the workspace-relative
+path, ownership category, creator, content hash, creation and last-generation
+times, and optional expected template/version. Windows uses its native
+replace-existing operation so regeneration has the same atomic contract as
+Unix-like systems.
+
+`artifactfs.Sandbox` accepts relative paths only. It rejects traversal
+components, native and foreign absolute-path forms, and any existing symlink
+chain that resolves outside the configured workspace root. Missing descendant
+directories are allowed only after their nearest existing ancestor is proven
+to remain inside the root. This is confinement infrastructure for later
+exercise workflows; it does not create exercises in Foundation.
 
 `audit.Recorder` records critical actions through a small event contract. It is
 not a general event bus; timestamps, serialization, and destinations belong to
@@ -245,7 +269,9 @@ keys on every connection, restricts the database file permissions, and runs
 `PRAGMA quick_check` before migrations. New databases migrate from version zero
 to the latest embedded schema. The initial migration creates only
 `schema_migrations`, `workspace_meta`, `app_state`, `artifact_index`, and
-`audit_events`; educational tables remain outside Foundation.
+`audit_events`; a second non-destructive migration enriches `artifact_index`
+with integrity and generation metadata. Educational tables remain outside
+Foundation.
 
 Migrations are consecutive, immutable records with a name and SHA-256 checksum.
 The runner validates existing history, skips already applied versions, and

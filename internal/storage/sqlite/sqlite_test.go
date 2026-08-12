@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -111,7 +112,7 @@ func TestMigrationRollsBackAndReportsFailingStatement(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	migrations := append([]migration(nil), foundationMigrations...)
 	migrations = append(migrations, migration{
-		version: 2,
+		version: LatestSchemaVersion() + 1,
 		name:    "broken migration",
 		statements: []string{
 			"CREATE TABLE should_rollback (id INTEGER PRIMARY KEY)",
@@ -123,7 +124,7 @@ func TestMigrationRollsBackAndReportsFailingStatement(t *testing.T) {
 	if err == nil {
 		t.Fatal("migrate() error = nil, want failure")
 	}
-	if !strings.Contains(err.Error(), "migration 2 (broken migration), statement 2") {
+	if !strings.Contains(err.Error(), fmt.Sprintf("migration %d (broken migration), statement 2", LatestSchemaVersion()+1)) {
 		t.Fatalf("migrate() error = %q, want migration and statement context", err)
 	}
 
@@ -131,8 +132,8 @@ func TestMigrationRollsBackAndReportsFailingStatement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SchemaVersion() error = %v", err)
 	}
-	if version != 1 {
-		t.Fatalf("SchemaVersion() = %d after rollback, want 1", version)
+	if version != LatestSchemaVersion() {
+		t.Fatalf("SchemaVersion() = %d after rollback, want %d", version, LatestSchemaVersion())
 	}
 	if tableExists(t, database, "should_rollback") {
 		t.Fatal("table from failed migration exists; DDL was not rolled back")
@@ -171,7 +172,7 @@ func TestDestructiveMigrationRequiresSuccessfulBackup(t *testing.T) {
 		if path != database.Path() {
 			t.Fatalf("backup path = %q, want %q", path, database.Path())
 		}
-		if info != (MigrationInfo{Version: 2, Name: "destructive test"}) {
+		if info != (MigrationInfo{Version: LatestSchemaVersion() + 1, Name: "destructive test"}) {
 			t.Fatalf("backup migration = %+v", info)
 		}
 		if tableExists(t, database, "destructive_result") {
@@ -227,7 +228,15 @@ func TestRepositoriesCRUD(t *testing.T) {
 		t.Fatalf("WorkspaceMeta.Delete() error = %v", err)
 	}
 
-	wantArtifact := artifacts.Artifact{Path: "LEARNING.md", Ownership: artifacts.StudentOwned}
+	wantArtifact := artifacts.Artifact{
+		Path:            "LEARNING.md",
+		Ownership:       artifacts.SystemGeneratedHumanReadable,
+		CreatedBy:       "kelyro.test",
+		ContentHash:     artifacts.Hash([]byte("content")),
+		CreatedAt:       fixedTime.Add(-time.Minute),
+		LastGeneratedAt: fixedTime,
+		ExpectedVersion: "learning/v1",
+	}
 	if err := repositories.Artifacts.Put(ctx, wantArtifact); err != nil {
 		t.Fatalf("Artifacts.Put() error = %v", err)
 	}
@@ -445,7 +454,7 @@ SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Sca
 func destructiveTestMigrations() []migration {
 	migrations := append([]migration(nil), foundationMigrations...)
 	return append(migrations, migration{
-		version:     2,
+		version:     LatestSchemaVersion() + 1,
 		name:        "destructive test",
 		destructive: true,
 		statements:  []string{"CREATE TABLE destructive_result (id INTEGER PRIMARY KEY)"},
