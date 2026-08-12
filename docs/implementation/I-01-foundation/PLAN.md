@@ -697,7 +697,7 @@ feat(workspace): add local workspace lifecycle
 
 ## Paso 6 — Implementar configuración global y por proyecto
 
-- [ ] Paso 6 completado
+- [x] Paso 6 completado
 
 ### Objetivo
 

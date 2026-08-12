@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 5
+Last completed step: 6
 Current release: unreleased
 
 ## Registro
@@ -163,3 +163,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 6 no se ha iniciado y requiere autorización explícita.
+
+## Step 06 — Configuración global y por proyecto
+
+Status: completed
+Date: 2026-08-12
+Commit: 251d6ab
+Release: unreleased
+
+### Delivered
+- Esquema tipado con defaults seguros, validación estricta y precedencia defaults/global/project/CLI.
+- Store TOML global y por workspace con versión de esquema, escritura atómica y preservación de comentarios en `config set`.
+- CLI funcional para `config show`, `path`, `get` y `set`, con selección `--global`/`--project` y metadata para un wizard futuro.
+
+### Decisions
+- Se implementó el subconjunto TOML escalar requerido usando la biblioteca estándar; no se añadió una dependencia externa.
+- Sin alcance explícito, las lecturas incluyen el workspace descubierto y las escrituras usan proyecto dentro de uno o global fuera de él.
+- El guardado masivo canonicaliza TOML y no conserva comentarios; las actualizaciones normales de una clave sí los preservan.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step6-gocache GOMODCACHE=/tmp/kelyro-step6-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step6-gocache GOMODCACHE=/tmp/kelyro-step6-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step6-race-gocache GOMODCACHE=/tmp/kelyro-step6-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step6-gocache GOMODCACHE=/tmp/kelyro-step6-modcache go build -o /tmp/kelyro-step6 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` using `go test -exec=/bin/true ./...`.
+- Prueba CLI real de alcances global/project, precedencia, `show`, `path`, `get` y `set` en rutas aisladas.
+- `git diff --check`
+
+### Notes for next session
+- El Paso 7 no se ha iniciado y requiere autorización explícita.
