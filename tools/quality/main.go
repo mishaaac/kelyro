@@ -18,6 +18,7 @@ const usage = `Usage: go run ./tools/quality <gate>
 
 Gates:
   test         Run all tests
+  e2e          Run the isolated Foundation lifecycle tests
   vet          Run Go static analysis
   race         Run all tests with the race detector
   build-smoke  Build the CLI and run version/help smoke tests
@@ -76,6 +77,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, executeCo
 
 func plan(gate, binary string) ([]command, error) {
 	test := []command{{name: "go", args: []string{"test", "./..."}}}
+	e2e := []command{{name: "go", args: []string{"test", "-tags=e2e", "./tests/e2e"}}}
 	vet := []command{{name: "go", args: []string{"vet", "./..."}}}
 	race := []command{{name: "go", args: []string{"test", "-race", "./..."}}}
 	buildSmoke := []command{
@@ -87,6 +89,8 @@ func plan(gate, binary string) ([]command, error) {
 	switch gate {
 	case "test":
 		return test, nil
+	case "e2e":
+		return e2e, nil
 	case "vet":
 		return vet, nil
 	case "race":
@@ -94,7 +98,8 @@ func plan(gate, binary string) ([]command, error) {
 	case "build-smoke":
 		return buildSmoke, nil
 	case "all":
-		commands := append(test, vet...)
+		commands := append(test, e2e...)
+		commands = append(commands, vet...)
 		commands = append(commands, race...)
 		return append(commands, buildSmoke...), nil
 	default:

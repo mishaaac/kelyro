@@ -20,10 +20,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
-	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/updatecache"
-	"github.com/mishaaac/kelyro/internal/infra/updategithub"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
 	"github.com/mishaaac/kelyro/internal/storage/sqlite"
 	"github.com/mishaaac/kelyro/internal/tui"
@@ -36,7 +34,7 @@ func main() {
 	configs := configfs.New()
 	backups := backupfs.New(version.Version, sqlite.SnapshotValidator{})
 	portable := portabilityfs.New(version.Version, sqlite.SnapshotValidator{})
-	updates := update.New(version.Version, updategithub.New(version.Version), updatecache.New())
+	updates := update.New(version.Version, newReleaseProvider(), updatecache.New())
 	migrationBackup := func(ctx context.Context, databasePath string, migration sqlite.MigrationInfo) error {
 		root := filepath.Dir(filepath.Dir(databasePath))
 		global, err := configs.LoadGlobal()
@@ -63,7 +61,7 @@ func main() {
 	}
 	service := app.NewService(workspaces, os.Getwd).
 		WithConfig(configs).
-		WithSecrets(secretstore.New()).
+		WithSecrets(newSecretStore()).
 		WithArtifactStores(artifactfs.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithSessionStores(sessiondb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithEditor(editoros.New()).

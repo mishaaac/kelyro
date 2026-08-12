@@ -39,6 +39,9 @@ jobs:
       - name: Test
         run: go run ./tools/quality test
 
+      - name: Foundation E2E
+        run: go run ./tools/quality e2e
+
       - name: Vet
         run: go run ./tools/quality vet
 
