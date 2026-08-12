@@ -1937,7 +1937,7 @@ test(e2e): cover Foundation workspace lifecycle
 
 ## Paso 23 — Preparar distribución y releases reproducibles
 
-- [ ] Paso 23 completado
+- [x] Paso 23 completado
 
 ### Objetivo
 
@@ -2253,7 +2253,7 @@ El tag se crea después sobre el commit correcto.
 - [ ] Paso 20 — Update checks
 - [ ] Paso 21 — CI y matriz multiplataforma
 - [ ] Paso 22 — E2E Foundation
-- [ ] Paso 23 — Distribución y releases
+- [x] Paso 23 — Distribución y releases
 - [ ] Paso 24 — Hardening de seguridad y portabilidad
 - [ ] Paso 25 — Cierre formal de I-01
 

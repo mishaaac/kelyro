@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 22
+Last completed step: 23
 Current release: unreleased
 
 ## Registro
@@ -650,3 +650,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 23 no se ha iniciado y requiere autorización explícita.
+
+## Step 23 — Distribución y releases reproducibles
+
+Status: completed
+Date: 2026-08-12
+Commit: 77cf176
+Release: unreleased
+
+### Delivered
+- Empaquetador Go-native para Linux, macOS y Windows en `amd64` y `arm64`, con CGO deshabilitado, metadata inyectada y nombres de artefactos estables.
+- Archivos `tar.gz`/ZIP deterministas y manifiesto `SHA256SUMS`, con pruebas de validación, permisos, contenido, checksums y reproducibilidad.
+- Workflow de release con matriz multiplataforma, validación de tag/origen/árbol y creación exclusiva de drafts con notas generadas para revisión humana.
+- Guía de instalación manual, verificación de checksums, reproducción local y procedimiento de release con tags anotados.
+
+### Decisions
+- El builder usa solo la biblioteca estándar y el parser SemVer existente; no se añadieron dependencias externas ni CGO obligatorio.
+- La fecha reproducible es la fecha del commit etiquetado normalizada a UTC; `-trimpath`, `-buildvcs=false` y un build ID vacío eliminan entradas variables conocidas.
+- Un tag debe ser SemVer canónico, anotado y alcanzable desde `origin/main`; la publicación continúa siendo una acción manual sobre el draft ya revisado.
+- Los checksums detectan corrupción pero no sustituyen una firma criptográfica; la instalación automática permanece fuera del alcance de Foundation.
+
+### Verification
+- `GOCACHE=/home/mishaaac/Projects/kelyro/.step23-gocache GOTMPDIR=/home/mishaaac/Projects/kelyro/.step23-gotmp GOMODCACHE=/tmp/kelyro-step9-modcache go run ./tools/quality all`
+- Dos builds completos con `go run ./tools/release build` para los seis targets, comparación idéntica de `SHA256SUMS`, validación de todos los hashes y smoke test del binario Linux empaquetado.
+- Compilación de tests con `CGO_ENABLED=0` para `windows/amd64`, `windows/arm64`, `darwin/amd64` y `darwin/arm64` mediante `go test -vet=off -exec=/bin/true ./...`.
+- `actionlint .github/workflows/ci.yml .github/workflows/release.yml`
+- `go mod tidy`, `go mod verify`, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 24 no se ha iniciado y requiere autorización explícita.
