@@ -295,7 +295,7 @@ No crear tag si todavía no se desea considerar este punto distribuible.
 
 ## Paso 2 — Definir la arquitectura y los contratos estables del Foundation Core
 
-- [ ] Paso 2 completado
+- [x] Paso 2 completado
 
 ### Objetivo
 

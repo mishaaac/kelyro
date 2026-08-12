@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: none (awaiting authorization)
-Last completed step: 1
+Current step: 3 (authorized)
+Last completed step: 2
 Current release: unreleased
 
 ## Registro
@@ -57,3 +57,27 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 2 no se ha iniciado y requiere autorización explícita.
+
+## Step 02 — Arquitectura y contratos Foundation
+
+Status: completed
+Date: 2026-08-12
+Commit: 4a1175a
+Release: unreleased
+
+### Delivered
+- Contratos neutrales para plataforma, workspace, configuración, estado, secrets, artefactos y auditoría.
+- Límites de paquetes Foundation, fakes de compilación y documentación de arquitectura y dependencias.
+
+### Decisions
+- El core expone tipos propios y datos opacos; frameworks, SQLite, servicios externos y operaciones del OS quedan detrás de adaptadores.
+- Los paquetes reservados solo declaran responsabilidad; su funcionalidad continúa aplazada a los pasos correspondientes.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step2-gocache GOMODCACHE=/tmp/kelyro-step2-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step2-gocache GOMODCACHE=/tmp/kelyro-step2-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step2-gocache GOMODCACHE=/tmp/kelyro-step2-modcache go list ./...`
+- Revisión de imports directos y `git diff --check`.
+
+### Notes for next session
+- El Paso 3 está autorizado y es el siguiente paso a ejecutar.
