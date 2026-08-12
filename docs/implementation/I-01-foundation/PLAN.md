@@ -170,7 +170,7 @@ docs(project): add I-01 SDD execution protocol
 
 ## Paso 1 — Inicializar el repositorio Go y la identidad básica del proyecto
 
-- [ ] Paso 1 completado
+- [x] Paso 1 completado
 
 ### Objetivo
 
