@@ -790,7 +790,7 @@ feat(config): add layered global and workspace configuration
 
 ## Paso 7 — Implementar almacenamiento seguro de secretos
 
-- [ ] Paso 7 completado
+- [x] Paso 7 completado
 
 ### Objetivo
 

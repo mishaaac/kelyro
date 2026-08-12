@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 6
+Last completed step: 7
 Current release: unreleased
 
 ## Registro
@@ -192,3 +192,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 7 no se ha iniciado y requiere autorización explícita.
+
+## Step 07 — Almacenamiento seguro de secretos
+
+Status: completed
+Date: 2026-08-12
+Commit: a411cb7
+Release: unreleased
+
+### Delivered
+- Contrato sustituible con estado seguro, redacción y adaptadores para variables de entorno, Secret Service, macOS Keychain y Windows Credential Manager.
+- CLI `secrets status`, `set` y `delete`, entrada sin eco y representación sin valores en `config show`.
+- Fallback accionable `KELYRO_SECRET_<NAME>` para Linux/headless y pruebas de no serialización ni exposición accidental.
+
+### Decisions
+- Las variables de entorno tienen precedencia y nunca se copian; `set` y `delete` operan únicamente sobre el keychain nativo.
+- El índice de nombres se guarda dentro del keychain, contiene solo referencias y permite enumerar estado sin persistir valores en archivos.
+- Se usó únicamente la biblioteca estándar; los backends y la terminal se aíslan por sistema operativo.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step7-gocache GOMODCACHE=/tmp/kelyro-step7-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step7-race-gocache GOMODCACHE=/tmp/kelyro-step7-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step7-gocache GOMODCACHE=/tmp/kelyro-step7-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step7-gocache GOMODCACHE=/tmp/kelyro-step7-modcache go build -o /tmp/kelyro-step7 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` using `go test -exec=/bin/true ./...`.
+- Prueba CLI real de estado headless y fallback por entorno sin renderizar el valor.
+- `git diff --check`
+
+### Notes for next session
+- El Paso 8 no se ha iniciado y requiere autorización explícita.
