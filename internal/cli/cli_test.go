@@ -79,6 +79,38 @@ func TestRunnerPassesWorkspaceAndAcceptsReservedFlags(t *testing.T) {
 	}
 }
 
+func TestRunnerExplainsDoctorToolFromMaintainedGuidance(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{result: app.Result{Guidance: &doctor.Guidance{
+		ToolID:           "lazygit",
+		DisplayName:      "lazygit",
+		Requirement:      doctor.Optional,
+		Description:      "A terminal interface for Git repositories.",
+		WhyNeeded:        "It can help inspect branches, commits, and diffs, but it is not required.",
+		FoundationFirst:  "Kelyro teaches Git with the Git CLI first.",
+		Platform:         "linux",
+		PlatformGuidance: "Use an installation method maintained by the project.",
+		LearnMore:        "https://github.com/jesseduffield/lazygit#installation",
+	}}}
+	var stdout, stderr bytes.Buffer
+	exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"doctor", "--explain", "lazygit"})
+	if exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d; stderr = %q", exitCode, stderr.String())
+	}
+	if len(service.commands) != 1 || service.commands[0].Action != app.ActionDoctor || service.commands[0].DoctorExplain != "lazygit" {
+		t.Fatalf("commands = %#v", service.commands)
+	}
+	for _, want := range []string{"lazygit — Optional", "What it is:", "Why:", "Foundation first:", "On linux:", "Official documentation:", "Git CLI first", service.result.Guidance.LearnMore} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("stdout = %q, want %q", stdout.String(), want)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q", stderr.String())
+	}
+}
+
 func TestRunnerLaunchesInteractiveAdapterForDefaultCommand(t *testing.T) {
 	t.Parallel()
 
@@ -340,6 +372,10 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "secrets set missing name", args: []string{"secrets", "set"}, message: "secrets set requires exactly one name"},
 		{name: "unknown open artifact", args: []string{"open", "lesson"}, message: "open accepts only the optional roadmap artifact"},
 		{name: "too many open artifacts", args: []string{"open", "roadmap", "extra"}, message: "open accepts only the optional roadmap artifact"},
+		{name: "explain missing tool", args: []string{"doctor", "--explain"}, message: "option --explain requires a tool id"},
+		{name: "explain followed by option", args: []string{"doctor", "--explain", "--quiet"}, message: "option --explain requires a tool id"},
+		{name: "explain without doctor", args: []string{"status", "--explain", "git"}, message: "option --explain requires the doctor command"},
+		{name: "doctor positional argument", args: []string{"doctor", "git"}, message: "doctor does not accept positional arguments"},
 	}
 
 	for _, test := range tests {

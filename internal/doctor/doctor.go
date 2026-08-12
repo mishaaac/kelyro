@@ -43,9 +43,27 @@ type Tool struct {
 	CommandCandidates  []string
 	Requirement        Requirement
 	SupportedPlatforms []string
+	Description        string
 	WhyNeeded          string
+	FoundationFirst    string
+	PlatformGuidance   map[string]string
 	LearnMore          string
 	VersionArgs        []string
+}
+
+// Guidance is the maintained, presentation-neutral educational explanation
+// for one registered tool. PlatformGuidance may be empty when no tailored note
+// is needed; links are returned for display and are never opened by Doctor.
+type Guidance struct {
+	ToolID           string
+	DisplayName      string
+	Requirement      Requirement
+	Description      string
+	WhyNeeded        string
+	FoundationFirst  string
+	Platform         string
+	PlatformGuidance string
+	LearnMore        string
 }
 
 // Registry stores immutable tool metadata in stable presentation order.
@@ -58,7 +76,7 @@ func NewRegistry(tools ...Tool) (Registry, error) {
 	seen := make(map[string]struct{}, len(tools))
 	copyTools := make([]Tool, 0, len(tools))
 	for _, tool := range tools {
-		tool.ID = strings.TrimSpace(tool.ID)
+		tool.ID = strings.ToLower(strings.TrimSpace(tool.ID))
 		tool.DisplayName = strings.TrimSpace(tool.DisplayName)
 		if tool.ID == "" || tool.DisplayName == "" {
 			return Registry{}, errors.New("tool id and display name are required")
@@ -75,6 +93,7 @@ func NewRegistry(tools ...Tool) (Registry, error) {
 		seen[tool.ID] = struct{}{}
 		tool.CommandCandidates = append([]string(nil), tool.CommandCandidates...)
 		tool.SupportedPlatforms = append([]string(nil), tool.SupportedPlatforms...)
+		tool.PlatformGuidance = copyStringMap(tool.PlatformGuidance)
 		tool.VersionArgs = append([]string(nil), tool.VersionArgs...)
 		copyTools = append(copyTools, tool)
 	}
@@ -87,6 +106,7 @@ func (registry Registry) Tools() []Tool {
 	for index := range tools {
 		tools[index].CommandCandidates = append([]string(nil), tools[index].CommandCandidates...)
 		tools[index].SupportedPlatforms = append([]string(nil), tools[index].SupportedPlatforms...)
+		tools[index].PlatformGuidance = copyStringMap(tools[index].PlatformGuidance)
 		tools[index].VersionArgs = append([]string(nil), tools[index].VersionArgs...)
 	}
 	return tools
@@ -95,12 +115,84 @@ func (registry Registry) Tools() []Tool {
 // DefaultRegistry returns the Foundation development and optional tools.
 func DefaultRegistry() Registry {
 	registry, err := NewRegistry(
-		Tool{ID: "go", DisplayName: "Go", CommandCandidates: []string{"go"}, Requirement: Recommended, SupportedPlatforms: allPlatforms(), WhyNeeded: "Build and test Kelyro from source.", LearnMore: "https://go.dev/doc/install", VersionArgs: []string{"version"}},
-		Tool{ID: "git", DisplayName: "Git", CommandCandidates: []string{"git"}, Requirement: Recommended, SupportedPlatforms: allPlatforms(), WhyNeeded: "Track learning workspace changes and source history.", LearnMore: "https://git-scm.com/downloads", VersionArgs: []string{"--version"}},
-		Tool{ID: "vscode", DisplayName: "VS Code", CommandCandidates: []string{"code", "code-insiders", "codium"}, Requirement: Optional, SupportedPlatforms: allPlatforms(), WhyNeeded: "Open and edit learning artifacts.", LearnMore: "https://code.visualstudio.com/", VersionArgs: []string{"--version"}},
-		Tool{ID: "neovim", DisplayName: "Neovim", CommandCandidates: []string{"nvim"}, Requirement: Optional, SupportedPlatforms: allPlatforms(), WhyNeeded: "Open and edit learning artifacts.", LearnMore: "https://neovim.io/", VersionArgs: []string{"--version"}},
-		Tool{ID: "docker", DisplayName: "Docker", CommandCandidates: []string{"docker"}, Requirement: Optional, SupportedPlatforms: allPlatforms(), WhyNeeded: "Run isolated development environments when a module requires them.", LearnMore: "https://docs.docker.com/get-docker/", VersionArgs: []string{"--version"}},
-		Tool{ID: "lazygit", DisplayName: "lazygit", CommandCandidates: []string{"lazygit"}, Requirement: Optional, SupportedPlatforms: allPlatforms(), WhyNeeded: "Use an optional terminal interface for Git.", LearnMore: "https://github.com/jesseduffield/lazygit", VersionArgs: []string{"--version"}},
+		Tool{
+			ID: "go", DisplayName: "Go", CommandCandidates: []string{"go"}, Requirement: Recommended,
+			SupportedPlatforms: allPlatforms(),
+			Description:        "The Go toolchain compiles, formats, tests, and runs Go programs.",
+			WhyNeeded:          "Build and test Kelyro from source and complete future Go learning modules.",
+			FoundationFirst:    "Kelyro teaches the go command and standard toolchain workflow directly.",
+			PlatformGuidance: platformGuidance(
+				"Use the official archive or a trusted distribution package, then ensure go is on PATH.",
+				"Use the official installer or a trusted package manager, then ensure go is on PATH.",
+				"Use the official installer and open a new terminal so PATH changes take effect.",
+			),
+			LearnMore: "https://go.dev/doc/install", VersionArgs: []string{"version"},
+		},
+		Tool{
+			ID: "git", DisplayName: "Git", CommandCandidates: []string{"git"}, Requirement: Recommended,
+			SupportedPlatforms: allPlatforms(),
+			Description:        "Git is a distributed version-control system for tracking changes and working safely with history.",
+			WhyNeeded:          "Track learning workspace changes, inspect history, and recover earlier work.",
+			FoundationFirst:    "Kelyro teaches version control with the Git CLI first; visual clients are optional companions.",
+			PlatformGuidance: platformGuidance(
+				"Install Git with a trusted distribution package or the official guidance.",
+				"Install the Xcode command-line tools or Git using the official guidance.",
+				"Use the official Git for Windows installer and open a new terminal afterward.",
+			),
+			LearnMore: "https://git-scm.com/downloads", VersionArgs: []string{"--version"},
+		},
+		Tool{
+			ID: "vscode", DisplayName: "VS Code", CommandCandidates: []string{"code", "code-insiders", "codium"}, Requirement: Optional,
+			SupportedPlatforms: allPlatforms(),
+			Description:        "VS Code is a graphical source-code editor with language and debugging extensions.",
+			WhyNeeded:          "It can make learning artifacts and source files easier to navigate and edit.",
+			FoundationFirst:    "An editor supports the work but does not replace learning the language, terminal, or version-control fundamentals.",
+			PlatformGuidance: platformGuidance(
+				"After installation, enable the code launcher on PATH if you want Kelyro to detect it.",
+				"Use the Command Palette to install the code command on PATH if it is not already available.",
+				"The installer can add code to PATH; open a new terminal after enabling that option.",
+			),
+			LearnMore: "https://code.visualstudio.com/docs/setup/setup-overview", VersionArgs: []string{"--version"},
+		},
+		Tool{
+			ID: "neovim", DisplayName: "Neovim", CommandCandidates: []string{"nvim"}, Requirement: Optional,
+			SupportedPlatforms: allPlatforms(),
+			Description:        "Neovim is a keyboard-driven terminal editor built around modal editing.",
+			WhyNeeded:          "It can provide a fast terminal-native way to edit learning artifacts and source files.",
+			FoundationFirst:    "Editor shortcuts are optional; Kelyro does not treat editor proficiency as a substitute for programming fundamentals.",
+			PlatformGuidance: platformGuidance(
+				"Install a maintained package from the official options and ensure nvim is on PATH.",
+				"Install a maintained package from the official options and ensure nvim is on PATH.",
+				"Choose an official Windows package and ensure nvim.exe is on PATH.",
+			),
+			LearnMore: "https://neovim.io/doc/install/", VersionArgs: []string{"--version"},
+		},
+		Tool{
+			ID: "docker", DisplayName: "Docker", CommandCandidates: []string{"docker"}, Requirement: Optional,
+			SupportedPlatforms: allPlatforms(),
+			Description:        "Docker runs applications and development dependencies in isolated containers.",
+			WhyNeeded:          "Some future modules may use reproducible environments that avoid changing the host system.",
+			FoundationFirst:    "Kelyro introduces the underlying process, filesystem, and networking concepts before relying on container shortcuts.",
+			PlatformGuidance: platformGuidance(
+				"Follow the Docker Engine or Docker Desktop instructions for your distribution and user-permission model.",
+				"Docker Desktop provides the supported macOS environment; verify its hardware and OS requirements first.",
+				"Docker Desktop uses WSL 2 or Hyper-V; verify the supported backend before installing.",
+			),
+			LearnMore: "https://docs.docker.com/get-docker/", VersionArgs: []string{"--version"},
+		},
+		Tool{
+			ID: "lazygit", DisplayName: "lazygit", CommandCandidates: []string{"lazygit"}, Requirement: Optional,
+			SupportedPlatforms: allPlatforms(),
+			Description:        "lazygit is a terminal interface for inspecting and operating on Git repositories.",
+			WhyNeeded:          "It can make branches, commits, and diffs easier to explore, but it is not required to continue.",
+			FoundationFirst:    "Kelyro teaches Git with the Git CLI first so the underlying commands and concepts remain visible.",
+			PlatformGuidance: platformGuidance(
+				"Use one of the installation methods maintained by the project and keep git available separately.",
+				"Use one of the installation methods maintained by the project and keep git available separately.",
+				"Use one of the installation methods maintained by the project and keep Git for Windows available separately.",
+			),
+			LearnMore: "https://github.com/jesseduffield/lazygit#installation", VersionArgs: []string{"--version"},
+		},
 	)
 	if err != nil {
 		panic(err)
@@ -109,6 +201,21 @@ func DefaultRegistry() Registry {
 }
 
 func allPlatforms() []string { return []string{"linux", "darwin", "windows"} }
+
+func platformGuidance(linux, darwin, windows string) map[string]string {
+	return map[string]string{"linux": linux, "darwin": darwin, "windows": windows}
+}
+
+func copyStringMap(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	result := make(map[string]string, len(source))
+	for key, value := range source {
+		result[key] = value
+	}
+	return result
+}
 
 // ToolRequirement lets a future curriculum phase select and strengthen a tool
 // requirement, for example Docker required by one module.
@@ -219,6 +326,36 @@ type Engine struct {
 // New creates a diagnostics engine with a bounded version probe timeout.
 func New(environment Environment, storage StorageProbe, registry Registry) *Engine {
 	return &Engine{environment: environment, storage: storage, registry: registry, timeout: 2 * time.Second}
+}
+
+// Explain returns maintained educational guidance for one tool, tailored to
+// the current platform when metadata provides a platform-specific note.
+func (engine *Engine) Explain(toolID string) (Guidance, error) {
+	if engine == nil || engine.environment == nil {
+		return Guidance{}, errors.New("diagnostic environment is unavailable")
+	}
+	toolID = strings.ToLower(strings.TrimSpace(toolID))
+	for _, tool := range engine.registry.Tools() {
+		if tool.ID != toolID {
+			continue
+		}
+		platformName := engine.environment.Platform()
+		if !supports(tool, platformName) {
+			return Guidance{}, fmt.Errorf("tool %q is not supported on platform %q", toolID, platformName)
+		}
+		return Guidance{
+			ToolID:           tool.ID,
+			DisplayName:      tool.DisplayName,
+			Requirement:      tool.Requirement,
+			Description:      tool.Description,
+			WhyNeeded:        tool.WhyNeeded,
+			FoundationFirst:  tool.FoundationFirst,
+			Platform:         platformName,
+			PlatformGuidance: tool.PlatformGuidance[platformName],
+			LearnMore:        tool.LearnMore,
+		}, nil
+	}
+	return Guidance{}, fmt.Errorf("unknown tool %q", toolID)
 }
 
 // Run evaluates checks independently so one failure does not hide the rest.

@@ -54,6 +54,78 @@ func TestContextSelectsAndStrengthensRelevantTool(t *testing.T) {
 	}
 }
 
+func TestDefaultToolGuidanceIsMaintainedAndPlatformSpecific(t *testing.T) {
+	t.Parallel()
+
+	registry := DefaultRegistry()
+	engine := New(&fakeEnvironment{platform: "linux"}, fakeStorage{}, registry)
+	for _, tool := range registry.Tools() {
+		guidance, err := engine.Explain(tool.ID)
+		if err != nil {
+			t.Fatalf("Explain(%q) error = %v", tool.ID, err)
+		}
+		if guidance.Description == "" || guidance.WhyNeeded == "" || guidance.FoundationFirst == "" {
+			t.Errorf("Explain(%q) has incomplete educational metadata: %#v", tool.ID, guidance)
+		}
+		if guidance.Platform != "linux" || guidance.PlatformGuidance == "" {
+			t.Errorf("Explain(%q) platform guidance = %#v", tool.ID, guidance)
+		}
+		if !strings.HasPrefix(guidance.LearnMore, "https://") {
+			t.Errorf("Explain(%q) official link = %q", tool.ID, guidance.LearnMore)
+		}
+	}
+
+	git, err := engine.Explain(" GIT ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(git.FoundationFirst, "Git CLI first") {
+		t.Errorf("Git foundation guidance = %q", git.FoundationFirst)
+	}
+	lazygit, err := engine.Explain("lazygit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lazygit.Requirement != Optional || !strings.Contains(lazygit.WhyNeeded, "not required") {
+		t.Errorf("lazygit guidance imposes an optional tool: %#v", lazygit)
+	}
+}
+
+func TestRequirementLevelsKeepOnlyRequiredToolsBlocking(t *testing.T) {
+	t.Parallel()
+
+	registry, err := NewRegistry(
+		Tool{ID: "required", DisplayName: "Required", CommandCandidates: []string{"required"}, Requirement: Required},
+		Tool{ID: "recommended", DisplayName: "Recommended", CommandCandidates: []string{"recommended"}, Requirement: Recommended},
+		Tool{ID: "optional", DisplayName: "Optional", CommandCandidates: []string{"optional"}, Requirement: Optional},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := New(&fakeEnvironment{platform: "linux"}, fakeStorage{}, registry)
+	report := engine.Run(context.Background(), Input{WorkspaceRoot: "/project", InternalDirectory: "/project/.kelyro"}, Context{})
+	if !report.Failed() {
+		t.Fatal("missing required tool did not fail report")
+	}
+	for index := range report.Checks {
+		if report.Checks[index].ID == "tool.required" {
+			report.Checks[index].State = Pass
+		}
+	}
+	if report.Failed() {
+		t.Fatal("missing recommended or optional tool blocked report")
+	}
+	for _, id := range []string{"required", "recommended", "optional"} {
+		guidance, explainErr := engine.Explain(id)
+		if explainErr != nil {
+			t.Fatalf("Explain(%q) error = %v", id, explainErr)
+		}
+		if string(guidance.Requirement) != id {
+			t.Errorf("Explain(%q) requirement = %q", id, guidance.Requirement)
+		}
+	}
+}
+
 func TestVersionProbeIsBoundedAndDoesNotFailDetectedTool(t *testing.T) {
 	t.Parallel()
 
@@ -108,15 +180,21 @@ func TestRegistryRejectsInvalidMetadataAndDefensivelyCopies(t *testing.T) {
 	}
 
 	candidates := []string{"go"}
-	registry, err := NewRegistry(Tool{ID: "go", DisplayName: "Go", CommandCandidates: candidates, Requirement: Required})
+	platformNotes := map[string]string{"linux": "original"}
+	registry, err := NewRegistry(Tool{ID: "go", DisplayName: "Go", CommandCandidates: candidates, Requirement: Required, PlatformGuidance: platformNotes})
 	if err != nil {
 		t.Fatal(err)
 	}
 	candidates[0] = "changed"
+	platformNotes["linux"] = "changed"
 	tools := registry.Tools()
 	tools[0].CommandCandidates[0] = "also-changed"
+	tools[0].PlatformGuidance["linux"] = "also-changed"
 	if got := registry.Tools()[0].CommandCandidates[0]; got != "go" {
 		t.Errorf("registry candidate = %q, want defensive copy", got)
+	}
+	if got := registry.Tools()[0].PlatformGuidance["linux"]; got != "original" {
+		t.Errorf("registry platform guidance = %q, want defensive copy", got)
 	}
 }
 

@@ -51,14 +51,47 @@ func TestServiceTurnsWorkspaceDiscoveryErrorIntoDiagnosticInput(t *testing.T) {
 	}
 }
 
+func TestServiceExplainsToolWithoutWorkspaceDiscovery(t *testing.T) {
+	t.Parallel()
+
+	want := doctor.Guidance{ToolID: "lazygit", DisplayName: "lazygit", Requirement: doctor.Optional, Description: "A Git interface."}
+	runner := &recordingDoctor{guidance: want}
+	service := NewService(
+		&recordingWorkspaceService{discoverErr: errors.New("workspace should not be discovered")},
+		func() (string, error) { return "", errors.New("current directory should not be read") },
+	).WithDoctor(runner)
+
+	result, err := service.Execute(context.Background(), Command{Action: ActionDoctor, DoctorExplain: "lazygit"})
+	if err != nil {
+		t.Fatalf("Execute(doctor explain) error = %v", err)
+	}
+	if result.Guidance == nil || *result.Guidance != want {
+		t.Fatalf("doctor explanation result = %#v", result)
+	}
+	if runner.explainID != "lazygit" {
+		t.Errorf("explained tool = %q", runner.explainID)
+	}
+	if runner.input.WorkspaceRoot != "" {
+		t.Errorf("doctor explanation unexpectedly collected diagnostic input: %#v", runner.input)
+	}
+}
+
 type recordingDoctor struct {
-	input   doctor.Input
-	context doctor.Context
-	report  doctor.Report
+	input      doctor.Input
+	context    doctor.Context
+	report     doctor.Report
+	guidance   doctor.Guidance
+	explainID  string
+	explainErr error
 }
 
 func (runner *recordingDoctor) Run(_ context.Context, input doctor.Input, diagnosticContext doctor.Context) doctor.Report {
 	runner.input = input
 	runner.context = diagnosticContext
 	return runner.report
+}
+
+func (runner *recordingDoctor) Explain(toolID string) (doctor.Guidance, error) {
+	runner.explainID = toolID
+	return runner.guidance, runner.explainErr
 }

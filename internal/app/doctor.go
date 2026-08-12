@@ -13,11 +13,22 @@ import (
 // DoctorRunner is the diagnostics boundary consumed by application services.
 type DoctorRunner interface {
 	Run(ctx context.Context, input doctor.Input, diagnosticContext doctor.Context) doctor.Report
+	Explain(toolID string) (doctor.Guidance, error)
 }
 
 func (service *Service) executeDoctor(ctx context.Context, command Command) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
+	}
+	if service.diagnostics == nil {
+		return Result{}, fmt.Errorf("diagnostic service is unavailable")
+	}
+	if command.DoctorExplain != "" {
+		guidance, err := service.diagnostics.Explain(command.DoctorExplain)
+		if err != nil {
+			return Result{}, err
+		}
+		return Result{Guidance: &guidance}, nil
 	}
 	input, err := service.doctorInput(command, workspace.Workspace{})
 	if err != nil && errors.Is(err, context.Canceled) {
@@ -26,9 +37,6 @@ func (service *Service) executeDoctor(ctx context.Context, command Command) (Res
 	if err != nil {
 		input.WorkspaceError = err
 		input.ConfigurationError = err
-	}
-	if service.diagnostics == nil {
-		return Result{}, fmt.Errorf("diagnostic service is unavailable")
 	}
 	report := service.diagnostics.Run(ctx, input, command.DoctorContext)
 	return Result{Diagnostics: &report, Failed: report.Failed()}, nil

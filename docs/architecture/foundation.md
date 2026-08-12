@@ -118,10 +118,13 @@ normal CLI error.
 `internal/doctor` owns presentation-neutral checks, requirements, reports, and
 the registry metadata for Go, Git, VS Code, Neovim, Docker, and lazygit. Tool
 metadata includes command candidates, supported platforms, requirement level,
-purpose, documentation URL, and safe version arguments. A future curriculum
-phase can supply a `doctor.Context` that selects only relevant tools and can
-strengthen a registry entry—for example, making Docker required for one module
-with a module-specific explanation.
+purpose, maintained educational guidance, platform notes, official
+documentation URL, and safe version arguments. Guidance separates what a tool
+is, why it may help, and which underlying fundamentals Kelyro teaches first. It
+is static local metadata: Doctor never asks an LLM to produce it. A future
+curriculum phase can supply a `doctor.Context` that selects only relevant tools
+and can strengthen a registry entry—for example, making Docker required for one
+module with a module-specific explanation.
 
 The application supplies resolved configuration and workspace paths, while the
 native adapters probe write access and SQLite health. Executables are resolved
@@ -133,7 +136,10 @@ the latest applied migration, and readability of the artifact index.
 Both `kelyro doctor` and the Doctor TUI screen render the same typed report.
 Required failures produce an unsuccessful CLI exit, while missing recommended
 or optional tools remain informative and always include their purpose and an
-installation link when absent.
+installation link when absent. `kelyro doctor --explain <tool>` reads the richer
+guidance directly from the registry and selects the note for the current
+platform without requiring a workspace. Official links are printed for the user
+to inspect; Kelyro does not open them or start an installation automatically.
 
 ### Session persistence and recovery
 

@@ -62,6 +62,10 @@ Secret commands:
 Open commands:
   kelyro open
   kelyro open roadmap
+
+Doctor commands:
+  kelyro doctor
+  kelyro doctor --explain <tool>
 `
 
 var actions = map[string]app.Action{
@@ -143,11 +147,12 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	command := app.Command{
-		Action:      action,
-		Workspace:   invocation.workspace,
-		AllowNested: invocation.allowNested,
-		ConfigScope: invocation.configScope,
-		OpenTarget:  invocation.openTarget,
+		Action:        action,
+		Workspace:     invocation.workspace,
+		AllowNested:   invocation.allowNested,
+		ConfigScope:   invocation.configScope,
+		OpenTarget:    invocation.openTarget,
+		DoctorExplain: invocation.doctorExplain,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -185,7 +190,9 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintf(r.stderr, "kelyro %s: %v\n", commandName, err)
 		return ExitFailure
 	}
-	if result.Diagnostics != nil && (!invocation.quiet || result.Failed) {
+	if result.Guidance != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatGuidance(*result.Guidance))
+	} else if result.Diagnostics != nil && (!invocation.quiet || result.Failed) {
 		fmt.Fprintln(r.stdout, formatDiagnostics(*result.Diagnostics))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
@@ -195,6 +202,30 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatGuidance(guidance doctor.Guidance) string {
+	requirement := string(guidance.Requirement)
+	if requirement != "" {
+		requirement = strings.ToUpper(requirement[:1]) + requirement[1:]
+	}
+	lines := []string{guidance.DisplayName + " — " + requirement}
+	if guidance.Description != "" {
+		lines = append(lines, "", "What it is:", guidance.Description)
+	}
+	if guidance.WhyNeeded != "" {
+		lines = append(lines, "", "Why:", guidance.WhyNeeded)
+	}
+	if guidance.FoundationFirst != "" {
+		lines = append(lines, "", "Foundation first:", guidance.FoundationFirst)
+	}
+	if guidance.PlatformGuidance != "" {
+		lines = append(lines, "", "On "+guidance.Platform+":", guidance.PlatformGuidance)
+	}
+	if guidance.LearnMore != "" {
+		lines = append(lines, "", "Official documentation:", guidance.LearnMore)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatDiagnostics(report doctor.Report) string {
@@ -247,6 +278,7 @@ type invocation struct {
 	secretOperation string
 	secretName      string
 	openTarget      string
+	doctorExplain   string
 }
 
 func parse(args []string) (invocation, error) {
@@ -267,6 +299,17 @@ func parse(args []string) (invocation, error) {
 			result.quiet = true
 		case argument == "--allow-nested":
 			result.allowNested = true
+		case argument == "--explain":
+			index++
+			if index >= len(args) || strings.TrimSpace(args[index]) == "" || strings.HasPrefix(args[index], "-") {
+				return invocation{}, fmt.Errorf("option --explain requires a tool id")
+			}
+			result.doctorExplain = args[index]
+		case strings.HasPrefix(argument, "--explain="):
+			result.doctorExplain = strings.TrimSpace(strings.TrimPrefix(argument, "--explain="))
+			if result.doctorExplain == "" {
+				return invocation{}, fmt.Errorf("option --explain requires a tool id")
+			}
 		case argument == "--global":
 			if result.configScope == config.ScopeProject {
 				return invocation{}, fmt.Errorf("options --global and --project cannot be combined")
@@ -309,6 +352,9 @@ func parse(args []string) (invocation, error) {
 	if result.configScope != "" && result.command != "config" {
 		return invocation{}, fmt.Errorf("configuration scope options require the config command")
 	}
+	if result.doctorExplain != "" && result.command != "doctor" {
+		return invocation{}, fmt.Errorf("option --explain requires the doctor command")
+	}
 	if result.help {
 		result.command = "help"
 	}
@@ -335,6 +381,10 @@ func parse(args []string) (invocation, error) {
 	case "open":
 		if err := parseOpenArguments(&result); err != nil {
 			return invocation{}, err
+		}
+	case "doctor":
+		if len(result.arguments) > 0 {
+			return invocation{}, fmt.Errorf("doctor does not accept positional arguments")
 		}
 	default:
 		if len(result.arguments) > 0 {

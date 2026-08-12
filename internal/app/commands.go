@@ -48,12 +48,14 @@ type Command struct {
 	SecretValue     string
 	OpenTarget      string
 	DoctorContext   doctor.Context
+	DoctorExplain   string
 }
 
 // Result contains presentation-independent output from a Foundation action.
 type Result struct {
 	Message     string
 	Diagnostics *doctor.Report
+	Guidance    *doctor.Guidance
 	Failed      bool
 }
 
