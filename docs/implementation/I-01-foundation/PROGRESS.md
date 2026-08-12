@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 18
+Last completed step: 19
 Current release: unreleased
 
 ## Registro
@@ -539,3 +539,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 19 no se ha iniciado y requiere autorización explícita.
+
+## Step 19 — Privacidad, local-first y modo offline
+
+Status: completed
+Date: 2026-08-12
+Commit: ec51cff
+Release: unreleased
+
+### Delivered
+- Configuración `privacy` deny-by-default para red, contenido de IA y telemetría, con resolución global/proyecto/overrides.
+- `NetworkGate` neutral para consumidores futuros, errores tipados, metadata acotada sin paths/URLs/contenido y logging local de bloqueos.
+- Garantías offline documentadas y comando local `kelyro roadmap`, además de pruebas con boundary de red fake.
+
+### Decisions
+- Toda operación externa futura requiere `allow_network`; IA y telemetría requieren además su opt-in específico.
+- El gate solo recibe identificadores estables y propósito, nunca destinos, paths, prompts, contenido educativo ni credenciales.
+- `updates.check` no autoriza red por sí mismo; el Paso 20 deberá consultar este boundary antes de cualquier request.
+- No se añadieron dependencias externas ni clientes HTTP.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step19-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step19-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step19-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step19 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba CLI real offline de `init`, defaults privacy, `roadmap`, `status`, `doctor`, `backup list` y `export` en una ruta con espacios.
+- `go mod tidy`, `go mod verify`, búsqueda de clientes HTTP, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 20 no se ha iniciado y requiere autorización explícita.

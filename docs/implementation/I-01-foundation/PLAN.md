@@ -1647,7 +1647,7 @@ feat(portability): add workspace export and import
 
 ## Paso 19 — Formalizar privacidad, local-first y modo offline
 
-- [ ] Paso 19 completado
+- [x] Paso 19 completado
 
 ### Objetivo
 
