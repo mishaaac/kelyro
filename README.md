@@ -1,15 +1,15 @@
 # Kelyro
 
 Kelyro is a local-first, cross-platform learning workspace. This repository is
-currently in its foundation phase: it provides only the minimal executable and
-project conventions needed to build the product incrementally.
+currently in its foundation phase: it provides the executable, local workspace
+lifecycle, and layered configuration needed to build the product incrementally.
 
 ## Status
 
 Early pre-release (`v0.1.0-alpha.1` development line). The current executable
-provides the Foundation command router and explicit placeholders for operations
-that will be implemented in later steps. It does not include an interactive TUI
-or learning features yet.
+provides workspace initialization and global/project configuration commands;
+other Foundation commands remain explicit placeholders. It does not include an
+interactive TUI or learning features yet.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
 
@@ -32,6 +32,11 @@ Run the resulting binary with `./kelyro` on Linux or macOS, or
 
 Run `kelyro help` to list the available Foundation commands. Invoking `kelyro`
 without a command enters the current TUI bootstrap placeholder.
+
+Configuration is available through `kelyro config show`, `path`, `get`, and
+`set`. Use `--global` or `--project` to choose a scope explicitly. Kelyro stores
+ordinary settings only; API keys and other secrets do not belong in these TOML
+files.
 
 Build metadata can be injected without changing source code:
 

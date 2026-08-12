@@ -41,12 +41,18 @@ func (fakeWorkspaceService) Validate(string) error { return nil }
 
 type fakeConfigStore struct{}
 
+func (fakeConfigStore) GlobalPath() (string, error)          { return "", nil }
+func (fakeConfigStore) ProjectPath(string) (string, error)   { return "", nil }
 func (fakeConfigStore) LoadGlobal() (config.Settings, error) { return nil, nil }
 func (fakeConfigStore) LoadProject(string) (config.Settings, error) {
 	return nil, nil
 }
 func (fakeConfigStore) SaveGlobal(config.Settings) error          { return nil }
 func (fakeConfigStore) SaveProject(string, config.Settings) error { return nil }
+func (fakeConfigStore) SetGlobal(string, config.Value) error      { return nil }
+func (fakeConfigStore) SetProject(string, string, config.Value) error {
+	return nil
+}
 
 type fakeStateStore struct{}
 

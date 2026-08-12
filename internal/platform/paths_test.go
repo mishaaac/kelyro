@@ -75,6 +75,7 @@ func TestWorkspacePaths(t *testing.T) {
 			assertPathHelper(t, "WorkspaceInternalDir", WorkspaceInternalDir, test.root, filepath.Join(root, ".kelyro"))
 			assertPathHelper(t, "WorkspaceDBPath", WorkspaceDBPath, test.root, filepath.Join(root, ".kelyro", "learning.db"))
 			assertPathHelper(t, "WorkspaceMetadataPath", WorkspaceMetadataPath, test.root, filepath.Join(root, ".kelyro", "workspace.json"))
+			assertPathHelper(t, "WorkspaceConfigPath", WorkspaceConfigPath, test.root, filepath.Join(root, ".kelyro", "config.toml"))
 			assertPathHelper(t, "WorkspaceStatePath", WorkspaceStatePath, test.root, filepath.Join(root, ".kelyro", "state"))
 			assertPathHelper(t, "WorkspaceCacheDir", WorkspaceCacheDir, test.root, filepath.Join(root, ".kelyro", "cache"))
 			assertPathHelper(t, "WorkspaceBackupDir", WorkspaceBackupDir, test.root, filepath.Join(root, ".kelyro", "backups"))
@@ -94,6 +95,7 @@ func TestWorkspacePathsRejectEmptyRoot(t *testing.T) {
 		{name: "WorkspaceInternalDir", call: WorkspaceInternalDir},
 		{name: "WorkspaceDBPath", call: WorkspaceDBPath},
 		{name: "WorkspaceMetadataPath", call: WorkspaceMetadataPath},
+		{name: "WorkspaceConfigPath", call: WorkspaceConfigPath},
 		{name: "WorkspaceStatePath", call: WorkspaceStatePath},
 		{name: "WorkspaceCacheDir", call: WorkspaceCacheDir},
 		{name: "WorkspaceBackupDir", call: WorkspaceBackupDir},
@@ -142,6 +144,22 @@ func TestGlobalDirectoriesUseNativeBases(t *testing.T) {
 				t.Errorf("global %s directory = %q, want %q", test.name, got, want)
 			}
 		})
+	}
+}
+
+func TestGlobalConfigPathUsesNativeConfigDirectory(t *testing.T) {
+	t.Parallel()
+
+	directory, err := GlobalConfigDir()
+	if err != nil {
+		t.Fatalf("GlobalConfigDir() error = %v", err)
+	}
+	path, err := GlobalConfigPath()
+	if err != nil {
+		t.Fatalf("GlobalConfigPath() error = %v", err)
+	}
+	if want := filepath.Join(directory, "config.toml"); path != want {
+		t.Errorf("GlobalConfigPath() = %q, want %q", path, want)
 	}
 }
 

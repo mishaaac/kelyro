@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/app"
+	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
@@ -30,7 +31,7 @@ Commands:
   version  Show build version information
   init     Initialize a workspace
   doctor   Run Foundation diagnostics (placeholder)
-  config   Manage configuration (placeholder)
+  config   Show or update layered configuration
   status   Show workspace status (placeholder)
   open     Open the workspace (placeholder)
 
@@ -42,6 +43,14 @@ Options:
       --quiet         Suppress successful command output
       --workspace PATH  Override workspace discovery
       --allow-nested  Confirm initialization inside another workspace
+      --global        Use global configuration scope
+      --project       Use project configuration scope
+
+Config commands:
+  kelyro config show
+  kelyro config path
+  kelyro config get <key>
+  kelyro config set <key> <value>
 `
 
 var actions = map[string]app.Action{
@@ -98,11 +107,22 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		return ExitFailure
 	}
 
-	result, err := r.service.Execute(ctx, app.Command{
+	command := app.Command{
 		Action:      action,
 		Workspace:   invocation.workspace,
 		AllowNested: invocation.allowNested,
-	})
+		ConfigScope: invocation.configScope,
+	}
+	if invocation.noColor {
+		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
+	}
+	if action == app.ActionConfig {
+		command.ConfigOperation = invocation.configOperation
+		command.ConfigKey = invocation.configKey
+		command.ConfigValue = invocation.configValue
+	}
+
+	result, err := r.service.Execute(ctx, command)
 	if err != nil {
 		fmt.Fprintf(r.stderr, "kelyro %s: %v\n", commandName, err)
 		return ExitFailure
@@ -115,14 +135,19 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 }
 
 type invocation struct {
-	command     string
-	workspace   string
-	help        bool
-	version     bool
-	noColor     bool
-	verbose     bool
-	quiet       bool
-	allowNested bool
+	command         string
+	workspace       string
+	help            bool
+	version         bool
+	noColor         bool
+	verbose         bool
+	quiet           bool
+	allowNested     bool
+	arguments       []string
+	configScope     config.Scope
+	configOperation string
+	configKey       string
+	configValue     string
 }
 
 func parse(args []string) (invocation, error) {
@@ -143,6 +168,16 @@ func parse(args []string) (invocation, error) {
 			result.quiet = true
 		case argument == "--allow-nested":
 			result.allowNested = true
+		case argument == "--global":
+			if result.configScope == config.ScopeProject {
+				return invocation{}, fmt.Errorf("options --global and --project cannot be combined")
+			}
+			result.configScope = config.ScopeGlobal
+		case argument == "--project":
+			if result.configScope == config.ScopeGlobal {
+				return invocation{}, fmt.Errorf("options --global and --project cannot be combined")
+			}
+			result.configScope = config.ScopeProject
 		case argument == "--workspace":
 			index++
 			if index >= len(args) || args[index] == "" {
@@ -159,7 +194,7 @@ func parse(args []string) (invocation, error) {
 		case result.command == "":
 			result.command = argument
 		default:
-			return invocation{}, fmt.Errorf("unexpected argument %q", argument)
+			result.arguments = append(result.arguments, argument)
 		}
 	}
 
@@ -171,6 +206,9 @@ func parse(args []string) (invocation, error) {
 	}
 	if result.allowNested && result.command != "init" {
 		return invocation{}, fmt.Errorf("option --allow-nested requires the init command")
+	}
+	if result.configScope != "" && result.command != "config" {
+		return invocation{}, fmt.Errorf("configuration scope options require the config command")
 	}
 	if result.help {
 		result.command = "help"
@@ -187,9 +225,45 @@ func parse(args []string) (invocation, error) {
 		result.help = true
 	case "version":
 		result.version = true
+	case "config":
+		if err := parseConfigArguments(&result); err != nil {
+			return invocation{}, err
+		}
+	default:
+		if len(result.arguments) > 0 {
+			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
+		}
 	}
 
 	return result, nil
+}
+
+func parseConfigArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		result.configOperation = "show"
+		return nil
+	}
+	result.configOperation = result.arguments[0]
+	switch result.configOperation {
+	case "show", "path":
+		if len(result.arguments) != 1 {
+			return fmt.Errorf("config %s does not accept arguments", result.configOperation)
+		}
+	case "get":
+		if len(result.arguments) != 2 {
+			return fmt.Errorf("config get requires exactly one key")
+		}
+		result.configKey = result.arguments[1]
+	case "set":
+		if len(result.arguments) != 3 {
+			return fmt.Errorf("config set requires a key and value")
+		}
+		result.configKey = result.arguments[1]
+		result.configValue = result.arguments[2]
+	default:
+		return fmt.Errorf("unknown config command %q", result.configOperation)
+	}
+	return nil
 }
 
 func (r Runner) usageError(format string, args ...any) int {

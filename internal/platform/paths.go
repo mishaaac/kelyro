@@ -9,7 +9,9 @@ import (
 
 const (
 	applicationDirectoryName     = "kelyro"
+	globalConfigFileName         = "config.toml"
 	workspaceDirectoryName       = ".kelyro"
+	workspaceConfigFileName      = "config.toml"
 	workspaceDatabaseFileName    = "learning.db"
 	workspaceMetadataFileName    = "workspace.json"
 	workspaceStateDirectoryName  = "state"
@@ -87,6 +89,16 @@ func GlobalConfigDir() (string, error) {
 	return childPath(base, applicationDirectoryName)
 }
 
+// GlobalConfigPath returns Kelyro's user-scoped configuration file.
+func GlobalConfigPath() (string, error) {
+	directory, err := GlobalConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return childPath(directory, globalConfigFileName)
+}
+
 // GlobalCacheDir returns Kelyro's directory below the current user's native
 // cache directory.
 func GlobalCacheDir() (string, error) {
@@ -111,6 +123,11 @@ func WorkspaceDBPath(root string) (string, error) {
 // WorkspaceMetadataPath returns the machine-owned workspace identity file.
 func WorkspaceMetadataPath(root string) (string, error) {
 	return workspaceChildPath(root, workspaceMetadataFileName)
+}
+
+// WorkspaceConfigPath returns the project-scoped configuration file.
+func WorkspaceConfigPath(root string) (string, error) {
+	return workspaceChildPath(root, workspaceConfigFileName)
 }
 
 // WorkspaceStatePath returns the path reserved for workspace state files.

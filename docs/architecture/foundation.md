@@ -45,7 +45,8 @@ or infrastructure adapters merely to perform work.
 | `internal/platform` | OS-dependent contract plus native directory and path normalization helpers. |
 | `internal/workspace` | Workspace identity, discovery, initialization, and validation contract. |
 | `internal/infra/workspacefs` | Local filesystem adapter for the workspace lifecycle contract. |
-| `internal/config` | Format-independent global and project configuration contract. |
+| `internal/config` | Format-independent schema, validation, precedence, and global/project persistence contract. |
+| `internal/infra/configfs` | Strict TOML and atomic filesystem adapter for configuration. |
 | `internal/storage` | Opaque state and secret persistence contracts. |
 | `internal/artifacts` | Ownership classification for generated and human-authored files. |
 | `internal/audit` | Boundary for recording critical actions, without an event bus. |
@@ -103,10 +104,12 @@ standard `os` APIs. Consequently, global data follows native conventions:
   with Go's home-based fallbacks otherwise.
 
 The global configuration and cache directories append `kelyro` to their native
-bases. Workspace data never moves into those global directories:
+bases; the global configuration file is `config.toml` in that Kelyro directory.
+Workspace data never moves into those global directories:
 `WorkspaceInternalDir` resolves `<workspace>/.kelyro`, the database is
 `learning.db`, metadata is `workspace.json`, state is under `state`, disposable
 cache is under `cache`, backups are under `backups`, and logs are under `logs`.
+`WorkspaceConfigPath` resolves `.kelyro/config.toml`, and
 `WorkspaceLearningPath` resolves the visible `LEARNING.md` document. These
 helpers accept relative roots and paths containing spaces. They do not create
 directories or validate workspace identity; those lifecycle operations belong
@@ -134,9 +137,11 @@ option.
 
 Ownership rules are intentionally narrow:
 
-- `.kelyro/` and all of its contents are machine-owned. Kelyro may create,
-  validate, migrate, replace, or remove those internals according to the active
-  workspace schema.
+- `.kelyro/` and its contents are machine-owned. Kelyro may create, validate,
+  migrate, replace, or remove those internals according to the active workspace
+  schema. `.kelyro/config.toml` is the explicit exception intended for advanced
+  manual editing; Kelyro validates it strictly and preserves comments during
+  single-key CLI updates.
 - `LEARNING.md` is student-owned. Initialization may create it only when the
   path is absent; Kelyro never overwrites existing content automatically.
 - Every other visible file is student-owned by default. Kelyro requires an
@@ -159,6 +164,42 @@ so callers never encode storage policy or place secrets in repository files.
 `audit.Recorder` records critical actions through a small event contract. It is
 not a general event bus; timestamps, serialization, and destinations belong to
 its adapter.
+
+### Layered configuration
+
+Configuration resolves in this order: safe defaults, the global file, the
+discovered workspace file, and explicit CLI overrides. Later layers win. The
+initial CLI override is `--no-color`, which resolves `ui.color` to `never`
+without persisting it. Global files accept UI, editor, privacy, and update
+settings. Project files may also define those keys as overrides and add
+`workspace.name` and `learning.mastery_threshold`; the threshold is schema only
+and has no educational behavior yet.
+
+Both files carry an optional `schema_version`; newly written files use version
+1, and unsupported versions fail before any values are used. The filesystem
+adapter accepts the strict scalar TOML subset required by the known schema:
+tables, quoted strings, booleans, and numbers. Unknown tables or keys, duplicate
+definitions, incorrect scalar types, and invalid values produce errors naming
+the offending key. This bounded parser avoids an external dependency while the
+schema is small; adding TOML features outside the supported schema requires an
+explicit parser decision.
+
+Writes use a same-directory temporary file, restrictive permissions, file
+synchronization, and rename replacement. A failed commit leaves the prior file
+unchanged and removes staging files. Single-key `config set` updates retain
+existing comments, including an inline comment on that key. The lower-level
+bulk save methods intentionally emit canonical TOML and therefore do not retain
+comments; they are intended for generated new files and migrations, not normal
+CLI edits. Crash-level rename guarantees ultimately follow the host operating
+system's filesystem semantics.
+
+`kelyro config show`, `path`, `get`, and `set` operate on this model. `--global`
+or `--project` selects a scope explicitly. Without a scope, reads include the
+discovered project when present, and writes target that project or fall back to
+global configuration outside a workspace. The schema exposes metadata for a
+future common-settings wizard, while advanced editing remains available through
+the paths reported by `config path`. Configuration files never accept API keys
+or other secrets.
 
 ## Why UI and persistence stay outside the core
 

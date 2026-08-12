@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/mishaaac/kelyro/internal/app"
+	"github.com/mishaaac/kelyro/internal/config"
 )
 
 func TestRunnerDispatchesFoundationCommands(t *testing.T) {
@@ -92,6 +93,51 @@ func TestRunnerPassesExplicitNestedInitialization(t *testing.T) {
 	}
 }
 
+func TestRunnerParsesConfigCommandsScopesAndOverrides(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		args          []string
+		wantOperation string
+		wantScope     config.Scope
+		wantKey       string
+		wantValue     string
+		wantColor     string
+	}{
+		{name: "config defaults to show", args: []string{"config"}, wantOperation: "show"},
+		{name: "show global", args: []string{"--global", "config", "show"}, wantOperation: "show", wantScope: config.ScopeGlobal},
+		{name: "project path", args: []string{"config", "path", "--project"}, wantOperation: "path", wantScope: config.ScopeProject},
+		{name: "get", args: []string{"config", "get", "ui.color"}, wantOperation: "get", wantKey: "ui.color"},
+		{name: "set", args: []string{"config", "set", "editor.command", "code --wait"}, wantOperation: "set", wantKey: "editor.command", wantValue: "code --wait"},
+		{name: "CLI color override", args: []string{"--no-color", "config", "show"}, wantOperation: "show", wantColor: "never"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			service := &fakeService{}
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			runner := NewRunner(service, &stdout, &stderr)
+
+			if exitCode := runner.Run(context.Background(), test.args); exitCode != ExitOK {
+				t.Fatalf("Run() exit code = %d; stderr = %q", exitCode, stderr.String())
+			}
+			if len(service.commands) != 1 {
+				t.Fatalf("service calls = %d, want 1", len(service.commands))
+			}
+			command := service.commands[0]
+			if command.ConfigOperation != test.wantOperation || command.ConfigScope != test.wantScope || command.ConfigKey != test.wantKey || command.ConfigValue != test.wantValue {
+				t.Errorf("config command = %#v", command)
+			}
+			if test.wantColor != "" && command.ConfigOverrides[config.KeyUIColor].String() != test.wantColor {
+				t.Errorf("ui.color override = %q, want %q", command.ConfigOverrides[config.KeyUIColor].String(), test.wantColor)
+			}
+		})
+	}
+}
+
 func TestRunnerHelp(t *testing.T) {
 	t.Parallel()
 
@@ -158,6 +204,12 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "conflicting output modes", args: []string{"--verbose", "--quiet"}, message: "options --verbose and --quiet cannot be combined"},
 		{name: "version with command", args: []string{"init", "--version"}, message: "option --version cannot be combined with a command"},
 		{name: "nested without init", args: []string{"status", "--allow-nested"}, message: "option --allow-nested requires the init command"},
+		{name: "scope conflict", args: []string{"config", "--global", "--project"}, message: "options --global and --project cannot be combined"},
+		{name: "scope without config", args: []string{"status", "--global"}, message: "configuration scope options require the config command"},
+		{name: "unknown config command", args: []string{"config", "edit"}, message: `unknown config command "edit"`},
+		{name: "get missing key", args: []string{"config", "get"}, message: "config get requires exactly one key"},
+		{name: "set missing value", args: []string{"config", "set", "ui.color"}, message: "config set requires a key and value"},
+		{name: "show extra argument", args: []string{"config", "show", "extra"}, message: "config show does not accept arguments"},
 	}
 
 	for _, test := range tests {
