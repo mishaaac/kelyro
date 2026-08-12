@@ -5,6 +5,11 @@ subsystems can depend. It defines vocabulary and boundaries; it does not make a
 presentation framework, database, external service, or operating system part of
 the core.
 
+I-01 Foundation is complete as of `v0.1.0-alpha.1`. Its contracts are the stable
+base for I-02 Student & Learning Core. Because Kelyro remains in the `0.x`
+pre-release series, intentional contract changes still follow SemVer and must be
+documented rather than assumed to be backward-compatible.
+
 ## Layers and dependency direction
 
 Dependencies point inward:

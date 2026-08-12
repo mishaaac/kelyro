@@ -5,6 +5,10 @@ and `arm64`. Release builds disable CGO and embed the version, source commit,
 and reproducible build date. `SHA256SUMS` detects accidental corruption; it is
 not a cryptographic signature or proof of publisher identity.
 
+Release-specific scope and limitations are recorded under [`docs/releases/`](releases/).
+The first Foundation pre-release is
+[`v0.1.0-alpha.1`](releases/v0.1.0-alpha.1.md).
+
 ## Manual installation
 
 1. Download the archive for the operating system and architecture plus

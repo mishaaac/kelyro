@@ -1,16 +1,18 @@
 # Kelyro
 
-Kelyro is a local-first, cross-platform learning workspace. This repository is
-currently in its foundation phase: it provides the executable, local workspace
-lifecycle, layered configuration, secure secret references, and workspace-local
-structured persistence needed to build the product incrementally.
+Kelyro is a local-first, cross-platform learning workspace. Its I-01 Foundation
+is complete: the repository provides the executable, local workspace lifecycle,
+layered configuration, secure secret references, and workspace-local structured
+persistence needed to build the product incrementally.
 
 ## Status
 
-Early pre-release (`v0.1.0-alpha.1` development line). The current executable
-provides workspace initialization, global/project configuration, secret
-management, safe opening of Foundation documents, and an interactive Foundation
-TUI. Learning features are not implemented yet.
+Foundation pre-release `v0.1.0-alpha.1`. The current executable provides
+workspace initialization, global/project configuration, secret management,
+safe opening of Foundation documents, portability and recovery operations, and
+an interactive Foundation TUI. I-01 is closed and ready for I-02 Student &
+Learning Core; learning features are not implemented yet. See the
+[release notes](docs/releases/v0.1.0-alpha.1.md) for scope and limitations.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
 
