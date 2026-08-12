@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 11
+Last completed step: 12
 Current release: unreleased
 
 ## Registro
@@ -339,3 +339,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 12 no se ha iniciado y requiere autorización explícita.
+
+## Step 12 — TUI Foundation con Bubble Tea
+
+Status: completed
+Date: 2026-08-12
+Commit: 365f0f9
+Release: unreleased
+
+### Delivered
+- TUI real con Home, Doctor, Config y Roadmap, navegación visible, resize y estados loading/error/empty.
+- Snapshot Foundation tipado, diagnóstico parcial y wizard mínimo de configuración mediante servicios de aplicación.
+- Integración CLI por defecto con lifecycle de terminal, `NO_COLOR`/`--no-color`, recovery y snapshots por anchura.
+
+### Decisions
+- Bubble Tea v1.3.10 y Lip Gloss v1.1.0 quedan confinados a `internal/tui`; Bubbles no es necesario para las pantallas actuales.
+- `Update` solo gestiona estado de presentación; discovery, configuración, salud SQLite y apertura del roadmap permanecen en aplicación/adaptadores.
+- El wizard alterna opciones acotadas; valores escalares libres continúan editándose con `kelyro config set`.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step12-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step12-race-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step12-vet-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step12-build-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step12 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba TUI real en PTY de Home, salida con `q`, restauración del terminal y ausencia de color bajo `NO_COLOR`.
+- `go mod tidy`, `go mod verify`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 13 no se ha iniciado y requiere autorización explícita.

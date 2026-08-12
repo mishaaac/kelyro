@@ -1161,7 +1161,7 @@ feat(editor): add editor detection and safe artifact opening
 
 ## Paso 12 — Construir la TUI Foundation con Bubble Tea
 
-- [ ] Paso 12 completado
+- [x] Paso 12 completado
 
 ### Objetivo
 
