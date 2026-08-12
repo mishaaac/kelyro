@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 3 (authorized)
-Last completed step: 2
+Current step: none (awaiting authorization)
+Last completed step: 3
 Current release: unreleased
 
 ## Registro
@@ -81,3 +81,30 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 3 está autorizado y es el siguiente paso a ejecutar.
+
+## Step 03 — CLI base y router de comandos
+
+Status: completed
+Date: 2026-08-12
+Commit: 9b9130c
+Release: unreleased
+
+### Delivered
+- Router CLI inyectable con TUI por defecto y comandos `help`, `version`, `init`, `doctor`, `config`, `status` y `open`.
+- Flags globales reservados, códigos de salida, errores uniformes y placeholders explícitos detrás de un servicio de aplicación.
+- Pruebas de parsing, ayuda/versión, dispatch, workspace override, errores, quiet mode y cancelación.
+
+### Decisions
+- Se usó la biblioteca estándar: el alcance actual no justifica añadir Cobra como dependencia externa.
+- La CLI solo parsea y renderiza; las acciones Foundation se despachan mediante `app.FoundationService`.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step3-gocache GOMODCACHE=/tmp/kelyro-step3-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step3-gocache GOMODCACHE=/tmp/kelyro-step3-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step3-gocache GOMODCACHE=/tmp/kelyro-step3-modcache go build -o /tmp/kelyro-step3 ./cmd/kelyro`
+- `/tmp/kelyro-step3 --help`
+- `/tmp/kelyro-step3 version`
+- `git diff --check`
+
+### Notes for next session
+- El Paso 4 no se ha iniciado y requiere autorización explícita.

@@ -465,7 +465,7 @@ refactor(core): define foundation architecture contracts
 
 ## Paso 3 — Implementar la CLI base y el router de comandos
 
-- [ ] Paso 3 completado
+- [x] Paso 3 completado
 
 ### Objetivo
 
