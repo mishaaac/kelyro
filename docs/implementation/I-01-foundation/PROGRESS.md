@@ -716,6 +716,7 @@ Release: v0.1.0-alpha.1
 
 ### Delivered
 - Contratos, documentación, dependencias y límites de Foundation auditados sin acoplamientos invertidos ni lógica educativa implementada.
+- Checklist final consolidado contra evidencia funcional, CI, seguridad, historial y Definition of Done.
 - Release notes de `v0.1.0-alpha.1`, matriz CI real en Linux/macOS/Windows y empaquetado reproducible para los seis targets soportados.
 - Findings de CI corregidos para rutas, golden files, permisos, E2E sin consola Windows y uso seguro de `CredReadW`.
 

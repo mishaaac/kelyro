@@ -2231,99 +2231,99 @@ El tag se crea después sobre el commit correcto.
 ## Protocolo y repositorio
 
 - [x] Paso 0 — Protocolo SDD y memoria persistente del repositorio
-- [ ] Paso 1 — Bootstrap Go e identidad del proyecto
-- [ ] Paso 2 — Arquitectura y contratos Foundation
-- [ ] Paso 3 — CLI base
-- [ ] Paso 4 — Plataforma y rutas multiplataforma
-- [ ] Paso 5 — Kelyro Workspace
-- [ ] Paso 6 — Configuración global/proyecto
-- [ ] Paso 7 — Secret management
-- [ ] Paso 8 — SQLite y migrations
-- [ ] Paso 9 — Ownership, integridad y sandbox
-- [ ] Paso 10 — Markdown human-readable + roadmap placeholder
-- [ ] Paso 11 — Editor detection/open
-- [ ] Paso 12 — TUI Foundation
-- [ ] Paso 13 — Resume y crash-safe state
-- [ ] Paso 14 — Doctor y tool registry
-- [ ] Paso 15 — Tool guidance
-- [ ] Paso 16 — Logging y audit trail
-- [ ] Paso 17 — Backups y restore
-- [ ] Paso 18 — Export/import
-- [ ] Paso 19 — Privacy, local-first y offline
-- [ ] Paso 20 — Update checks
-- [ ] Paso 21 — CI y matriz multiplataforma
-- [ ] Paso 22 — E2E Foundation
+- [x] Paso 1 — Bootstrap Go e identidad del proyecto
+- [x] Paso 2 — Arquitectura y contratos Foundation
+- [x] Paso 3 — CLI base
+- [x] Paso 4 — Plataforma y rutas multiplataforma
+- [x] Paso 5 — Kelyro Workspace
+- [x] Paso 6 — Configuración global/proyecto
+- [x] Paso 7 — Secret management
+- [x] Paso 8 — SQLite y migrations
+- [x] Paso 9 — Ownership, integridad y sandbox
+- [x] Paso 10 — Markdown human-readable + roadmap placeholder
+- [x] Paso 11 — Editor detection/open
+- [x] Paso 12 — TUI Foundation
+- [x] Paso 13 — Resume y crash-safe state
+- [x] Paso 14 — Doctor y tool registry
+- [x] Paso 15 — Tool guidance
+- [x] Paso 16 — Logging y audit trail
+- [x] Paso 17 — Backups y restore
+- [x] Paso 18 — Export/import
+- [x] Paso 19 — Privacy, local-first y offline
+- [x] Paso 20 — Update checks
+- [x] Paso 21 — CI y matriz multiplataforma
+- [x] Paso 22 — E2E Foundation
 - [x] Paso 23 — Distribución y releases
-- [ ] Paso 24 — Hardening de seguridad y portabilidad
-- [ ] Paso 25 — Cierre formal de I-01
+- [x] Paso 24 — Hardening de seguridad y portabilidad
+- [x] Paso 25 — Cierre formal de I-01
 
 ## Cobertura funcional de I-01
 
-- [ ] Workspace local inicializable desde cualquier carpeta
-- [ ] TUI funcional en terminal
-- [ ] CLI funcional
-- [ ] Windows soportado
-- [ ] macOS soportado
-- [ ] Linux soportado
-- [ ] `.kelyro/` contiene internals
-- [ ] Human-readable artifacts quedan visibles
-- [ ] Markdown generado legible
-- [ ] Student-owned files protegidos
-- [ ] Editor favorito detectable/configurable
-- [ ] Apertura de artifacts segura
-- [ ] Roadmap placeholder visible
-- [ ] Roadmap Markdown visible
-- [ ] `doctor` funcional
-- [ ] Tool registry extensible
-- [ ] Tool recommendations disponibles
-- [ ] Sandbox base seguro
-- [ ] Secrets fuera de config/workspace
-- [ ] Resume de sesión
-- [ ] Recovery ante estado dañado razonable
-- [ ] Content integrity
-- [ ] Backups
-- [ ] Restore
-- [ ] Export
-- [ ] Import
-- [ ] Local-first
-- [ ] Privacy boundaries
-- [ ] Offline Foundation
-- [ ] Update check
-- [ ] Config global
-- [ ] Config por workspace
-- [ ] Config wizard básico
-- [ ] Config avanzada por archivo
-- [ ] Logs
-- [ ] Audit trail
-- [ ] Migration engine
-- [ ] Development standards
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] E2E tests
-- [ ] Cross-platform CI
-- [ ] Stable internal contracts
+- [x] Workspace local inicializable desde cualquier carpeta
+- [x] TUI funcional en terminal
+- [x] CLI funcional
+- [x] Windows soportado
+- [x] macOS soportado
+- [x] Linux soportado
+- [x] `.kelyro/` contiene internals
+- [x] Human-readable artifacts quedan visibles
+- [x] Markdown generado legible
+- [x] Student-owned files protegidos
+- [x] Editor favorito detectable/configurable
+- [x] Apertura de artifacts segura
+- [x] Roadmap placeholder visible
+- [x] Roadmap Markdown visible
+- [x] `doctor` funcional
+- [x] Tool registry extensible
+- [x] Tool recommendations disponibles
+- [x] Sandbox base seguro
+- [x] Secrets fuera de config/workspace
+- [x] Resume de sesión
+- [x] Recovery ante estado dañado razonable
+- [x] Content integrity
+- [x] Backups
+- [x] Restore
+- [x] Export
+- [x] Import
+- [x] Local-first
+- [x] Privacy boundaries
+- [x] Offline Foundation
+- [x] Update check
+- [x] Config global
+- [x] Config por workspace
+- [x] Config wizard básico
+- [x] Config avanzada por archivo
+- [x] Logs
+- [x] Audit trail
+- [x] Migration engine
+- [x] Development standards
+- [x] Unit tests
+- [x] Integration tests
+- [x] E2E tests
+- [x] Cross-platform CI
+- [x] Stable internal contracts
 
 ## Definition of Done de I-01
 
-- [ ] `go test ./...` pasa
-- [ ] `go vet ./...` pasa
-- [ ] race tests aplicables pasan
-- [ ] CI Linux pasa
-- [ ] CI Windows pasa
-- [ ] CI macOS pasa
-- [ ] Builds soportados compilan
-- [ ] E2E Foundation pasa
-- [ ] No quedan secrets en repo/logs/export/backups
-- [ ] No existe path handling hardcodeado por OS
-- [ ] No existe lógica de Student Core implementada prematuramente
-- [ ] No existe lógica de AI providers implementada prematuramente
-- [ ] TUI y CLI comparten application services
-- [ ] SQLite permanece detrás de interfaces
-- [ ] Platform permanece detrás de interfaces
-- [ ] Workspace puede abrirse offline
-- [ ] Working tree limpio
-- [ ] Todos los pasos completados tienen registro en `PROGRESS.md`
-- [ ] Todos los pasos relevantes tienen commits Conventional Commit
-- [ ] La versión final de Foundation respeta SemVer
-- [ ] Existe tag anotado si se publicó una release
-- [ ] `PROGRESS.md` declara explícitamente I-01 listo para I-02
+- [x] `go test ./...` pasa
+- [x] `go vet ./...` pasa
+- [x] race tests aplicables pasan
+- [x] CI Linux pasa
+- [x] CI Windows pasa
+- [x] CI macOS pasa
+- [x] Builds soportados compilan
+- [x] E2E Foundation pasa
+- [x] No quedan secrets en repo/logs/export/backups
+- [x] No existe path handling hardcodeado por OS
+- [x] No existe lógica de Student Core implementada prematuramente
+- [x] No existe lógica de AI providers implementada prematuramente
+- [x] TUI y CLI comparten application services
+- [x] SQLite permanece detrás de interfaces
+- [x] Platform permanece detrás de interfaces
+- [x] Workspace puede abrirse offline
+- [x] Working tree limpio
+- [x] Todos los pasos completados tienen registro en `PROGRESS.md`
+- [x] Todos los pasos relevantes tienen commits Conventional Commit
+- [x] La versión final de Foundation respeta SemVer
+- [x] Existe tag anotado si se publicó una release
+- [x] `PROGRESS.md` declara explícitamente I-01 listo para I-02
