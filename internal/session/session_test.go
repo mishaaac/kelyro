@@ -68,7 +68,7 @@ func TestCorruptStateRecoversDefaultsAndRecordsAudit(t *testing.T) {
 	if resumed.State.LastView != ViewHome || !resumed.State.SafeToResume {
 		t.Errorf("recovered state = %+v", resumed.State)
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Action != "session.recovered" {
+	if len(recorder.events) != 1 || recorder.events[0].Name != "session.recovered" || recorder.events[0].Actor != audit.ActorSystem {
 		t.Fatalf("audit events = %#v", recorder.events)
 	}
 	if _, _, _, err := decode(states.value); err != nil {
@@ -122,7 +122,7 @@ func TestVersionOneStateMigratesWithoutLosingContext(t *testing.T) {
 	if resumed.State.LastView != ViewConfig || resumed.State.LastCommand != "config set ui.color" {
 		t.Errorf("migrated state = %+v", resumed.State)
 	}
-	if len(recorder.events) != 1 || recorder.events[0].Action != "session.migrated" {
+	if len(recorder.events) != 1 || recorder.events[0].Name != "session.migrated" || recorder.events[0].Actor != audit.ActorSystem {
 		t.Fatalf("audit events = %#v", recorder.events)
 	}
 }

@@ -55,13 +55,15 @@ or infrastructure adapters merely to perform work.
 | `internal/artifacts` | Ownership, hashing, and integrity metadata contracts for workspace files. |
 | `internal/artifacts/markdown` | Pure rendering of stable human-readable Foundation documents. |
 | `internal/infra/artifactfs` | Ownership-aware atomic writes and workspace path sandbox. |
-| `internal/audit` | Boundary for recording critical actions, without an event bus. |
+| `internal/audit` | Typed critical-event recording and chronological audit reading contracts. |
+| `internal/infra/auditsqlite` | Workspace-scoped durable audit store over Foundation SQLite. |
 | `internal/editor` | Neutral editor discovery and file-opening contract. |
 | `internal/infra/editoros` | Native executable discovery and safe process-launch adapter. |
 | `internal/doctor` | Typed diagnostics, tool registry, contextual requirements, and failure policy. |
 | `internal/infra/doctoros` | Native writable-path, executable-resolution, and bounded version probes. |
 | `internal/infra/doctorsqlite` | SQLite health, migration-version, and artifact-index diagnostic adapter. |
-| `internal/logging` | Future structured logging infrastructure. |
+| `internal/logging` | Structured diagnostic levels, entries, redaction, and workspace logger contracts. |
+| `internal/infra/logfs` | Bounded workspace-local JSONL logging with restrictive permissions and rotation. |
 | `internal/backup` | Future backup and restore services. |
 | `internal/privacy` | Future privacy inspection services. |
 | `internal/update` | Future update-check services. |
@@ -293,7 +295,37 @@ exercise workflows; it does not create exercises in Foundation.
 
 `audit.Recorder` records critical actions through a small event contract. It is
 not a general event bus; timestamps, serialization, and destinations belong to
-its adapter.
+its adapter. `audit.Reader` returns the same durable trail in chronological
+order without exposing SQLite details.
+
+### Structured logging and audit trail
+
+Diagnostic logs are JSON Lines records under
+`.kelyro/logs/kelyro.jsonl`. Every record has a timestamp, one of `debug`,
+`info`, `warn`, or `error`, plus operation, workspace, component, and an error
+category for failures. Normal commands write only to the file; successful logs
+never appear in the terminal. `--verbose` enables an additional debug entry
+and safe structured fields. `kelyro logs path` reports the current file without
+opening it automatically.
+
+The filesystem adapter restricts log files to owner read/write permissions and
+rotates before the active file exceeds one MiB. Foundation retains at most
+three files, including the active file. An individually oversized entry is
+replaced by a bounded truncation marker. Secret-like field names are redacted,
+explicit sensitive values are removed from every serialized string, and fields
+that could contain a prompt, answer, submission, or complete student document
+are omitted. Application operations log identifiers and state transitions, not
+document bodies or secret values. Failure to open or write a diagnostic log is
+best effort and cannot replace the result of the user's requested operation.
+
+The audit trail is distinct from diagnostic logging. It persists significant
+state changes in `.kelyro/learning.db`, including workspace initialization,
+configuration-key changes, applied migrations, generated artifacts, blocked
+artifact regeneration, and session recovery or migration. Each entry stores a
+UTC timestamp, stable event name, `system`, `user`, or future `plugin` actor,
+safe metadata, subject, and app version. Configuration values and generated
+content are not audit metadata. `kelyro audit` reads events in timestamp and
+insertion order, and ordinary keypresses never create events.
 
 ### Layered configuration
 
@@ -378,8 +410,9 @@ keys on every connection, restricts the database file permissions, and runs
 to the latest embedded schema. The initial migration creates only
 `schema_migrations`, `workspace_meta`, `app_state`, `artifact_index`, and
 `audit_events`; a second non-destructive migration enriches `artifact_index`
-with integrity and generation metadata. Educational tables remain outside
-Foundation.
+with integrity and generation metadata. A third non-destructive migration adds
+the actor and app-version identity required by the durable audit trail.
+Educational tables remain outside Foundation.
 
 Migrations are consecutive, immutable records with a name and SHA-256 checksum.
 The runner validates existing history, skips already applied versions, and

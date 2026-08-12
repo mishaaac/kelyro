@@ -252,21 +252,30 @@ func TestRepositoriesCRUD(t *testing.T) {
 	}
 
 	event := audit.Event{
-		Action:   "workspace.opened",
+		Name:     "workspace.opened",
+		Actor:    audit.ActorUser,
 		Subject:  "workspace-123",
 		Metadata: map[string]string{"source": "test"},
 	}
 	if err := repositories.Audit.Record(ctx, event); err != nil {
 		t.Fatalf("Audit.Record() error = %v", err)
 	}
-	var occurredAt, action, subject, metadata string
+	var occurredAt, action, actor, subject, metadata, appVersion string
 	if err := database.sql.QueryRowContext(ctx, `
-SELECT occurred_at, action, subject, metadata_json FROM audit_events`,
-	).Scan(&occurredAt, &action, &subject, &metadata); err != nil {
+SELECT occurred_at, action, actor, subject, metadata_json, app_version
+FROM audit_events WHERE action = 'workspace.opened'`,
+	).Scan(&occurredAt, &action, &actor, &subject, &metadata, &appVersion); err != nil {
 		t.Fatalf("read audit event: %v", err)
 	}
-	if occurredAt != fixedTime.Format(timestampFormat) || action != event.Action || subject != event.Subject || metadata != `{"source":"test"}` {
-		t.Fatalf("stored audit event = (%q, %q, %q, %q)", occurredAt, action, subject, metadata)
+	if occurredAt != fixedTime.Format(timestampFormat) || action != event.Name || actor != string(event.Actor) || subject != event.Subject || metadata != `{"source":"test"}` || appVersion != "unknown" {
+		t.Fatalf("stored audit event = (%q, %q, %q, %q, %q, %q)", occurredAt, action, actor, subject, metadata, appVersion)
+	}
+	entries, err := repositories.Audit.List(ctx)
+	if err != nil {
+		t.Fatalf("Audit.List() error = %v", err)
+	}
+	if got := entries[len(entries)-1]; got.Event != event.Name || got.Actor != event.Actor || got.AppVersion != "unknown" || got.Metadata["source"] != "test" {
+		t.Fatalf("Audit.List() last entry = %+v", got)
 	}
 }
 
@@ -411,7 +420,7 @@ func TestRepositoryValidationRejectsEmptyKeysAndInvalidOwnership(t *testing.T) {
 	if err := repositories.Artifacts.Put(ctx, artifacts.Artifact{Path: "x", Ownership: "unknown"}); err == nil {
 		t.Fatal("Artifacts.Put() accepted invalid ownership")
 	}
-	if err := repositories.Audit.Record(ctx, audit.Event{Action: "", Subject: "x"}); err == nil {
+	if err := repositories.Audit.Record(ctx, audit.Event{Name: "", Actor: audit.ActorUser, Subject: "x"}); err == nil {
 		t.Fatal("Audit.Record() accepted an empty action")
 	}
 }

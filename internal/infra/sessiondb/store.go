@@ -13,18 +13,23 @@ import (
 
 // Factory opens workspace-local session stores.
 type Factory struct {
-	now func() time.Time
+	now        func() time.Time
+	appVersion string
 }
 
 // NewFactory creates a SQLite-backed session-store factory.
-func NewFactory() *Factory {
-	return &Factory{now: time.Now}
+func NewFactory(appVersion ...string) *Factory {
+	version := "unknown"
+	if len(appVersion) > 0 {
+		version = appVersion[0]
+	}
+	return &Factory{now: time.Now, appVersion: version}
 }
 
 // Open opens the existing Foundation database and binds session operations to
 // its transaction runner.
 func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (session.Store, error) {
-	database, err := sqlite.Open(ctx, workspaceRoot)
+	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion))
 	if err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/artifacts"
+	"github.com/mishaaac/kelyro/internal/audit"
 )
 
 var (
@@ -36,10 +37,11 @@ type Store struct {
 	index   artifacts.Index
 	now     func() time.Time
 	replace func(string, string) error
+	audit   audit.Recorder
 }
 
 // New creates an ownership-aware artifact store.
-func New(root string, index artifacts.Index) (*Store, error) {
+func New(root string, index artifacts.Index, recorders ...audit.Recorder) (*Store, error) {
 	if index == nil {
 		return nil, fmt.Errorf("artifact index is required")
 	}
@@ -47,7 +49,11 @@ func New(root string, index artifacts.Index) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{sandbox: sandbox, index: index, now: time.Now, replace: replaceFile}, nil
+	var recorder audit.Recorder
+	if len(recorders) > 0 {
+		recorder = recorders[0]
+	}
+	return &Store{sandbox: sandbox, index: index, now: time.Now, replace: replaceFile, audit: recorder}, nil
 }
 
 // Write atomically creates or regenerates an artifact. A conflict is returned
@@ -83,8 +89,10 @@ func (store *Store) Write(ctx context.Context, request WriteRequest) (artifacts.
 	if request.Ownership == artifacts.SystemGeneratedHumanReadable && exists {
 		switch {
 		case !found:
+			store.record(ctx, "artifact.regeneration_blocked", relative, map[string]string{"reason": "untracked"})
 			return artifacts.Artifact{}, fmt.Errorf("%w: %s", ErrUntracked, relative)
 		case known.ContentHash == "" || artifacts.Hash(current) != known.ContentHash:
+			store.record(ctx, "artifact.regeneration_blocked", relative, map[string]string{"reason": "modified"})
 			return artifacts.Artifact{}, fmt.Errorf("%w: %s", ErrModified, relative)
 		}
 	}
@@ -119,7 +127,21 @@ func (store *Store) Write(ctx context.Context, request WriteRequest) (artifacts.
 	if err := store.index.Put(ctx, next); err != nil {
 		return artifacts.Artifact{}, fmt.Errorf("record artifact %s: %w", relative, err)
 	}
+	store.record(ctx, "artifact.generated", relative, map[string]string{
+		"created_by":       request.CreatedBy,
+		"ownership":        string(request.Ownership),
+		"expected_version": request.ExpectedVersion,
+	})
 	return next, nil
+}
+
+func (store *Store) record(ctx context.Context, name, subject string, metadata map[string]string) {
+	if store.audit == nil {
+		return
+	}
+	_ = store.audit.Record(ctx, audit.Event{
+		Name: name, Actor: audit.ActorSystem, Subject: subject, Metadata: metadata,
+	})
 }
 
 func (store *Store) writeAtomic(destination string, content []byte, permissions fs.FileMode) (err error) {

@@ -46,6 +46,7 @@ type options struct {
 	timeout time.Duration
 	now     func() time.Time
 	backup  BackupFunc
+	version string
 }
 
 // Option configures a Database.
@@ -67,6 +68,14 @@ func WithDestructiveMigrationBackup(backup BackupFunc) Option {
 	}
 }
 
+// WithAppVersion supplies the build version stored with audit events emitted
+// by this database instance.
+func WithAppVersion(version string) Option {
+	return func(options *options) {
+		options.version = strings.TrimSpace(version)
+	}
+}
+
 func withClock(now func() time.Time) Option {
 	return func(options *options) {
 		options.now = now
@@ -79,7 +88,7 @@ type Repositories struct {
 	State         storage.StateStore
 	WorkspaceMeta storage.WorkspaceMetaStore
 	Artifacts     artifacts.Index
-	Audit         audit.Recorder
+	Audit         audit.Trail
 }
 
 // Database owns one workspace-local SQLite connection pool. It is not a global
@@ -90,6 +99,7 @@ type Database struct {
 	timeout time.Duration
 	now     func() time.Time
 	backup  BackupFunc
+	version string
 }
 
 // Open opens the workspace's .kelyro/learning.db, checks its integrity, and
@@ -98,6 +108,7 @@ func Open(ctx context.Context, workspaceRoot string, configured ...Option) (*Dat
 	settings := options{
 		timeout: defaultOperationTimeout,
 		now:     time.Now,
+		version: "unknown",
 	}
 	for _, configure := range configured {
 		if configure != nil {
@@ -137,6 +148,7 @@ func Open(ctx context.Context, workspaceRoot string, configured ...Option) (*Dat
 		timeout: settings.timeout,
 		now:     settings.now,
 		backup:  settings.backup,
+		version: settings.version,
 	}
 	opened := false
 	defer func() {
@@ -184,7 +196,7 @@ func (database *Database) Close() error {
 
 // Repositories returns adapters that execute independent atomic statements.
 func (database *Database) Repositories() Repositories {
-	return newRepositories(database.sql, database.timeout, database.now)
+	return newRepositories(database.sql, database.timeout, database.now, database.version)
 }
 
 // CheckArtifactIndex verifies that the Foundation artifact index exists and is
@@ -215,7 +227,7 @@ func (database *Database) WithTransaction(ctx context.Context, work func(Reposit
 		return fmt.Errorf("begin SQLite transaction: %w", err)
 	}
 
-	if err := work(newRepositories(transaction, database.timeout, database.now)); err != nil {
+	if err := work(newRepositories(transaction, database.timeout, database.now, database.version)); err != nil {
 		if rollbackErr := transaction.Rollback(); rollbackErr != nil {
 			return errors.Join(err, fmt.Errorf("rollback SQLite transaction: %w", rollbackErr))
 		}

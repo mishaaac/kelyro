@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/app"
+	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/version"
@@ -36,12 +37,14 @@ Commands:
   secrets  Manage secure credential references
   status   Show workspace status (placeholder)
   open     Open LEARNING.md or the roadmap in an editor
+  logs     Inspect workspace diagnostic log location
+  audit    Show persistent workspace audit events
 
 Options:
   -h, --help          Show this help message
       --version       Show build version information
       --no-color      Disable colored output
-      --verbose       Enable verbose output
+      --verbose       Enable verbose diagnostic logging
       --quiet         Suppress successful command output
       --workspace PATH  Override workspace discovery
       --allow-nested  Confirm initialization inside another workspace
@@ -66,6 +69,9 @@ Open commands:
 Doctor commands:
   kelyro doctor
   kelyro doctor --explain <tool>
+
+Log commands:
+  kelyro logs path
 `
 
 var actions = map[string]app.Action{
@@ -75,6 +81,8 @@ var actions = map[string]app.Action{
 	"secrets": app.ActionSecrets,
 	"status":  app.ActionStatus,
 	"open":    app.ActionOpen,
+	"logs":    app.ActionLogs,
+	"audit":   app.ActionAudit,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -153,6 +161,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		ConfigScope:   invocation.configScope,
 		OpenTarget:    invocation.openTarget,
 		DoctorExplain: invocation.doctorExplain,
+		LogOperation:  invocation.logOperation,
+		Verbose:       invocation.verbose,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -194,6 +204,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatGuidance(*result.Guidance))
 	} else if result.Diagnostics != nil && (!invocation.quiet || result.Failed) {
 		fmt.Fprintln(r.stdout, formatDiagnostics(*result.Diagnostics))
+	} else if result.Audit != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatAudit(result.Audit))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -202,6 +214,24 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatAudit(entries []audit.Entry) string {
+	if len(entries) == 0 {
+		return "No audit events."
+	}
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		line := fmt.Sprintf("%s  %s  actor=%s  subject=%s  version=%s",
+			entry.Timestamp.UTC().Format("2006-01-02T15:04:05.000000000Z07:00"),
+			entry.Event,
+			entry.Actor,
+			entry.Subject,
+			entry.AppVersion,
+		)
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatGuidance(guidance doctor.Guidance) string {
@@ -279,6 +309,7 @@ type invocation struct {
 	secretName      string
 	openTarget      string
 	doctorExplain   string
+	logOperation    string
 }
 
 func parse(args []string) (invocation, error) {
@@ -386,6 +417,14 @@ func parse(args []string) (invocation, error) {
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("doctor does not accept positional arguments")
 		}
+	case "logs":
+		if err := parseLogArguments(&result); err != nil {
+			return invocation{}, err
+		}
+	case "audit":
+		if len(result.arguments) > 0 {
+			return invocation{}, fmt.Errorf("audit does not accept positional arguments")
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -393,6 +432,14 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseLogArguments(result *invocation) error {
+	if len(result.arguments) != 1 || result.arguments[0] != "path" {
+		return fmt.Errorf("logs requires the path command")
+	}
+	result.logOperation = "path"
+	return nil
 }
 
 func parseOpenArguments(result *invocation) error {

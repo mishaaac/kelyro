@@ -279,7 +279,8 @@ func (manager *Manager) recordResumeEvents(ctx context.Context, result Resume) {
 		// Audit is best effort: secondary diagnostic persistence must never make
 		// a recovered workspace unavailable.
 		_ = manager.audit.Record(ctx, audit.Event{
-			Action:  "session.recovered",
+			Name:    "session.recovered",
+			Actor:   audit.ActorSystem,
 			Subject: "workspace-session",
 			Metadata: map[string]string{
 				"reason": reason,
@@ -288,7 +289,8 @@ func (manager *Manager) recordResumeEvents(ctx context.Context, result Resume) {
 	}
 	if result.MigratedFrom != 0 {
 		_ = manager.audit.Record(ctx, audit.Event{
-			Action:  "session.migrated",
+			Name:    "session.migrated",
+			Actor:   audit.ActorSystem,
 			Subject: "workspace-session",
 			Metadata: map[string]string{
 				"from_version": fmt.Sprintf("%d", result.MigratedFrom),

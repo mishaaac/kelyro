@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/mishaaac/kelyro/internal/audit"
 )
 
 const migrationTableSQL = `
@@ -73,6 +75,14 @@ var foundationMigrations = []migration{
 SET created_at = updated_at,
     last_generated_at = updated_at
 WHERE created_at = '' OR last_generated_at = ''`,
+		},
+	},
+	{
+		version: 3,
+		name:    "structured audit identity",
+		statements: []string{
+			`ALTER TABLE audit_events ADD COLUMN actor TEXT NOT NULL DEFAULT 'system' CHECK (actor IN ('system', 'user', 'plugin'))`,
+			`ALTER TABLE audit_events ADD COLUMN app_version TEXT NOT NULL DEFAULT 'unknown' CHECK (length(app_version) > 0)`,
 		},
 	},
 }
@@ -143,6 +153,19 @@ func (database *Database) migrate(ctx context.Context, migrations []migration) e
 		}
 		if err := database.applyMigration(operationContext, next); err != nil {
 			return err
+		}
+		if next.version >= 3 {
+			if err := database.Repositories().Audit.Record(operationContext, audit.Event{
+				Name:    "migration.applied",
+				Actor:   audit.ActorSystem,
+				Subject: "workspace-database",
+				Metadata: map[string]string{
+					"version": strconv.Itoa(next.version),
+					"name":    next.name,
+				},
+			}); err != nil {
+				return fmt.Errorf("audit migration %d (%s): %w", next.version, next.name, err)
+			}
 		}
 	}
 

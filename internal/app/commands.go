@@ -10,9 +10,11 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/artifacts"
 	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
+	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/editor"
+	"github.com/mishaaac/kelyro/internal/logging"
 	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/session"
 	"github.com/mishaaac/kelyro/internal/storage"
@@ -31,6 +33,8 @@ const (
 	ActionSecrets Action = "secrets"
 	ActionStatus  Action = "status"
 	ActionOpen    Action = "open"
+	ActionLogs    Action = "logs"
+	ActionAudit   Action = "audit"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -49,6 +53,8 @@ type Command struct {
 	OpenTarget      string
 	DoctorContext   doctor.Context
 	DoctorExplain   string
+	LogOperation    string
+	Verbose         bool
 }
 
 // Result contains presentation-independent output from a Foundation action.
@@ -57,6 +63,7 @@ type Result struct {
 	Diagnostics *doctor.Report
 	Guidance    *doctor.Guidance
 	Failed      bool
+	Audit       []audit.Entry
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -74,6 +81,8 @@ type Service struct {
 	sessionStores    session.WorkspaceStoreFactory
 	editors          editor.Service
 	diagnostics      DoctorRunner
+	loggers          logging.WorkspaceFactory
+	audits           audit.WorkspaceStoreFactory
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -125,14 +134,27 @@ func (service *Service) WithDoctor(diagnostics DoctorRunner) *Service {
 	return service
 }
 
-// Execute coordinates implemented Foundation actions and delegates future
-// actions to explicit placeholders.
-func (service *Service) Execute(ctx context.Context, command Command) (Result, error) {
+// WithLogging attaches workspace-local structured diagnostic logging.
+func (service *Service) WithLogging(loggers logging.WorkspaceFactory) *Service {
+	service.loggers = loggers
+	return service
+}
+
+// WithAudit attaches the durable audit trail used by critical operations and
+// the audit CLI command.
+func (service *Service) WithAudit(audits audit.WorkspaceStoreFactory) *Service {
+	service.audits = audits
+	return service
+}
+
+// execute coordinates implemented Foundation actions beneath the public
+// observability wrapper.
+func (service *Service) execute(ctx context.Context, command Command) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 	if command.Action == ActionConfig {
-		return service.executeConfig(command)
+		return service.executeConfig(ctx, command)
 	}
 	if command.Action == ActionSecrets {
 		return service.executeSecrets(command)
@@ -142,6 +164,12 @@ func (service *Service) Execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionDoctor {
 		return service.executeDoctor(ctx, command)
+	}
+	if command.Action == ActionLogs {
+		return service.executeLogs(command)
+	}
+	if command.Action == ActionAudit {
+		return service.executeAudit(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)
@@ -167,6 +195,11 @@ func (service *Service) Execute(ctx context.Context, command Command) (Result, e
 		return Result{}, err
 	}
 	if err := service.generateFoundationDocuments(ctx, created); err != nil {
+		return Result{}, err
+	}
+	if err := service.recordAudit(ctx, created.Root, audit.Event{
+		Name: "workspace.initialized", Actor: audit.ActorUser, Subject: created.Root,
+	}); err != nil {
 		return Result{}, err
 	}
 
@@ -278,7 +311,7 @@ func (service *Service) generateFoundationDocuments(ctx context.Context, target 
 	return writeErr
 }
 
-func (service *Service) executeConfig(command Command) (Result, error) {
+func (service *Service) executeConfig(ctx context.Context, command Command) (Result, error) {
 	if service.configs == nil {
 		return Result{}, fmt.Errorf("configuration store is unavailable")
 	}
@@ -310,7 +343,7 @@ func (service *Service) executeConfig(command Command) (Result, error) {
 	case "path":
 		return service.configPaths(command)
 	case "set":
-		return service.setConfig(command)
+		return service.setConfig(ctx, command)
 	default:
 		return Result{}, fmt.Errorf("unsupported config operation %q", command.ConfigOperation)
 	}
@@ -398,7 +431,7 @@ func (service *Service) configPaths(command Command) (Result, error) {
 	return Result{Message: fmt.Sprintf("global: %s\nproject: %s", globalPath, projectPath)}, nil
 }
 
-func (service *Service) setConfig(command Command) (Result, error) {
+func (service *Service) setConfig(ctx context.Context, command Command) (Result, error) {
 	value, err := config.ParseValue(command.ConfigKey, command.ConfigValue)
 	if err != nil {
 		return Result{}, err
@@ -438,6 +471,20 @@ func (service *Service) setConfig(command Command) (Result, error) {
 	}
 	if err != nil {
 		return Result{}, err
+	}
+	auditRoot := root
+	if auditRoot == "" {
+		if discovered, found, discoverErr := service.configWorkspace(command); discoverErr == nil && found {
+			auditRoot = discovered
+		}
+	}
+	if auditRoot != "" {
+		if err := service.recordAudit(ctx, auditRoot, audit.Event{
+			Name: "config.changed", Actor: audit.ActorUser, Subject: command.ConfigKey,
+			Metadata: map[string]string{"scope": string(scope)},
+		}); err != nil {
+			return Result{}, err
+		}
 	}
 	return Result{Message: fmt.Sprintf("Set %s in %s", command.ConfigKey, path)}, nil
 }

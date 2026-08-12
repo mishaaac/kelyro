@@ -18,6 +18,7 @@ const timestampFormat = time.RFC3339Nano
 
 type executor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
@@ -43,21 +44,22 @@ type auditRepository struct {
 	executor executor
 	timeout  time.Duration
 	now      func() time.Time
+	version  string
 }
 
 var (
 	_ storage.StateStore         = (*stateRepository)(nil)
 	_ storage.WorkspaceMetaStore = (*workspaceMetaRepository)(nil)
 	_ artifacts.Index            = (*artifactRepository)(nil)
-	_ audit.Recorder             = (*auditRepository)(nil)
+	_ audit.Trail                = (*auditRepository)(nil)
 )
 
-func newRepositories(target executor, timeout time.Duration, now func() time.Time) Repositories {
+func newRepositories(target executor, timeout time.Duration, now func() time.Time, version string) Repositories {
 	return Repositories{
 		State:         &stateRepository{executor: target, timeout: timeout, now: now},
 		WorkspaceMeta: &workspaceMetaRepository{executor: target, timeout: timeout, now: now},
 		Artifacts:     &artifactRepository{executor: target, timeout: timeout, now: now},
-		Audit:         &auditRepository{executor: target, timeout: timeout, now: now},
+		Audit:         &auditRepository{executor: target, timeout: timeout, now: now, version: version},
 	}
 }
 
@@ -308,17 +310,17 @@ func (repository *artifactRepository) Delete(ctx context.Context, path string) e
 }
 
 func (repository *auditRepository) Record(ctx context.Context, event audit.Event) error {
-	if err := requireName("audit action", event.Action); err != nil {
+	if err := event.Validate(); err != nil {
 		return err
 	}
-	if err := requireName("audit subject", event.Subject); err != nil {
-		return err
+	if strings.TrimSpace(event.AppVersion) == "" {
+		event.AppVersion = repository.version
+	}
+	if strings.TrimSpace(event.AppVersion) == "" {
+		event.AppVersion = "unknown"
 	}
 
-	metadata := event.Metadata
-	if metadata == nil {
-		metadata = map[string]string{}
-	}
+	metadata := audit.SafeMetadata(event.Metadata)
 	encoded, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("encode audit metadata: %w", err)
@@ -327,16 +329,62 @@ func (repository *auditRepository) Record(ctx context.Context, event audit.Event
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
 	if _, err := repository.executor.ExecContext(operationContext, `
-INSERT INTO audit_events (occurred_at, action, subject, metadata_json)
-VALUES (?, ?, ?, ?)`,
+INSERT INTO audit_events (occurred_at, action, actor, subject, metadata_json, app_version)
+VALUES (?, ?, ?, ?, ?, ?)`,
 		repository.now().UTC().Format(timestampFormat),
-		event.Action,
+		event.Name,
+		event.Actor,
 		event.Subject,
 		string(encoded),
+		event.AppVersion,
 	); err != nil {
-		return fmt.Errorf("record audit event %s: %w", event.Action, err)
+		return fmt.Errorf("record audit event %s: %w", event.Name, err)
 	}
 	return nil
+}
+
+func (repository *auditRepository) List(ctx context.Context) ([]audit.Entry, error) {
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	rows, err := repository.executor.QueryContext(operationContext, `
+SELECT occurred_at, action, actor, subject, metadata_json, app_version
+FROM audit_events
+ORDER BY occurred_at, id`)
+	if err != nil {
+		return nil, fmt.Errorf("read audit trail: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []audit.Entry
+	for rows.Next() {
+		var encodedTimestamp, encodedMetadata string
+		var entry audit.Entry
+		if err := rows.Scan(
+			&encodedTimestamp,
+			&entry.Event,
+			&entry.Actor,
+			&entry.Subject,
+			&encodedMetadata,
+			&entry.AppVersion,
+		); err != nil {
+			return nil, fmt.Errorf("scan audit event: %w", err)
+		}
+		entry.Timestamp, err = time.Parse(timestampFormat, encodedTimestamp)
+		if err != nil {
+			return nil, fmt.Errorf("parse audit event timestamp: %w", err)
+		}
+		if !entry.Actor.Valid() {
+			return nil, fmt.Errorf("audit event %s has invalid actor %q", entry.Event, entry.Actor)
+		}
+		if err := json.Unmarshal([]byte(encodedMetadata), &entry.Metadata); err != nil {
+			return nil, fmt.Errorf("decode audit event %s metadata: %w", entry.Event, err)
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate audit trail: %w", err)
+	}
+	return entries, nil
 }
 
 func requireName(kind, value string) error {

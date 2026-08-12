@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/artifacts"
+	"github.com/mishaaac/kelyro/internal/audit"
 )
 
 var storeTestTime = time.Date(2026, time.August, 12, 10, 30, 0, 0, time.UTC)
@@ -163,6 +164,40 @@ func TestStoreFailedAtomicReplacePreservesOriginalAndCleansStaging(t *testing.T)
 	}
 	assertFileContent(t, filepath.Join(root, request.Path), []byte("original\n"))
 	assertNoStagingFiles(t, root)
+}
+
+func TestStoreAuditsGenerationAndBlockedRegeneration(t *testing.T) {
+	root := t.TempDir()
+	recorder := &memoryAuditRecorder{}
+	store, err := New(root, newMemoryIndex(), recorder)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	store.now = func() time.Time { return storeTestTime }
+	request := WriteRequest{
+		Path: "LEARNING.md", Ownership: artifacts.SystemGeneratedHumanReadable,
+		CreatedBy: "foundation", Content: []byte("generated\n"), ExpectedVersion: "v1",
+	}
+	if _, err := store.Write(context.Background(), request); err != nil {
+		t.Fatalf("Write(create) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, request.Path), []byte("student edit\n"), 0o644); err != nil {
+		t.Fatalf("modify artifact: %v", err)
+	}
+	request.Content = []byte("regenerated\n")
+	if _, err := store.Write(context.Background(), request); !errors.Is(err, ErrModified) {
+		t.Fatalf("Write(modified) error = %v, want ErrModified", err)
+	}
+	if len(recorder.events) != 2 || recorder.events[0].Name != "artifact.generated" || recorder.events[1].Name != "artifact.regeneration_blocked" || recorder.events[1].Metadata["reason"] != "modified" {
+		t.Fatalf("audit events = %+v", recorder.events)
+	}
+}
+
+type memoryAuditRecorder struct{ events []audit.Event }
+
+func (recorder *memoryAuditRecorder) Record(_ context.Context, event audit.Event) error {
+	recorder.events = append(recorder.events, event)
+	return nil
 }
 
 func newTestStore(t *testing.T, root string, index artifacts.Index) *Store {

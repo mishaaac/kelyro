@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/app"
+	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 )
@@ -28,6 +30,8 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "secrets", args: []string{"secrets", "status"}, wantAction: app.ActionSecrets},
 		{name: "status", args: []string{"status"}, wantAction: app.ActionStatus},
 		{name: "open", args: []string{"open"}, wantAction: app.ActionOpen},
+		{name: "logs path", args: []string{"logs", "path"}, wantAction: app.ActionLogs},
+		{name: "audit", args: []string{"audit"}, wantAction: app.ActionAudit},
 	}
 
 	for _, test := range tests {
@@ -76,6 +80,35 @@ func TestRunnerPassesWorkspaceAndAcceptsReservedFlags(t *testing.T) {
 	}
 	if got := service.commands[0].Workspace; got != workspacePath {
 		t.Errorf("workspace = %q, want %q", got, workspacePath)
+	}
+	if !service.commands[0].Verbose {
+		t.Error("verbose flag was not forwarded to the application")
+	}
+}
+
+func TestRunnerRendersAuditTrail(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{result: app.Result{Audit: []audit.Entry{{
+		Timestamp: time.Date(2026, 8, 12, 15, 30, 0, 0, time.UTC),
+		Event:     "config.changed", Actor: audit.ActorUser, Subject: "ui.color", AppVersion: "1.2.3",
+	}}}}
+	var stdout, stderr bytes.Buffer
+	if exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"audit"}); exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d; stderr = %q", exitCode, stderr.String())
+	}
+	for _, want := range []string{"2026-08-12T15:30:00", "config.changed", "actor=user", "subject=ui.color", "version=1.2.3"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("stdout = %q, want %q", stdout.String(), want)
+		}
+	}
+}
+
+func TestRunnerRejectsIncompleteLogsCommand(t *testing.T) {
+	t.Parallel()
+	var stderr bytes.Buffer
+	exitCode := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), []string{"logs"})
+	if exitCode != ExitUsage || !strings.Contains(stderr.String(), "logs requires the path command") {
+		t.Fatalf("Run(logs) = %d, stderr %q", exitCode, stderr.String())
 	}
 }
 
