@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download and verify dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Test
+        run: go run ./tools/quality test
+
+      - name: Vet
+        run: go run ./tools/quality vet
+
+      - name: Build and smoke test
+        run: go run ./tools/quality build-smoke
+
+      # The Go race detector needs CGO and a supported C toolchain. Run it on
+      # Linux for a stable required signal while every OS still tests and builds.
+      - name: Race test
+        if: runner.os == 'Linux'
+        run: go run ./tools/quality race

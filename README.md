@@ -106,9 +106,18 @@ go build -ldflags "-X github.com/mishaaac/kelyro/internal/version.Version=v0.1.0
 ## Test
 
 ```sh
-go test ./...
-go vet ./...
+go run ./tools/quality all
 ```
+
+The Go-native quality runner requires no Make installation and works from the
+repository root on Linux, macOS, and Windows. The `all` gate runs tests, `vet`,
+race detection, a CLI build, and `--version`/`--help` smoke tests. Individual
+gates are also available as `test`, `vet`, `race`, and `build-smoke`.
+
+GitHub Actions runs tests, `vet`, the build, and smoke tests on Linux, macOS,
+and Windows. The required race gate runs on Linux because Go's race detector
+requires CGO and a supported C toolchain; contributors on other platforms can
+run `go run ./tools/quality race` when their local toolchain supports it.
 
 Kelyro uses three direct external dependencies. `modernc.org/sqlite` provides a
 pure-Go `database/sql` SQLite driver, keeping the workspace database local
