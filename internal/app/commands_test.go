@@ -3,9 +3,12 @@ package app
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/mishaaac/kelyro/internal/artifacts"
+	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
@@ -40,10 +43,11 @@ func TestServiceInitializesRequestedWorkspace(t *testing.T) {
 	workspaces := &recordingWorkspaceService{
 		workspace: workspace.Workspace{Root: "/normalized/project"},
 	}
+	artifactStore := &recordingArtifactStore{}
 	service := NewService(workspaces, func() (string, error) {
 		t.Fatal("current directory called with explicit workspace")
 		return "", nil
-	})
+	}).WithArtifactStores(&recordingArtifactStoreFactory{store: artifactStore})
 
 	result, err := service.Execute(context.Background(), Command{
 		Action:      ActionInit,
@@ -62,19 +66,47 @@ func TestServiceInitializesRequestedWorkspace(t *testing.T) {
 	if result.Message != "Kelyro workspace ready at /normalized/project" {
 		t.Errorf("Execute(init) message = %q", result.Message)
 	}
+	if len(artifactStore.requests) != 2 || !artifactStore.closed {
+		t.Fatalf("artifact writes = %d, closed = %v; want two writes and close", len(artifactStore.requests), artifactStore.closed)
+	}
+	assertGeneratedRequest(t, artifactStore.requests[0], "LEARNING.md", artifactmarkdown.LearningTemplateVersion)
+	assertGeneratedRequest(t, artifactStore.requests[1], filepath.Join("00-roadmap", "ROADMAP.md"), artifactmarkdown.RoadmapTemplateVersion)
+	if !strings.Contains(string(artifactStore.requests[0].Content), "Workspace: project\n") {
+		t.Errorf("LEARNING.md request does not contain workspace display name:\n%s", artifactStore.requests[0].Content)
+	}
 }
 
 func TestServiceInitializesCurrentDirectoryByDefault(t *testing.T) {
 	t.Parallel()
 
 	workspaces := &recordingWorkspaceService{workspace: workspace.Workspace{Root: "/current"}}
-	service := NewService(workspaces, func() (string, error) { return "/current", nil })
+	service := NewService(workspaces, func() (string, error) { return "/current", nil }).
+		WithArtifactStores(&recordingArtifactStoreFactory{store: &recordingArtifactStore{}})
 
 	if _, err := service.Execute(context.Background(), Command{Action: ActionInit}); err != nil {
 		t.Fatalf("Execute(init) error = %v", err)
 	}
 	if workspaces.initRoot != "/current" {
 		t.Errorf("Init() root = %q, want /current", workspaces.initRoot)
+	}
+}
+
+func TestServicePreservesArtifactWriteErrorsAndClosesStore(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("generated artifact was modified externally")
+	store := &recordingArtifactStore{writeErr: wantErr}
+	service := NewService(
+		&recordingWorkspaceService{workspace: workspace.Workspace{Root: "/project"}},
+		func() (string, error) { return "/project", nil },
+	).WithArtifactStores(&recordingArtifactStoreFactory{store: store})
+
+	_, err := service.Execute(context.Background(), Command{Action: ActionInit})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Execute(init) error = %v, want wrapped write error", err)
+	}
+	if !store.closed {
+		t.Fatal("artifact store was not closed after write error")
 	}
 }
 
@@ -311,6 +343,45 @@ type recordingWorkspaceService struct {
 	err         error
 	discovered  workspace.Workspace
 	discoverErr error
+}
+
+type recordingArtifactStoreFactory struct {
+	store    *recordingArtifactStore
+	openRoot string
+	openErr  error
+}
+
+func (factory *recordingArtifactStoreFactory) Open(_ context.Context, root string) (artifacts.WorkspaceStore, error) {
+	factory.openRoot = root
+	if factory.openErr != nil {
+		return nil, factory.openErr
+	}
+	return factory.store, nil
+}
+
+type recordingArtifactStore struct {
+	requests []artifacts.WriteRequest
+	writeErr error
+	closeErr error
+	closed   bool
+}
+
+func (store *recordingArtifactStore) Write(_ context.Context, request artifacts.WriteRequest) (artifacts.Artifact, error) {
+	store.requests = append(store.requests, request)
+	return artifacts.Artifact{}, store.writeErr
+}
+
+func (store *recordingArtifactStore) Close() error {
+	store.closed = true
+	return store.closeErr
+}
+
+func assertGeneratedRequest(t *testing.T, request artifacts.WriteRequest, path, version string) {
+	t.Helper()
+	if request.Path != path || request.Ownership != artifacts.SystemGeneratedHumanReadable ||
+		request.CreatedBy != artifactmarkdown.Creator || request.ExpectedVersion != version {
+		t.Errorf("generated request = %+v, want path %q and version %q", request, path, version)
+	}
 }
 
 func (service *recordingWorkspaceService) Discover(string) (workspace.Workspace, error) {

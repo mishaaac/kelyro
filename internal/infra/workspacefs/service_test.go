@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -68,19 +67,6 @@ func TestInitCreatesWorkspaceAndIsIdempotent(t *testing.T) {
 	if len(entries) != 5 {
 		t.Errorf(".kelyro entries = %d, want only metadata plus four required directories", len(entries))
 	}
-	learningPath, _ := platform.WorkspaceLearningPath(root)
-	learning, err := os.ReadFile(learningPath)
-	if err != nil {
-		t.Fatalf("ReadFile(LEARNING.md): %v", err)
-	}
-	if !strings.Contains(string(learning), "This file belongs to you") {
-		t.Errorf("LEARNING.md = %q, want human ownership guidance", learning)
-	}
-
-	humanContent := []byte("# My own learning plan\n")
-	if err := os.WriteFile(learningPath, humanContent, 0o644); err != nil {
-		t.Fatalf("replace LEARNING.md for idempotence test: %v", err)
-	}
 	repeated, err := service.Init(root, workspace.InitOptions{})
 	if err != nil {
 		t.Fatalf("repeated Init() error = %v", err)
@@ -88,12 +74,9 @@ func TestInitCreatesWorkspaceAndIsIdempotent(t *testing.T) {
 	if repeated.Metadata.WorkspaceID != created.Metadata.WorkspaceID {
 		t.Errorf("repeated workspace_id = %q, want %q", repeated.Metadata.WorkspaceID, created.Metadata.WorkspaceID)
 	}
-	gotHumanContent, err := os.ReadFile(learningPath)
-	if err != nil {
-		t.Fatalf("ReadFile(repeated LEARNING.md): %v", err)
-	}
-	if !bytes.Equal(gotHumanContent, humanContent) {
-		t.Errorf("repeated Init() changed LEARNING.md: got %q, want %q", gotHumanContent, humanContent)
+	learningPath, _ := platform.WorkspaceLearningPath(root)
+	if _, err := os.Stat(learningPath); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("workspace adapter created visible Markdown outside artifact pipeline: %v", err)
 	}
 }
 
@@ -204,21 +187,17 @@ func TestInitReportsPermissionFailureWithoutCreatingWorkspace(t *testing.T) {
 	assertWorkspaceAbsent(t, root)
 }
 
-func TestInitRollsBackAfterCommitFailure(t *testing.T) {
+func TestInitRollsBackAfterCommittedInternalsFailValidation(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	service := deterministicService(time.Now())
-	service.fs = failingFileSystem{fileSystem: osFileSystem{}, writeExclusiveErr: errors.New("injected learning write failure")}
+	service.fs = failingFileSystem{fileSystem: osFileSystem{}, readFileErr: errors.New("injected metadata read failure")}
 
 	if _, err := service.Init(root, workspace.InitOptions{}); err == nil {
 		t.Fatal("Init() error = nil, want injected failure")
 	}
 	assertWorkspaceAbsent(t, root)
-	learning, _ := platform.WorkspaceLearningPath(root)
-	if _, err := os.Stat(learning); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("rollback left LEARNING.md: %v", err)
-	}
 }
 
 func TestInitDoesNotRepairOrOverwriteInvalidWorkspace(t *testing.T) {
@@ -311,8 +290,8 @@ func assertWorkspaceAbsent(t *testing.T, root string) {
 
 type failingFileSystem struct {
 	fileSystem
-	mkdirTempErr      error
-	writeExclusiveErr error
+	mkdirTempErr error
+	readFileErr  error
 }
 
 func (filesystem failingFileSystem) MkdirTemp(dir, pattern string) (string, error) {
@@ -322,9 +301,9 @@ func (filesystem failingFileSystem) MkdirTemp(dir, pattern string) (string, erro
 	return filesystem.fileSystem.MkdirTemp(dir, pattern)
 }
 
-func (filesystem failingFileSystem) WriteFileExclusive(name string, data []byte, perm fs.FileMode) error {
-	if filesystem.writeExclusiveErr != nil {
-		return filesystem.writeExclusiveErr
+func (filesystem failingFileSystem) ReadFile(name string) ([]byte, error) {
+	if filesystem.readFileErr != nil {
+		return nil, filesystem.readFileErr
 	}
-	return filesystem.fileSystem.WriteFileExclusive(name, data, perm)
+	return filesystem.fileSystem.ReadFile(name)
 }

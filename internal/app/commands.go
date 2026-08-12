@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/mishaaac/kelyro/internal/artifacts"
+	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
@@ -57,6 +60,7 @@ type Service struct {
 	workspaces       workspace.Service
 	configs          config.Store
 	secrets          storage.SecretStore
+	artifactStores   artifacts.WorkspaceStoreFactory
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -79,6 +83,13 @@ func (service *Service) WithConfig(configs config.Store) *Service {
 // backend to application policy.
 func (service *Service) WithSecrets(secrets storage.SecretStore) *Service {
 	service.secrets = secrets
+	return service
+}
+
+// WithArtifactStores attaches the per-workspace persistence used for generated
+// human-readable documents.
+func (service *Service) WithArtifactStores(stores artifacts.WorkspaceStoreFactory) *Service {
+	service.artifactStores = stores
 	return service
 }
 
@@ -116,8 +127,44 @@ func (service *Service) Execute(ctx context.Context, command Command) (Result, e
 	if err != nil {
 		return Result{}, err
 	}
+	if err := service.generateFoundationDocuments(ctx, created); err != nil {
+		return Result{}, err
+	}
 
 	return Result{Message: fmt.Sprintf("Kelyro workspace ready at %s", created.Root)}, nil
+}
+
+func (service *Service) generateFoundationDocuments(ctx context.Context, target workspace.Workspace) error {
+	if service.artifactStores == nil {
+		return fmt.Errorf("workspace artifact store is unavailable")
+	}
+	documents, err := artifactmarkdown.Generate(artifactmarkdown.Model{Workspace: filepath.Base(target.Root)})
+	if err != nil {
+		return err
+	}
+	store, err := service.artifactStores.Open(ctx, target.Root)
+	if err != nil {
+		return fmt.Errorf("open workspace artifact store: %w", err)
+	}
+
+	var writeErr error
+	for _, document := range documents {
+		_, err := store.Write(ctx, artifacts.WriteRequest{
+			Path:            document.Path,
+			Ownership:       artifacts.SystemGeneratedHumanReadable,
+			CreatedBy:       artifactmarkdown.Creator,
+			Content:         document.Content,
+			ExpectedVersion: document.TemplateVersion,
+		})
+		if err != nil {
+			writeErr = fmt.Errorf("generate workspace document %s: %w", filepath.ToSlash(document.Path), err)
+			break
+		}
+	}
+	if closeErr := store.Close(); closeErr != nil {
+		writeErr = errors.Join(writeErr, closeErr)
+	}
+	return writeErr
 }
 
 func (service *Service) executeConfig(command Command) (Result, error) {

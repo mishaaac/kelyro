@@ -17,23 +17,13 @@ import (
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
-const learningDocument = `# Learning Workspace
-
-This file belongs to you. Use it for learning goals, notes, and decisions.
-
-Kelyro will not overwrite this file automatically. Machine-managed data stays
-inside the .kelyro directory.
-`
-
 type fileSystem interface {
 	Stat(string) (fs.FileInfo, error)
 	ReadFile(string) ([]byte, error)
 	MkdirTemp(string, string) (string, error)
 	MkdirAll(string, fs.FileMode) error
 	WriteFile(string, []byte, fs.FileMode) error
-	WriteFileExclusive(string, []byte, fs.FileMode) error
 	Rename(string, string) error
-	Remove(string) error
 	RemoveAll(string) error
 }
 
@@ -50,26 +40,7 @@ func (osFileSystem) MkdirAll(path string, perm fs.FileMode) error {
 func (osFileSystem) WriteFile(name string, data []byte, perm fs.FileMode) error {
 	return os.WriteFile(name, data, perm)
 }
-func (osFileSystem) WriteFileExclusive(name string, data []byte, perm fs.FileMode) error {
-	file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
-	if err != nil {
-		return err
-	}
-
-	if _, err := file.Write(data); err != nil {
-		_ = file.Close()
-		_ = os.Remove(name)
-		return err
-	}
-	if err := file.Close(); err != nil {
-		_ = os.Remove(name)
-		return err
-	}
-
-	return nil
-}
 func (osFileSystem) Rename(oldPath, newPath string) error { return os.Rename(oldPath, newPath) }
-func (osFileSystem) Remove(name string) error             { return os.Remove(name) }
 func (osFileSystem) RemoveAll(path string) error          { return os.RemoveAll(path) }
 
 // Service manages workspace identity and structure on the local filesystem.
@@ -159,15 +130,6 @@ func (service *Service) Init(root string, options workspace.InitOptions) (worksp
 		}
 	}
 
-	learningPath, err := platform.WorkspaceLearningPath(normalizedRoot)
-	if err != nil {
-		return workspace.Workspace{}, err
-	}
-	createLearning, err := service.shouldCreateLearningDocument(learningPath)
-	if err != nil {
-		return workspace.Workspace{}, err
-	}
-
 	metadata, err := service.newMetadata()
 	if err != nil {
 		return workspace.Workspace{}, err
@@ -198,17 +160,9 @@ func (service *Service) Init(root string, options workspace.InitOptions) (worksp
 		return workspace.Workspace{}, fmt.Errorf("commit workspace internals: %w", err)
 	}
 
-	learningCreated := false
-	if createLearning {
-		learningCreated, err = service.createLearningDocument(learningPath)
-		if err != nil {
-			return workspace.Workspace{}, service.rollback(normalizedRoot, learningPath, learningCreated, err)
-		}
-	}
-
 	created, err := service.load(normalizedRoot)
 	if err != nil {
-		return workspace.Workspace{}, service.rollback(normalizedRoot, learningPath, learningCreated, err)
+		return workspace.Workspace{}, service.rollback(normalizedRoot, err)
 	}
 
 	return created, nil
@@ -293,38 +247,6 @@ func (service *Service) existingDirectory(path string) (string, error) {
 	return normalized, nil
 }
 
-func (service *Service) shouldCreateLearningDocument(path string) (bool, error) {
-	info, err := service.fs.Stat(path)
-	switch {
-	case err == nil && info.IsDir():
-		return false, fmt.Errorf("learning document path %s is a directory", path)
-	case err == nil:
-		return false, nil
-	case errors.Is(err, fs.ErrNotExist):
-		return true, nil
-	default:
-		return false, fmt.Errorf("inspect learning document %s: %w", path, err)
-	}
-}
-
-func (service *Service) createLearningDocument(path string) (bool, error) {
-	err := service.fs.WriteFileExclusive(path, []byte(learningDocument), 0o644)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, fs.ErrExist) {
-		create, inspectErr := service.shouldCreateLearningDocument(path)
-		if inspectErr != nil {
-			return false, inspectErr
-		}
-		if !create {
-			return false, nil
-		}
-	}
-
-	return false, fmt.Errorf("create learning document: %w", err)
-}
-
 func (service *Service) newMetadata() (workspace.Metadata, error) {
 	identifier, err := newWorkspaceID(service.random)
 	if err != nil {
@@ -339,7 +261,7 @@ func (service *Service) newMetadata() (workspace.Metadata, error) {
 	}, nil
 }
 
-func (service *Service) rollback(root, learningPath string, learningCreated bool, cause error) error {
+func (service *Service) rollback(root string, cause error) error {
 	internal, pathErr := platform.WorkspaceInternalDir(root)
 	if pathErr != nil {
 		return fmt.Errorf("initialize workspace: %w; resolve rollback path: %v", cause, pathErr)
@@ -347,12 +269,6 @@ func (service *Service) rollback(root, learningPath string, learningCreated bool
 	if removeErr := service.fs.RemoveAll(internal); removeErr != nil {
 		return fmt.Errorf("initialize workspace: %w; rollback internals: %v", cause, removeErr)
 	}
-	if learningCreated {
-		if removeErr := service.fs.Remove(learningPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
-			return fmt.Errorf("initialize workspace: %w; rollback learning document: %v", cause, removeErr)
-		}
-	}
-
 	return cause
 }
 

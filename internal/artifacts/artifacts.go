@@ -12,6 +12,29 @@ import (
 	"time"
 )
 
+// WriteRequest describes generated content and the integrity metadata that
+// must accompany it.
+type WriteRequest struct {
+	Path            string
+	Ownership       Ownership
+	CreatedBy       string
+	Content         []byte
+	ExpectedVersion string
+}
+
+// WorkspaceStore writes artifacts for one workspace and owns any persistence
+// resources opened for that workspace.
+type WorkspaceStore interface {
+	Write(ctx context.Context, request WriteRequest) (Artifact, error)
+	Close() error
+}
+
+// WorkspaceStoreFactory opens ownership-aware stores without exposing their
+// persistence implementation to application services.
+type WorkspaceStoreFactory interface {
+	Open(ctx context.Context, workspaceRoot string) (WorkspaceStore, error)
+}
+
 // Ownership describes who is allowed to author or overwrite an artifact.
 type Ownership string
 

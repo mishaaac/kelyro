@@ -51,6 +51,7 @@ or infrastructure adapters merely to perform work.
 | `internal/infra/secretstore` | Environment and native OS-keychain adapters for secret references. |
 | `internal/storage/sqlite` | Workspace-local SQLite adapter, migrations, transactions, and Foundation repositories. |
 | `internal/artifacts` | Ownership, hashing, and integrity metadata contracts for workspace files. |
+| `internal/artifacts/markdown` | Pure rendering of stable human-readable Foundation documents. |
 | `internal/infra/artifactfs` | Ownership-aware atomic writes and workspace path sandbox. |
 | `internal/audit` | Boundary for recording critical actions, without an event bus. |
 | `internal/editor` | Future editor integration adapters. |
@@ -116,9 +117,9 @@ cache is under `cache`, backups are under `backups`, and logs are under `logs`.
 `WorkspaceLearningPath` resolves the visible `LEARNING.md` document. These
 helpers accept relative roots and paths containing spaces. They do not create
 directories or validate workspace identity; those lifecycle operations belong
-to the filesystem adapter behind the workspace contract. Workspace
-initialization does not create the database. The SQLite adapter opens it lazily
-when structured persistence is first required.
+to the filesystem adapter behind the workspace contract. The application opens
+the SQLite adapter after structural initialization because generated documents
+need their integrity metadata recorded from the first write.
 
 `workspace.Service` discovers, initializes, and validates a workspace while
 returning a neutral `workspace.Workspace`. Paths cross boundaries as complete
@@ -132,12 +133,13 @@ version that created it. Discovery starts at an existing directory and walks
 upward until it finds and validates `.kelyro`. An invalid marker is reported
 rather than silently skipped or repaired.
 
-Initialization builds all machine internals in a temporary directory before
-renaming them into place. If a later operation reports failure, it removes the
-new internals and any `LEARNING.md` it created. Repeating initialization loads
-the existing identity without changing it. Creating a workspace below another
-workspace is rejected unless the caller explicitly sets the nested-workspace
-option.
+Structural initialization builds all machine internals in a temporary directory
+before renaming them into place. It does not write visible files. The
+application then renders and persists the Foundation Markdown documents through
+the ownership-aware artifact store. Repeating initialization loads the existing
+identity and safely regenerates only documents whose recorded hashes still
+match. Creating a workspace below another workspace is rejected unless the
+caller explicitly sets the nested-workspace option.
 
 Ownership rules are intentionally narrow:
 
@@ -146,9 +148,9 @@ Ownership rules are intentionally narrow:
   schema. `.kelyro/config.toml` is the explicit exception intended for advanced
   manual editing; Kelyro validates it strictly and preserves comments during
   single-key CLI updates.
-- Initialization may create `LEARNING.md` only when the path is absent. That
-  initial file has no artifact-index record and is therefore protected as
-  untracked content until a later explicit workflow adopts or replaces it.
+- `LEARNING.md` and `00-roadmap/ROADMAP.md` are system-generated,
+  human-readable artifacts. They are indexed on creation and may be regenerated
+  only while their current hashes match the last generated content.
 - Every other visible file is student-owned by default. Kelyro requires an
   explicit, operation-specific confirmation before modifying or deleting it.
 - Workspace internals contain no secrets. Credential storage remains behind
@@ -180,6 +182,14 @@ path, ownership category, creator, content hash, creation and last-generation
 times, and optional expected template/version. Windows uses its native
 replace-existing operation so regeneration has the same atomic contract as
 Unix-like systems.
+
+`artifacts/markdown` renders the initial `LEARNING.md` and roadmap placeholder
+from a small human-facing model. Rendering has no filesystem or database access,
+uses UTF-8 with LF-terminated lines, and is covered by golden files. The visible
+documents contain no serialized internal state or decorative frontmatter, so
+workspace schema changes do not become a compatibility constraint for Markdown.
+The application supplies each template version and creator to `artifactfs`,
+which binds filesystem writes to the workspace-local SQLite artifact index.
 
 `artifactfs.Sandbox` accepts relative paths only. It rejects traversal
 components, native and foreign absolute-path forms, and any existing symlink
