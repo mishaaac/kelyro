@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 21
+Last completed step: 22
 Current release: unreleased
 
 ## Registro
@@ -623,3 +623,30 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 22 no se ha iniciado y requiere autorización explícita.
+
+## Step 22 — Pruebas E2E de Foundation
+
+Status: completed
+Date: 2026-08-12
+Commit: 8747241
+Release: unreleased
+
+### Delivered
+- Suite de caja negra sobre el binario real para init, reapertura/resume TUI, doctor, configuración, protección de artifacts, backup/restore, export/import y modo offline.
+- Harness aislado por escenario con home, config, cache, workspace y PATH temporales, además de adapters E2E deterministas para secrets y releases.
+- Gate `e2e` integrado en el runner Go-native y en la matriz CI de Linux, macOS y Windows.
+
+### Decisions
+- El build tag `e2e` sustituye únicamente keychain y proveedor de releases; CLI, TUI, aplicación, SQLite y filesystem usan los adapters reales.
+- El provider E2E falla si es invocado, haciendo observable que la política offline bloquea antes de cruzar el boundary de red.
+- La comparación E2E usa estado relevante y contenido estable, no timestamps ni IDs aleatorios.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step22-all-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go run ./tools/quality all`
+- Compilación de tests de producción para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Compilación del binario tagged E2E para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0`.
+- `actionlint .github/workflows/ci.yml`
+- `go mod tidy`, `go mod verify`, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 23 no se ha iniciado y requiere autorización explícita.

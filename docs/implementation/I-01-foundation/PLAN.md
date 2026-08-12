@@ -1860,7 +1860,7 @@ ci: add cross-platform build and test matrix
 
 ## Paso 22 — Añadir pruebas E2E de Foundation
 
-- [ ] Paso 22 completado
+- [x] Paso 22 completado
 
 ### Objetivo
 
