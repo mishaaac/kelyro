@@ -89,14 +89,14 @@ func (factory *Factory) Open(workspaceRoot string, verbose bool) (logging.Logger
 	if err != nil {
 		return nil, err
 	}
-	info, err := os.Stat(filepath.Dir(path))
+	info, err := os.Lstat(filepath.Dir(path))
 	if err != nil {
 		return nil, fmt.Errorf("inspect workspace log directory: %w", err)
 	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("workspace log path is not a directory: %s", filepath.Dir(path))
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("workspace log path is not a regular directory: %s", filepath.Dir(path))
 	}
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	file, err := openAppendFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace log: %w", err)
 	}
@@ -112,6 +112,28 @@ func (factory *Factory) Open(workspaceRoot string, verbose bool) (logging.Logger
 		files:   factory.settings.files,
 		now:     factory.settings.now,
 	}, nil
+}
+
+func openAppendFile(path string) (*os.File, error) {
+	if info, err := os.Lstat(path); err == nil {
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("log target %s is not a regular file", path)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	opened, openErr := file.Stat()
+	current, pathErr := os.Lstat(path)
+	if openErr != nil || pathErr != nil || !current.Mode().IsRegular() || current.Mode()&os.ModeSymlink != 0 || !os.SameFile(opened, current) {
+		_ = file.Close()
+		return nil, fmt.Errorf("log target %s changed or is not a regular file", path)
+	}
+	return file, nil
 }
 
 type logger struct {
@@ -247,7 +269,7 @@ func (logger *logger) rotate() error {
 		}
 	}
 
-	file, err := os.OpenFile(logger.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(logger.path, os.O_APPEND|os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open rotated workspace log: %w", err)
 	}

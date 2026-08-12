@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -105,6 +106,46 @@ func TestLoggerRotationBoundsFilesAndDebugRequiresVerbose(t *testing.T) {
 			t.Errorf("non-verbose log contains debug entry: %s", encoded)
 		}
 	}
+}
+
+func TestOpenRejectsSymlinkedLogTargets(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks may require elevated Windows privileges")
+	}
+
+	t.Run("file", func(t *testing.T) {
+		root := logWorkspace(t)
+		factory := New()
+		path, _ := factory.Path(root)
+		target := filepath.Join(t.TempDir(), "outside.log")
+		if err := os.WriteFile(target, []byte("must remain unchanged"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, path); err != nil {
+			t.Fatal(err)
+		}
+		if logger, err := factory.Open(root, false); err == nil || logger != nil {
+			t.Fatalf("Open() = (%v, %v), want symlink rejection", logger, err)
+		}
+		encoded, err := os.ReadFile(target)
+		if err != nil || string(encoded) != "must remain unchanged" {
+			t.Fatalf("outside target changed: %q, %v", encoded, err)
+		}
+	})
+
+	t.Run("directory", func(t *testing.T) {
+		root := t.TempDir()
+		directory, _ := platform.WorkspaceLogDir(root)
+		if err := os.MkdirAll(filepath.Dir(directory), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(t.TempDir(), directory); err != nil {
+			t.Fatal(err)
+		}
+		if logger, err := New().Open(root, false); err == nil || logger != nil {
+			t.Fatalf("Open() = (%v, %v), want symlink rejection", logger, err)
+		}
+	})
 }
 
 func logWorkspace(t *testing.T) string {
