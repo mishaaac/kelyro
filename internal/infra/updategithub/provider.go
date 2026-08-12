@@ -94,16 +94,17 @@ func (provider *Provider) Latest(ctx context.Context, channel update.Channel) (u
 }
 
 type releaseDocument struct {
-	TagName     string    `json:"tag_name"`
-	HTMLURL     string    `json:"html_url"`
-	Draft       bool      `json:"draft"`
-	Prerelease  bool      `json:"prerelease"`
-	PublishedAt time.Time `json:"published_at"`
+	TagName     string          `json:"tag_name"`
+	HTMLURL     string          `json:"html_url"`
+	Draft       bool            `json:"draft"`
+	Prerelease  bool            `json:"prerelease"`
+	PublishedAt json.RawMessage `json:"published_at"`
 }
 
 func selectLatest(releases []releaseDocument, channel update.Channel) (update.Release, bool, error) {
 	var selected releaseDocument
 	var selectedVersion update.Version
+	var selectedPublishedAt time.Time
 	found := false
 	for _, candidate := range releases {
 		if candidate.Draft {
@@ -116,21 +117,38 @@ func selectLatest(releases []releaseDocument, channel update.Channel) (update.Re
 		if channel == update.Stable && (candidate.Prerelease || version.IsPrerelease()) {
 			continue
 		}
+		publishedAt, valid := parsePublishedAt(candidate.PublishedAt)
+		if !valid {
+			continue
+		}
 		if !found || version.Compare(selectedVersion) > 0 {
-			selected, selectedVersion, found = candidate, version, true
+			selected, selectedVersion, selectedPublishedAt, found = candidate, version, publishedAt, true
 		}
 	}
 	if !found {
 		return update.Release{}, false, nil
 	}
 	return update.Release{
-		Version: selectedVersion.String(), URL: safeReleaseURL(selected.HTMLURL), PublishedAt: selected.PublishedAt,
+		Version: selectedVersion.String(), URL: safeReleaseURL(selected.HTMLURL), PublishedAt: selectedPublishedAt,
 	}, true, nil
+}
+
+func parsePublishedAt(raw json.RawMessage) (time.Time, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return time.Time{}, true
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return time.Time{}, false
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	return parsed, err == nil
 }
 
 func safeReleaseURL(value string) string {
 	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() != "github.com" || parsed.User != nil {
+	if err != nil || parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil ||
+		parsed.RawQuery != "" || parsed.Fragment != "" || !strings.HasPrefix(parsed.EscapedPath(), "/mishaaac/kelyro/releases/") {
 		return ""
 	}
 	return parsed.String()
@@ -145,6 +163,9 @@ func safeUserAgent(version string) string {
 	}, version)
 	if version == "" {
 		version = "dev"
+	}
+	if len(version) > 64 {
+		version = version[:64]
 	}
 	return "kelyro/" + version
 }

@@ -54,6 +54,27 @@ func TestProviderReturnsNoReleaseWithoutCallingRealNetwork(t *testing.T) {
 	}
 }
 
+func TestProviderSkipsMalformedReleaseEntries(t *testing.T) {
+	t.Parallel()
+	provider := New("dev")
+	provider.client = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body: ioNopCloser(`[
+				{"tag_name":"v9.0.0","published_at":{"unexpected":true}},
+				{"tag_name":"v8.0.0","published_at":"not-a-time"},
+				{"tag_name":"v1.2.0","html_url":"https://github.com/mishaaac/kelyro/releases/tag/v1.2.0","published_at":"2026-08-01T00:00:00Z"}
+			]`),
+			Header: make(http.Header),
+		}, nil
+	})
+
+	release, found, err := provider.Latest(context.Background(), update.Stable)
+	if err != nil || !found || release.Version != "1.2.0" || release.PublishedAt.IsZero() {
+		t.Fatalf("Latest() = %+v, %v, %v", release, found, err)
+	}
+}
+
 func TestProviderMapsTransportAndStatusFailures(t *testing.T) {
 	t.Parallel()
 	transportErr := errors.New("offline")
@@ -73,11 +94,26 @@ func TestProviderMapsTransportAndStatusFailures(t *testing.T) {
 
 func TestSelectLatestOmitsUntrustedReleaseURL(t *testing.T) {
 	t.Parallel()
-	release, found, err := selectLatest([]releaseDocument{{
-		TagName: "v1.0.0", HTMLURL: "https://example.invalid/private/path",
-	}}, update.Stable)
-	if err != nil || !found || release.Version != "1.0.0" || release.URL != "" {
-		t.Fatalf("selectLatest() = %+v, %v, %v", release, found, err)
+	for _, untrusted := range []string{
+		"https://example.invalid/private/path",
+		"https://github.com:444/mishaaac/kelyro/releases/tag/v1.0.0",
+		"https://github.com/other/repository/releases/tag/v1.0.0",
+		"https://github.com/mishaaac/kelyro/releases/tag/v1.0.0?token=untrusted",
+	} {
+		release, found, err := selectLatest([]releaseDocument{{
+			TagName: "v1.0.0", HTMLURL: untrusted,
+		}}, update.Stable)
+		if err != nil || !found || release.Version != "1.0.0" || release.URL != "" {
+			t.Fatalf("selectLatest(%q) = %+v, %v, %v", untrusted, release, found, err)
+		}
+	}
+}
+
+func TestSafeUserAgentIsBounded(t *testing.T) {
+	t.Parallel()
+	got := safeUserAgent(strings.Repeat("v", 1000) + "\r\ninjected")
+	if len(got) != len("kelyro/")+64 || strings.ContainsAny(got, "\r\n") {
+		t.Fatalf("safeUserAgent() = %q", got)
 	}
 }
 
