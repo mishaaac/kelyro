@@ -13,6 +13,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/editor"
 	"github.com/mishaaac/kelyro/internal/platform"
+	"github.com/mishaaac/kelyro/internal/session"
 	"github.com/mishaaac/kelyro/internal/storage"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
@@ -64,6 +65,7 @@ type Service struct {
 	configs          config.Store
 	secrets          storage.SecretStore
 	artifactStores   artifacts.WorkspaceStoreFactory
+	sessionStores    session.WorkspaceStoreFactory
 	editors          editor.Service
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
@@ -94,6 +96,12 @@ func (service *Service) WithSecrets(secrets storage.SecretStore) *Service {
 // human-readable documents.
 func (service *Service) WithArtifactStores(stores artifacts.WorkspaceStoreFactory) *Service {
 	service.artifactStores = stores
+	return service
+}
+
+// WithSessionStores attaches versioned workspace session persistence.
+func (service *Service) WithSessionStores(stores session.WorkspaceStoreFactory) *Service {
+	service.sessionStores = stores
 	return service
 }
 

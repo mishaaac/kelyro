@@ -5,11 +5,13 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/session"
 )
 
 func TestModelLoadsFoundationStateThroughCommand(t *testing.T) {
@@ -81,6 +83,111 @@ func TestModelHandlesResizeAndQuit(t *testing.T) {
 	}
 	if _, ok := command().(tea.QuitMsg); !ok {
 		t.Errorf("q command message = %T, want tea.QuitMsg", command())
+	}
+}
+
+func TestModelResumesViewAndPersistsOnlyMeaningfulTransitions(t *testing.T) {
+	service := &fakeService{
+		snapshot: healthySnapshot(),
+		resume: session.Resume{State: session.State{
+			Version:          session.CurrentVersion,
+			LastView:         session.ViewConfig,
+			SetupFlags:       map[string]bool{},
+			SessionStartedAt: time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC),
+			SafeToResume:     true,
+		}},
+	}
+	model := NewModel(context.Background(), service, app.Command{}, true)
+	initialized, _ := model.Update(model.Init()())
+	current := initialized.(Model)
+	if current.screen != screenConfig || !current.sessionReady {
+		t.Fatalf("resumed model = %#v", current)
+	}
+
+	unchanged, command := current.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if command != nil || len(service.checkpoints) != 0 {
+		t.Fatalf("ordinary key persisted state: command=%v checkpoints=%d", command, len(service.checkpoints))
+	}
+
+	home, command := unchanged.(Model).Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if command == nil || home.(Model).session.LastView != session.ViewHome {
+		t.Fatal("meaningful view transition did not schedule a checkpoint")
+	}
+	message := command()
+	settled, next := home.(Model).Update(message)
+	if next != nil || settled.(Model).checkpointing || len(service.checkpoints) != 1 {
+		t.Fatalf("checkpoint result: model=%#v next=%v writes=%d", settled, next, len(service.checkpoints))
+	}
+}
+
+func TestModelNormalQuitAndCtrlCCompleteSession(t *testing.T) {
+	for _, key := range []tea.KeyMsg{
+		{Type: tea.KeyRunes, Runes: []rune{'q'}},
+		{Type: tea.KeyCtrlC},
+	} {
+		service := &fakeService{snapshot: healthySnapshot()}
+		model := NewModel(context.Background(), service, app.Command{}, true)
+		initialized, _ := model.Update(model.Init()())
+
+		quitting, command := initialized.(Model).Update(key)
+		if command == nil || !quitting.(Model).quitting {
+			t.Fatalf("key %q did not start graceful completion", key.String())
+		}
+		message := command()
+		finished, quit := quitting.(Model).Update(message)
+		if quit == nil || len(service.completed) != 1 {
+			t.Fatalf("key %q completion = model %#v, quit %v, writes %d", key.String(), finished, quit, len(service.completed))
+		}
+		if _, ok := quit().(tea.QuitMsg); !ok {
+			t.Fatalf("key %q final command = %T", key.String(), quit())
+		}
+	}
+}
+
+func TestModelSerializesCheckpointBeforeQuit(t *testing.T) {
+	service := &fakeService{snapshot: healthySnapshot()}
+	model := NewModel(context.Background(), service, app.Command{}, true)
+	initialized, _ := model.Update(model.Init()())
+
+	roadmap, checkpoint := initialized.(Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	quitting, complete := roadmap.(Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if complete != nil || !quitting.(Model).quitting {
+		t.Fatal("quit did not wait for the in-flight checkpoint")
+	}
+
+	checkpointMessage := checkpoint()
+	afterCheckpoint, complete := quitting.(Model).Update(checkpointMessage)
+	if complete == nil {
+		t.Fatal("completion was not scheduled after checkpoint settled")
+	}
+	completedMessage := complete()
+	_, quit := afterCheckpoint.(Model).Update(completedMessage)
+	if quit == nil || len(service.checkpoints) != 1 || len(service.completed) != 1 {
+		t.Fatalf("serialized writes: checkpoints=%d completed=%d quit=%v", len(service.checkpoints), len(service.completed), quit)
+	}
+	if service.completed[0].LastView != session.ViewRoadmap {
+		t.Errorf("completed view = %q", service.completed[0].LastView)
+	}
+}
+
+func TestModelWaitsForInitializationBeforeGracefulQuit(t *testing.T) {
+	service := &fakeService{snapshot: healthySnapshot()}
+	model := NewModel(context.Background(), service, app.Command{}, true)
+	initialization := model.Init()
+
+	waiting, command := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if command != nil || !waiting.(Model).quitting {
+		t.Fatal("Ctrl+C during initialization did not wait for session startup")
+	}
+	initializedMessage := initialization()
+	initialized, complete := waiting.(Model).Update(initializedMessage)
+	if complete == nil || !initialized.(Model).sessionReady {
+		t.Fatal("session completion was not scheduled after initialization")
+	}
+	completedMessage := complete()
+	_, quit := initialized.(Model).Update(completedMessage)
+	if quit == nil || len(service.completed) != 1 {
+		t.Fatalf("completion writes=%d quit=%v", len(service.completed), quit)
 	}
 }
 
@@ -220,6 +327,12 @@ type fakeService struct {
 	executeErr    error
 	loadedCommand app.Command
 	executed      []app.Command
+	resume        session.Resume
+	sessionErr    error
+	checkpoints   []session.State
+	checkpointErr error
+	completed     []session.State
+	completeErr   error
 }
 
 func (service *fakeService) LoadFoundation(_ context.Context, command app.Command) (app.FoundationSnapshot, error) {
@@ -230,4 +343,22 @@ func (service *fakeService) LoadFoundation(_ context.Context, command app.Comman
 func (service *fakeService) Execute(_ context.Context, command app.Command) (app.Result, error) {
 	service.executed = append(service.executed, command)
 	return service.result, service.executeErr
+}
+
+func (service *fakeService) ResumeSession(_ context.Context, _ app.Command) (session.Resume, error) {
+	if service.resume.State.Version == 0 {
+		service.resume.State = session.Default()
+		service.resume.State.SessionStartedAt = time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC)
+	}
+	return service.resume, service.sessionErr
+}
+
+func (service *fakeService) CheckpointSession(_ context.Context, _ app.Command, state session.State) error {
+	service.checkpoints = append(service.checkpoints, state.Clone())
+	return service.checkpointErr
+}
+
+func (service *fakeService) CompleteSession(_ context.Context, _ app.Command, state session.State) error {
+	service.completed = append(service.completed, state.Clone())
+	return service.completeErr
 }

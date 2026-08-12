@@ -50,6 +50,8 @@ or infrastructure adapters merely to perform work.
 | `internal/storage` | Opaque state and secret persistence contracts. |
 | `internal/infra/secretstore` | Environment and native OS-keychain adapters for secret references. |
 | `internal/storage/sqlite` | Workspace-local SQLite adapter, migrations, transactions, and Foundation repositories. |
+| `internal/session` | Versioned session state, resume defaults, crash detection, and recovery policy. |
+| `internal/infra/sessiondb` | Transactional SQLite adapter for workspace session lifecycle and recovery audit. |
 | `internal/artifacts` | Ownership, hashing, and integrity metadata contracts for workspace files. |
 | `internal/artifacts/markdown` | Pure rendering of stable human-readable Foundation documents. |
 | `internal/infra/artifactfs` | Ownership-aware atomic writes and workspace path sandbox. |
@@ -106,7 +108,26 @@ width. They use ordinary Unicode rather than icon fonts, and all actions expose
 visible keys. `NO_COLOR`, `--no-color`, and `ui.color = "never"` disable styling.
 The runner uses Bubble Tea's alternate-screen lifecycle and adds a recovery
 boundary so a panic unwinds Bubble Tea's terminal cleanup before becoming a
-normal CLI error. Session persistence and resume remain outside this step.
+normal CLI error.
+
+### Session persistence and recovery
+
+Each TUI startup transactionally loads the single versioned Foundation session
+payload and immediately marks it active. A clean `q` or Ctrl+C exit writes the
+final resumable payload and clears that marker. If Kelyro exits before this
+happens, the next startup preserves safe context while identifying the previous
+session as incomplete and recording `session.recovered` in the workspace audit
+trail. Invalid, unsupported, or explicitly unsafe secondary state is replaced
+with defaults and never prevents the Foundation interface from opening.
+
+The durable payload contains only the last view, opened artifact, significant
+command, setup flags, session timestamp, and safe-resume marker. The TUI queues
+and serializes checkpoints after meaningful transitions such as changing views,
+saving configuration, or opening the roadmap. Ordinary keypresses, resize
+events, loading animation, and reconstructable snapshots do not write SQLite.
+`internal/session` owns payload version migration without knowing SQLite;
+`sessiondb` binds each resume, checkpoint, and completion to the existing
+workspace-local transaction runner and state/audit repositories.
 
 Bubble Tea is necessary for the cross-platform terminal event loop, raw-mode
 cleanup, keyboard input, and resize delivery. Lip Gloss is necessary for style
