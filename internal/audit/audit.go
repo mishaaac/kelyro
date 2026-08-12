@@ -2,6 +2,8 @@
 // integrity-relevant actions.
 package audit
 
+import "context"
+
 // Event describes a critical action without coupling callers to a log format or
 // event transport.
 type Event struct {
@@ -13,5 +15,5 @@ type Event struct {
 // Recorder persists critical actions. A complete event bus is intentionally
 // outside this contract.
 type Recorder interface {
-	Record(event Event) error
+	Record(ctx context.Context, event Event) error
 }

@@ -2,7 +2,10 @@
 // secrets without exposing a database engine or credential backend.
 package storage
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 var (
 	// ErrSecretNotFound reports that a named secret has no configured value.
@@ -21,9 +24,18 @@ type SecretStatus struct {
 
 // StateStore persists opaque application state by namespace and key.
 type StateStore interface {
-	Get(namespace, key string) (value []byte, found bool, err error)
-	Set(namespace, key string, value []byte) error
-	Delete(namespace, key string) error
+	Get(ctx context.Context, namespace, key string) (value []byte, found bool, err error)
+	Set(ctx context.Context, namespace, key string, value []byte) error
+	Delete(ctx context.Context, namespace, key string) error
+}
+
+// WorkspaceMetaStore persists small opaque workspace metadata values. It is
+// separate from StateStore so identity and schema metadata cannot collide with
+// application namespaces.
+type WorkspaceMetaStore interface {
+	Get(ctx context.Context, key string) (value []byte, found bool, err error)
+	Set(ctx context.Context, key string, value []byte) error
+	Delete(ctx context.Context, key string) error
 }
 
 // SecretStore provides named secret persistence without exposing where or how

@@ -2,6 +2,8 @@
 // can apply safe write policies.
 package artifacts
 
+import "context"
+
 // Ownership describes who is allowed to author or overwrite an artifact.
 type Ownership string
 
@@ -20,4 +22,22 @@ const (
 type Artifact struct {
 	Path      string
 	Ownership Ownership
+}
+
+// Index persists the known ownership of workspace artifacts. Content-integrity
+// policy remains outside this minimal Foundation repository.
+type Index interface {
+	Get(ctx context.Context, path string) (artifact Artifact, found bool, err error)
+	Put(ctx context.Context, artifact Artifact) error
+	Delete(ctx context.Context, path string) error
+}
+
+// Valid reports whether ownership is one of the defined policies.
+func (ownership Ownership) Valid() bool {
+	switch ownership {
+	case MachineOwned, SystemGeneratedHumanReadable, StudentOwned:
+		return true
+	default:
+		return false
+	}
 }

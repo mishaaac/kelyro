@@ -2,8 +2,8 @@
 
 Kelyro is a local-first, cross-platform learning workspace. This repository is
 currently in its foundation phase: it provides the executable, local workspace
-lifecycle, layered configuration, and secure secret references needed to build
-the product incrementally.
+lifecycle, layered configuration, secure secret references, and workspace-local
+structured persistence needed to build the product incrementally.
 
 ## Status
 
@@ -62,5 +62,7 @@ go test ./...
 go vet ./...
 ```
 
-Kelyro currently uses only the Go standard library, so `go.sum` is empty until
-the project requires an external module.
+Kelyro uses `modernc.org/sqlite` as its one direct external dependency. It
+provides a `database/sql` SQLite driver implemented in pure Go, which keeps the
+workspace database local without requiring CGO toolchains for cross-platform
+builds. Database details remain isolated in `internal/storage/sqlite`.

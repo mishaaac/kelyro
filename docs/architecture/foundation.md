@@ -49,6 +49,7 @@ or infrastructure adapters merely to perform work.
 | `internal/infra/configfs` | Strict TOML and atomic filesystem adapter for configuration. |
 | `internal/storage` | Opaque state and secret persistence contracts. |
 | `internal/infra/secretstore` | Environment and native OS-keychain adapters for secret references. |
+| `internal/storage/sqlite` | Workspace-local SQLite adapter, migrations, transactions, and Foundation repositories. |
 | `internal/artifacts` | Ownership classification for generated and human-authored files. |
 | `internal/audit` | Boundary for recording critical actions, without an event bus. |
 | `internal/editor` | Future editor integration adapters. |
@@ -114,8 +115,9 @@ cache is under `cache`, backups are under `backups`, and logs are under `logs`.
 `WorkspaceLearningPath` resolves the visible `LEARNING.md` document. These
 helpers accept relative roots and paths containing spaces. They do not create
 directories or validate workspace identity; those lifecycle operations belong
-to the filesystem adapter behind the workspace contract. The database path is
-reserved for a later step and workspace initialization does not create it.
+to the filesystem adapter behind the workspace contract. Workspace
+initialization does not create the database. The SQLite adapter opens it lazily
+when structured persistence is first required.
 
 `workspace.Service` discovers, initializes, and validates a workspace while
 returning a neutral `workspace.Workspace`. Paths cross boundaries as complete
@@ -228,6 +230,36 @@ redacted defensively before they cross into CLI output.
 
 When a native service is absent or inaccessible, the adapter remains usable for
 environment-backed reads and reports the exact `KELYRO_SECRET_*` alternative.
+
+### Workspace-local structured persistence
+
+`internal/storage/sqlite` owns `.kelyro/learning.db` through `database/sql` and
+the pure-Go `modernc.org/sqlite` driver. This is Kelyro's only direct external
+dependency: it avoids CGO requirements on Linux, macOS, and Windows while the
+core continues to depend only on neutral repository interfaces. Callers create
+an explicit database instance per workspace and close it; there is no global
+connection singleton.
+
+Opening a database uses a bounded operation timeout, enables SQLite foreign
+keys on every connection, restricts the database file permissions, and runs
+`PRAGMA quick_check` before migrations. New databases migrate from version zero
+to the latest embedded schema. The initial migration creates only
+`schema_migrations`, `workspace_meta`, `app_state`, `artifact_index`, and
+`audit_events`; educational tables remain outside Foundation.
+
+Migrations are consecutive, immutable records with a name and SHA-256 checksum.
+The runner validates existing history, skips already applied versions, and
+applies each pending migration in its own transaction. Errors identify the
+migration and statement, and both DDL and its history record roll back together.
+A migration marked destructive fails closed unless an injected backup callback
+succeeds before its SQL begins. The concrete backup implementation remains in
+the later backup/recovery step.
+
+State, workspace metadata, artifact ownership, and audit recording are exposed
+through their core interfaces. Independent operations are atomic SQL statements;
+callers that must update more than one repository use `WithTransaction` so all
+writes commit or roll back together. Values remain opaque at this boundary and
+no secret is stored in SQLite.
 Environment values take precedence and are not copied into native storage.
 Deletion affects the keychain only and explicitly leaves environment variables
 unchanged. Logs, audit events, backups, and exports have no secret-value path;

@@ -1,6 +1,9 @@
 package app_test
 
 import (
+	"context"
+
+	"github.com/mishaaac/kelyro/internal/artifacts"
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/platform"
@@ -9,12 +12,14 @@ import (
 )
 
 var (
-	_ platform.Platform   = fakePlatform{}
-	_ workspace.Service   = fakeWorkspaceService{}
-	_ config.Store        = fakeConfigStore{}
-	_ storage.StateStore  = fakeStateStore{}
-	_ storage.SecretStore = fakeSecretStore{}
-	_ audit.Recorder      = fakeAuditRecorder{}
+	_ platform.Platform          = fakePlatform{}
+	_ workspace.Service          = fakeWorkspaceService{}
+	_ config.Store               = fakeConfigStore{}
+	_ storage.StateStore         = fakeStateStore{}
+	_ storage.WorkspaceMetaStore = fakeWorkspaceMetaStore{}
+	_ storage.SecretStore        = fakeSecretStore{}
+	_ artifacts.Index            = fakeArtifactIndex{}
+	_ audit.Recorder             = fakeAuditRecorder{}
 )
 
 type fakePlatform struct{}
@@ -56,9 +61,27 @@ func (fakeConfigStore) SetProject(string, string, config.Value) error {
 
 type fakeStateStore struct{}
 
-func (fakeStateStore) Get(string, string) ([]byte, bool, error) { return nil, false, nil }
-func (fakeStateStore) Set(string, string, []byte) error         { return nil }
-func (fakeStateStore) Delete(string, string) error              { return nil }
+func (fakeStateStore) Get(context.Context, string, string) ([]byte, bool, error) {
+	return nil, false, nil
+}
+func (fakeStateStore) Set(context.Context, string, string, []byte) error { return nil }
+func (fakeStateStore) Delete(context.Context, string, string) error      { return nil }
+
+type fakeWorkspaceMetaStore struct{}
+
+func (fakeWorkspaceMetaStore) Get(context.Context, string) ([]byte, bool, error) {
+	return nil, false, nil
+}
+func (fakeWorkspaceMetaStore) Set(context.Context, string, []byte) error { return nil }
+func (fakeWorkspaceMetaStore) Delete(context.Context, string) error      { return nil }
+
+type fakeArtifactIndex struct{}
+
+func (fakeArtifactIndex) Get(context.Context, string) (artifacts.Artifact, bool, error) {
+	return artifacts.Artifact{}, false, nil
+}
+func (fakeArtifactIndex) Put(context.Context, artifacts.Artifact) error { return nil }
+func (fakeArtifactIndex) Delete(context.Context, string) error          { return nil }
 
 type fakeSecretStore struct{}
 
@@ -70,4 +93,4 @@ func (fakeSecretStore) Availability() error                     { return nil }
 
 type fakeAuditRecorder struct{}
 
-func (fakeAuditRecorder) Record(audit.Event) error { return nil }
+func (fakeAuditRecorder) Record(context.Context, audit.Event) error { return nil }
