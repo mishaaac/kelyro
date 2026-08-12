@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 15
+Last completed step: 16
 Current release: unreleased
 
 ## Registro
@@ -455,3 +455,31 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 16 no se ha iniciado y requiere autorización explícita.
+
+## Step 16 — Logging estructurado y audit trail
+
+Status: completed
+Date: 2026-08-12
+Commit: 3e4c038
+Release: unreleased
+
+### Delivered
+- Logs JSONL con niveles, contexto de operación, redacción, exclusión de contenido educativo, modo verbose y rotación acotada en `.kelyro/logs/`.
+- Audit trail SQLite cronológico con actor, metadata segura y versión de aplicación para workspace, configuración, migraciones, artefactos y recovery de sesión.
+- Comandos `kelyro logs path` y `kelyro audit`, además de adaptadores reemplazables y pruebas de persistencia tras reinicio.
+
+### Decisions
+- Los logs son diagnósticos best-effort y nunca sustituyen el resultado de la operación ni aparecen en la salida normal.
+- Se conservan como máximo tres archivos de un MiB; secrets y contenido completo del estudiante se redactan u omiten antes de serializar.
+- La auditoría permanece separada del logging y usa una tercera migration no destructiva; valores de configuración y cuerpos de documentos no son metadata.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step16-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step16-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step16-build-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step16 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba CLI real de `init`, `config set`, `logs path`, `audit` y logging debug con `--verbose`.
+- `go mod tidy`, `go mod verify`, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 17 no se ha iniciado y requiere autorización explícita.
