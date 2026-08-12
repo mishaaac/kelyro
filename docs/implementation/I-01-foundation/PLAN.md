@@ -549,7 +549,7 @@ feat(cli): add command router and foundation commands
 
 ## Paso 4 — Implementar la capa multiplataforma de filesystem y rutas
 
-- [ ] Paso 4 completado
+- [x] Paso 4 completado
 
 ### Objetivo
 

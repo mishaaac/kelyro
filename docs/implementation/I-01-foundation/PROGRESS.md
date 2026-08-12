@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 3
+Last completed step: 4
 Current release: unreleased
 
 ## Registro
@@ -108,3 +108,30 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 4 no se ha iniciado y requiere autorización explícita.
+
+## Step 04 — Capa multiplataforma de filesystem y rutas
+
+Status: completed
+Date: 2026-08-12
+Commit: ec7619d
+Release: unreleased
+
+### Delivered
+- Helpers absolutos y normalizados para directorios estándar, configuración/cache globales y rutas internas del workspace.
+- Pruebas tabulares para rutas relativas, espacios, limpieza, case preservation y semántica de drive letters en Windows.
+- Convenciones nativas de Windows, macOS y sistemas Unix documentadas.
+
+### Decisions
+- La composición usa exclusivamente `os` y `path/filepath`; no se añadió ninguna dependencia externa.
+- Los helpers solo resuelven rutas: la creación, discovery y validación del workspace permanecen reservadas al Paso 5.
+- El estado se reserva bajo `.kelyro/state`, la base de datos en `.kelyro/learning.db` y los backups en `.kelyro/backups`.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step4-gocache GOMODCACHE=/tmp/kelyro-step4-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step4-gocache GOMODCACHE=/tmp/kelyro-step4-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step4-gocache GOMODCACHE=/tmp/kelyro-step4-modcache go build -o /tmp/kelyro-step4 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` using `go test -exec=/bin/true ./...`.
+- `git diff --check`
+
+### Notes for next session
+- El Paso 5 no se ha iniciado y requiere autorización explícita.
