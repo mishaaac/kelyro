@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 9
+Last completed step: 10
 Current release: unreleased
 
 ## Registro
@@ -279,3 +279,33 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 10 no se ha iniciado y requiere autorización explícita.
+
+## Step 10 — Artefactos Markdown humanos y roadmap placeholder
+
+Status: completed
+Date: 2026-08-12
+Commit: 3494fb3
+Release: unreleased
+
+### Delivered
+- Generadores puros y golden tests para `LEARNING.md` y `00-roadmap/ROADMAP.md`, con UTF-8 y saltos LF consistentes.
+- Integración de `kelyro init` con escritura atómica e índice de integridad SQLite desde la primera generación.
+- Regeneración idempotente que conserva documentos modificados externamente y propaga el conflicto sin sobrescribirlos.
+
+### Decisions
+- El adaptador de workspace crea solo la estructura machine-owned; la aplicación coordina los documentos mediante contratos neutrales de artifact store.
+- Los templates usan un modelo humano mínimo, versiones explícitas y ningún frontmatter o estado interno serializado.
+- No se añadieron dependencias externas; el factory compone los adaptadores existentes de filesystem y SQLite.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step10-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step10-race-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step10-vet-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step10-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step10 ./cmd/kelyro`
+- Cross-compilation of tests for `windows/amd64` and `darwin/amd64` with `CGO_ENABLED=0` using `go test -exec=/bin/true ./...`.
+- Prueba CLI real de creación y regeneración idempotente en una ruta con espacios.
+- `GOCACHE=/tmp/kelyro-step10-gocache go mod verify`
+- `git diff --check`
+
+### Notes for next session
+- El Paso 11 no se ha iniciado y requiere autorización explícita.

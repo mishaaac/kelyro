@@ -1031,7 +1031,7 @@ feat(artifacts): protect workspace ownership and content integrity
 
 ## Paso 10 — Implementar artefactos Markdown humanos y el roadmap placeholder
 
-- [ ] Paso 10 completado
+- [x] Paso 10 completado
 
 ### Objetivo
 
