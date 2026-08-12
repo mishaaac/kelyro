@@ -42,7 +42,7 @@ or infrastructure adapters merely to perform work.
 | `internal/app` | Application-service orchestration. |
 | `internal/cli` | Command-line input and output adapter. |
 | `internal/tui` | Terminal presentation adapter. |
-| `internal/platform` | Contract and future adapters for OS-dependent information and operations. |
+| `internal/platform` | OS-dependent contract plus native directory and path normalization helpers. |
 | `internal/workspace` | Workspace identity, discovery, initialization, and validation contract. |
 | `internal/config` | Format-independent global and project configuration contract. |
 | `internal/storage` | Opaque state and secret persistence contracts. |
@@ -81,6 +81,33 @@ Neither implementation detail is visible to application callers.
 
 `platform.Platform` owns OS-specific discovery and actions, including standard
 user directories, command lookup, and opening paths or URLs.
+
+### Path conventions
+
+All path construction and normalization goes through `internal/platform` and
+Go's `path/filepath` package. `NormalizePath` cleans a path and resolves relative
+input against the process working directory without requiring the target to
+exist. It preserves the spelling and case supplied by the operating system; no
+caller may infer case sensitivity from a path string.
+
+Kelyro resolves home, configuration, cache, and temporary directories with the
+standard `os` APIs. Consequently, global data follows native conventions:
+
+- Windows uses the directories represented by `USERPROFILE`, `AppData`,
+  `LocalAppData`, and the system temporary-directory configuration. Drive
+  letters and UNC-compatible separators retain `filepath` semantics.
+- macOS uses the user's home plus the standard Application Support and Caches
+  locations returned by Go.
+- Unix-like systems use the XDG configuration and cache locations when set,
+  with Go's home-based fallbacks otherwise.
+
+The global configuration and cache directories append `kelyro` to their native
+bases. Workspace data never moves into those global directories:
+`WorkspaceInternalDir` resolves `<workspace>/.kelyro`, the database is
+`learning.db`, state is under `state`, and backups are under `backups`. These
+helpers accept relative roots and paths containing spaces. They do not create
+directories or validate workspace identity; those lifecycle operations belong
+to the workspace layer.
 
 `workspace.Service` discovers, initializes, and validates a workspace while
 returning a neutral `workspace.Workspace`. Paths cross boundaries as complete
