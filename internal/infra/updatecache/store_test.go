@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestStoreSavesLoadsChannelsAndUsesRestrictivePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat(cache): %v", err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Errorf("cache permissions = %o, want 600", info.Mode().Perm())
 	}
 }

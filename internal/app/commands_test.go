@@ -39,7 +39,7 @@ func TestBootstrapServiceSupportsFoundationActions(t *testing.T) {
 func TestServiceOpensFoundationArtifactsWithResolvedEditor(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join(string(filepath.Separator), "workspace with spaces")
+	root := filepath.Join(t.TempDir(), "workspace with spaces")
 	workspaces := &recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}
 	configs := &recordingConfigStore{
 		global:  config.Settings{config.KeyEditorCommand: config.StringValue("vim")},
@@ -82,7 +82,7 @@ func TestServiceOpensFoundationArtifactsWithResolvedEditor(t *testing.T) {
 
 func TestServiceReportsLocalRoadmapPath(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join(string(filepath.Separator), "workspace with spaces")
+	root := filepath.Join(t.TempDir(), "workspace with spaces")
 	service := NewService(
 		&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}},
 		func() (string, error) { return filepath.Join(root, "lesson"), nil },

@@ -474,8 +474,12 @@ func TestDatabaseURIHandlesSpacesAndPragmas(t *testing.T) {
 	if parsed.Scheme != "file" {
 		t.Fatalf("database URI scheme = %q, want file", parsed.Scheme)
 	}
-	if parsed.Path != filepath.ToSlash(path) {
-		t.Fatalf("database URI path = %q, want %q", parsed.Path, filepath.ToSlash(path))
+	wantPath := filepath.ToSlash(path)
+	if filepath.VolumeName(path) != "" && !strings.HasPrefix(wantPath, "/") {
+		wantPath = "/" + wantPath
+	}
+	if parsed.Path != wantPath {
+		t.Fatalf("database URI path = %q, want %q", parsed.Path, wantPath)
 	}
 	wantPragmas := []string{"foreign_keys(1)", "busy_timeout(1500)"}
 	if got := parsed.Query()["_pragma"]; !slices.Equal(got, wantPragmas) {

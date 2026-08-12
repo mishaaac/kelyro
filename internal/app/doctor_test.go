@@ -13,7 +13,7 @@ import (
 func TestServiceExecutesDoctorWithWorkspaceAndContext(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Join(string(filepath.Separator), "workspace with spaces")
+	root := filepath.Join(t.TempDir(), "workspace with spaces")
 	runner := &recordingDoctor{report: doctor.Report{Checks: []doctor.Check{{ID: "tool.docker", Requirement: doctor.Required, State: doctor.Miss}}}}
 	contextInput := doctor.Context{ToolRequirements: []doctor.ToolRequirement{{ToolID: "docker", Requirement: doctor.Required}}}
 	service := NewService(
