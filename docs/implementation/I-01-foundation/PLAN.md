@@ -2032,7 +2032,7 @@ build(release): add cross-platform release pipeline
 
 ## Paso 24 — Ejecutar hardening de seguridad y portabilidad de I-01
 
-- [ ] Paso 24 completado
+- [x] Paso 24 completado
 
 ### Objetivo
 

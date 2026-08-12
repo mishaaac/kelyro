@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 23
+Last completed step: 24
 Current release: unreleased
 
 ## Registro
@@ -679,3 +679,30 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 24 no se ha iniciado y requiere autorización explícita.
+
+## Step 24 — Hardening de seguridad y portabilidad
+
+Status: completed
+Date: 2026-08-12
+Commit: c75b264..686e533
+Release: unreleased
+
+### Delivered
+- Workspace, SQLite y logging rechazan symlinks en rutas machine-owned; los directorios internos nuevos usan permisos `0700`.
+- SQLite diferencia corrupción real de locks operativos y conserva el timeout; se añadieron regresiones de lock, corrupción, cierre y symlinks.
+- Import rechaza caracteres y controles inválidos en Windows sin bloquear espacios ni Unicode válido.
+- Update ignora releases individuales con timestamps malformados, limita el User-Agent y solo muestra URLs canónicas del repositorio.
+
+### Decisions
+- Las rutas visibles del workspace pueden conservar Unicode y espacios; los límites machine-owned no siguen symlinks.
+- Los errores `SQLITE_CORRUPT`/`SQLITE_NOTADB` se clasifican como integridad, mientras busy/locked permanece como fallo operativo recuperable.
+- No se añadieron dependencias ni se modificó el alcance funcional de Foundation; los fixes quedan incluidos en la release inicial aún no publicada.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step24-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go run ./tools/quality all`
+- Compilación de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- `go mod tidy`, `go mod verify`, `gofmt -l`, `git diff --check` y `actionlint .github/workflows/ci.yml .github/workflows/release.yml`.
+- Regresiones focalizadas para permisos, symlinks, SQLite locked/corrupt, rutas de import y metadata de update maliciosa o malformada.
+
+### Notes for next session
+- No quedan findings críticos conocidos en I-01; el Paso 25 no se ha iniciado y requiere autorización explícita.
