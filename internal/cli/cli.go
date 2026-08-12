@@ -75,10 +75,17 @@ var actions = map[string]app.Action{
 // Runner owns CLI parsing and rendering while delegating operations to an
 // application service.
 type Runner struct {
-	service app.FoundationService
-	stdout  io.Writer
-	stderr  io.Writer
-	secrets SecretReader
+	service     app.FoundationService
+	stdout      io.Writer
+	stderr      io.Writer
+	secrets     SecretReader
+	interactive InteractiveRunner
+}
+
+// InteractiveRunner owns the full-screen terminal lifecycle for the default
+// command without coupling CLI parsing to Bubble Tea.
+type InteractiveRunner interface {
+	Run(ctx context.Context, command app.Command) error
 }
 
 // NewRunner creates a testable CLI runner with explicit dependencies.
@@ -90,6 +97,13 @@ func NewRunner(service app.FoundationService, stdout, stderr io.Writer) Runner {
 // without placing them in process arguments or normal command output.
 func (r Runner) WithSecretReader(reader SecretReader) Runner {
 	r.secrets = reader
+	return r
+}
+
+// WithInteractive attaches the full-screen presentation adapter used when no
+// explicit CLI command is provided.
+func (r Runner) WithInteractive(interactive InteractiveRunner) Runner {
+	r.interactive = interactive
 	return r
 }
 
@@ -136,6 +150,13 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
+	}
+	if action == app.ActionTUI && r.interactive != nil {
+		if err := r.interactive.Run(ctx, command); err != nil {
+			fmt.Fprintf(r.stderr, "kelyro tui: %v\n", err)
+			return ExitFailure
+		}
+		return ExitOK
 	}
 	if action == app.ActionConfig {
 		command.ConfigOperation = invocation.configOperation

@@ -11,6 +11,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/secretstore"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
+	"github.com/mishaaac/kelyro/internal/tui"
 	"github.com/mishaaac/kelyro/internal/version"
 )
 
@@ -22,6 +23,7 @@ func main() {
 		WithArtifactStores(artifactfs.NewFactory()).
 		WithEditor(editoros.New())
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
-		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr))
+		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
+		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout))
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

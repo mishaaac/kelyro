@@ -78,6 +78,47 @@ func TestRunnerPassesWorkspaceAndAcceptsReservedFlags(t *testing.T) {
 	}
 }
 
+func TestRunnerLaunchesInteractiveAdapterForDefaultCommand(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{}
+	interactive := &fakeInteractiveRunner{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr).WithInteractive(interactive)
+
+	if exitCode := runner.Run(context.Background(), []string{"--workspace", "learning lab", "--no-color"}); exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d; stderr = %q", exitCode, stderr.String())
+	}
+	if len(service.commands) != 0 {
+		t.Errorf("application Execute calls = %d, want TUI to own its service calls", len(service.commands))
+	}
+	if len(interactive.commands) != 1 {
+		t.Fatalf("interactive calls = %d", len(interactive.commands))
+	}
+	command := interactive.commands[0]
+	if command.Action != app.ActionTUI || command.Workspace != "learning lab" {
+		t.Errorf("interactive command = %#v", command)
+	}
+	if command.ConfigOverrides[config.KeyUIColor].String() != "never" {
+		t.Errorf("interactive color override = %q", command.ConfigOverrides[config.KeyUIColor].String())
+	}
+}
+
+func TestRunnerReportsInteractiveFailure(t *testing.T) {
+	t.Parallel()
+
+	interactive := &fakeInteractiveRunner{err: errors.New("terminal unavailable")}
+	var stderr bytes.Buffer
+	runner := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).WithInteractive(interactive)
+	if exitCode := runner.Run(context.Background(), nil); exitCode != ExitFailure {
+		t.Fatalf("Run() exit code = %d, want failure", exitCode)
+	}
+	if got := stderr.String(); got != "kelyro tui: terminal unavailable\n" {
+		t.Errorf("stderr = %q", got)
+	}
+}
+
 func TestRunnerPassesExplicitNestedInitialization(t *testing.T) {
 	t.Parallel()
 
@@ -376,6 +417,16 @@ type fakeSecretReader struct {
 	value  string
 	err    error
 	prompt string
+}
+
+type fakeInteractiveRunner struct {
+	commands []app.Command
+	err      error
+}
+
+func (runner *fakeInteractiveRunner) Run(_ context.Context, command app.Command) error {
+	runner.commands = append(runner.commands, command)
+	return runner.err
 }
 
 func (reader *fakeSecretReader) ReadSecret(prompt string) (string, error) {

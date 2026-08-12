@@ -1,3 +1,4 @@
-// Package tui is reserved for the terminal presentation adapter. Educational
-// and application logic must remain outside this package.
+// Package tui implements Kelyro's Bubble Tea presentation adapter. Application
+// and workspace decisions remain in internal/app; this package only translates
+// application state and user input into terminal views.
 package tui

@@ -9,9 +9,8 @@ structured persistence needed to build the product incrementally.
 
 Early pre-release (`v0.1.0-alpha.1` development line). The current executable
 provides workspace initialization, global/project configuration, secret
-management, and safe opening of Foundation documents; other Foundation commands
-remain explicit placeholders.
-It does not include an interactive TUI or learning features yet.
+management, safe opening of Foundation documents, and an interactive Foundation
+TUI. Learning features are not implemented yet.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
 
@@ -33,7 +32,9 @@ Run the resulting binary with `./kelyro` on Linux or macOS, or
 `kelyro.exe` on Windows.
 
 Run `kelyro help` to list the available Foundation commands. Invoking `kelyro`
-without a command enters the current TUI bootstrap placeholder.
+without a command opens the Foundation TUI from a Kelyro workspace. Its Home,
+Doctor, Config, and Roadmap screens use visible keyboard shortcuts; `q` exits and
+`Esc` returns Home. Set `NO_COLOR` or pass `--no-color` to disable color.
 
 Configuration is available through `kelyro config show`, `path`, `get`, and
 `set`. Use `--global` or `--project` to choose a scope explicitly. Kelyro stores
@@ -72,7 +73,10 @@ go test ./...
 go vet ./...
 ```
 
-Kelyro uses `modernc.org/sqlite` as its one direct external dependency. It
-provides a `database/sql` SQLite driver implemented in pure Go, which keeps the
-workspace database local without requiring CGO toolchains for cross-platform
-builds. Database details remain isolated in `internal/storage/sqlite`.
+Kelyro uses three direct external dependencies. `modernc.org/sqlite` provides a
+pure-Go `database/sql` SQLite driver, keeping the workspace database local
+without requiring CGO toolchains. Bubble Tea drives the interactive terminal
+lifecycle and message loop, while Lip Gloss provides terminal-safe styling and
+display-width measurement. Database details remain isolated in
+`internal/storage/sqlite`; both presentation dependencies remain isolated in
+`internal/tui`.

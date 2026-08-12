@@ -41,7 +41,7 @@ or infrastructure adapters merely to perform work.
 | --- | --- |
 | `internal/app` | Application-service orchestration. |
 | `internal/cli` | Command-line input and output adapter. |
-| `internal/tui` | Terminal presentation adapter. |
+| `internal/tui` | Bubble Tea terminal presentation adapter: model, messages, commands, views/components, styles, and terminal lifecycle. |
 | `internal/platform` | OS-dependent contract plus native directory and path normalization helpers. |
 | `internal/workspace` | Workspace identity, discovery, initialization, and validation contract. |
 | `internal/infra/workspacefs` | Local filesystem adapter for the workspace lifecycle contract. |
@@ -80,9 +80,39 @@ The following dependencies are prohibited from the core:
 - direct operating-system operations outside platform or infrastructure
   adapters.
 
-If the CLI later adopts Cobra, it remains isolated in `internal/cli`. If state
-later uses SQLite, the driver and queries remain behind `storage.StateStore`.
-Neither implementation detail is visible to application callers.
+Bubble Tea and Lip Gloss remain isolated in `internal/tui`; SQLite remains
+behind storage and artifact contracts. None of these implementation details is
+visible to core or application callers.
+
+### Foundation terminal interface
+
+Invoking Kelyro without an explicit command makes the CLI delegate terminal
+lifecycle to `internal/tui`. The model starts in a loading state and obtains a
+typed `app.FoundationSnapshot` through an asynchronous command. Workspace
+discovery, layered configuration, and the database integrity probe are
+coordinated by the application service; Bubble Tea's `Update` handles only UI
+messages, screen state, keyboard navigation, and resize events.
+
+Home reports workspace, database, and configuration health without relying on
+color alone. Doctor exposes the same typed checks with PASS/FAIL labels. Config
+reads every resolved setting and provides a deliberately small wizard for
+cycling `ui.color` and toggling common booleans; other scalar values remain
+available through `kelyro config set`. Roadmap renders the intentional empty
+state and delegates opening `ROADMAP.md` to the existing application/editor
+service.
+
+Views wrap shortcuts and diagnostic text according to the latest terminal
+width. They use ordinary Unicode rather than icon fonts, and all actions expose
+visible keys. `NO_COLOR`, `--no-color`, and `ui.color = "never"` disable styling.
+The runner uses Bubble Tea's alternate-screen lifecycle and adds a recovery
+boundary so a panic unwinds Bubble Tea's terminal cleanup before becoming a
+normal CLI error. Session persistence and resume remain outside this step.
+
+Bubble Tea is necessary for the cross-platform terminal event loop, raw-mode
+cleanup, keyboard input, and resize delivery. Lip Gloss is necessary for style
+composition and terminal cell-width measurement. Both dependencies are confined
+to this presentation adapter; Bubbles is not included because the small current
+screens do not need a reusable interactive component.
 
 ## Stable Foundation contracts
 
@@ -284,9 +314,9 @@ environment-backed reads and reports the exact `KELYRO_SECRET_*` alternative.
 ### Workspace-local structured persistence
 
 `internal/storage/sqlite` owns `.kelyro/learning.db` through `database/sql` and
-the pure-Go `modernc.org/sqlite` driver. This is Kelyro's only direct external
-dependency: it avoids CGO requirements on Linux, macOS, and Windows while the
-core continues to depend only on neutral repository interfaces. Callers create
+the pure-Go `modernc.org/sqlite` driver. This storage dependency avoids CGO
+requirements on Linux, macOS, and Windows while the core continues to depend
+only on neutral repository interfaces. Callers create
 an explicit database instance per workspace and close it; there is no global
 connection singleton.
 
