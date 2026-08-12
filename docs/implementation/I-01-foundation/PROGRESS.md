@@ -2,9 +2,9 @@
 
 ## Estado general
 
-Current step: none (awaiting authorization)
-Last completed step: 24
-Current release: unreleased
+Current step: none (I-01 complete)
+Last completed step: 25
+Current release: v0.1.0-alpha.1
 
 ## Registro
 
@@ -706,3 +706,45 @@ Release: unreleased
 
 ### Notes for next session
 - No quedan findings críticos conocidos en I-01; el Paso 25 no se ha iniciado y requiere autorización explícita.
+
+## Step 25 — Declarar Foundation estable para continuar con I-02
+
+Status: completed
+Date: 2026-08-12
+Commit: c1f0da7..46c8809
+Release: v0.1.0-alpha.1
+
+### Delivered
+- Contratos, documentación, dependencias y límites de Foundation auditados sin acoplamientos invertidos ni lógica educativa implementada.
+- Release notes de `v0.1.0-alpha.1`, matriz CI real en Linux/macOS/Windows y empaquetado reproducible para los seis targets soportados.
+- Findings de CI corregidos para rutas, golden files, permisos, E2E sin consola Windows y uso seguro de `CredReadW`.
+
+### Decisions
+- `v0.1.0-alpha.1` es la primera release: Foundation es utilizable y estable para construir I-02, mientras el producto continúa como prerelease `0.x`.
+- El subtest E2E que conduce la TUI mediante pipes se omite solo en Windows, donde Bubble Tea requiere un console handle real; los demás E2E Windows y los tests unitarios de TUI/sesión permanecen activos.
+- No se añadieron dependencias ni funcionalidad de Student Core.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step25-final-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go run ./tools/quality all`
+- Compilación de tests con `CGO_ENABLED=0` para `windows/amd64`, `windows/arm64`, `darwin/amd64` y `darwin/arm64` mediante `go test -vet=off -exec=/bin/true ./...`.
+- `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet ./...` y equivalente para `windows/arm64`.
+- GitHub Actions CI `31638594884`: Quality verde en Ubuntu, macOS y Windows.
+- Build reproducible de los seis targets, validación de `SHA256SUMS` y smoke test del binario Linux empaquetado.
+- Revisión de imports, `go mod verify`, `gofmt -l`, `git diff --check` y búsqueda de secretos versionados.
+
+### Notes for next session
+- I-02 Student & Learning Core requiere su propia especificación y autorización antes de implementar lógica educativa.
+
+## I-01 Foundation Completion
+
+Status: completed
+Foundation release: v0.1.0-alpha.1
+Completed steps: 0-25
+Known limitations:
+- Student y Learning Core todavía no están implementados.
+- Update comprueba versiones, pero no descarga ni instala releases.
+- Los checksums detectan corrupción, pero la release aún no incorpora firma criptográfica de publisher.
+- El secret store nativo depende del credential service disponible en cada sistema; Linux headless usa referencias explícitas por entorno.
+
+Ready for:
+I-02 Student & Learning Core

@@ -2121,7 +2121,7 @@ Cada fix que merezca release debe afectar SemVer según las reglas.
 
 ## Paso 25 — Declarar Foundation estable para continuar con I-02
 
-- [ ] Paso 25 completado
+- [x] Paso 25 completado
 
 ### Objetivo
 
