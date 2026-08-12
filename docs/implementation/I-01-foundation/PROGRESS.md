@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 19
+Last completed step: 20
 Current release: unreleased
 
 ## Registro
@@ -568,3 +568,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 20 no se ha iniciado y requiere autorización explícita.
+
+## Step 20 — Comprobación de actualizaciones
+
+Status: completed
+Date: 2026-08-12
+Commit: b51ccf7
+Release: unreleased
+
+### Delivered
+- Comparación SemVer 2.0, canales stable/prerelease y decisión tipada de update sin downgrade ni instalación automática.
+- `kelyro update check` con privacy gate, resultados offline no fatales y caché global atómico de 24 horas por canal.
+- Provider opcional de metadata pública GitHub aislado del core; `kelyro update` falla cerrado hasta verificar artefactos firmados y checksums.
+
+### Decisions
+- `updates.check` habilita el check pero nunca concede red; `privacy.allow_network` sigue siendo obligatorio al refrescar metadata.
+- El provider usa endpoint fijo, timeout y respuesta acotada, sin credenciales; tests usan transports/providers fake y no hacen red externa.
+- Builds de release deben inyectar una versión SemVer; versiones actuales o remotas malformadas fallan explícitamente.
+- No se añadieron dependencias externas.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step20-final-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step20-final-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step20-final-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -ldflags "-X github.com/mishaaac/kelyro/internal/version.Version=v0.1.0-alpha.1" -o /tmp/kelyro-step20 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba CLI real de defaults, canales stable/prerelease, check offline sin caché, logging privacy y update unsupported en ruta con espacios.
+- `go mod tidy`, `go mod verify`, revisión de dependencias del core, `gofmt -l`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 21 no se ha iniciado y requiere autorización explícita.

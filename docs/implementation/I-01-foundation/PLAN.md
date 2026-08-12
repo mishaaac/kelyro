@@ -1719,7 +1719,7 @@ feat(privacy): enforce local-first and offline Foundation behavior
 
 ## Paso 20 — Implementar el sistema de comprobación de actualizaciones
 
-- [ ] Paso 20 completado
+- [x] Paso 20 completado
 
 ### Objetivo
 
