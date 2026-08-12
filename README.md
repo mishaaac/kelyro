@@ -16,7 +16,10 @@ The canonical Go module path is `github.com/mishaaac/kelyro`.
 
 ## Target platforms
 
-Kelyro targets Linux, macOS, and Windows on architectures supported by Go.
+Kelyro release archives target Linux, macOS, and Windows on `amd64` and
+`arm64`. See [docs/releases.md](docs/releases.md) for manual installation,
+checksum verification, reproducible local packaging, and the maintainer release
+procedure.
 
 ## Requirements
 
@@ -102,6 +105,10 @@ Build metadata can be injected without changing source code:
 ```sh
 go build -ldflags "-X github.com/mishaaac/kelyro/internal/version.Version=v0.1.0-alpha.1 -X github.com/mishaaac/kelyro/internal/version.Commit=<commit> -X github.com/mishaaac/kelyro/internal/version.Date=<date>" ./cmd/kelyro
 ```
+
+For distributable archives, use `go run ./tools/release build` as documented in
+`docs/releases.md`. It builds all six supported OS/architecture targets with
+CGO disabled, embeds canonical release metadata, and writes `SHA256SUMS`.
 
 ## Test
 

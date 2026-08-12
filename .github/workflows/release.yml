@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Release quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download and verify dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Test
+        run: go run ./tools/quality test
+
+      - name: Foundation E2E
+        run: go run ./tools/quality e2e
+
+      - name: Vet
+        run: go run ./tools/quality vet
+
+      - name: Build and smoke test
+        run: go run ./tools/quality build-smoke
+
+      - name: Race test
+        if: runner.os == 'Linux'
+        run: go run ./tools/quality race
+
+  package:
+    name: Package draft release
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download and verify dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Validate release source
+        id: release
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          test "$(git cat-file -t "${tag}")" = "tag"
+          commit="$(git rev-list -n 1 "${tag}")"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "${commit}" origin/main
+          test -z "$(git status --porcelain)"
+          build_date="$(git show -s --format=%cI "${commit}")"
+          printf 'tag=%s\n' "${tag}" >> "${GITHUB_OUTPUT}"
+          printf 'commit=%s\n' "${commit}" >> "${GITHUB_OUTPUT}"
+          printf 'build_date=%s\n' "${build_date}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build release archives
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_BUILD_DATE: ${{ steps.release.outputs.build_date }}
+        run: >-
+          go run ./tools/release build
+          --version "${RELEASE_VERSION}"
+          --commit "${RELEASE_COMMIT}"
+          --date "${RELEASE_BUILD_DATE}"
+          --output dist
+
+      - name: Smoke test packaged Linux binary
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_BUILD_DATE: ${{ steps.release.outputs.build_date }}
+        shell: bash
+        run: |
+          build_date="$(date --utc --date="${RELEASE_BUILD_DATE}" +%Y-%m-%dT%H:%M:%SZ)"
+          mkdir smoke
+          tar -xzf "dist/kelyro_${RELEASE_VERSION#v}_linux_amd64.tar.gz" -C smoke
+          test "$(smoke/kelyro --version)" = "kelyro ${RELEASE_VERSION} (commit ${RELEASE_COMMIT}, built ${build_date})"
+          test -n "$(smoke/kelyro --help)"
+          cd dist
+          sha256sum --check SHA256SUMS
+
+      - name: Create reviewable draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          state="$(gh release view "${RELEASE_TAG}" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          if test "${state}" = "false"; then
+            echo "release ${RELEASE_TAG} is already published; refusing to replace it" >&2
+            exit 1
+          fi
+          if test "${state}" = "true"; then
+            gh release upload "${RELEASE_TAG}" dist/* --clobber
+          else
+            gh release create "${RELEASE_TAG}" dist/* \
+              --draft \
+              --generate-notes \
+              --title "Kelyro ${RELEASE_TAG}" \
+              --verify-tag
+          fi
