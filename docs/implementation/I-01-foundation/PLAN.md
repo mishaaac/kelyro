@@ -1397,7 +1397,7 @@ feat(doctor): add environment diagnostics and tool registry
 
 ## Paso 15 — Añadir recomendaciones educativas de herramientas
 
-- [ ] Paso 15 completado
+- [x] Paso 15 completado
 
 ### Objetivo
 

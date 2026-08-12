@@ -3,7 +3,7 @@
 ## Estado general
 
 Current step: none (awaiting authorization)
-Last completed step: 14
+Last completed step: 15
 Current release: unreleased
 
 ## Registro
@@ -426,3 +426,32 @@ Release: unreleased
 
 ### Notes for next session
 - El Paso 15 no se ha iniciado y requiere autorización explícita.
+
+## Step 15 — Recomendaciones educativas de herramientas
+
+Status: completed
+Date: 2026-08-12
+Commit: 7a99527
+Release: unreleased
+
+### Delivered
+- Guidance mantenido para cada herramienta Foundation con descripción, motivo, fundamentos, notas por plataforma y enlace oficial.
+- `kelyro doctor --explain <tool>` funcional incluso fuera de un workspace, sin abrir enlaces ni ejecutar instalaciones.
+- Pruebas de metadata, niveles required/recommended/optional, adaptación a plataforma y política no bloqueante.
+
+### Decisions
+- La orientación vive en el registry local y no depende de una llamada LLM.
+- Editores, Docker y lazygit continúan opcionales; las herramientas visuales se presentan como complemento de CLI y fundamentos.
+- La aplicación consulta guidance sin ejecutar el diagnóstico de workspace; CLI y dominio permanecen desacoplados.
+
+### Verification
+- `GOCACHE=/tmp/kelyro-step15-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test ./...`
+- `GOCACHE=/tmp/kelyro-step15-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go test -race ./...`
+- `GOCACHE=/tmp/kelyro-step15-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go vet ./...`
+- `GOCACHE=/tmp/kelyro-step15-verify-gocache GOMODCACHE=/tmp/kelyro-step9-modcache go build -o /tmp/kelyro-step15 ./cmd/kelyro`
+- Cross-compilation de tests para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `go test -vet=off -exec=/bin/true ./...`.
+- Prueba CLI real de guidance para herramientas recommended y optional fuera de un workspace.
+- `go mod tidy`, `go mod verify`, `git diff --check` y `git diff --cached --check`.
+
+### Notes for next session
+- El Paso 16 no se ha iniciado y requiere autorización explícita.
