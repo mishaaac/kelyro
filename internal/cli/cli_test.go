@@ -76,6 +76,22 @@ func TestRunnerPassesWorkspaceAndAcceptsReservedFlags(t *testing.T) {
 	}
 }
 
+func TestRunnerPassesExplicitNestedInitialization(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr)
+
+	if exitCode := runner.Run(context.Background(), []string{"init", "--allow-nested"}); exitCode != ExitOK {
+		t.Fatalf("Run() exit code = %d, want %d; stderr = %q", exitCode, ExitOK, stderr.String())
+	}
+	if len(service.commands) != 1 || !service.commands[0].AllowNested {
+		t.Errorf("commands = %#v, want one command with AllowNested", service.commands)
+	}
+}
+
 func TestRunnerHelp(t *testing.T) {
 	t.Parallel()
 
@@ -141,6 +157,7 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "extra argument", args: []string{"status", "extra"}, message: `unexpected argument "extra"`},
 		{name: "conflicting output modes", args: []string{"--verbose", "--quiet"}, message: "options --verbose and --quiet cannot be combined"},
 		{name: "version with command", args: []string{"init", "--version"}, message: "option --version cannot be combined with a command"},
+		{name: "nested without init", args: []string{"status", "--allow-nested"}, message: "option --allow-nested requires the init command"},
 	}
 
 	for _, test := range tests {
@@ -206,23 +223,6 @@ func TestRunnerQuietSuppressesSuccessfulOutput(t *testing.T) {
 	}
 	if len(service.commands) != 1 || service.commands[0].Action != app.ActionStatus {
 		t.Errorf("commands = %#v, want one status command", service.commands)
-	}
-}
-
-func TestRunUsesBootstrapService(t *testing.T) {
-	t.Parallel()
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	if exitCode := Run([]string{"init"}, &stdout, &stderr); exitCode != ExitOK {
-		t.Fatalf("Run() exit code = %d, want %d", exitCode, ExitOK)
-	}
-	if !strings.Contains(stdout.String(), "not implemented yet") {
-		t.Errorf("stdout = %q, want explicit placeholder", stdout.String())
-	}
-	if stderr.Len() != 0 {
-		t.Errorf("stderr = %q, want empty", stderr.String())
 	}
 }
 

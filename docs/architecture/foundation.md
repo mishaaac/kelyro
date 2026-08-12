@@ -44,6 +44,7 @@ or infrastructure adapters merely to perform work.
 | `internal/tui` | Terminal presentation adapter. |
 | `internal/platform` | OS-dependent contract plus native directory and path normalization helpers. |
 | `internal/workspace` | Workspace identity, discovery, initialization, and validation contract. |
+| `internal/infra/workspacefs` | Local filesystem adapter for the workspace lifecycle contract. |
 | `internal/config` | Format-independent global and project configuration contract. |
 | `internal/storage` | Opaque state and secret persistence contracts. |
 | `internal/artifacts` | Ownership classification for generated and human-authored files. |
@@ -104,14 +105,44 @@ standard `os` APIs. Consequently, global data follows native conventions:
 The global configuration and cache directories append `kelyro` to their native
 bases. Workspace data never moves into those global directories:
 `WorkspaceInternalDir` resolves `<workspace>/.kelyro`, the database is
-`learning.db`, state is under `state`, and backups are under `backups`. These
+`learning.db`, metadata is `workspace.json`, state is under `state`, disposable
+cache is under `cache`, backups are under `backups`, and logs are under `logs`.
+`WorkspaceLearningPath` resolves the visible `LEARNING.md` document. These
 helpers accept relative roots and paths containing spaces. They do not create
 directories or validate workspace identity; those lifecycle operations belong
-to the workspace layer.
+to the filesystem adapter behind the workspace contract. The database path is
+reserved for a later step and workspace initialization does not create it.
 
 `workspace.Service` discovers, initializes, and validates a workspace while
 returning a neutral `workspace.Workspace`. Paths cross boundaries as complete
 values; adapters must use Go's cross-platform path APIs when manipulating them.
+
+### Workspace lifecycle and ownership
+
+A workspace is identified by a valid `.kelyro/workspace.json` with a stable
+random ID, the current schema version, its UTC creation time, and the Kelyro
+version that created it. Discovery starts at an existing directory and walks
+upward until it finds and validates `.kelyro`. An invalid marker is reported
+rather than silently skipped or repaired.
+
+Initialization builds all machine internals in a temporary directory before
+renaming them into place. If a later operation reports failure, it removes the
+new internals and any `LEARNING.md` it created. Repeating initialization loads
+the existing identity without changing it. Creating a workspace below another
+workspace is rejected unless the caller explicitly sets the nested-workspace
+option.
+
+Ownership rules are intentionally narrow:
+
+- `.kelyro/` and all of its contents are machine-owned. Kelyro may create,
+  validate, migrate, replace, or remove those internals according to the active
+  workspace schema.
+- `LEARNING.md` is student-owned. Initialization may create it only when the
+  path is absent; Kelyro never overwrites existing content automatically.
+- Every other visible file is student-owned by default. Kelyro requires an
+  explicit, operation-specific confirmation before modifying or deleting it.
+- Workspace internals contain no secrets. Credential storage remains behind
+  `storage.SecretStore` and outside the workspace tree.
 
 `config.Store` loads and saves format-independent settings at global and project
 scope. `storage.StateStore` persists opaque application state without revealing

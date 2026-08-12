@@ -11,8 +11,12 @@ const (
 	applicationDirectoryName     = "kelyro"
 	workspaceDirectoryName       = ".kelyro"
 	workspaceDatabaseFileName    = "learning.db"
+	workspaceMetadataFileName    = "workspace.json"
 	workspaceStateDirectoryName  = "state"
+	workspaceCacheDirectoryName  = "cache"
 	workspaceBackupDirectoryName = "backups"
+	workspaceLogDirectoryName    = "logs"
+	workspaceLearningFileName    = "LEARNING.md"
 )
 
 var errEmptyPath = errors.New("path must not be empty")
@@ -104,14 +108,34 @@ func WorkspaceDBPath(root string) (string, error) {
 	return workspaceChildPath(root, workspaceDatabaseFileName)
 }
 
+// WorkspaceMetadataPath returns the machine-owned workspace identity file.
+func WorkspaceMetadataPath(root string) (string, error) {
+	return workspaceChildPath(root, workspaceMetadataFileName)
+}
+
 // WorkspaceStatePath returns the path reserved for workspace state files.
 func WorkspaceStatePath(root string) (string, error) {
 	return workspaceChildPath(root, workspaceStateDirectoryName)
 }
 
+// WorkspaceCacheDir returns the directory for workspace-local disposable data.
+func WorkspaceCacheDir(root string) (string, error) {
+	return workspaceChildPath(root, workspaceCacheDirectoryName)
+}
+
 // WorkspaceBackupDir returns the directory reserved for workspace backups.
 func WorkspaceBackupDir(root string) (string, error) {
 	return workspaceChildPath(root, workspaceBackupDirectoryName)
+}
+
+// WorkspaceLogDir returns the directory for workspace-local logs.
+func WorkspaceLogDir(root string) (string, error) {
+	return workspaceChildPath(root, workspaceLogDirectoryName)
+}
+
+// WorkspaceLearningPath returns the human-owned learning document path.
+func WorkspaceLearningPath(root string) (string, error) {
+	return childPath(root, workspaceLearningFileName)
 }
 
 func workspaceChildPath(root, name string) (string, error) {

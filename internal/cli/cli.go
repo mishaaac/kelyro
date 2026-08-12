@@ -28,7 +28,7 @@ Usage:
 Commands:
   help     Show this help message
   version  Show build version information
-  init     Initialize a workspace (placeholder)
+  init     Initialize a workspace
   doctor   Run Foundation diagnostics (placeholder)
   config   Manage configuration (placeholder)
   status   Show workspace status (placeholder)
@@ -41,6 +41,7 @@ Options:
       --verbose       Enable verbose output
       --quiet         Suppress successful command output
       --workspace PATH  Override workspace discovery
+      --allow-nested  Confirm initialization inside another workspace
 `
 
 var actions = map[string]app.Action{
@@ -62,12 +63,6 @@ type Runner struct {
 // NewRunner creates a testable CLI runner with explicit dependencies.
 func NewRunner(service app.FoundationService, stdout, stderr io.Writer) Runner {
 	return Runner{service: service, stdout: stdout, stderr: stderr}
-}
-
-// Run executes the production CLI with the temporary bootstrap service.
-func Run(args []string, stdout, stderr io.Writer) int {
-	runner := NewRunner(app.BootstrapService{}, stdout, stderr)
-	return runner.Run(context.Background(), args)
 }
 
 // Run parses args, renders immediate CLI output, or dispatches one Foundation
@@ -104,8 +99,9 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	result, err := r.service.Execute(ctx, app.Command{
-		Action:    action,
-		Workspace: invocation.workspace,
+		Action:      action,
+		Workspace:   invocation.workspace,
+		AllowNested: invocation.allowNested,
 	})
 	if err != nil {
 		fmt.Fprintf(r.stderr, "kelyro %s: %v\n", commandName, err)
@@ -119,13 +115,14 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 }
 
 type invocation struct {
-	command   string
-	workspace string
-	help      bool
-	version   bool
-	noColor   bool
-	verbose   bool
-	quiet     bool
+	command     string
+	workspace   string
+	help        bool
+	version     bool
+	noColor     bool
+	verbose     bool
+	quiet       bool
+	allowNested bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -144,6 +141,8 @@ func parse(args []string) (invocation, error) {
 			result.verbose = true
 		case argument == "--quiet":
 			result.quiet = true
+		case argument == "--allow-nested":
+			result.allowNested = true
 		case argument == "--workspace":
 			index++
 			if index >= len(args) || args[index] == "" {
@@ -169,6 +168,9 @@ func parse(args []string) (invocation, error) {
 	}
 	if result.verbose && result.quiet {
 		return invocation{}, fmt.Errorf("options --verbose and --quiet cannot be combined")
+	}
+	if result.allowNested && result.command != "init" {
+		return invocation{}, fmt.Errorf("option --allow-nested requires the init command")
 	}
 	if result.help {
 		result.command = "help"

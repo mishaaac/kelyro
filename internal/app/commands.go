@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 // Action identifies a Foundation operation requested by a presentation
@@ -20,8 +22,9 @@ const (
 
 // Command contains presentation-independent input for a Foundation action.
 type Command struct {
-	Action    Action
-	Workspace string
+	Action      Action
+	Workspace   string
+	AllowNested bool
 }
 
 // Result contains presentation-independent output from a Foundation action.
@@ -34,8 +37,54 @@ type FoundationService interface {
 	Execute(ctx context.Context, command Command) (Result, error)
 }
 
-// BootstrapService makes the Foundation command surface usable before the
-// corresponding application services are implemented in later steps.
+// Service coordinates implemented Foundation operations while retaining
+// explicit placeholders for operations assigned to later steps.
+type Service struct {
+	workspaces       workspace.Service
+	currentDirectory func() (string, error)
+	bootstrap        BootstrapService
+}
+
+// NewService creates the application service with explicit infrastructure
+// dependencies.
+func NewService(workspaces workspace.Service, currentDirectory func() (string, error)) *Service {
+	return &Service{workspaces: workspaces, currentDirectory: currentDirectory}
+}
+
+// Execute initializes workspaces and delegates future actions to placeholders.
+func (service *Service) Execute(ctx context.Context, command Command) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	if command.Action != ActionInit {
+		return service.bootstrap.Execute(ctx, command)
+	}
+	if service.workspaces == nil {
+		return Result{}, fmt.Errorf("workspace service is unavailable")
+	}
+
+	root := command.Workspace
+	if root == "" {
+		if service.currentDirectory == nil {
+			return Result{}, fmt.Errorf("current directory provider is unavailable")
+		}
+		var err error
+		root, err = service.currentDirectory()
+		if err != nil {
+			return Result{}, fmt.Errorf("find current directory: %w", err)
+		}
+	}
+
+	created, err := service.workspaces.Init(root, workspace.InitOptions{AllowNested: command.AllowNested})
+	if err != nil {
+		return Result{}, err
+	}
+
+	return Result{Message: fmt.Sprintf("Kelyro workspace ready at %s", created.Root)}, nil
+}
+
+// BootstrapService provides explicit placeholders for Foundation operations
+// assigned to later steps.
 type BootstrapService struct{}
 
 // Execute returns an explicit placeholder for each reserved Foundation action.
@@ -47,8 +96,6 @@ func (BootstrapService) Execute(ctx context.Context, command Command) (Result, e
 	switch command.Action {
 	case ActionTUI:
 		return Result{Message: "Kelyro TUI bootstrap: interactive mode is not implemented yet."}, nil
-	case ActionInit:
-		return Result{Message: "kelyro init: workspace initialization is not implemented yet."}, nil
 	case ActionDoctor:
 		return Result{Message: "kelyro doctor: diagnostics are not implemented yet."}, nil
 	case ActionConfig:

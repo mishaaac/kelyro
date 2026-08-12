@@ -33,7 +33,7 @@ func (fakeWorkspaceService) Discover(string) (workspace.Workspace, error) {
 	return workspace.Workspace{}, nil
 }
 
-func (fakeWorkspaceService) Init(string) (workspace.Workspace, error) {
+func (fakeWorkspaceService) Init(string, workspace.InitOptions) (workspace.Workspace, error) {
 	return workspace.Workspace{}, nil
 }
 
