@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 2 (pending authorization)
-Last completed step: 1
+Current step: 3 (pending authorization)
+Last completed step: 2
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -71,3 +71,41 @@ Release: unreleased
 ### Notes for next session
 
 - El Paso 2 es el siguiente paso pendiente y requiere autorización explícita.
+
+## Step 02 — Repositorios y application services del Student Core
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Paquete `internal/learning/application` con repositorios pequeños por agregado/caso de uso, sin una mega-interface de persistencia.
+- Contratos iniciales de `StudentService`, `GoalService`, `ProgressService`, `SessionService`, `ReviewService`, `AnalyticsService` y `DailyPlanService` para consumidores CLI/TUI neutrales a infraestructura.
+- Implementaciones delgadas que validan invariantes de dominio, orquestan repositorios y no incorporan políticas educativas reservadas para pasos posteriores.
+- Taxonomía estable y causal de errores: `not_found`, `conflict`, `invalid_state`, `unavailable` y `persistence_failure`.
+- Límite `UnitOfWork` que entrega repositorios coherentes dentro de una misma transacción sin exponer `sql.Tx`, `sql.Row`, drivers ni structs SQLite.
+- Adaptador fake in-memory determinista con aislamiento de datos y semántica comprobable de commit/rollback para tests sin SQLite.
+- Documentación arquitectónica de dependencias, puertos, servicios, errores y transacciones en `docs/architecture/student-learning-application.md`.
+
+### Decisions
+
+- `Repositories` es solo el conjunto de puertos entregado a un callback transaccional; no es un repositorio y no llega a presentación.
+- Los repositorios usan operaciones `Create`/`Append` para identidades o hechos inmutables y reportan conflictos, mientras que las consultas singulares reportan not found y las consultas de colección devuelven slices vacíos.
+- `ConceptProgress` ensambla únicamente hechos persistidos (estado, evidencia y errores); no calcula mastery ni cambia exposure.
+- El fake in-memory vive como adapter de pruebas reutilizable y publica el estado de una transacción solo si el callback termina correctamente.
+- Se añadió `RetentionRepository` por ser estado persistente del dominio, y `DailyPlanRepository` porque existe un servicio inicial equivalente; ninguno implementa todavía algoritmos de retención o planificación.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-i02-step2-target2-gocache go test ./internal/learning/...`
+- `GOCACHE=/tmp/kelyro-i02-step2-test-gocache go test ./...`
+- `GOCACHE=/tmp/kelyro-i02-step2-vet-gocache go vet ./...`
+- `GOCACHE=/tmp/kelyro-i02-step2-quality-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- `git diff --check`.
+- Revisión de imports: `internal/learning` no importa SQLite, Bubble Tea, drivers ni presentation adapters.
+
+### Notes for next session
+
+- El Paso 3 es el siguiente paso pendiente y requiere autorización explícita.
+- El adapter SQLite del Paso 3 debe implementar estos puertos y mapear errores del driver con `application.Classify`.

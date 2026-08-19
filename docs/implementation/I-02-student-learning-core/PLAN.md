@@ -402,7 +402,7 @@ feat(learning): define Student Core domain model
 
 ## Paso 2 — Diseñar repositorios y application services del Student Core
 
-- [ ] Paso 2 completado
+- [x] Paso 2 completado
 
 ### Objetivo
 
