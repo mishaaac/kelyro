@@ -167,11 +167,12 @@ func (repository learningStudentRepository) Get(ctx context.Context, id learning
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	var displayName, experience, createdAt, updatedAt string
-	var weeklyMinutes int
-	err := repository.executor.QueryRowContext(operationContext, `SELECT p.display_name, p.experience, p.weekly_minutes, s.created_at, s.updated_at
+	var displayName, experience, preferredLanguage, timezone, createdAt, updatedAt string
+	var dailyMinutes, weeklyDaysTarget int
+	err := repository.executor.QueryRowContext(operationContext, `SELECT COALESCE(p.preferred_display_name, ''), p.experience,
+p.preferred_language, p.daily_minutes, p.weekly_days_target, p.timezone, s.created_at, s.updated_at
 FROM students s JOIN student_profiles p ON p.student_id = s.id WHERE s.id = ?`, id.String()).Scan(
-		&displayName, &experience, &weeklyMinutes, &createdAt, &updatedAt)
+		&displayName, &experience, &preferredLanguage, &dailyMinutes, &weeklyDaysTarget, &timezone, &createdAt, &updatedAt)
 	if err != nil {
 		return learning.Student{}, classifyLearningError(operation, err)
 	}
@@ -195,7 +196,8 @@ FROM students s JOIN student_profiles p ON p.student_id = s.id WHERE s.id = ?`, 
 	}
 	student := learning.Student{ID: id, CreatedAt: created, UpdatedAt: updated,
 		Profile: learning.StudentProfile{DisplayName: displayName, Experience: learning.ExperienceLevel(experience),
-			Availability: learning.Availability{WeeklyMinutes: weeklyMinutes, PreferredDays: days}}}
+			PreferredLanguage: preferredLanguage, Timezone: timezone,
+			Availability: learning.Availability{DailyMinutes: dailyMinutes, WeeklyDaysTarget: weeklyDaysTarget, PreferredDays: days}}}
 	for _, preference := range preferences {
 		student.Profile.Preferences = append(student.Profile.Preferences, learning.StudyPreference(preference))
 	}
@@ -224,8 +226,11 @@ func (repository learningStudentRepository) Update(ctx context.Context, student 
 		if _, err := target.ExecContext(ctx, "DELETE FROM student_preferred_days WHERE student_id = ?", student.ID.String()); err != nil {
 			return err
 		}
-		if _, err := target.ExecContext(ctx, `UPDATE student_profiles SET display_name = ?, experience = ?, weekly_minutes = ? WHERE student_id = ?`,
-			student.Profile.DisplayName, student.Profile.Experience, student.Profile.Availability.WeeklyMinutes, student.ID.String()); err != nil {
+		if _, err := target.ExecContext(ctx, `UPDATE student_profiles SET display_name = ?, preferred_display_name = ?, experience = ?,
+preferred_language = ?, weekly_minutes = ?, daily_minutes = ?, weekly_days_target = ?, timezone = ? WHERE student_id = ?`,
+			legacyDisplayName(student.Profile.DisplayName), optionalDisplayName(student.Profile.DisplayName), student.Profile.Experience,
+			student.Profile.PreferredLanguage, student.Profile.Availability.WeeklyMinutes(), student.Profile.Availability.DailyMinutes,
+			student.Profile.Availability.WeeklyDaysTarget, student.Profile.Timezone, student.ID.String()); err != nil {
 			return err
 		}
 		return writeStudentCollections(ctx, target, student)
@@ -233,11 +238,28 @@ func (repository learningStudentRepository) Update(ctx context.Context, student 
 }
 
 func writeStudentProfile(ctx context.Context, target executor, student learning.Student) error {
-	if _, err := target.ExecContext(ctx, `INSERT INTO student_profiles (student_id, display_name, experience, weekly_minutes) VALUES (?, ?, ?, ?)`,
-		student.ID.String(), student.Profile.DisplayName, student.Profile.Experience, student.Profile.Availability.WeeklyMinutes); err != nil {
+	if _, err := target.ExecContext(ctx, `INSERT INTO student_profiles
+(student_id, display_name, preferred_display_name, experience, preferred_language, weekly_minutes, daily_minutes, weekly_days_target, timezone)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, student.ID.String(), legacyDisplayName(student.Profile.DisplayName), optionalDisplayName(student.Profile.DisplayName),
+		student.Profile.Experience, student.Profile.PreferredLanguage, student.Profile.Availability.WeeklyMinutes(),
+		student.Profile.Availability.DailyMinutes, student.Profile.Availability.WeeklyDaysTarget, student.Profile.Timezone); err != nil {
 		return err
 	}
 	return writeStudentCollections(ctx, target, student)
+}
+
+func legacyDisplayName(displayName string) string {
+	if displayName == "" {
+		return "Learner"
+	}
+	return displayName
+}
+
+func optionalDisplayName(displayName string) any {
+	if displayName == "" {
+		return nil
+	}
+	return displayName
 }
 
 func writeStudentCollections(ctx context.Context, target executor, student learning.Student) error {

@@ -25,6 +25,8 @@ func (model Model) View() string {
 			lines = model.configView(width)
 		case screenRoadmap:
 			lines = model.roadmapView(width)
+		case screenProfile:
+			lines = model.profileView(width)
 		default:
 			lines = model.homeView(width)
 		}
@@ -47,7 +49,50 @@ func (model Model) homeView(width int) []string {
 		lines = append(lines, model.styles.muted.Render("No learning path yet."))
 	}
 	lines = append(lines, "")
-	lines = append(lines, shortcutLines(width, "[Enter] Continue", "[d] Doctor", "[c] Config", "[r] Roadmap", "[q] Quit")...)
+	lines = append(lines, shortcutLines(width, "[Enter] Continue", "[p] Profile", "[d] Doctor", "[c] Config", "[r] Roadmap", "[q] Quit")...)
+	return lines
+}
+
+func (model Model) profileView(width int) []string {
+	lines := []string{model.styles.title.Render("Learner profile"), ""}
+	switch {
+	case model.profileLoading:
+		lines = append(lines, "Loading profile...")
+	case model.profileErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load profile"))
+		lines = append(lines, wrapText(model.profileErr.Error(), width)...)
+	default:
+		displayName := model.profile.Profile.DisplayName
+		if displayName == "" {
+			displayName = "<not set>"
+		}
+		preferences := make([]string, len(model.profile.Profile.Preferences))
+		for index, preference := range model.profile.Profile.Preferences {
+			preferences[index] = string(preference)
+		}
+		styles := strings.Join(preferences, ", ")
+		if styles == "" {
+			styles = "<none>"
+		}
+		values := []string{
+			"Display name: " + displayName,
+			"General experience: " + string(model.profile.Profile.Experience),
+			"Preferred language: " + model.profile.Profile.PreferredLanguage,
+			fmt.Sprintf("Daily time budget: %d minutes", model.profile.Profile.Availability.DailyMinutes),
+			fmt.Sprintf("Weekly study target: %d days", model.profile.Profile.Availability.WeeklyDaysTarget),
+			"Learning styles: " + styles,
+			"Timezone: " + model.profile.Profile.Timezone,
+		}
+		for _, value := range values {
+			lines = append(lines, truncate(value, width))
+		}
+		lines = append(lines, "")
+		for _, line := range wrapText("Edit with `kelyro profile edit`.", width) {
+			lines = append(lines, model.styles.muted.Render(line))
+		}
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
 	return lines
 }
 

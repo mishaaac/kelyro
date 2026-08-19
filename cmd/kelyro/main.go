@@ -18,6 +18,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/doctoros"
 	"github.com/mishaaac/kelyro/internal/infra/doctorsqlite"
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
+	"github.com/mishaaac/kelyro/internal/infra/learningdb"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
@@ -70,7 +71,8 @@ func main() {
 		WithAudit(auditsqlite.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithBackups(backups).
 		WithPortability(portable).
-		WithUpdates(updates)
+		WithUpdates(updates).
+		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).

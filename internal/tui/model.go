@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -17,6 +18,7 @@ const (
 	screenDoctor
 	screenConfig
 	screenRoadmap
+	screenProfile
 )
 
 // Model contains terminal-only state. It never discovers a workspace or reads
@@ -32,6 +34,9 @@ type Model struct {
 	loading           bool
 	saving            bool
 	opening           bool
+	profile           learning.Student
+	profileLoading    bool
+	profileErr        error
 	loadErr           error
 	notice            string
 	configCursor      int
@@ -113,6 +118,10 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if model.quitting {
 			return model, completeSessionCmd(model.ctx, model.service, model.command, model.session)
 		}
+		if model.screen == screenProfile {
+			model.profileLoading = true
+			return model, loadProfileCmd(model.ctx, model.service, model.command)
+		}
 		return model, nil
 	case foundationLoadFailedMsg:
 		model.loading = false
@@ -143,6 +152,24 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case roadmapOpenFailedMsg:
 		model.opening = false
 		model.notice = "Could not open roadmap: " + message.err.Error()
+		return model, nil
+	case profileLoadedMsg:
+		model.profile = message.student
+		model.profileLoading = false
+		model.profileErr = nil
+		model.notice = ""
+		if model.session.LastView != session.ViewProfile {
+			model.session.LastView = session.ViewProfile
+			return model.queueCheckpoint()
+		}
+		return model, nil
+	case profileLoadFailedMsg:
+		model.profileLoading = false
+		model.profileErr = message.err
+		if model.session.LastView != session.ViewProfile {
+			model.session.LastView = session.ViewProfile
+			return model.queueCheckpoint()
+		}
 		return model, nil
 	case sessionCheckpointedMsg:
 		return model.checkpointFinished(nil)
@@ -193,6 +220,11 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.screen = screenDoctor
 		case "c":
 			model.screen = screenConfig
+		case "p":
+			model.screen = screenProfile
+			model.profileLoading = true
+			model.profileErr = nil
+			return model, loadProfileCmd(model.ctx, model.service, model.command)
 		}
 		if model.screen != previous {
 			model.session.LastView = sessionView(model.screen)
@@ -210,6 +242,12 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.opening = true
 			model.notice = "Opening roadmap..."
 			return model, openRoadmapCmd(model.ctx, model.service, model.command)
+		}
+	case screenProfile:
+		if keyName == "r" && !model.profileLoading {
+			model.profileLoading = true
+			model.profileErr = nil
+			return model, loadProfileCmd(model.ctx, model.service, model.command)
 		}
 	}
 	return model, nil
@@ -271,6 +309,8 @@ func sessionView(current screen) session.View {
 		return session.ViewConfig
 	case screenRoadmap:
 		return session.ViewRoadmap
+	case screenProfile:
+		return session.ViewProfile
 	default:
 		return session.ViewHome
 	}
@@ -284,6 +324,8 @@ func screenFromSession(view session.View) screen {
 		return screenConfig
 	case session.ViewRoadmap:
 		return screenRoadmap
+	case session.ViewProfile:
+		return screenProfile
 	default:
 		return screenHome
 	}

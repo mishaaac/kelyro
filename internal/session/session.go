@@ -29,6 +29,7 @@ const (
 	ViewDoctor  View = "doctor"
 	ViewConfig  View = "config"
 	ViewRoadmap View = "roadmap"
+	ViewProfile View = "profile"
 )
 
 // State is the small durable subset needed to continue a workspace session.
@@ -257,7 +258,7 @@ func normalize(state State) State {
 
 func validView(view View) bool {
 	switch view {
-	case ViewHome, ViewDoctor, ViewConfig, ViewRoadmap:
+	case ViewHome, ViewDoctor, ViewConfig, ViewRoadmap, ViewProfile:
 		return true
 	default:
 		return false

@@ -3,6 +3,7 @@ package tui
 import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -29,6 +30,10 @@ type configSaveFailedMsg struct{ err error }
 type roadmapOpenedMsg struct{ message string }
 
 type roadmapOpenFailedMsg struct{ err error }
+
+type profileLoadedMsg struct{ student learning.Student }
+
+type profileLoadFailedMsg struct{ err error }
 
 type sessionCheckpointedMsg struct{}
 

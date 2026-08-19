@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 4 (pending authorization)
-Last completed step: 3
+Current step: 5 (pending authorization)
+Last completed step: 4
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -148,3 +148,42 @@ Release: unreleased
 
 - El Paso 4 es el siguiente paso pendiente y requiere autorización explícita.
 - Student Profile puede usar `application.StudentService` con `Database.LearningRepositories().Students`; no debe leer o escribir tablas directamente.
+
+## Step 04 — Student Profile persistente
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Perfil local único por workspace con ID estable `student.primary`, nombre opcional, experiencia general, idioma preferido, presupuesto diario, objetivo semanal, preferencias de aprendizaje, timezone y timestamps UTC.
+- Defaults deterministas y privados (`novice`, `en`, 30 minutos, 5 días, sin preferencias y `UTC`) creados en el primer uso, sin inferir datos del host.
+- Caso de uso `ProfileService` para create-on-first-use y edición parcial, reutilizando `StudentService` y manteniendo CLI/TUI independientes de SQLite.
+- Migration forward-only v5 y adapter SQLite actualizado para conservar perfiles v4, permitir nombre opcional y persistir los nuevos campos sin modificar migrations publicadas.
+- Factory workspace-scoped `learningdb` con cierre explícito de la base de datos y prueba de persistencia entre reaperturas.
+- CLI `kelyro profile show` y `kelyro profile edit` con salida humana, validación de opciones y soporte para limpiar campos opcionales.
+- Vista TUI simple de perfil, accesible desde Home, con refresh, estado de error responsive y reanudación mediante session state.
+- Documentación de defaults, privacidad, límites, compatibilidad de schema y uso en `docs/architecture/student-profile.md`.
+
+### Decisions
+
+- El nivel de experiencia del perfil es deliberadamente general; el conocimiento específico se determinará por goal/diagnostic en pasos posteriores.
+- El perfil no almacena edad, género, dirección, credenciales ni otra información sensible innecesaria.
+- Idioma y timezone se validan en dominio; la base IANA se embebe desde la librería estándar para mantener comportamiento offline y cross-platform.
+- La migration v5 conserva `display_name` y `weekly_minutes` como mirrors de compatibilidad de la v4 publicada; `preferred_display_name` es el campo autoritativo que permite ausencia real del nombre.
+- La TUI es de solo lectura en este paso. Toda edición usa el mismo caso de uso application mediante la CLI; onboarding no fue adelantado.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-i02-step4-target2-gocache go test ./internal/learning/... ./internal/storage/sqlite ./internal/infra/learningdb ./internal/app ./internal/cli ./internal/tui`
+- `GOCACHE=/tmp/kelyro-i02-step4-test-gocache go test ./...`
+- `GOCACHE=/tmp/kelyro-i02-step4-vet-gocache go vet ./...`
+- `GOCACHE=/tmp/kelyro-i02-step4-final-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- Smoke real `init → profile show → profile edit → profile show` sobre un workspace temporal, verificando defaults, salida humana y persistencia.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 5 es el siguiente paso pendiente y requiere autorización explícita.
+- Learning Goals debe consumir el `student.primary` persistido mediante application services; no debe acceder directamente al schema ni convertir experiencia general en conocimiento específico.

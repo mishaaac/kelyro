@@ -48,6 +48,44 @@ func TestFoundationDatabaseMigratesToStudentCoreWithoutLosingState(t *testing.T)
 	}
 }
 
+func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:4]); err != nil {
+		t.Fatalf("migrate through v4: %v", err)
+	}
+	timestamp := fixedTime.Format(timestampFormat)
+	if _, err := handle.Exec(`INSERT INTO students (id,created_at,updated_at) VALUES ('student.legacy',?,?)`, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO student_profiles (student_id,display_name,experience,weekly_minutes) VALUES ('student.legacy','Legacy Learner','beginner',180)`); err != nil {
+		t.Fatal(err)
+	}
+	for position, day := range []int{1, 3, 5} {
+		if _, err := handle.Exec(`INSERT INTO student_preferred_days (student_id,weekday,position) VALUES ('student.legacy',?,?)`, day, position); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate profile settings: %v", err)
+	}
+	student, err := database.LearningRepositories().Students.Get(context.Background(), mustID(t, "student.legacy"))
+	if err != nil {
+		t.Fatalf("get migrated student: %v", err)
+	}
+	if student.Profile.DisplayName != "Legacy Learner" || student.Profile.PreferredLanguage != "en" ||
+		student.Profile.Availability.DailyMinutes != 60 || student.Profile.Availability.WeeklyDaysTarget != 3 || student.Profile.Timezone != "UTC" {
+		t.Fatalf("migrated profile = %+v", student.Profile)
+	}
+}
+
 func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	ctx := context.Background()
@@ -112,6 +150,15 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	gotStudent, _ = repositories.Students.Get(ctx, student.ID)
 	if !reflect.DeepEqual(gotStudent, student) {
 		t.Fatalf("updated student=%+v", gotStudent)
+	}
+	student.Profile.DisplayName = ""
+	student.UpdatedAt = mustTimestamp(t, fixedTime.Add(2*time.Minute))
+	if err := repositories.Students.Update(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	gotStudent, _ = repositories.Students.Get(ctx, student.ID)
+	if !reflect.DeepEqual(gotStudent, student) {
+		t.Fatalf("student with empty display name=%+v", gotStudent)
 	}
 
 	goal := testGoal(t, student.ID)
@@ -282,7 +329,7 @@ func TestSQLiteLearningRepositoriesClassifyCancellation(t *testing.T) {
 
 func testStudent(t *testing.T) learning.Student {
 	t.Helper()
-	student, err := learning.NewStudent(mustID(t, "student-1"), learning.StudentProfile{DisplayName: "Ada", Experience: learning.ExperienceBeginner, Preferences: []learning.StudyPreference{learning.PreferencePractice, learning.PreferenceTheoryFirst}, Availability: learning.Availability{WeeklyMinutes: 180, PreferredDays: []int{1, 3, 5}}}, mustTimestamp(t, fixedTime))
+	student, err := learning.NewStudent(mustID(t, "student-1"), learning.StudentProfile{DisplayName: "Ada", Experience: learning.ExperienceBeginner, PreferredLanguage: "es-PE", Preferences: []learning.StudyPreference{learning.PreferencePractice, learning.PreferenceTheoryFirst}, Availability: learning.Availability{DailyMinutes: 60, WeeklyDaysTarget: 3, PreferredDays: []int{1, 3, 5}}, Timezone: "America/Lima"}, mustTimestamp(t, fixedTime))
 	if err != nil {
 		t.Fatal(err)
 	}

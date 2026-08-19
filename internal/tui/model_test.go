@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -47,6 +48,7 @@ func TestModelNavigatesFoundationScreens(t *testing.T) {
 		{name: "config", key: "c", want: screenConfig},
 		{name: "roadmap", key: "r", want: screenRoadmap},
 		{name: "continue", key: "enter", want: screenRoadmap},
+		{name: "profile", key: "p", want: screenProfile},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -117,6 +119,30 @@ func TestModelResumesViewAndPersistsOnlyMeaningfulTransitions(t *testing.T) {
 	settled, next := home.(Model).Update(message)
 	if next != nil || settled.(Model).checkpointing || len(service.checkpoints) != 1 {
 		t.Fatalf("checkpoint result: model=%#v next=%v writes=%d", settled, next, len(service.checkpoints))
+	}
+}
+
+func TestModelResumesAndLoadsProfileView(t *testing.T) {
+	student := tuiProfileStudent(t)
+	service := &fakeService{
+		snapshot: healthySnapshot(),
+		result:   app.Result{Profile: &student},
+		resume: session.Resume{State: session.State{
+			Version:          session.CurrentVersion,
+			LastView:         session.ViewProfile,
+			SetupFlags:       map[string]bool{},
+			SessionStartedAt: time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC),
+			SafeToResume:     true,
+		}},
+	}
+	model := NewModel(context.Background(), service, app.Command{}, true)
+	initialized, command := model.Update(model.Init()())
+	if command == nil || initialized.(Model).screen != screenProfile || !initialized.(Model).profileLoading {
+		t.Fatalf("resumed profile = model %#v command %v", initialized, command)
+	}
+	loaded, next := initialized.(Model).Update(command())
+	if next != nil || loaded.(Model).profile.Profile.DisplayName != "Ada" {
+		t.Fatalf("loaded resumed profile = model %#v next %v", loaded, next)
 	}
 }
 
@@ -270,13 +296,38 @@ func TestRoadmapOpenUsesApplicationService(t *testing.T) {
 	}
 }
 
+func TestProfileScreenLoadsThroughApplicationService(t *testing.T) {
+	t.Parallel()
+
+	student := tuiProfileStudent(t)
+	service := &fakeService{result: app.Result{Profile: &student}}
+	model := readyModel(service)
+	opening, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	if command == nil || opening.(Model).screen != screenProfile || !opening.(Model).profileLoading {
+		t.Fatalf("profile navigation = model %#v command %v", opening, command)
+	}
+	loaded, _ := opening.(Model).Update(command())
+	got := loaded.(Model)
+	if got.profileLoading || got.profile.Profile.DisplayName != "Ada" || len(service.executed) != 1 {
+		t.Fatalf("loaded profile = model %#v calls %#v", got, service.executed)
+	}
+	if call := service.executed[0]; call.Action != app.ActionProfile || call.ProfileOperation != "show" {
+		t.Fatalf("profile command = %#v", call)
+	}
+	for _, expected := range []string{"Learner profile", "Display name: Ada", "Preferred language: es-PE", "Timezone: America/Lima", "kelyro profile edit"} {
+		if !strings.Contains(got.View(), expected) {
+			t.Errorf("profile view missing %q:\n%s", expected, got.View())
+		}
+	}
+}
+
 func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 	t.Parallel()
 
 	for _, width := range []int{24, 40, 80, 120} {
 		model := readyModel(&fakeService{})
 		model.width = width
-		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap} {
+		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenProfile} {
 			model.screen = current
 			for _, line := range strings.Split(model.View(), "\n") {
 				if got := lipgloss.Width(line); got > width {
@@ -285,6 +336,22 @@ func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 			}
 		}
 	}
+}
+
+func tuiProfileStudent(t *testing.T) learning.Student {
+	t.Helper()
+	id, _ := learning.NewID("student.primary")
+	timestamp, _ := learning.NewTimestamp(time.Date(2026, time.August, 19, 15, 0, 0, 0, time.UTC))
+	profile := learning.DefaultStudentProfile()
+	profile.DisplayName = "Ada"
+	profile.Experience = learning.ExperienceIntermediate
+	profile.PreferredLanguage = "es-PE"
+	profile.Timezone = "America/Lima"
+	student, err := learning.NewStudent(id, profile, timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return student
 }
 
 func readyModel(service Service) Model {

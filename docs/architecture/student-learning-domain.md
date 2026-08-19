@@ -75,10 +75,10 @@ loading and graph policies without changing the identity of concepts.
 | Term | Meaning |
 | --- | --- |
 | `Student` | Stable learner identity and current profile. |
-| `StudentProfile` | Learner-provided display name, experience, study preferences, and availability. |
+| `StudentProfile` | Learner-provided optional display name, general experience, preferred language, study preferences, timezone, and availability. |
 | `ExperienceLevel` | Coarse starting point: novice, beginner, intermediate, or advanced. |
 | `StudyPreference` | Preferred learning mode, independent from subject and UI. |
-| `Availability` | Sustainable weekly study budget and optional preferred weekdays. |
+| `Availability` | Sustainable daily time budget, weekly-days target, and optional preferred weekdays. |
 | `LearningGoal` | Intended learning outcome, lifecycle status, and mastery threshold. |
 | `CurriculumRef` | Stable identity plus version of deterministic curriculum supplied elsewhere. |
 | `Phase`, `Module`, `Lesson`, `Topic` | Ordered curriculum containers connected through stable child IDs. |

@@ -8,10 +8,12 @@ func TestStudentAndGoalConstructorsEnforceRequiredState(t *testing.T) {
 	studentID := mustID(t, "student.ada")
 	createdAt := mustTimestamp(t, 10)
 	profile := StudentProfile{
-		DisplayName:  "Ada",
-		Experience:   ExperienceBeginner,
-		Preferences:  []StudyPreference{PreferenceTheoryFirst, PreferencePractice},
-		Availability: Availability{WeeklyMinutes: 180, PreferredDays: []int{1, 3, 5}},
+		DisplayName:       "Ada",
+		Experience:        ExperienceBeginner,
+		PreferredLanguage: "es-PE",
+		Preferences:       []StudyPreference{PreferenceTheoryFirst, PreferencePractice},
+		Availability:      Availability{DailyMinutes: 60, WeeklyDaysTarget: 3, PreferredDays: []int{1, 3, 5}},
+		Timezone:          "America/Lima",
 	}
 	student, err := NewStudent(studentID, profile, createdAt)
 	if err != nil {
@@ -39,6 +41,37 @@ func TestStudentAndGoalConstructorsEnforceRequiredState(t *testing.T) {
 	profile.Experience = ExperienceLevel("expert-ish")
 	if _, err := NewStudent(studentID, profile, createdAt); err == nil {
 		t.Fatal("NewStudent() accepted invalid experience level")
+	}
+}
+
+func TestStudentProfileDefaultsAndOptionalDisplayName(t *testing.T) {
+	t.Parallel()
+
+	profile := DefaultStudentProfile()
+	if err := profile.Validate(); err != nil {
+		t.Fatalf("DefaultStudentProfile().Validate() error = %v", err)
+	}
+	if profile.DisplayName != "" || profile.Experience != ExperienceNovice || profile.PreferredLanguage != "en" ||
+		profile.Availability.DailyMinutes != 30 || profile.Availability.WeeklyDaysTarget != 5 || profile.Timezone != "UTC" {
+		t.Fatalf("DefaultStudentProfile() = %+v", profile)
+	}
+	if got := profile.Availability.WeeklyMinutes(); got != 150 {
+		t.Fatalf("WeeklyMinutes() = %d, want 150", got)
+	}
+
+	profile.Timezone = "Not/A_Real_Zone"
+	if err := profile.Validate(); err == nil {
+		t.Fatal("StudentProfile.Validate() accepted invalid timezone")
+	}
+	profile = DefaultStudentProfile()
+	profile.PreferredLanguage = "not_valid"
+	if err := profile.Validate(); err == nil {
+		t.Fatal("StudentProfile.Validate() accepted invalid preferred language")
+	}
+	profile = DefaultStudentProfile()
+	profile.DisplayName = "   "
+	if err := profile.Validate(); err == nil {
+		t.Fatal("StudentProfile.Validate() accepted whitespace-only display name")
 	}
 }
 

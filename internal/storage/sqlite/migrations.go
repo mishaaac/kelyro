@@ -345,6 +345,28 @@ WHERE created_at = '' OR last_generated_at = ''`,
 )`,
 		},
 	},
+	{
+		version: 5,
+		name:    "learner profile settings",
+		statements: []string{
+			`ALTER TABLE student_profiles ADD COLUMN preferred_display_name TEXT CHECK (preferred_display_name IS NULL OR length(trim(preferred_display_name)) > 0)`,
+			`ALTER TABLE student_profiles ADD COLUMN preferred_language TEXT NOT NULL DEFAULT 'en' CHECK (length(trim(preferred_language)) > 0)`,
+			`ALTER TABLE student_profiles ADD COLUMN daily_minutes INTEGER NOT NULL DEFAULT 30 CHECK (daily_minutes BETWEEN 5 AND 1440)`,
+			`ALTER TABLE student_profiles ADD COLUMN weekly_days_target INTEGER NOT NULL DEFAULT 5 CHECK (weekly_days_target BETWEEN 1 AND 7)`,
+			`ALTER TABLE student_profiles ADD COLUMN timezone TEXT NOT NULL DEFAULT 'UTC' CHECK (length(trim(timezone)) > 0)`,
+			`UPDATE student_profiles
+SET preferred_display_name = display_name,
+    weekly_days_target = CASE
+        WHEN (SELECT COUNT(*) FROM student_preferred_days d WHERE d.student_id = student_profiles.student_id) BETWEEN 1 AND 7
+        THEN (SELECT COUNT(*) FROM student_preferred_days d WHERE d.student_id = student_profiles.student_id)
+        ELSE 5
+    END`,
+			`UPDATE student_profiles
+SET daily_minutes = MIN(1440, MAX(5, CAST(
+    (weekly_minutes + weekly_days_target - 1) / weekly_days_target AS INTEGER
+)))`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

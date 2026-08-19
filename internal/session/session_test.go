@@ -53,6 +53,26 @@ func TestNormalQuitResumesLastSafeContext(t *testing.T) {
 	}
 }
 
+func TestProfileViewIsAResumableDestination(t *testing.T) {
+	t.Parallel()
+
+	states := &memoryStateStore{}
+	manager := NewManager(states, nil, func() time.Time { return currentTime })
+	started, err := manager.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := started.State
+	state.LastView = ViewProfile
+	if err := manager.Complete(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := manager.Resume(context.Background())
+	if err != nil || resumed.Recovered || resumed.State.LastView != ViewProfile {
+		t.Fatalf("profile resume = (%+v, %v)", resumed, err)
+	}
+}
+
 func TestCorruptStateRecoversDefaultsAndRecordsAudit(t *testing.T) {
 	states := &memoryStateStore{value: []byte("{not-json"), found: true}
 	recorder := &memoryAuditRecorder{}

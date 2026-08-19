@@ -15,6 +15,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/editor"
+	"github.com/mishaaac/kelyro/internal/learning"
+	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/logging"
 	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/portability"
@@ -43,35 +45,38 @@ const (
 	ActionExport  Action = "export"
 	ActionImport  Action = "import"
 	ActionUpdate  Action = "update"
+	ActionProfile Action = "profile"
 )
 
 // Command contains presentation-independent input for a Foundation action.
 type Command struct {
-	Action          Action
-	Workspace       string
-	AllowNested     bool
-	ConfigOperation string
-	ConfigScope     config.Scope
-	ConfigKey       string
-	ConfigValue     string
-	ConfigOverrides config.Settings
-	SecretOperation string
-	SecretName      string
-	SecretValue     string
-	OpenTarget      string
-	DoctorContext   doctor.Context
-	DoctorExplain   string
-	LogOperation    string
-	BackupOperation string
-	BackupID        string
-	BackupConfirmed bool
-	ExportMode      portability.Mode
-	ExportOutput    string
-	ImportArchive   string
-	ImportDryRun    bool
-	ImportConflicts portability.ConflictStrategy
-	UpdateOperation string
-	Verbose         bool
+	Action           Action
+	Workspace        string
+	AllowNested      bool
+	ConfigOperation  string
+	ConfigScope      config.Scope
+	ConfigKey        string
+	ConfigValue      string
+	ConfigOverrides  config.Settings
+	SecretOperation  string
+	SecretName       string
+	SecretValue      string
+	OpenTarget       string
+	DoctorContext    doctor.Context
+	DoctorExplain    string
+	LogOperation     string
+	BackupOperation  string
+	BackupID         string
+	BackupConfirmed  bool
+	ExportMode       portability.Mode
+	ExportOutput     string
+	ImportArchive    string
+	ImportDryRun     bool
+	ImportConflicts  portability.ConflictStrategy
+	UpdateOperation  string
+	ProfileOperation string
+	ProfileChanges   learningapp.ProfileChanges
+	Verbose          bool
 }
 
 // Result contains presentation-independent output from a Foundation action.
@@ -84,6 +89,7 @@ type Result struct {
 	Backups     []backup.Info
 	Portability *portability.Report
 	Update      *update.Result
+	Profile     *learning.Student
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -106,6 +112,7 @@ type Service struct {
 	backups          backup.Service
 	portability      portability.Service
 	updates          update.Checker
+	profiles         learningapp.ProfileStoreFactory
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -126,6 +133,12 @@ func (service *Service) WithPortability(portable portability.Service) *Service {
 // installer and therefore cannot modify the running binary.
 func (service *Service) WithUpdates(checker update.Checker) *Service {
 	service.updates = checker
+	return service
+}
+
+// WithProfiles attaches the workspace-local learner profile store.
+func (service *Service) WithProfiles(profiles learningapp.ProfileStoreFactory) *Service {
+	service.profiles = profiles
 	return service
 }
 
@@ -224,6 +237,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionUpdate {
 		return service.executeUpdate(ctx, command)
+	}
+	if command.Action == ActionProfile {
+		return service.executeProfile(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

@@ -13,6 +13,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
+	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/update"
 )
@@ -38,6 +39,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "export", args: []string{"export"}, wantAction: app.ActionExport},
 		{name: "import", args: []string{"import", "workspace.tar.gz"}, wantAction: app.ActionImport},
 		{name: "update check", args: []string{"update", "check"}, wantAction: app.ActionUpdate},
+		{name: "profile show", args: []string{"profile", "show"}, wantAction: app.ActionProfile},
 	}
 
 	for _, test := range tests {
@@ -66,6 +68,62 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunnerParsesProfileEditAndRendersHumanReadableProfile(t *testing.T) {
+	t.Parallel()
+
+	student := testProfileStudent(t)
+	service := &fakeService{result: app.Result{Profile: &student}}
+	var stdout, stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr)
+	exitCode := runner.Run(context.Background(), []string{
+		"profile", "edit", "--display-name", "Ada", "--experience=intermediate",
+		"--language", "es-PE", "--daily-minutes=45", "--weekly-days", "4",
+		"--learning-styles", "practice,reflection", "--timezone", "America/Lima",
+	})
+	if exitCode != ExitOK || stderr.Len() != 0 || len(service.commands) != 1 {
+		t.Fatalf("profile edit exit=%d commands=%+v stderr=%q", exitCode, service.commands, stderr.String())
+	}
+	command := service.commands[0]
+	if command.Action != app.ActionProfile || command.ProfileOperation != "edit" || command.ProfileChanges.DisplayName == nil || *command.ProfileChanges.DisplayName != "Ada" ||
+		command.ProfileChanges.DailyMinutes == nil || *command.ProfileChanges.DailyMinutes != 45 || command.ProfileChanges.Preferences == nil || len(*command.ProfileChanges.Preferences) != 2 {
+		t.Fatalf("profile command = %+v", command)
+	}
+	for _, expected := range []string{"Learner profile", "Display name: Ada", "General experience: intermediate", "Preferred language: es-PE", "Daily time budget: 45 minutes", "Weekly study target: 4 days", "Learning styles: practice, reflection", "Timezone: America/Lima"} {
+		if !strings.Contains(stdout.String(), expected) {
+			t.Errorf("profile output missing %q:\n%s", expected, stdout.String())
+		}
+	}
+}
+
+func TestRunnerRejectsIncompleteProfileCommands(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{{"profile"}, {"profile", "edit"}, {"profile", "show", "--timezone", "UTC"}} {
+		var stderr bytes.Buffer
+		if exitCode := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); exitCode != ExitUsage {
+			t.Fatalf("Run(%v) exit=%d stderr=%q", args, exitCode, stderr.String())
+		}
+	}
+}
+
+func testProfileStudent(t *testing.T) learning.Student {
+	t.Helper()
+	id, _ := learning.NewID("student.primary")
+	timestamp, _ := learning.NewTimestamp(time.Date(2026, time.August, 19, 15, 0, 0, 0, time.UTC))
+	profile := learning.DefaultStudentProfile()
+	profile.DisplayName = "Ada"
+	profile.Experience = learning.ExperienceIntermediate
+	profile.PreferredLanguage = "es-PE"
+	profile.Availability.DailyMinutes = 45
+	profile.Availability.WeeklyDaysTarget = 4
+	profile.Preferences = []learning.StudyPreference{learning.PreferencePractice, learning.PreferenceReflection}
+	profile.Timezone = "America/Lima"
+	student, err := learning.NewStudent(id, profile, timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return student
 }
 
 func TestRunnerParsesAndRendersUpdateChecks(t *testing.T) {

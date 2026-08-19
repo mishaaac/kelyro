@@ -81,6 +81,23 @@ func openRoadmapCmd(ctx context.Context, service Service, base app.Command) tea.
 	}
 }
 
+func loadProfileCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{
+			Action:           app.ActionProfile,
+			Workspace:        base.Workspace,
+			ProfileOperation: "show",
+		})
+		if err != nil {
+			return profileLoadFailedMsg{err: err}
+		}
+		if result.Profile == nil {
+			return profileLoadFailedMsg{err: fmt.Errorf("learner profile was not returned")}
+		}
+		return profileLoadedMsg{student: *result.Profile}
+	}
+}
+
 func checkpointSessionCmd(ctx context.Context, service Service, command app.Command, state session.State) tea.Cmd {
 	state = state.Clone()
 	return func() tea.Msg {

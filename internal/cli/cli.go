@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/app"
@@ -13,6 +14,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
+	"github.com/mishaaac/kelyro/internal/learning"
+	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/version"
@@ -47,6 +50,7 @@ Commands:
   export   Export readable documents or a full portable workspace
   import   Validate and import a portable workspace archive
   update   Check for releases; installation remains unsupported
+  profile  Show or edit the persistent learner profile
 
 Options:
   -h, --help          Show this help message
@@ -98,6 +102,15 @@ Portability commands:
 Update commands:
   kelyro update check
   kelyro update
+
+Profile commands:
+  kelyro profile show
+  kelyro profile edit [--display-name NAME] [--experience LEVEL]
+    [--language TAG] [--daily-minutes N] [--weekly-days N]
+    [--learning-styles LIST] [--timezone IANA_ZONE]
+  LEVEL: novice, beginner, intermediate, advanced
+  LIST: comma-separated theory_first, practice, projects, reflection
+  Use --display-name= or --learning-styles= to clear optional values.
 `
 
 var actions = map[string]app.Action{
@@ -114,6 +127,7 @@ var actions = map[string]app.Action{
 	"export":  app.ActionExport,
 	"import":  app.ActionImport,
 	"update":  app.ActionUpdate,
+	"profile": app.ActionProfile,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -198,22 +212,24 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	command := app.Command{
-		Action:          action,
-		Workspace:       invocation.workspace,
-		AllowNested:     invocation.allowNested,
-		ConfigScope:     invocation.configScope,
-		OpenTarget:      invocation.openTarget,
-		DoctorExplain:   invocation.doctorExplain,
-		LogOperation:    invocation.logOperation,
-		BackupOperation: invocation.backupOperation,
-		BackupID:        invocation.backupID,
-		ExportMode:      invocation.exportMode,
-		ExportOutput:    invocation.exportOutput,
-		ImportArchive:   invocation.importArchive,
-		ImportDryRun:    invocation.importDryRun,
-		ImportConflicts: invocation.importConflicts,
-		UpdateOperation: invocation.updateOperation,
-		Verbose:         invocation.verbose,
+		Action:           action,
+		Workspace:        invocation.workspace,
+		AllowNested:      invocation.allowNested,
+		ConfigScope:      invocation.configScope,
+		OpenTarget:       invocation.openTarget,
+		DoctorExplain:    invocation.doctorExplain,
+		LogOperation:     invocation.logOperation,
+		BackupOperation:  invocation.backupOperation,
+		BackupID:         invocation.backupID,
+		ExportMode:       invocation.exportMode,
+		ExportOutput:     invocation.exportOutput,
+		ImportArchive:    invocation.importArchive,
+		ImportDryRun:     invocation.importDryRun,
+		ImportConflicts:  invocation.importConflicts,
+		UpdateOperation:  invocation.updateOperation,
+		ProfileOperation: invocation.profileOperation,
+		ProfileChanges:   invocation.profileChanges,
+		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -284,6 +300,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatPortability(*result.Portability))
 	} else if result.Update != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatUpdate(*result.Update))
+	} else if result.Profile != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatProfile(*result.Profile))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -292,6 +310,31 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatProfile(student learning.Student) string {
+	displayName := student.Profile.DisplayName
+	if displayName == "" {
+		displayName = "<not set>"
+	}
+	preferences := make([]string, len(student.Profile.Preferences))
+	for index, preference := range student.Profile.Preferences {
+		preferences[index] = string(preference)
+	}
+	styles := strings.Join(preferences, ", ")
+	if styles == "" {
+		styles = "<none>"
+	}
+	return strings.Join([]string{
+		"Learner profile",
+		"Display name: " + displayName,
+		"General experience: " + string(student.Profile.Experience),
+		"Preferred language: " + student.Profile.PreferredLanguage,
+		fmt.Sprintf("Daily time budget: %d minutes", student.Profile.Availability.DailyMinutes),
+		fmt.Sprintf("Weekly study target: %d days", student.Profile.Availability.WeeklyDaysTarget),
+		"Learning styles: " + styles,
+		"Timezone: " + student.Profile.Timezone,
+	}, "\n")
 }
 
 func formatUpdate(result update.Result) string {
@@ -428,34 +471,37 @@ func formatDiagnostics(report doctor.Report) string {
 }
 
 type invocation struct {
-	command         string
-	workspace       string
-	help            bool
-	version         bool
-	noColor         bool
-	verbose         bool
-	quiet           bool
-	allowNested     bool
-	arguments       []string
-	configScope     config.Scope
-	configOperation string
-	configKey       string
-	configValue     string
-	secretOperation string
-	secretName      string
-	openTarget      string
-	doctorExplain   string
-	logOperation    string
-	backupOperation string
-	backupID        string
-	yes             bool
-	exportMode      portability.Mode
-	exportOutput    string
-	importArchive   string
-	importDryRun    bool
-	importConflicts portability.ConflictStrategy
-	conflictSet     bool
-	updateOperation string
+	command          string
+	workspace        string
+	help             bool
+	version          bool
+	noColor          bool
+	verbose          bool
+	quiet            bool
+	allowNested      bool
+	arguments        []string
+	configScope      config.Scope
+	configOperation  string
+	configKey        string
+	configValue      string
+	secretOperation  string
+	secretName       string
+	openTarget       string
+	doctorExplain    string
+	logOperation     string
+	backupOperation  string
+	backupID         string
+	yes              bool
+	exportMode       portability.Mode
+	exportOutput     string
+	importArchive    string
+	importDryRun     bool
+	importConflicts  portability.ConflictStrategy
+	conflictSet      bool
+	updateOperation  string
+	profileOperation string
+	profileChanges   learningapp.ProfileChanges
+	profileFlagsSet  bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -482,6 +528,82 @@ func parse(args []string) (invocation, error) {
 			result.exportMode = portability.ModeFull
 		case argument == "--dry-run":
 			result.importDryRun = true
+		case argument == "--display-name":
+			index++
+			if index >= len(args) {
+				return invocation{}, fmt.Errorf("option --display-name requires a value")
+			}
+			value := args[index]
+			result.profileChanges.DisplayName = &value
+			result.profileFlagsSet = true
+		case strings.HasPrefix(argument, "--display-name="):
+			value := strings.TrimPrefix(argument, "--display-name=")
+			result.profileChanges.DisplayName = &value
+			result.profileFlagsSet = true
+		case argument == "--experience":
+			index++
+			if index >= len(args) {
+				return invocation{}, fmt.Errorf("option --experience requires a level")
+			}
+			value := learning.ExperienceLevel(args[index])
+			result.profileChanges.Experience = &value
+			result.profileFlagsSet = true
+		case strings.HasPrefix(argument, "--experience="):
+			value := learning.ExperienceLevel(strings.TrimPrefix(argument, "--experience="))
+			result.profileChanges.Experience = &value
+			result.profileFlagsSet = true
+		case argument == "--language":
+			index++
+			if index >= len(args) {
+				return invocation{}, fmt.Errorf("option --language requires a language tag")
+			}
+			value := args[index]
+			result.profileChanges.PreferredLanguage = &value
+			result.profileFlagsSet = true
+		case strings.HasPrefix(argument, "--language="):
+			value := strings.TrimPrefix(argument, "--language=")
+			result.profileChanges.PreferredLanguage = &value
+			result.profileFlagsSet = true
+		case argument == "--daily-minutes" || strings.HasPrefix(argument, "--daily-minutes="):
+			value, next, err := integerOption(args, index, "--daily-minutes", argument)
+			if err != nil {
+				return invocation{}, err
+			}
+			index = next
+			result.profileChanges.DailyMinutes = &value
+			result.profileFlagsSet = true
+		case argument == "--weekly-days" || strings.HasPrefix(argument, "--weekly-days="):
+			value, next, err := integerOption(args, index, "--weekly-days", argument)
+			if err != nil {
+				return invocation{}, err
+			}
+			index = next
+			result.profileChanges.WeeklyDaysTarget = &value
+			result.profileFlagsSet = true
+		case argument == "--learning-styles":
+			index++
+			if index >= len(args) {
+				return invocation{}, fmt.Errorf("option --learning-styles requires a comma-separated list")
+			}
+			styles := parseStudyPreferences(args[index])
+			result.profileChanges.Preferences = &styles
+			result.profileFlagsSet = true
+		case strings.HasPrefix(argument, "--learning-styles="):
+			styles := parseStudyPreferences(strings.TrimPrefix(argument, "--learning-styles="))
+			result.profileChanges.Preferences = &styles
+			result.profileFlagsSet = true
+		case argument == "--timezone":
+			index++
+			if index >= len(args) {
+				return invocation{}, fmt.Errorf("option --timezone requires an IANA timezone")
+			}
+			value := args[index]
+			result.profileChanges.Timezone = &value
+			result.profileFlagsSet = true
+		case strings.HasPrefix(argument, "--timezone="):
+			value := strings.TrimPrefix(argument, "--timezone=")
+			result.profileChanges.Timezone = &value
+			result.profileFlagsSet = true
 		case argument == "--output":
 			index++
 			if index >= len(args) || strings.TrimSpace(args[index]) == "" || strings.HasPrefix(args[index], "-") {
@@ -618,6 +740,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseUpdateArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "profile":
+		if err := parseProfileArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -641,8 +767,52 @@ func parse(args []string) (invocation, error) {
 	if !result.importConflicts.Valid() {
 		return invocation{}, fmt.Errorf("option --conflict requires fail, keep, or overwrite")
 	}
+	if result.profileFlagsSet && (result.command != "profile" || result.profileOperation != "edit") {
+		return invocation{}, fmt.Errorf("profile edit options require the profile edit command")
+	}
 
 	return result, nil
+}
+
+func parseProfileArguments(result *invocation) error {
+	if len(result.arguments) != 1 || (result.arguments[0] != "show" && result.arguments[0] != "edit") {
+		return fmt.Errorf("profile requires show or edit")
+	}
+	result.profileOperation = result.arguments[0]
+	if result.profileOperation == "edit" && !result.profileFlagsSet {
+		return fmt.Errorf("profile edit requires at least one profile option")
+	}
+	return nil
+}
+
+func integerOption(args []string, index int, name, argument string) (int, int, error) {
+	valueText := ""
+	if argument == name {
+		index++
+		if index >= len(args) {
+			return 0, index, fmt.Errorf("option %s requires an integer", name)
+		}
+		valueText = args[index]
+	} else {
+		valueText = strings.TrimPrefix(argument, name+"=")
+	}
+	value, err := strconv.Atoi(valueText)
+	if err != nil {
+		return 0, index, fmt.Errorf("option %s requires an integer", name)
+	}
+	return value, index, nil
+}
+
+func parseStudyPreferences(value string) []learning.StudyPreference {
+	if strings.TrimSpace(value) == "" {
+		return []learning.StudyPreference{}
+	}
+	parts := strings.Split(value, ",")
+	preferences := make([]learning.StudyPreference, 0, len(parts))
+	for _, part := range parts {
+		preferences = append(preferences, learning.StudyPreference(strings.TrimSpace(part)))
+	}
+	return preferences
 }
 
 func parseUpdateArguments(result *invocation) error {

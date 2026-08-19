@@ -598,7 +598,7 @@ La migration compatible que habilita nueva funcionalidad normalmente acompaña u
 
 ## Paso 4 — Implementar el Student Profile
 
-- [ ] Paso 4 completado
+- [x] Paso 4 completado
 
 ### Objetivo
 

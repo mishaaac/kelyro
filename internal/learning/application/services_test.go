@@ -71,7 +71,7 @@ func TestServicesClassifyDomainAndRepositoryErrors(t *testing.T) {
 	student := testStudent(t)
 
 	invalidStudent := student
-	invalidStudent.Profile.DisplayName = ""
+	invalidStudent.Profile.Timezone = "Mars/Olympus"
 	if err := service.Create(ctx, invalidStudent); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("invalid Create() error = %v, want invalid state", err)
 	}
@@ -282,9 +282,10 @@ func testStudent(t *testing.T) learning.Student {
 	student, err := learning.NewStudent(
 		testID(t, "student.ada"),
 		learning.StudentProfile{
-			DisplayName: "Ada", Experience: learning.ExperienceBeginner,
+			DisplayName: "Ada", Experience: learning.ExperienceBeginner, PreferredLanguage: "en",
 			Preferences:  []learning.StudyPreference{learning.PreferenceTheoryFirst},
-			Availability: learning.Availability{WeeklyMinutes: 180, PreferredDays: []int{1, 3, 5}},
+			Availability: learning.Availability{DailyMinutes: 60, WeeklyDaysTarget: 3, PreferredDays: []int{1, 3, 5}},
+			Timezone:     "UTC",
 		},
 		testTimestamp(t, 1),
 	)

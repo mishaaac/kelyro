@@ -6,6 +6,37 @@ import (
 	"github.com/mishaaac/kelyro/internal/learning"
 )
 
+// ProfileChanges contains only fields explicitly supplied by a profile edit.
+// Pointer fields distinguish an omitted value from an intentional zero value,
+// such as clearing the optional display name or all study preferences.
+type ProfileChanges struct {
+	DisplayName       *string
+	Experience        *learning.ExperienceLevel
+	PreferredLanguage *string
+	DailyMinutes      *int
+	WeeklyDaysTarget  *int
+	Preferences       *[]learning.StudyPreference
+	Timezone          *string
+}
+
+// ProfileService owns the single local learner profile for a workspace. Show
+// creates deterministic defaults on first use; Edit applies a partial change.
+type ProfileService interface {
+	Show(context.Context) (learning.Student, error)
+	Edit(context.Context, ProfileChanges) (learning.Student, error)
+}
+
+// ProfileStore scopes profile operations and their database lifetime to one
+// workspace without exposing SQLite to application or presentation packages.
+type ProfileStore interface {
+	Profiles() ProfileService
+	Close() error
+}
+
+type ProfileStoreFactory interface {
+	Open(context.Context, string) (ProfileStore, error)
+}
+
 // Repository interfaces are intentionally separated by aggregate/use case.
 // Implementations must return classified errors and must not expose storage
 // handles, rows, or driver-specific values.
