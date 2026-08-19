@@ -496,7 +496,7 @@ refactor(learning): define Student Core service boundaries
 
 ## Paso 3 — Añadir schema SQLite y migrations de Student Core
 
-- [ ] Paso 3 completado
+- [x] Paso 3 completado
 
 ### Objetivo
 

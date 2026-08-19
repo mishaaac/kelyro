@@ -13,3 +13,7 @@ The Student & Learning Core domain vocabulary and invariants are documented in
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).
+
+The additive SQLite schema, normalization decisions, indexes, constraints, and
+repository adapter are documented in
+[student-learning-persistence.md](student-learning-persistence.md).

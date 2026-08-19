@@ -103,7 +103,7 @@ type Database struct {
 }
 
 // Open opens the workspace's .kelyro/learning.db, checks its integrity, and
-// applies all pending Foundation migrations.
+// applies all pending migrations.
 func Open(ctx context.Context, workspaceRoot string, configured ...Option) (*Database, error) {
 	settings := options{
 		timeout: defaultOperationTimeout,

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 3 (pending authorization)
-Last completed step: 2
+Current step: 4 (pending authorization)
+Last completed step: 3
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -109,3 +109,42 @@ Release: unreleased
 
 - El Paso 3 es el siguiente paso pendiente y requiere autorización explícita.
 - El adapter SQLite del Paso 3 debe implementar estos puertos y mapear errores del driver con `application.Classify`.
+
+## Step 03 — Schema SQLite y persistencia de Student Core
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Migration forward-only v4 con tablas normalizadas para perfil, goals, curriculum versionado, concept state, evidence, mistakes, retention, sessions, reviews, streaks, achievements, milestones, analytics y daily plans.
+- Foreign keys, checks de enums/rangos/tiempo y accesos indexados para conceptos, reviews vencidas, goal activo, historial y rangos de sesiones.
+- Adapters SQLite para todos los repositorios definidos en el Paso 2 y `UnitOfWork` transaccional, sin filtrar SQL ni errores del driver hacia application.
+- Seeder de fixtures curriculares deterministas y versionados, limitado a infraestructura de pruebas y sin implementar Curriculum Compiler.
+- Escrituras compuestas atómicas y reconstrucción validada de entidades de dominio.
+- Pruebas de DB nueva, upgrade Foundation v3 → Student Core v4 con conservación de estado, migración repetida, constraints, índices, FKs/cascade, clasificación de errores, roundtrips de todos los repositorios y rollback.
+- Decisiones de schema y adapter documentadas en `docs/architecture/student-learning-persistence.md`.
+
+### Decisions
+
+- `concept_registry` desacopla la identidad estable de un concepto de su aparición en una versión curricular concreta y permite FKs desde el estado longitudinal del estudiante.
+- `curriculum_nodes` conserva la jerarquía genérica y versionada; `curriculum_edges` representa prerequisitos dentro de la misma instancia curricular.
+- No se añadieron caches de cálculos educativos. Analytics snapshots y daily plans se persisten como resultados históricos auditables, no como valores derivados transparentes.
+- Los timestamps se escriben en RFC3339Nano UTC y el schema exige su representación `Z`.
+- La migration v4 es aditiva y no destructiva, por lo que reutiliza el mecanismo y formato de backup de Foundation sin exigir backup previo.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-i02-step3-target-gocache go test ./internal/storage/sqlite`
+- `GOCACHE=/tmp/kelyro-i02-step3-test-gocache go test ./...`
+- `GOCACHE=/tmp/kelyro-i02-step3-vet-gocache go vet ./...`
+- `GOCACHE=/tmp/kelyro-i02-step3-quality-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- `GOCACHE=/tmp/kelyro-i02-step3-final-race-gocache go test -race ./internal/storage/sqlite`.
+- `git diff --check`.
+- Revisión de imports: `internal/learning` no importa SQLite, drivers ni presentation adapters.
+
+### Notes for next session
+
+- El Paso 4 es el siguiente paso pendiente y requiere autorización explícita.
+- Student Profile puede usar `application.StudentService` con `Database.LearningRepositories().Students`; no debe leer o escribir tablas directamente.
