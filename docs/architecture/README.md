@@ -6,3 +6,6 @@ AI providers, and operating-system details.
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
+
+The Student & Learning Core domain vocabulary and invariants are documented in
+[student-learning-domain.md](student-learning-domain.md).

@@ -224,7 +224,7 @@ docs(roadmap): open I-02 Student and Learning Core
 
 ## Paso 1 — Diseñar el modelo de dominio educativo de Kelyro
 
-- [ ] Paso 1 completado
+- [x] Paso 1 completado
 
 ### Objetivo
 
