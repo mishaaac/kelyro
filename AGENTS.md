@@ -9,10 +9,19 @@
 
 ## Before changing code
 
-1. Read the requested step in `docs/implementation/I-01-foundation/PLAN.md`.
-2. Read `docs/implementation/I-01-foundation/PROGRESS.md`.
+1. Read the requested step in `docs/implementation/I-02-student-learning-core/PLAN.md`.
+2. Read `docs/implementation/I-02-student-learning-core/PROGRESS.md`.
 3. Review `git status` and the latest relevant commits.
 4. Inspect only the files required for the requested step.
+
+## I-02 boundaries
+
+- Do not implement the Research Engine, Curriculum Compiler, AI providers, plugins, or the full Exercise Engine.
+- Use deterministic, versioned fixtures for educational tests.
+- Keep educational logic out of TUI and CLI handlers.
+- Encapsulate and test every mastery, retention, streak, or scheduling algorithm; give formulas and policies explicit versions or configuration where appropriate.
+- Never modify published migrations; add forward-only migrations.
+- Keep the learning domain general and do not assume a single language, programming ecosystem, or subject area.
 
 ## SDD workflow
 
