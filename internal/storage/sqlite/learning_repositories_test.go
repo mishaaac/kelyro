@@ -160,6 +160,55 @@ func TestMasteryPolicyMigrationCarriesForwardActiveGoalThreshold(t *testing.T) {
 	}
 }
 
+func TestCurriculumInstanceMigrationPreservesLegacyConceptStateWithoutInferringInstances(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:8]); err != nil {
+		t.Fatalf("migrate through v8: %v", err)
+	}
+	ctx := context.Background()
+	student := testStudent(t)
+	if err := database.LearningRepositories().Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	reference := learning.CurriculumRef{ID: mustID(t, "fixture.legacy"), Version: "1.0.0"}
+	concept := learning.Concept{ID: mustID(t, "concept.legacy"), TopicID: mustID(t, "topic.legacy"), Title: "Legacy concept"}
+	if err := database.SeedCurriculum(ctx, reference, []learning.Concept{concept}, nil); err != nil {
+		t.Fatal(err)
+	}
+	introduced := mustTimestamp(t, fixedTime)
+	legacy := learning.ConceptState{
+		StudentID: student.ID, ConceptID: concept.ID, Exposure: learning.ExposureLearning,
+		Mastery: mustScore(t, .61), IntroducedAt: &introduced, UpdatedAt: introduced,
+	}
+	if err := database.LearningRepositories().Concepts.Save(ctx, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx); err != nil {
+		t.Fatalf("migrate learner curriculum instances: %v", err)
+	}
+	loaded, err := database.LearningRepositories().Concepts.Get(ctx, student.ID, concept.ID)
+	if err != nil || loaded.Exposure != learning.ExposureLearning || loaded.Mastery.Value() != .61 {
+		t.Fatalf("legacy state after migration = (%+v, %v)", loaded, err)
+	}
+	for _, table := range []string{"learner_curriculum_instances", "learner_curriculum_concept_states"} {
+		var count int
+		if err := handle.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("%s count = %d, want no inferred learner data", table, count)
+		}
+	}
+}
+
 func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	ctx := context.Background()

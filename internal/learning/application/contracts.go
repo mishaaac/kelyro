@@ -81,7 +81,18 @@ type MasteryPolicyService interface {
 // PrerequisiteService evaluates one concept against one durable student-state
 // snapshot and the effective mastery policy. Graph traversal stays in domain.
 type PrerequisiteService interface {
-	EvaluateIntroduction(context.Context, learning.ID, *learning.PackMasteryOverride) (learning.IntroductionDecision, error)
+	EvaluateIntroduction(context.Context, learning.ID, learning.ID, *learning.PackMasteryOverride) (learning.IntroductionDecision, error)
+}
+
+// CurriculumInstanceService owns learner-scoped curriculum identity and lazy
+// instance concept state. It never copies evidence into progress state.
+type CurriculumInstanceService interface {
+	Create(context.Context, learning.ID, learning.Curriculum, learning.CurriculumSourceKind) (learning.CurriculumInstance, error)
+	Get(context.Context, learning.ID) (learning.CurriculumInstance, error)
+	List(context.Context) ([]learning.CurriculumInstance, error)
+	State(context.Context, learning.ID, learning.ID) (learning.InstanceConceptState, error)
+	States(context.Context, learning.ID) ([]learning.InstanceConceptState, error)
+	SaveState(context.Context, learning.InstanceConceptState) error
 }
 
 // ProfileStore scopes Student Core profile and goal operations, plus their
@@ -92,6 +103,7 @@ type ProfileStore interface {
 	Goals() GoalLifecycleService
 	Onboarding() OnboardingService
 	Mastery() MasteryPolicyService
+	CurriculumInstances() CurriculumInstanceService
 	Close() error
 }
 
@@ -132,6 +144,22 @@ type CurriculumStateRepository interface {
 	Concept(context.Context, learning.CurriculumRef, learning.ID) (learning.Concept, error)
 	Concepts(context.Context, learning.CurriculumRef) ([]learning.Concept, error)
 	Prerequisites(context.Context, learning.CurriculumRef, learning.ID) ([]learning.Prerequisite, error)
+}
+
+type CurriculumDefinitionRepository interface {
+	Install(context.Context, learning.Curriculum) error
+}
+
+type CurriculumInstanceRepository interface {
+	Create(context.Context, learning.CurriculumInstance) error
+	Get(context.Context, learning.ID) (learning.CurriculumInstance, error)
+	ListByStudent(context.Context, learning.ID) ([]learning.CurriculumInstance, error)
+}
+
+type InstanceConceptStateRepository interface {
+	Get(context.Context, learning.ID, learning.ID) (learning.InstanceConceptState, error)
+	ListByInstance(context.Context, learning.ID) ([]learning.InstanceConceptState, error)
+	Save(context.Context, learning.InstanceConceptState) error
 }
 
 type ConceptStateRepository interface {
@@ -197,21 +225,24 @@ type DailyPlanRepository interface {
 // coherent set backed by the same transaction. It is not a mega-repository and
 // is never passed to presentation code.
 type Repositories struct {
-	Students     StudentRepository
-	Goals        GoalRepository
-	Onboarding   OnboardingRepository
-	Mastery      MasteryThresholdRepository
-	Curricula    CurriculumStateRepository
-	Concepts     ConceptStateRepository
-	Evidence     EvidenceRepository
-	Mistakes     MistakeRepository
-	Retention    RetentionRepository
-	Sessions     SessionRepository
-	Reviews      ReviewRepository
-	Streaks      StreakRepository
-	Achievements AchievementRepository
-	Analytics    AnalyticsRepository
-	DailyPlans   DailyPlanRepository
+	Students              StudentRepository
+	Goals                 GoalRepository
+	Onboarding            OnboardingRepository
+	Mastery               MasteryThresholdRepository
+	Definitions           CurriculumDefinitionRepository
+	Curricula             CurriculumStateRepository
+	CurriculumInstances   CurriculumInstanceRepository
+	Concepts              ConceptStateRepository
+	InstanceConceptStates InstanceConceptStateRepository
+	Evidence              EvidenceRepository
+	Mistakes              MistakeRepository
+	Retention             RetentionRepository
+	Sessions              SessionRepository
+	Reviews               ReviewRepository
+	Streaks               StreakRepository
+	Achievements          AchievementRepository
+	Analytics             AnalyticsRepository
+	DailyPlans            DailyPlanRepository
 }
 
 // UnitOfWork supplies repositories that commit or roll back together. A future

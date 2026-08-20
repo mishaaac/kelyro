@@ -14,10 +14,11 @@ import (
 
 // Factory opens one profile store per workspace operation.
 type Factory struct {
-	appVersion string
-	backup     sqlite.BackupFunc
-	now        func() time.Time
-	goalID     func() (learning.ID, error)
+	appVersion           string
+	backup               sqlite.BackupFunc
+	now                  func() time.Time
+	goalID               func() (learning.ID, error)
+	curriculumInstanceID func() (learning.ID, error)
 }
 
 func NewFactory(appVersion ...string) *Factory {
@@ -51,26 +52,35 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	goals := application.NewGoalLifecycleService(profiles, database, goalOptions...)
 	mastery := application.NewMasteryPolicyService(profiles, database.LearningRepositories().Mastery,
 		application.WithMasteryPolicyClock(now))
+	instanceOptions := []application.CurriculumInstanceOption{application.WithCurriculumInstanceClock(now)}
+	if factory.curriculumInstanceID != nil {
+		instanceOptions = append(instanceOptions, application.WithCurriculumInstanceIDGenerator(factory.curriculumInstanceID))
+	}
+	curriculumInstances := application.NewCurriculumInstanceService(profiles, database, instanceOptions...)
 	return &store{
 		database: database, profiles: profiles,
-		goals: goals, mastery: mastery,
+		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances,
 		onboarding: application.NewOnboardingService(profiles, goals, database.LearningRepositories().Onboarding,
 			application.WithOnboardingClock(now), application.WithOnboardingMasteryPolicy(mastery)),
 	}, nil
 }
 
 type store struct {
-	database   *sqlite.Database
-	profiles   application.ProfileService
-	goals      application.GoalLifecycleService
-	onboarding application.OnboardingService
-	mastery    application.MasteryPolicyService
+	database            *sqlite.Database
+	profiles            application.ProfileService
+	goals               application.GoalLifecycleService
+	onboarding          application.OnboardingService
+	mastery             application.MasteryPolicyService
+	curriculumInstances application.CurriculumInstanceService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
 func (store *store) Goals() application.GoalLifecycleService   { return store.goals }
 func (store *store) Onboarding() application.OnboardingService { return store.onboarding }
 func (store *store) Mastery() application.MasteryPolicyService { return store.mastery }
+func (store *store) CurriculumInstances() application.CurriculumInstanceService {
+	return store.curriculumInstances
+}
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

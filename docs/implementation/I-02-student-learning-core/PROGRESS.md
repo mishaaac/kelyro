@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 10 (pending authorization)
-Last completed step: 9
+Current step: 11 (pending authorization)
+Last completed step: 10
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -406,3 +406,51 @@ Release: unreleased
 - El Paso 10 es el siguiente paso pendiente y requiere autorización explícita.
 - Curriculum Instance debe persistir curriculum ID/version, goal, source kind, lifecycle y student-state isolation sin mutar la definición ni duplicar evidence.
 - Reutilizar `KnowledgeGraph` y `PrerequisiteService`; no reconstruir traversal, threshold precedence o unlock explanations dentro de SQLite/CLI/TUI.
+
+## Step 10 — Curriculum Instance y estado personalizado
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Agregados `CurriculumInstance` e `InstanceConceptState` que separan definición inmutable, identidad learner/goal y progreso sparse por instancia.
+- Source kinds `fixture`, `import` y `pack`, lifecycle durable `active|paused|completed|archived`, referencias exactas `curriculum_id/version` y timestamps UTC validados.
+- Estado de concepto con exposure, mastery, first/last seen, mastered/review-due, flags manuales opacos y proyección explícita al snapshot del Prerequisite Engine sin duplicar evidence.
+- Huella canónica SHA-256 sobre el contrato curricular completo; instalación idempotente de contenido idéntico y conflicto si una misma referencia/version intenta cambiar definición.
+- `CurriculumInstanceService` transaccional para crear, obtener, listar y persistir estado, verificando goal activo, ownership, pertenencia del concepto, cronología y protección contra updates regresivos.
+- Inicialización lazy: crear una instancia no escribe estados; el primer acceso válido materializa únicamente ese concepto como `not_seen`.
+- Puertos y adapters in-memory/SQLite para definiciones, instancias y estados, con aislamiento por `curriculum_instance_id` y protección de duplicados lógicos.
+- Migration forward-only v9 con `curriculum_definition_fingerprints`, `learner_curriculum_instances` y `learner_curriculum_concept_states`, sin modificar migrations ni tablas publicadas.
+- `learningdb` expone el servicio workspace-scoped y conserva instancia, versión y estado al cerrar/reabrir la DB.
+- `PrerequisiteService` ahora exige instance ID, valida que el graph corresponda a la misma versión y carga exactamente un snapshot mediante `ListByInstance`.
+- Diseño, compatibilidad, política lazy, aislamiento y preparación de migration futura documentados en `docs/architecture/learner-curriculum-instances.md`.
+
+### Decisions
+
+- La tabla v4 `curriculum_instances` conserva su semántica histórica de catálogo de definiciones; v9 añade tablas `learner_*` en vez de reinterpretar o modificar una migration publicada.
+- Los estados son lazy para evitar escrituras O(n) al crear curricula grandes y representar conceptos intactos como ausencia de fila; `States` lista solo filas materializadas.
+- El tuple `(student, goal, curriculum_id, curriculum_version)` es único, pero versiones diferentes pueden coexistir como instancias aisladas para permitir una migration curricular explícita futura.
+- Una migration de versión futura deberá comparar definiciones, mapear stable concept IDs y decidir transferencias; este paso no copia ni mezcla estados automáticamente.
+- Upgrade v8 → v9 conserva `student_concept_states` pero no lo asigna a instancias: las filas legacy no contienen provenance de goal/curriculum/version y cualquier inferencia sería ambigua.
+- Evidence permanece en su agregado append-only. Instance state guarda solo la proyección actual y los flags manuales no implementan unlock overrides.
+- La huella protege toda la definición aunque el schema compacto publicado solo materialice los campos de consulta preexistentes; una definición legacy sin huella no se adopta silenciosamente.
+- No se añadió CLI/TUI, importer, Learning Pack, Curriculum Compiler, Exercise Engine, diagnóstico ni cálculo de mastery.
+
+### Verification
+
+- Tests de dominio para huella canónica, mutación de metadata, default lazy y reglas temporales/flags.
+- Tests application para create, protección de duplicados y definición inmutable, lazy materialization, aislamiento entre versiones y graph/version mismatch.
+- Tests SQLite para schema v9 y upgrade v8 → v9 preservando estado legacy sin inventar instancias.
+- Reapertura real con `foundation-demo`: instancia, referencia versionada, mastery, exposure y flags sobreviven al cierre del workspace.
+- `GOCACHE=/tmp/kelyro-i02-step10-gocache GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step10-gocache GOMODCACHE=/tmp/kelyro-i02-step10-modcache go vet ./...`.
+- `GOCACHE=<workspace>/.step10-gocache GOTMPDIR=<workspace>/.step10-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go run ./tools/quality all`, incluyendo tests, E2E Foundation, `go test -race ./...`, build y smoke checks de CLI. Los caches workspace-scoped fueron eliminados después del gate.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 11 es el siguiente paso pendiente y requiere autorización explícita.
+- El diagnóstico debe escribir evidencia determinista y asociarse a una Curriculum Instance explícita; no debe volver a usar el estado legacy global ni adelantar el Mastery Engine del Paso 13.
+- La migration automática entre versiones curriculares permanece futura; el diagnóstico no debe copiar progreso entre instancias.

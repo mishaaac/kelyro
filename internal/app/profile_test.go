@@ -67,6 +67,9 @@ func (store *fakeProfileStore) Profiles() learningapp.ProfileService      { retu
 func (store *fakeProfileStore) Goals() learningapp.GoalLifecycleService   { return store.goals }
 func (store *fakeProfileStore) Onboarding() learningapp.OnboardingService { return store.onboarding }
 func (store *fakeProfileStore) Mastery() learningapp.MasteryPolicyService { return store.mastery }
+func (store *fakeProfileStore) CurriculumInstances() learningapp.CurriculumInstanceService {
+	return nil
+}
 func (store *fakeProfileStore) Close() error {
 	store.close()
 	return nil

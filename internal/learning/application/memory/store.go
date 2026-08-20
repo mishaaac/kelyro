@@ -21,6 +21,11 @@ type curriculumKey struct {
 	version string
 }
 
+type instanceConceptKey struct {
+	instance learning.ID
+	concept  learning.ID
+}
+
 type planKey struct {
 	student learning.ID
 	goal    learning.ID
@@ -30,6 +35,7 @@ type planKey struct {
 type curriculumFixture struct {
 	concepts      map[learning.ID]learning.Concept
 	prerequisites []learning.Prerequisite
+	fingerprint   string
 }
 
 // Store owns independent maps for every repository port. New returns an empty
@@ -37,64 +43,71 @@ type curriculumFixture struct {
 type Store struct {
 	mu sync.RWMutex
 
-	students     map[learning.ID]learning.Student
-	goals        map[learning.ID]learning.LearningGoal
-	onboarding   map[learning.ID]learning.OnboardingInterview
-	mastery      map[learning.ID]learning.MasteryThresholdSettings
-	curricula    map[curriculumKey]curriculumFixture
-	concepts     map[studentConceptKey]learning.ConceptState
-	evidence     map[learning.ID]learning.Evidence
-	mistakes     map[learning.ID]learning.Mistake
-	retention    map[studentConceptKey]learning.RetentionState
-	sessions     map[learning.ID]learning.LearningSession
-	schedules    map[studentConceptKey]learning.ReviewSchedule
-	reviewItems  map[learning.ID]learning.ReviewItem
-	streaks      map[learning.ID]learning.Streak
-	achievements map[learning.ID]learning.Achievement
-	milestones   map[learning.ID]learning.Milestone
-	analytics    map[learning.ID][]learning.AnalyticsSnapshot
-	dailyPlans   map[planKey]learning.DailyPlan
+	students       map[learning.ID]learning.Student
+	goals          map[learning.ID]learning.LearningGoal
+	onboarding     map[learning.ID]learning.OnboardingInterview
+	mastery        map[learning.ID]learning.MasteryThresholdSettings
+	curricula      map[curriculumKey]curriculumFixture
+	instances      map[learning.ID]learning.CurriculumInstance
+	instanceStates map[instanceConceptKey]learning.InstanceConceptState
+	concepts       map[studentConceptKey]learning.ConceptState
+	evidence       map[learning.ID]learning.Evidence
+	mistakes       map[learning.ID]learning.Mistake
+	retention      map[studentConceptKey]learning.RetentionState
+	sessions       map[learning.ID]learning.LearningSession
+	schedules      map[studentConceptKey]learning.ReviewSchedule
+	reviewItems    map[learning.ID]learning.ReviewItem
+	streaks        map[learning.ID]learning.Streak
+	achievements   map[learning.ID]learning.Achievement
+	milestones     map[learning.ID]learning.Milestone
+	analytics      map[learning.ID][]learning.AnalyticsSnapshot
+	dailyPlans     map[planKey]learning.DailyPlan
 }
 
 func New() *Store {
 	return &Store{
-		students:     make(map[learning.ID]learning.Student),
-		goals:        make(map[learning.ID]learning.LearningGoal),
-		onboarding:   make(map[learning.ID]learning.OnboardingInterview),
-		mastery:      make(map[learning.ID]learning.MasteryThresholdSettings),
-		curricula:    make(map[curriculumKey]curriculumFixture),
-		concepts:     make(map[studentConceptKey]learning.ConceptState),
-		evidence:     make(map[learning.ID]learning.Evidence),
-		mistakes:     make(map[learning.ID]learning.Mistake),
-		retention:    make(map[studentConceptKey]learning.RetentionState),
-		sessions:     make(map[learning.ID]learning.LearningSession),
-		schedules:    make(map[studentConceptKey]learning.ReviewSchedule),
-		reviewItems:  make(map[learning.ID]learning.ReviewItem),
-		streaks:      make(map[learning.ID]learning.Streak),
-		achievements: make(map[learning.ID]learning.Achievement),
-		milestones:   make(map[learning.ID]learning.Milestone),
-		analytics:    make(map[learning.ID][]learning.AnalyticsSnapshot),
-		dailyPlans:   make(map[planKey]learning.DailyPlan),
+		students:       make(map[learning.ID]learning.Student),
+		goals:          make(map[learning.ID]learning.LearningGoal),
+		onboarding:     make(map[learning.ID]learning.OnboardingInterview),
+		mastery:        make(map[learning.ID]learning.MasteryThresholdSettings),
+		curricula:      make(map[curriculumKey]curriculumFixture),
+		instances:      make(map[learning.ID]learning.CurriculumInstance),
+		instanceStates: make(map[instanceConceptKey]learning.InstanceConceptState),
+		concepts:       make(map[studentConceptKey]learning.ConceptState),
+		evidence:       make(map[learning.ID]learning.Evidence),
+		mistakes:       make(map[learning.ID]learning.Mistake),
+		retention:      make(map[studentConceptKey]learning.RetentionState),
+		sessions:       make(map[learning.ID]learning.LearningSession),
+		schedules:      make(map[studentConceptKey]learning.ReviewSchedule),
+		reviewItems:    make(map[learning.ID]learning.ReviewItem),
+		streaks:        make(map[learning.ID]learning.Streak),
+		achievements:   make(map[learning.ID]learning.Achievement),
+		milestones:     make(map[learning.ID]learning.Milestone),
+		analytics:      make(map[learning.ID][]learning.AnalyticsSnapshot),
+		dailyPlans:     make(map[planKey]learning.DailyPlan),
 	}
 }
 
 func (store *Store) Repositories() application.Repositories {
 	return application.Repositories{
-		Students:     studentRepository{store},
-		Goals:        goalRepository{store},
-		Onboarding:   onboardingRepository{store},
-		Mastery:      masteryThresholdRepository{store},
-		Curricula:    curriculumRepository{store},
-		Concepts:     conceptRepository{store},
-		Evidence:     evidenceRepository{store},
-		Mistakes:     mistakeRepository{store},
-		Retention:    retentionRepository{store},
-		Sessions:     sessionRepository{store},
-		Reviews:      reviewRepository{store},
-		Streaks:      streakRepository{store},
-		Achievements: achievementRepository{store},
-		Analytics:    analyticsRepository{store},
-		DailyPlans:   dailyPlanRepository{store},
+		Students:              studentRepository{store},
+		Goals:                 goalRepository{store},
+		Onboarding:            onboardingRepository{store},
+		Mastery:               masteryThresholdRepository{store},
+		Definitions:           curriculumDefinitionRepository{store},
+		Curricula:             curriculumRepository{store},
+		CurriculumInstances:   curriculumInstanceRepository{store},
+		InstanceConceptStates: instanceConceptStateRepository{store},
+		Concepts:              conceptRepository{store},
+		Evidence:              evidenceRepository{store},
+		Mistakes:              mistakeRepository{store},
+		Retention:             retentionRepository{store},
+		Sessions:              sessionRepository{store},
+		Reviews:               reviewRepository{store},
+		Streaks:               streakRepository{store},
+		Achievements:          achievementRepository{store},
+		Analytics:             analyticsRepository{store},
+		DailyPlans:            dailyPlanRepository{store},
 	}
 }
 
@@ -171,12 +184,18 @@ func (store *Store) cloneLocked() *Store {
 		clone.mastery[key] = cloneMasterySettings(value)
 	}
 	for key, value := range store.curricula {
-		fixture := curriculumFixture{concepts: make(map[learning.ID]learning.Concept, len(value.concepts))}
+		fixture := curriculumFixture{concepts: make(map[learning.ID]learning.Concept, len(value.concepts)), fingerprint: value.fingerprint}
 		for conceptID, concept := range value.concepts {
 			fixture.concepts[conceptID] = concept
 		}
 		fixture.prerequisites = append([]learning.Prerequisite(nil), value.prerequisites...)
 		clone.curricula[key] = fixture
+	}
+	for key, value := range store.instances {
+		clone.instances[key] = value
+	}
+	for key, value := range store.instanceStates {
+		clone.instanceStates[key] = cloneInstanceConceptState(value)
 	}
 	for key, value := range store.concepts {
 		clone.concepts[key] = cloneConceptState(value)
@@ -223,6 +242,8 @@ func (store *Store) replaceLocked(replacement *Store) {
 	store.onboarding = replacement.onboarding
 	store.mastery = replacement.mastery
 	store.curricula = replacement.curricula
+	store.instances = replacement.instances
+	store.instanceStates = replacement.instanceStates
 	store.concepts = replacement.concepts
 	store.evidence = replacement.evidence
 	store.mistakes = replacement.mistakes
@@ -275,6 +296,27 @@ func cloneConceptState(value learning.ConceptState) learning.ConceptState {
 		copy := *value.IntroducedAt
 		value.IntroducedAt = &copy
 	}
+	return value
+}
+
+func cloneInstanceConceptState(value learning.InstanceConceptState) learning.InstanceConceptState {
+	if value.FirstSeenAt != nil {
+		copy := *value.FirstSeenAt
+		value.FirstSeenAt = &copy
+	}
+	if value.LastSeenAt != nil {
+		copy := *value.LastSeenAt
+		value.LastSeenAt = &copy
+	}
+	if value.MasteredAt != nil {
+		copy := *value.MasteredAt
+		value.MasteredAt = &copy
+	}
+	if value.ReviewDueAt != nil {
+		copy := *value.ReviewDueAt
+		value.ReviewDueAt = &copy
+	}
+	value.ManualFlags = append([]string(nil), value.ManualFlags...)
 	return value
 }
 

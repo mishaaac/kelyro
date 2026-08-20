@@ -17,3 +17,7 @@ boundary are documented in
 The additive SQLite schema, normalization decisions, indexes, constraints, and
 repository adapter are documented in
 [student-learning-persistence.md](student-learning-persistence.md).
+
+The separation between immutable curriculum definitions, learner curriculum
+instances, and sparse instance-scoped concept state is documented in
+[learner-curriculum-instances.md](learner-curriculum-instances.md).

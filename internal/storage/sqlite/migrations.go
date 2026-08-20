@@ -447,6 +447,65 @@ SELECT student.id,
 FROM students AS student`,
 		},
 	},
+	{
+		version: 9,
+		name:    "learner curriculum instances",
+		statements: []string{
+			`CREATE TABLE curriculum_definition_fingerprints (
+    curriculum_id TEXT NOT NULL,
+    curriculum_version TEXT NOT NULL,
+    fingerprint TEXT NOT NULL CHECK (length(fingerprint) = 71 AND fingerprint GLOB 'sha256:*'),
+    PRIMARY KEY (curriculum_id, curriculum_version),
+    FOREIGN KEY (curriculum_id, curriculum_version) REFERENCES curriculum_instances(id, version) ON DELETE CASCADE
+)`,
+			`CREATE TABLE learner_curriculum_instances (
+    id TEXT PRIMARY KEY CHECK (length(id) > 0),
+    student_id TEXT NOT NULL,
+    goal_id TEXT NOT NULL,
+    curriculum_id TEXT NOT NULL,
+    curriculum_version TEXT NOT NULL,
+    source_kind TEXT NOT NULL CHECK (source_kind IN ('fixture', 'import', 'pack')),
+    status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'completed', 'archived')),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    updated_at TEXT NOT NULL CHECK (updated_at GLOB '*Z'),
+    UNIQUE (id, student_id),
+    UNIQUE (student_id, goal_id, curriculum_id, curriculum_version),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (goal_id, student_id) REFERENCES learning_goals(id, student_id) ON DELETE CASCADE,
+    FOREIGN KEY (curriculum_id, curriculum_version) REFERENCES curriculum_instances(id, version),
+    CHECK (updated_at >= created_at)
+)`,
+			`CREATE INDEX learner_curriculum_instances_student_idx
+ON learner_curriculum_instances (student_id, status, created_at, id)`,
+			`CREATE TABLE learner_curriculum_concept_states (
+    curriculum_instance_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    concept_id TEXT NOT NULL,
+    exposure TEXT NOT NULL CHECK (exposure IN ('not_seen', 'introduced', 'learning', 'practicing', 'mastered', 'review_due')),
+    mastery REAL NOT NULL CHECK (mastery BETWEEN 0 AND 1),
+    first_seen_at TEXT CHECK (first_seen_at IS NULL OR first_seen_at GLOB '*Z'),
+    last_seen_at TEXT CHECK (last_seen_at IS NULL OR last_seen_at GLOB '*Z'),
+    mastered_at TEXT CHECK (mastered_at IS NULL OR mastered_at GLOB '*Z'),
+    review_due_at TEXT CHECK (review_due_at IS NULL OR review_due_at GLOB '*Z'),
+    manual_flags_json TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL CHECK (updated_at GLOB '*Z'),
+    PRIMARY KEY (curriculum_instance_id, concept_id),
+    FOREIGN KEY (curriculum_instance_id, student_id) REFERENCES learner_curriculum_instances(id, student_id) ON DELETE CASCADE,
+    FOREIGN KEY (concept_id) REFERENCES concept_registry(id),
+    CHECK ((first_seen_at IS NULL) = (last_seen_at IS NULL)),
+    CHECK (first_seen_at IS NULL OR last_seen_at >= first_seen_at),
+    CHECK (last_seen_at IS NULL OR updated_at >= last_seen_at),
+    CHECK (mastered_at IS NULL OR (first_seen_at IS NOT NULL AND mastered_at >= first_seen_at AND mastered_at <= last_seen_at)),
+    CHECK (review_due_at IS NULL OR first_seen_at IS NOT NULL),
+    CHECK ((exposure = 'not_seen' AND first_seen_at IS NULL AND mastered_at IS NULL AND review_due_at IS NULL) OR
+           (exposure <> 'not_seen' AND first_seen_at IS NOT NULL)),
+    CHECK (exposure NOT IN ('mastered', 'review_due') OR mastered_at IS NOT NULL),
+    CHECK (exposure <> 'review_due' OR review_due_at IS NOT NULL)
+)`,
+			`CREATE INDEX learner_curriculum_concept_states_exposure_idx
+ON learner_curriculum_concept_states (curriculum_instance_id, exposure, concept_id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

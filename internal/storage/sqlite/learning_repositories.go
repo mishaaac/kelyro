@@ -22,7 +22,10 @@ type learningStudentRepository struct{ learningRepository }
 type learningGoalRepository struct{ learningRepository }
 type learningOnboardingRepository struct{ learningRepository }
 type learningMasteryThresholdRepository struct{ learningRepository }
+type learningCurriculumDefinitionRepository struct{ learningRepository }
 type learningCurriculumRepository struct{ learningRepository }
+type learningCurriculumInstanceRepository struct{ learningRepository }
+type learningInstanceConceptStateRepository struct{ learningRepository }
 type learningConceptRepository struct{ learningRepository }
 type learningEvidenceRepository struct{ learningRepository }
 type learningMistakeRepository struct{ learningRepository }
@@ -43,10 +46,14 @@ func newLearningRepositories(target executor, timeout time.Duration) application
 	repository := learningRepository{executor: target, timeout: timeout}
 	return application.Repositories{
 		Students: learningStudentRepository{repository}, Goals: learningGoalRepository{repository},
-		Onboarding: learningOnboardingRepository{repository},
-		Mastery:    learningMasteryThresholdRepository{repository},
-		Curricula:  learningCurriculumRepository{repository}, Concepts: learningConceptRepository{repository},
-		Evidence: learningEvidenceRepository{repository}, Mistakes: learningMistakeRepository{repository},
+		Onboarding:            learningOnboardingRepository{repository},
+		Mastery:               learningMasteryThresholdRepository{repository},
+		Definitions:           learningCurriculumDefinitionRepository{repository},
+		Curricula:             learningCurriculumRepository{repository},
+		CurriculumInstances:   learningCurriculumInstanceRepository{repository},
+		Concepts:              learningConceptRepository{repository},
+		InstanceConceptStates: learningInstanceConceptStateRepository{repository},
+		Evidence:              learningEvidenceRepository{repository}, Mistakes: learningMistakeRepository{repository},
 		Retention: learningRetentionRepository{repository}, Sessions: learningSessionRepository{repository},
 		Reviews: learningReviewRepository{repository}, Streaks: learningStreakRepository{repository},
 		Achievements: learningAchievementRepository{repository}, Analytics: learningAnalyticsRepository{repository},

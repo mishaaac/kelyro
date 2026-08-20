@@ -1116,7 +1116,7 @@ feat(curriculum): add prerequisite knowledge graph engine
 
 ## Paso 10 — Crear Curriculum Instance y estado personalizado por estudiante
 
-- [ ] Paso 10 completado
+- [x] Paso 10 completado
 
 ### Objetivo
 

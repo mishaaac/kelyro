@@ -9,9 +9,10 @@ curriculum, or implement exercises.
 
 The graph has no repository, SQLite, YAML, CLI, TUI, or operating-system
 dependency. `application.PrerequisiteService` is the orchestration boundary: it
-resolves the effective threshold through `MasteryPolicyService`, loads all
-concept states for the current student once, builds a validated snapshot, and
-then delegates every traversal and decision to the domain graph.
+resolves the effective threshold through `MasteryPolicyService`, verifies the
+learner curriculum instance, loads that instance's concept states once, builds
+a validated snapshot, and then delegates every traversal and decision to the
+domain graph.
 
 ## Graph direction and operations
 
@@ -115,10 +116,11 @@ state, exact threshold boundaries, cycles, deterministic ordering, and a
 ## Persistence rule
 
 Graph traversal never queries a repository. The application service performs
-one `ListByStudent` call per evaluation and passes the complete validated
-`StudentStateSnapshot` to the graph. This avoids N+1 reads and keeps algorithms
+one `ListByInstance` call per evaluation and passes the complete validated
+`StudentStateSnapshot` to the graph. This avoids N+1 reads, prevents progress
+from another curriculum instance leaking into a decision, and keeps algorithms
 testable without SQLite.
 
-Step 10 remains responsible for durable curriculum instances, their goal/source
-ownership, and learner-state isolation. Step 9 does not add migrations or infer
-that lifecycle.
+Durable instance ownership and state isolation are defined in
+[learner-curriculum-instances.md](learner-curriculum-instances.md). They wrap
+the Step 9 engine without changing its pure traversal or introduction policy.

@@ -134,6 +134,7 @@ func (decision IntroductionDecision) Explanation() string {
 // KnowledgeGraph indexes a validated curriculum definition. It contains no
 // repositories and never mutates curriculum or student state.
 type KnowledgeGraph struct {
+	reference     CurriculumRef
 	concepts      map[ID]CurriculumNode
 	prerequisites map[ID][]ConceptPrerequisite
 	dependents    map[ID][]ID
@@ -145,6 +146,7 @@ func NewKnowledgeGraph(curriculum Curriculum) (*KnowledgeGraph, error) {
 		return nil, fmt.Errorf("build knowledge graph: %w", err)
 	}
 	graph := &KnowledgeGraph{
+		reference:     curriculum.Reference,
 		concepts:      make(map[ID]CurriculumNode, len(curriculum.Nodes)),
 		prerequisites: make(map[ID][]ConceptPrerequisite, len(curriculum.Nodes)),
 		dependents:    make(map[ID][]ID, len(curriculum.Nodes)),
@@ -175,6 +177,16 @@ func NewKnowledgeGraph(curriculum Curriculum) (*KnowledgeGraph, error) {
 	}
 	graph.topological = order
 	return graph, nil
+}
+
+// Reference identifies the immutable curriculum definition indexed by this
+// graph so application services cannot evaluate an instance against another
+// version's prerequisite rules.
+func (graph *KnowledgeGraph) Reference() CurriculumRef {
+	if graph == nil {
+		return CurriculumRef{}
+	}
+	return graph.reference
 }
 
 func (graph *KnowledgeGraph) GetPrerequisites(conceptID ID) ([]ConceptPrerequisite, error) {
