@@ -8,6 +8,7 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
+	"github.com/mishaaac/kelyro/internal/learning"
 )
 
 // FoundationCheck is one presentation-independent health result shown by the
@@ -85,6 +86,17 @@ func (service *Service) LoadFoundation(ctx context.Context, command Command) (Fo
 
 	// Keep the Home order aligned with the product specification.
 	snapshot.Checks = append(snapshot.Checks, databaseCheck, configCheck)
+	if service.profiles != nil {
+		store, openErr := service.profiles.Open(ctx, found.Root)
+		if openErr == nil {
+			if store.Setup() != nil {
+				if setup, setupErr := store.Setup().Show(ctx); setupErr == nil {
+					snapshot.LearningPath = setup.Setup.Status == learning.SetupCompleted
+				}
+			}
+			_ = store.Close()
+		}
+	}
 	snapshot.Diagnostics = service.doctorReport(ctx, command, found)
 	return snapshot, nil
 }

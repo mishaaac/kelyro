@@ -48,6 +48,38 @@ func TestFoundationDatabaseMigratesToStudentCoreWithoutLosingState(t *testing.T)
 	}
 }
 
+func TestIntegratedSetupMigrationIsForwardOnlyAndPreservesExistingState(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:10]); err != nil {
+		t.Fatalf("migrate through v10: %v", err)
+	}
+	if _, err := handle.Exec(`INSERT INTO app_state (namespace,key,value,updated_at) VALUES ('foundation','step12-kept',X'6F6B',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate setup: %v", err)
+	}
+	var value []byte
+	if err := handle.QueryRow(`SELECT value FROM app_state WHERE namespace='foundation' AND key='step12-kept'`).Scan(&value); err != nil {
+		t.Fatal(err)
+	}
+	if string(value) != "ok" {
+		t.Fatalf("Foundation value=%q", value)
+	}
+	var table string
+	if err := handle.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='learner_setups'`).Scan(&table); err != nil || table != "learner_setups" {
+		t.Fatalf("learner setup table = (%q, %v)", table, err)
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)

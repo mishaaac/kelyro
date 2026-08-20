@@ -552,6 +552,39 @@ ON diagnostic_attempts (student_id, status, updated_at, id)`,
 ON diagnostic_observations (attempt_id, concept_id, position)`,
 		},
 	},
+	{
+		version: 11,
+		name:    "integrated learner setup",
+		statements: []string{
+			`CREATE UNIQUE INDEX diagnostic_attempts_setup_owner_idx
+ON diagnostic_attempts (id, student_id, curriculum_instance_id)`,
+			`CREATE TABLE learner_setups (
+    student_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('awaiting_onboarding', 'awaiting_diagnostic', 'initializing', 'completed')),
+    curriculum_instance_id TEXT,
+    diagnostic_attempt_id TEXT,
+    diagnostic_opt_in INTEGER NOT NULL CHECK (diagnostic_opt_in IN (0, 1)),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    updated_at TEXT NOT NULL CHECK (updated_at GLOB '*Z'),
+    setup_completed_at TEXT CHECK (setup_completed_at IS NULL OR setup_completed_at GLOB '*Z'),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (curriculum_instance_id, student_id) REFERENCES learner_curriculum_instances(id, student_id),
+    FOREIGN KEY (diagnostic_attempt_id, student_id, curriculum_instance_id)
+        REFERENCES diagnostic_attempts(id, student_id, curriculum_instance_id),
+    CHECK (updated_at >= created_at),
+    CHECK (
+        (status = 'awaiting_onboarding' AND curriculum_instance_id IS NULL AND diagnostic_attempt_id IS NULL AND diagnostic_opt_in = 0 AND setup_completed_at IS NULL) OR
+        (status = 'awaiting_diagnostic' AND curriculum_instance_id IS NOT NULL AND diagnostic_attempt_id IS NOT NULL AND diagnostic_opt_in = 1 AND setup_completed_at IS NULL) OR
+        (status = 'initializing' AND curriculum_instance_id IS NOT NULL AND
+            ((diagnostic_opt_in = 1 AND diagnostic_attempt_id IS NOT NULL) OR (diagnostic_opt_in = 0 AND diagnostic_attempt_id IS NULL)) AND setup_completed_at IS NULL) OR
+        (status = 'completed' AND curriculum_instance_id IS NOT NULL AND
+            ((diagnostic_opt_in = 1 AND diagnostic_attempt_id IS NOT NULL) OR (diagnostic_opt_in = 0 AND diagnostic_attempt_id IS NULL)) AND
+            setup_completed_at IS NOT NULL AND setup_completed_at = updated_at)
+    )
+)`,
+			`CREATE INDEX learner_setups_status_idx ON learner_setups (status, updated_at, student_id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

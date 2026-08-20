@@ -91,6 +91,37 @@ func TestTextConfirmerIsConservative(t *testing.T) {
 	}
 }
 
+func TestRunnerRequiresConfirmationForDevelopmentSetupReset(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name      string
+		args      []string
+		confirmer *fakeConfirmer
+		wantCalls int
+	}{
+		{name: "yes flag", args: []string{"--yes", "setup", "reset"}, wantCalls: 1},
+		{name: "interactive yes", args: []string{"setup", "reset"}, confirmer: &fakeConfirmer{answer: true}, wantCalls: 1},
+		{name: "interactive no", args: []string{"setup", "reset"}, confirmer: &fakeConfirmer{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service := &fakeService{result: app.Result{Message: "reset"}}
+			runner := NewRunner(service, &bytes.Buffer{}, &bytes.Buffer{})
+			if test.confirmer != nil {
+				runner = runner.WithConfirmer(test.confirmer)
+			}
+			if code := runner.Run(context.Background(), test.args); code != ExitOK {
+				t.Fatalf("Run()=%d", code)
+			}
+			if len(service.commands) != test.wantCalls {
+				t.Fatalf("service calls=%d want %d", len(service.commands), test.wantCalls)
+			}
+			if test.confirmer != nil && !strings.Contains(test.confirmer.prompt, "Profile, goal history, and Foundation data are preserved") {
+				t.Fatalf("confirmation prompt=%q", test.confirmer.prompt)
+			}
+		})
+	}
+}
+
 type fakeConfirmer struct {
 	answer bool
 	err    error

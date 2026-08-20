@@ -55,6 +55,7 @@ func TestFoundationWorkspaceLifecycle(t *testing.T) {
 		}
 		test := newScenario(t, binary)
 		test.mustRun("init")
+		completeLearnerSetup(t, test)
 		workspaceLabel := "Workspace: " + filepath.Base(test.workspace)
 
 		first := test.runInteractive(
@@ -68,6 +69,34 @@ func TestFoundationWorkspaceLifecycle(t *testing.T) {
 		second := test.runInteractive(interaction{waitFor: "\n  Doctor\n", send: "q"})
 		if !strings.Contains(normalizeOutput(second), "\n  Doctor\n") {
 			t.Fatalf("second TUI session did not resume Doctor:\n%s", second)
+		}
+	})
+
+	t.Run("integrated onboarding initializes learner state", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("piped stdin is not a Windows console handle; setup persistence is covered by integration tests")
+		}
+		test := newScenario(t, binary)
+		test.mustRun("init")
+		output := completeLearnerSetup(t, test)
+		for _, expected := range []string{"Review your setup before applying it.", "Apply this learner setup?", "Setup complete.", "Learning path ready."} {
+			if !strings.Contains(normalizeOutput(output), expected) {
+				t.Fatalf("setup output missing %q:\n%s", expected, output)
+			}
+		}
+		status := test.mustRun("setup", "status")
+		for _, expected := range []string{"Status: completed", "Curriculum: foundation-demo@1.0.0", "Source: fixture"} {
+			if !strings.Contains(status, expected) {
+				t.Fatalf("setup status missing %q:\n%s", expected, status)
+			}
+		}
+		profile := test.mustRun("profile", "show")
+		if !strings.Contains(profile, "Display name: Ada") {
+			t.Fatalf("profile not initialized:\n%s", profile)
+		}
+		goal := test.mustRun("goal", "show")
+		if !strings.Contains(goal, "[active] Understand ratios") {
+			t.Fatalf("goal not initialized:\n%s", goal)
 		}
 	})
 
@@ -304,6 +333,27 @@ func (test scenario) mustRun(args ...string) string {
 type interaction struct {
 	waitFor string
 	send    string
+}
+
+func completeLearnerSetup(t *testing.T, test scenario) string {
+	t.Helper()
+	return test.runInteractive(
+		interaction{waitFor: "What should Kelyro call you?", send: "Ada\r"},
+		interaction{waitFor: "What do you want to learn?", send: "Understand ratios\r"},
+		interaction{waitFor: "What subject or domain", send: "Mathematics\r"},
+		interaction{waitFor: "What outcome would make this goal successful?", send: "Solve ratio problems\r"},
+		interaction{waitFor: "What is your general learning experience?", send: "\r"},
+		interaction{waitFor: "How much experience do you have with this subject?", send: "\r"},
+		interaction{waitFor: "How much time can you study", send: "\r"},
+		interaction{waitFor: "How many days per week", send: "\r"},
+		interaction{waitFor: "How do you prefer to learn?", send: "\r"},
+		interaction{waitFor: "How much mastery should be required", send: "\r"},
+		interaction{waitFor: "Would you like a diagnostic after setup?", send: "\x1b[B\r"},
+		interaction{waitFor: "Review your setup before applying it.", send: "\r"},
+		interaction{waitFor: "Apply this learner setup?", send: "\r"},
+		interaction{waitFor: "Setup complete.", send: "\r"},
+		interaction{waitFor: "Learning path ready.", send: "q"},
+	)
 }
 
 func (test scenario) runInteractive(interactions ...interaction) string {

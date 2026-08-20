@@ -54,6 +54,7 @@ Commands:
   profile  Show or edit the persistent learner profile
   goal     Show or manage the persistent learning goal
   mastery  Show or configure the progression mastery threshold
+  setup    Show or reset the integrated learner setup
 
 Options:
   -h, --help          Show this help message
@@ -63,7 +64,7 @@ Options:
       --quiet         Suppress successful command output
       --workspace PATH  Override workspace discovery
       --allow-nested  Confirm initialization inside another workspace
-      --yes           Confirm a destructive backup restore non-interactively
+      --yes           Confirm backup restore or development setup reset
       --full          Include allowlisted machine state in an export
       --output FILE   Set the export archive path
       --dry-run       Validate and preview an import without writing
@@ -130,6 +131,11 @@ Mastery commands:
   kelyro mastery threshold set-default PERCENT
   kelyro mastery threshold reset
   PERCENT: integer from 50 to 99. set writes the workspace override.
+
+Setup commands:
+  kelyro setup status
+  kelyro setup reset
+  reset is available only in development/demo builds and requires confirmation.
 `
 
 var actions = map[string]app.Action{
@@ -149,6 +155,7 @@ var actions = map[string]app.Action{
 	"profile": app.ActionProfile,
 	"goal":    app.ActionGoal,
 	"mastery": app.ActionMastery,
+	"setup":   app.ActionSetup,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -254,6 +261,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		GoalInput:        invocation.goalInput,
 		MasteryOperation: invocation.masteryOperation,
 		MasteryThreshold: invocation.masteryThreshold,
+		SetupOperation:   invocation.setupOperation,
 		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
@@ -307,6 +315,25 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 			command.BackupConfirmed = true
 		}
 	}
+	if action == app.ActionSetup && command.SetupOperation == "reset" {
+		if !invocation.yes {
+			if r.confirmer == nil {
+				fmt.Fprintln(r.stderr, "kelyro setup: reset confirmation input is unavailable; use --yes to confirm")
+				return ExitFailure
+			}
+			confirmed, confirmErr := r.confirmer.Confirm("Reset learner setup? Profile, goal history, and Foundation data are preserved [y/N]: ")
+			if confirmErr != nil {
+				fmt.Fprintf(r.stderr, "kelyro setup: confirm reset: %v\n", confirmErr)
+				return ExitFailure
+			}
+			if !confirmed {
+				if !invocation.quiet {
+					fmt.Fprintln(r.stdout, "Setup reset canceled.")
+				}
+				return ExitOK
+			}
+		}
+	}
 
 	result, err := r.service.Execute(ctx, command)
 	if err != nil {
@@ -333,6 +360,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatGoals(result.Goals))
 	} else if result.Mastery != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatMasteryThreshold(*result.Mastery))
+	} else if result.Setup != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatLearnerSetup(*result.Setup))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -341,6 +370,22 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatLearnerSetup(view learningapp.LearnerSetupView) string {
+	lines := []string{"Learner setup", "Status: " + string(view.Setup.Status)}
+	if view.Setup.SetupCompletedAt != nil {
+		lines = append(lines, "Completed: "+view.Setup.SetupCompletedAt.Time().Format(time.RFC3339))
+	}
+	if view.Instance != nil {
+		lines = append(lines, "Curriculum: "+view.Instance.Curriculum.ID.String()+"@"+view.Instance.Curriculum.Version, "Source: "+string(view.Instance.Source))
+	}
+	if view.Setup.DiagnosticOptIn {
+		lines = append(lines, "Diagnostic: opted in")
+	} else {
+		lines = append(lines, "Diagnostic: not selected")
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatMasteryThreshold(resolved learning.ResolvedMasteryThreshold) string {
@@ -588,6 +633,7 @@ type invocation struct {
 	goalFlagsSet     bool
 	masteryOperation string
 	masteryThreshold learning.MasteryThreshold
+	setupOperation   string
 }
 
 func parse(args []string) (invocation, error) {
@@ -820,8 +866,8 @@ func parse(args []string) (invocation, error) {
 	if result.allowNested && result.command != "init" {
 		return invocation{}, fmt.Errorf("option --allow-nested requires the init command")
 	}
-	if result.yes && result.command != "backup" {
-		return invocation{}, fmt.Errorf("option --yes requires the backup restore command")
+	if result.yes && result.command != "backup" && result.command != "setup" {
+		return invocation{}, fmt.Errorf("option --yes requires backup restore or setup reset")
 	}
 	if result.configScope != "" && result.command != "config" {
 		return invocation{}, fmt.Errorf("configuration scope options require the config command")
@@ -897,13 +943,17 @@ func parse(args []string) (invocation, error) {
 		if err := parseMasteryArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "setup":
+		if err := parseSetupArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
 		}
 	}
-	if result.yes && (result.command != "backup" || result.backupOperation != "restore") {
-		return invocation{}, fmt.Errorf("option --yes requires the backup restore command")
+	if result.yes && !((result.command == "backup" && result.backupOperation == "restore") || (result.command == "setup" && result.setupOperation == "reset")) {
+		return invocation{}, fmt.Errorf("option --yes requires backup restore or setup reset")
 	}
 	if result.exportMode == portability.ModeFull && result.command != "export" {
 		return invocation{}, fmt.Errorf("option --full requires the export command")
@@ -928,6 +978,14 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseSetupArguments(result *invocation) error {
+	if len(result.arguments) != 1 || (result.arguments[0] != "status" && result.arguments[0] != "reset") {
+		return fmt.Errorf("setup requires status or reset")
+	}
+	result.setupOperation = result.arguments[0]
+	return nil
 }
 
 func parseMasteryArguments(result *invocation) error {

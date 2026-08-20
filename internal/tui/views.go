@@ -60,7 +60,7 @@ func (model Model) homeView(width int) []string {
 
 func (model Model) onboardingView(width int) []string {
 	lines := []string{model.styles.title.Render("Kelyro Setup"), ""}
-	if model.onboardingLoading && model.onboarding.Interview.Status == "" {
+	if model.onboardingLoading && model.setup.Setup.Status == "" {
 		return append(lines, "Loading learner setup...", "", "[Ctrl+C] Quit")
 	}
 	if model.onboardingErr != nil {
@@ -68,11 +68,15 @@ func (model Model) onboardingView(width int) []string {
 		lines = append(lines, wrapText(model.onboardingErr.Error(), width)...)
 		lines = append(lines, "")
 	}
-	switch model.onboarding.Interview.Status {
-	case learning.OnboardingCompleted:
+	if model.setup.Setup.Status == learning.SetupCompleted {
 		lines = append(lines, model.styles.success.Render("Setup complete."), "")
-		lines = append(lines, "Your learner profile and learning goal are ready.", "", "[Enter/Esc] Home   [Ctrl+C] Quit")
+		lines = append(lines, "Your learner profile, goal, curriculum, and initial concept state are ready.", "", "[Enter/Esc] Home   [Ctrl+C] Quit")
 		return lines
+	}
+	if model.setup.Diagnostic != nil {
+		return model.diagnosticSetupView(lines, width)
+	}
+	switch model.onboarding.Interview.Status {
 	case learning.OnboardingCancelled:
 		lines = append(lines, "Setup cancelled. Restart setup when you are ready.", "", "[Enter/Esc] Home   [Ctrl+C] Quit")
 		return lines
@@ -113,6 +117,49 @@ func (model Model) onboardingView(width int) []string {
 		primary = "[Enter] Confirm"
 	}
 	lines = append(lines, shortcutLines(width, primary, "[Ctrl+B] Back", "[Esc] Save & leave", "[Ctrl+X] Cancel", "[Ctrl+C] Quit")...)
+	return lines
+}
+
+func (model Model) diagnosticSetupView(lines []string, width int) []string {
+	view := model.setup.Diagnostic
+	if view.Item == nil {
+		return append(lines, "Finalizing learner setup...")
+	}
+	item := view.Item
+	lines = append(lines, model.styles.heading.Render("Optional initial diagnostic"), "")
+	lines = append(lines, wrapText(item.Prompt, width)...)
+	lines = append(lines, "")
+	if item.Kind == learning.DiagnosticShortAnswer {
+		value := model.onboardingInput
+		if value == "" {
+			value = model.styles.muted.Render("type your answer")
+		}
+		lines = append(lines, truncate("> "+value, width))
+	} else {
+		for index, option := range item.Options {
+			prefix := "  "
+			if index == model.onboardingCursor {
+				prefix = "> "
+			}
+			if item.Kind == learning.DiagnosticMultipleChoice {
+				mark := "[ ] "
+				if model.diagnosticAnswers[index] {
+					mark = "[x] "
+				}
+				prefix += mark
+			}
+			lines = append(lines, truncate(prefix+option.Label, width))
+		}
+	}
+	if model.onboardingLoading {
+		lines = append(lines, "", model.styles.muted.Render("Saving..."))
+	}
+	lines = append(lines, "")
+	primary := "[Enter] Continue"
+	if item.Kind == learning.DiagnosticMultipleChoice {
+		primary = "[Space] Select  [Enter] Continue"
+	}
+	lines = append(lines, shortcutLines(width, primary, "[x] Skip diagnostic", "[Ctrl+C] Quit")...)
 	return lines
 }
 

@@ -2,6 +2,7 @@ package learningdb
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -175,6 +176,108 @@ func TestFactoryPersistsMasteryThresholdAcrossStoreLifetimes(t *testing.T) {
 	if err != nil || resolved.Source != learning.MasterySourceWorkspaceOverride || resolved.Requirement.Mode != learning.MasteryModeCustom || resolved.Requirement.Threshold.Value() != .77 {
 		t.Fatalf("persisted mastery = (%+v, %v)", resolved, err)
 	}
+}
+
+func TestFactoryPersistsCompletedIntegratedSetupAcrossStoreLifetimes(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	internal, err := platform.WorkspaceInternalDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(internal, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	factory := NewFactory("test")
+	current := time.Date(2026, time.August, 19, 15, 0, 0, 0, time.UTC)
+	factory.now = func() time.Time { value := current; current = current.Add(time.Minute); return value }
+	store, err := factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	view := completeIntegratedSetupWithoutDiagnostic(t, ctx, store.Setup())
+	if view.Setup.Status != learning.SetupCompleted || view.Setup.SetupCompletedAt == nil || view.Instance == nil {
+		t.Fatalf("completed setup = %+v", view)
+	}
+	states, err := store.CurriculumInstances().States(ctx, *view.Setup.CurriculumInstanceID)
+	if err != nil || len(states) == 0 {
+		t.Fatalf("initial states = (%+v, %v)", states, err)
+	}
+	for _, state := range states {
+		if state.Exposure != learning.ExposureNotSeen || state.Mastery.Value() != 0 {
+			t.Fatalf("initial state = %+v", state)
+		}
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	resumed, err := reopened.Setup().Show(ctx)
+	if err != nil || resumed.Setup.Status != learning.SetupCompleted || resumed.Setup.SetupCompletedAt == nil || resumed.Instance == nil {
+		t.Fatalf("reopened setup = (%+v, %v)", resumed, err)
+	}
+}
+
+func TestDevelopmentSetupResetPreservesProfileGoalAndFoundationData(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	internal, err := platform.WorkspaceInternalDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(internal, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	factory := NewFactory("dev")
+	store, err := factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	completed := completeIntegratedSetupWithoutDiagnostic(t, ctx, store.Setup())
+	goalsBefore, err := store.Goals().Show(ctx)
+	if err != nil || len(goalsBefore) != 1 {
+		t.Fatalf("goals before reset = (%+v, %v)", goalsBefore, err)
+	}
+
+	reset, err := store.Setup().ResetDevelopment(ctx)
+	if err != nil || reset.Setup.Status != learning.SetupAwaitingOnboarding {
+		t.Fatalf("reset setup = (%+v, %v)", reset, err)
+	}
+	student, err := store.Profiles().Show(ctx)
+	if err != nil || student.Profile.DisplayName != "Ada" {
+		t.Fatalf("profile after reset = (%+v, %v)", student, err)
+	}
+	goalsAfter, err := store.Goals().Show(ctx)
+	if err != nil || len(goalsAfter) != len(goalsBefore) || goalsAfter[0].ID != goalsBefore[0].ID {
+		t.Fatalf("goals after reset = (%+v, %v)", goalsAfter, err)
+	}
+	if _, err := store.CurriculumInstances().Get(ctx, *completed.Setup.CurriculumInstanceID); !errors.Is(err, application.ErrNotFound) {
+		t.Fatalf("setup curriculum after reset error = %v, want not found", err)
+	}
+}
+
+func completeIntegratedSetupWithoutDiagnostic(t *testing.T, ctx context.Context, setup application.LearnerSetupService) application.LearnerSetupView {
+	t.Helper()
+	if _, err := setup.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, answer := range []string{"Ada", "Understand ratios", "Mathematics", "Solve ratio problems", "beginner", "beginner", "30", "5", "practice", "0.80", "no", ""} {
+		if _, err := setup.SubmitOnboarding(ctx, answer); err != nil {
+			t.Fatalf("submit onboarding answer %q: %v", answer, err)
+		}
+	}
+	view, err := setup.Confirm(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return view
 }
 
 func TestFactoryReopensCurriculumInstanceAndIsolatedConceptState(t *testing.T) {

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mishaaac/kelyro/internal/infra/developmentfixture"
 	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/storage/sqlite"
+	"github.com/mishaaac/kelyro/internal/version"
 )
 
 // Factory opens one profile store per workspace operation.
@@ -58,11 +60,19 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	}
 	curriculumInstances := application.NewCurriculumInstanceService(profiles, database, instanceOptions...)
 	diagnostics := application.NewDiagnosticService(profiles, database, application.WithDiagnosticClock(now))
+	onboarding := application.NewOnboardingService(profiles, goals, database.LearningRepositories().Onboarding,
+		application.WithOnboardingClock(now), application.WithOnboardingMasteryPolicy(mastery))
+	curriculum, diagnostic, fixtureErr := developmentfixture.FoundationDemo()
+	if fixtureErr != nil {
+		_ = database.Close()
+		return nil, fixtureErr
+	}
+	setup := application.NewLearnerSetupService(profiles, onboarding, curriculumInstances, diagnostics, database, curriculum, diagnostic,
+		application.WithLearnerSetupClock(now), application.WithDevelopmentSetupReset(version.IsDevelopment(factory.appVersion)))
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
-		onboarding: application.NewOnboardingService(profiles, goals, database.LearningRepositories().Onboarding,
-			application.WithOnboardingClock(now), application.WithOnboardingMasteryPolicy(mastery)),
+		onboarding: onboarding, setup: setup,
 	}, nil
 }
 
@@ -74,6 +84,7 @@ type store struct {
 	mastery             application.MasteryPolicyService
 	curriculumInstances application.CurriculumInstanceService
 	diagnostics         application.DiagnosticService
+	setup               application.LearnerSetupService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -84,6 +95,7 @@ func (store *store) CurriculumInstances() application.CurriculumInstanceService 
 	return store.curriculumInstances
 }
 func (store *store) Diagnostics() application.DiagnosticService { return store.diagnostics }
+func (store *store) Setup() application.LearnerSetupService     { return store.setup }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

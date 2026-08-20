@@ -25,3 +25,7 @@ instances, and sparse instance-scoped concept state is documented in
 The deterministic initial diagnostic contract, scoring/confidence policy,
 adaptive branching, evidence linkage, and resumable persistence are documented
 in [deterministic-initial-diagnostic.md](deterministic-initial-diagnostic.md).
+
+The resumable orchestration from onboarding through optional diagnostic and
+transactional initial learner state is documented in
+[integrated-learner-setup.md](integrated-learner-setup.md).

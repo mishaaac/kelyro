@@ -164,6 +164,21 @@ func (service *onboardingService) Confirm(ctx context.Context) (OnboardingConfir
 	if err != nil {
 		return OnboardingConfirmation{}, err
 	}
+	if view.Interview.Status == learning.OnboardingCompleted {
+		_, goalInput, outputErr := onboardingOutputs(view.Interview.Answers)
+		if outputErr != nil {
+			return OnboardingConfirmation{}, invalid(operation, outputErr)
+		}
+		goals, showErr := service.goals.Show(ctx)
+		if showErr != nil {
+			return OnboardingConfirmation{}, showErr
+		}
+		goal, found := matchingActiveGoal(goals, goalInput)
+		if !found {
+			return OnboardingConfirmation{}, Classify(ErrorInvalidState, operation, errors.New("completed onboarding has no matching active goal"))
+		}
+		return OnboardingConfirmation{View: view.Interview, Goal: goal}, nil
+	}
 	if view.Interview.Status != learning.OnboardingInProgress || view.Question.Kind != learning.OnboardingConfirmQuestion {
 		return OnboardingConfirmation{}, invalid(operation, errors.New("onboarding is not ready for confirmation"))
 	}

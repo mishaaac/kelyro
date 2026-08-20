@@ -112,6 +112,27 @@ type DiagnosticService interface {
 	Result(context.Context, learning.ID, learning.Diagnostic) (learning.DiagnosticResult, error)
 }
 
+// LearnerSetupView is the presentation-neutral projection of the first
+// educational flow. Exactly one interactive child is normally active.
+type LearnerSetupView struct {
+	Setup      learning.LearnerSetup
+	Onboarding *OnboardingView
+	Diagnostic *DiagnosticView
+	Instance   *learning.CurriculumInstance
+}
+
+type LearnerSetupService interface {
+	Show(context.Context) (LearnerSetupView, error)
+	Start(context.Context) (LearnerSetupView, error)
+	SubmitOnboarding(context.Context, string) (LearnerSetupView, error)
+	Back(context.Context) (LearnerSetupView, error)
+	Cancel(context.Context) (LearnerSetupView, error)
+	Confirm(context.Context) (LearnerSetupView, error)
+	SubmitDiagnostic(context.Context, []string) (LearnerSetupView, error)
+	SkipDiagnostic(context.Context) (LearnerSetupView, error)
+	ResetDevelopment(context.Context) (LearnerSetupView, error)
+}
+
 // ProfileStore scopes Student Core profile and goal operations, plus their
 // database lifetime, to one workspace without exposing SQLite to application
 // or presentation packages. The historical name is retained for compatibility.
@@ -122,6 +143,7 @@ type ProfileStore interface {
 	Mastery() MasteryPolicyService
 	CurriculumInstances() CurriculumInstanceService
 	Diagnostics() DiagnosticService
+	Setup() LearnerSetupService
 	Close() error
 }
 
@@ -185,6 +207,12 @@ type DiagnosticRepository interface {
 	Get(context.Context, learning.ID) (learning.DiagnosticAttempt, error)
 	Find(context.Context, learning.ID, learning.ID, learning.DiagnosticRef) (learning.DiagnosticAttempt, error)
 	Save(context.Context, learning.DiagnosticAttempt) error
+}
+
+type LearnerSetupRepository interface {
+	Get(context.Context, learning.ID) (learning.LearnerSetup, error)
+	Save(context.Context, learning.LearnerSetup) error
+	ResetDevelopment(context.Context, learning.ID) error
 }
 
 type ConceptStateRepository interface {
@@ -260,6 +288,7 @@ type Repositories struct {
 	Concepts              ConceptStateRepository
 	InstanceConceptStates InstanceConceptStateRepository
 	Diagnostics           DiagnosticRepository
+	Setup                 LearnerSetupRepository
 	Evidence              EvidenceRepository
 	Mistakes              MistakeRepository
 	Retention             RetentionRepository

@@ -36,7 +36,7 @@ type profileLoadedMsg struct{ student learning.Student }
 
 type profileLoadFailedMsg struct{ err error }
 
-type onboardingLoadedMsg struct{ view learningapp.OnboardingView }
+type onboardingLoadedMsg struct{ view learningapp.LearnerSetupView }
 
 type onboardingFailedMsg struct{ err error }
 

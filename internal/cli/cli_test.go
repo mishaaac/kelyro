@@ -14,6 +14,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/learning"
+	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/update"
 )
@@ -42,6 +43,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "profile show", args: []string{"profile", "show"}, wantAction: app.ActionProfile},
 		{name: "goal show", args: []string{"goal", "show"}, wantAction: app.ActionGoal},
 		{name: "mastery threshold", args: []string{"mastery", "threshold"}, wantAction: app.ActionMastery},
+		{name: "setup status", args: []string{"setup", "status"}, wantAction: app.ActionSetup},
 	}
 
 	for _, test := range tests {
@@ -69,6 +71,26 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerRendersIntegratedLearnerSetupStatus(t *testing.T) {
+	t.Parallel()
+	view := learningapp.LearnerSetupView{Setup: learning.LearnerSetup{Status: learning.SetupCompleted}, Instance: &learning.CurriculumInstance{
+		Curriculum: learning.CurriculumRef{}, Source: learning.CurriculumSourceFixture,
+	}}
+	service := &fakeService{result: app.Result{Setup: &view}}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"setup", "status"}); code != ExitOK {
+		t.Fatalf("setup status exit=%d stderr=%q", code, stderr.String())
+	}
+	if command := service.commands[0]; command.Action != app.ActionSetup || command.SetupOperation != "status" {
+		t.Fatalf("setup command = %+v", command)
+	}
+	for _, want := range []string{"Learner setup", "Status: completed", "Source: fixture", "Diagnostic: not selected"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("setup output missing %q:\n%s", want, stdout.String())
+		}
 	}
 }
 
@@ -695,7 +717,7 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "backup missing operation", args: []string{"backup"}, message: "backup requires create, list, or restore"},
 		{name: "backup unknown operation", args: []string{"backup", "copy"}, message: `unknown backup command "copy"`},
 		{name: "backup restore missing id", args: []string{"backup", "restore"}, message: "backup restore requires exactly one id"},
-		{name: "yes without restore", args: []string{"backup", "create", "--yes"}, message: "option --yes requires the backup restore command"},
+		{name: "yes without restore", args: []string{"backup", "create", "--yes"}, message: "option --yes requires backup restore or setup reset"},
 		{name: "full without export", args: []string{"status", "--full"}, message: "option --full requires the export command"},
 		{name: "output without export", args: []string{"status", "--output", "archive.tar.gz"}, message: "option --output requires the export command"},
 		{name: "export positional", args: []string{"export", "archive.tar.gz"}, message: "export does not accept positional arguments"},

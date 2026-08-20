@@ -1285,7 +1285,7 @@ feat(diagnostic): add deterministic initial assessment framework
 
 ## Paso 12 — Integrar onboarding, goal, diagnóstico e inicialización del Student State
 
-- [ ] Paso 12 completado
+- [x] Paso 12 completado
 
 ### Objetivo
 

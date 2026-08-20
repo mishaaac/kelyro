@@ -60,6 +60,7 @@ func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 		"diagnostic_observations",
 		"learner_curriculum_concept_states",
 		"learner_curriculum_instances",
+		"learner_setups",
 		"learning_evidence",
 		"learning_goals",
 		"mastery_threshold_settings",

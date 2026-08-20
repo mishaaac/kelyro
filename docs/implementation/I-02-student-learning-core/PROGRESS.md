@@ -500,3 +500,49 @@ Release: unreleased
 - El Paso 12 es el siguiente paso pendiente y requiere autorización explícita.
 - El flujo integrado debe consumir `DiagnosticService`, respetar la decisión de opt-in del onboarding y marcar setup completo solo después de inicializar de forma consistente la Curriculum Instance y Student State.
 - No recalcular estimated mastery dentro de TUI/CLI ni convertirlo directamente en mastery confirmado; la política de inicialización debe permanecer explícita y transaccional.
+
+## Step 12 — Integrated onboarding, diagnostic, and learner-state initialization
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Agregado durable `LearnerSetup` con estados `awaiting_onboarding`, `awaiting_diagnostic`, `initializing` y `completed`; `setup_completed_at` es la única señal autoritativa de finalización.
+- `LearnerSetupService` coordina los casos de uso existentes de perfil, goal, mastery, onboarding, Curriculum Instance y diagnóstico sin duplicar sus reglas.
+- Reanudación automática del onboarding o intento diagnóstico exacto y recuperación idempotente desde `initializing` después de una falla.
+- Fixture de desarrollo/demo `foundation-demo@1.0.0` encapsulado fuera del core y verificado contra los fixtures versionados canónicos.
+- Inicialización transaccional de todos los conceptos de la instancia con exposure `not_seen` y mastery `0`, sin convertir estimated diagnostic mastery en mastery confirmado.
+- Migration forward-only v11 y repositorios SQLite/in-memory para el checkpoint, con constraints de lifecycle, FKs y persistencia al reabrir el workspace.
+- TUI de primer inicio que abre o retoma setup, muestra el resumen antes de confirmar, permite completar o saltar el diagnóstico y habilita la learning path únicamente al terminar.
+- CLI `setup status` y reset seguro para desarrollo/demo con confirmación explícita; el reset conserva perfil, historial de goals y datos Foundation.
+- E2E del binario para onboarding completo, creación de goal/curriculum/state, estado CLI persistente y reapertura de la TUI.
+- Diseño y fronteras documentados en `docs/architecture/integrated-learner-setup.md`.
+
+### Decisions
+
+- Setup es un checkpoint de orquestación, no un aggregate alternativo para onboarding, goal, diagnóstico o curriculum.
+- Onboarding completado no equivale a setup completo; la Curriculum Instance y todos sus estados iniciales deben existir antes de escribir `setup_completed_at`.
+- La materialización y el transition final comparten una transacción. Una falla conserva un checkpoint recuperable, no deja estados parciales visibles y `Show` puede reintentar.
+- El diagnóstico conserva evidence y estimaciones del Paso 11, pero el estado inicial permanece sin aprendizaje observado. La combinación de evidencias pertenece al Mastery Engine del Paso 13.
+- El fixture es solo el bridge determinista de I-02 para desarrollo/demo; no implementa selección personalizada ni adelanta I-04.
+- Reset elimina únicamente el subgrafo creado por este setup; no borra perfil, goals históricos, tablas Foundation ni instancias no asociadas.
+
+### Verification
+
+- Tests de dominio para invariantes y transitions de `LearnerSetup`.
+- Tests application para opt-out, diagnóstico parcial/reanudado, rollback/recovery y gating/preservación del reset.
+- Tests SQLite de migration v10 → v11 aditiva y reapertura/reset sobre una DB real.
+- Tests de app, CLI y TUI para routing, render, confirmación, auto-start y edición/diagnóstico.
+- `GOCACHE=<workspace>/.step12-gocache GOTMPDIR=<workspace>/.step12-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test ./...`.
+- `GOCACHE=<workspace>/.step12-gocache GOTMPDIR=<workspace>/.step12-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test -tags=e2e ./tests/e2e`.
+- `GOCACHE=<workspace>/.step12-gocache GOTMPDIR=<workspace>/.step12-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go vet ./...`.
+- `GOCACHE=<workspace>/.step12-gocache GOTMPDIR=<workspace>/.step12-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go run ./tools/quality all`, incluyendo E2E, race, build y smoke checks de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 13 es el siguiente paso pendiente y requiere autorización explícita.
+- El Mastery Engine debe combinar Evidence con una fórmula versionada; no debe inferir que los estados iniciales `not_seen/0` son evidencia negativa.
+- La selección de curriculum personalizada sigue reservada para I-04; no extender el fixture bridge como UX final.

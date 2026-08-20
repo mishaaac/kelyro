@@ -7,11 +7,13 @@ persistence needed to build the product incrementally.
 
 ## Status
 
-Foundation pre-release `v0.1.0-alpha.2`. The current executable provides
+Foundation pre-release `v0.1.0-alpha.2`. I-02 Student & Learning Core is in
+progress through its first integrated learner setup. The current executable provides
 workspace initialization, global/project configuration, secret management,
 safe opening of Foundation documents, portability and recovery operations, and
-an interactive Foundation TUI. I-01 is closed and ready for I-02 Student &
-Learning Core; learning features are not implemented yet. See the
+an interactive TUI with resumable onboarding, a learning goal, mastery policy,
+an optional deterministic diagnostic, and fixture-backed initial curriculum
+state. Later mastery, retention, scheduling, and exercise steps remain pending. See the
 [release notes](docs/releases/v0.1.0-alpha.2.md) for scope and limitations.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
@@ -36,8 +38,9 @@ go build ./cmd/kelyro
 Run the resulting binary with `./kelyro` on Linux or macOS, or
 `kelyro.exe` on Windows.
 
-Run `kelyro help` to list the available Foundation commands. Invoking `kelyro`
-without a command opens the Foundation TUI from a Kelyro workspace. Its Home,
+Run `kelyro help` to list the available commands. Invoking `kelyro` without a
+command opens the TUI from a Kelyro workspace. An incomplete learner setup opens
+automatically and resumes its last durable checkpoint. Its Home,
 Doctor, Config, and Roadmap screens use visible keyboard shortcuts; `q` exits and
 `Esc` returns Home. Set `NO_COLOR` or pass `--no-color` to disable color.
 

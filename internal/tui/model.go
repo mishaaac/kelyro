@@ -40,10 +40,12 @@ type Model struct {
 	profileLoading    bool
 	profileErr        error
 	onboarding        learningapp.OnboardingView
+	setup             learningapp.LearnerSetupView
 	onboardingLoading bool
 	onboardingErr     error
 	onboardingInput   string
 	onboardingCursor  int
+	diagnosticAnswers map[int]bool
 	loadErr           error
 	notice            string
 	configCursor      int
@@ -129,9 +131,14 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.profileLoading = true
 			return model, loadProfileCmd(model.ctx, model.service, model.command)
 		}
+		if !model.snapshot.LearningPath {
+			model.screen = screenOnboarding
+			model.onboardingLoading = true
+			return model, onboardingCmd(model.ctx, model.service, model.command, "start")
+		}
 		if model.screen == screenOnboarding {
 			model.onboardingLoading = true
-			return model, onboardingCmd(model.ctx, model.service, model.command, "start", "")
+			return model, onboardingCmd(model.ctx, model.service, model.command, "start")
 		}
 		return model, nil
 	case foundationLoadFailedMsg:
@@ -183,12 +190,19 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return model, nil
 	case onboardingLoadedMsg:
-		model.onboarding = message.view
+		model.setup = message.view
+		if message.view.Onboarding != nil {
+			model.onboarding = *message.view.Onboarding
+		}
 		model.onboardingLoading = false
 		model.onboardingErr = nil
 		model.onboardingInput = ""
 		model.onboardingCursor = 0
+		model.diagnosticAnswers = make(map[int]bool)
 		model.prepareOnboardingQuestion()
+		if message.view.Setup.Status == learning.SetupCompleted {
+			model.snapshot.LearningPath = true
+		}
 		if model.session.LastView != session.ViewOnboarding {
 			model.session.LastView = session.ViewOnboarding
 			return model.queueCheckpoint()
@@ -256,7 +270,7 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.screen = screenOnboarding
 			model.onboardingLoading = true
 			model.onboardingErr = nil
-			return model, onboardingCmd(model.ctx, model.service, model.command, "start", "")
+			return model, onboardingCmd(model.ctx, model.service, model.command, "start")
 		}
 		if model.screen != previous {
 			model.session.LastView = sessionView(model.screen)
@@ -380,13 +394,24 @@ func (model Model) updateOnboarding(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if model.onboardingLoading {
 		return model, nil
 	}
+	if model.setup.Setup.Status == learning.SetupCompleted {
+		if keyName == "enter" || keyName == "esc" {
+			model.screen = screenHome
+			model.session.LastView = session.ViewHome
+			return model.queueCheckpoint()
+		}
+		return model, nil
+	}
+	if model.setup.Diagnostic != nil {
+		return model.updateDiagnostic(key)
+	}
 	if keyName == "ctrl+x" && model.onboarding.Interview.Status == learning.OnboardingInProgress {
 		model.onboardingLoading = true
-		return model, onboardingCmd(model.ctx, model.service, model.command, "cancel", "")
+		return model, onboardingCmd(model.ctx, model.service, model.command, "cancel")
 	}
 	if keyName == "ctrl+b" && model.onboarding.Interview.Status == learning.OnboardingInProgress {
 		model.onboardingLoading = true
-		return model, onboardingCmd(model.ctx, model.service, model.command, "back", "")
+		return model, onboardingCmd(model.ctx, model.service, model.command, "back")
 	}
 	if model.onboarding.Interview.Status == learning.OnboardingCompleted || model.onboarding.Interview.Status == learning.OnboardingCancelled {
 		if keyName == "enter" {
@@ -411,13 +436,15 @@ func (model Model) updateOnboarding(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if len(question.Options) > 0 {
 				model.onboardingLoading = true
-				return model, onboardingCmd(model.ctx, model.service, model.command, "submit", question.Options[model.onboardingCursor].Value)
+				return model, onboardingCmd(model.ctx, model.service, model.command, "onboarding-submit", question.Options[model.onboardingCursor].Value)
 			}
 		}
 	case learning.OnboardingTextQuestion:
 		switch key.Type {
 		case tea.KeyRunes:
 			model.onboardingInput += string(key.Runes)
+		case tea.KeySpace:
+			model.onboardingInput += " "
 		case tea.KeyBackspace, tea.KeyDelete:
 			runes := []rune(model.onboardingInput)
 			if len(runes) > 0 {
@@ -425,17 +452,89 @@ func (model Model) updateOnboarding(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		case tea.KeyEnter:
 			model.onboardingLoading = true
-			return model, onboardingCmd(model.ctx, model.service, model.command, "submit", model.onboardingInput)
+			return model, onboardingCmd(model.ctx, model.service, model.command, "onboarding-submit", model.onboardingInput)
 		}
 	case learning.OnboardingReviewQuestion:
 		if keyName == "enter" {
 			model.onboardingLoading = true
-			return model, onboardingCmd(model.ctx, model.service, model.command, "submit", "")
+			return model, onboardingCmd(model.ctx, model.service, model.command, "onboarding-submit", "")
 		}
 	case learning.OnboardingConfirmQuestion:
 		if keyName == "enter" {
 			model.onboardingLoading = true
-			return model, onboardingCmd(model.ctx, model.service, model.command, "confirm", "")
+			return model, onboardingCmd(model.ctx, model.service, model.command, "confirm")
+		}
+	}
+	return model, nil
+}
+
+func (model Model) updateDiagnostic(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	keyName := key.String()
+	if keyName == "x" {
+		model.onboardingLoading = true
+		return model, onboardingCmd(model.ctx, model.service, model.command, "diagnostic-skip")
+	}
+	item := model.setup.Diagnostic.Item
+	if item == nil {
+		return model, nil
+	}
+	switch item.Kind {
+	case learning.DiagnosticSingleChoice, learning.DiagnosticSelfReport:
+		switch keyName {
+		case "up", "k":
+			if model.onboardingCursor > 0 {
+				model.onboardingCursor--
+			}
+		case "down", "j":
+			if model.onboardingCursor < len(item.Options)-1 {
+				model.onboardingCursor++
+			}
+		case "enter":
+			if len(item.Options) > 0 {
+				model.onboardingLoading = true
+				return model, onboardingCmd(model.ctx, model.service, model.command, "diagnostic-submit", item.Options[model.onboardingCursor].Value)
+			}
+		}
+	case learning.DiagnosticMultipleChoice:
+		switch keyName {
+		case "up", "k":
+			if model.onboardingCursor > 0 {
+				model.onboardingCursor--
+			}
+		case "down", "j":
+			if model.onboardingCursor < len(item.Options)-1 {
+				model.onboardingCursor++
+			}
+		case " ", "space":
+			model.diagnosticAnswers[model.onboardingCursor] = !model.diagnosticAnswers[model.onboardingCursor]
+		case "enter":
+			answers := make([]string, 0, len(model.diagnosticAnswers))
+			for index, option := range item.Options {
+				if model.diagnosticAnswers[index] {
+					answers = append(answers, option.Value)
+				}
+			}
+			if len(answers) > 0 {
+				model.onboardingLoading = true
+				return model, onboardingCmd(model.ctx, model.service, model.command, "diagnostic-submit", answers...)
+			}
+		}
+	case learning.DiagnosticShortAnswer:
+		switch key.Type {
+		case tea.KeyRunes:
+			model.onboardingInput += string(key.Runes)
+		case tea.KeySpace:
+			model.onboardingInput += " "
+		case tea.KeyBackspace, tea.KeyDelete:
+			runes := []rune(model.onboardingInput)
+			if len(runes) > 0 {
+				model.onboardingInput = string(runes[:len(runes)-1])
+			}
+		case tea.KeyEnter:
+			if model.onboardingInput != "" {
+				model.onboardingLoading = true
+				return model, onboardingCmd(model.ctx, model.service, model.command, "diagnostic-submit", model.onboardingInput)
+			}
 		}
 	}
 	return model, nil

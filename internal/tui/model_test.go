@@ -325,7 +325,8 @@ func TestProfileScreenLoadsThroughApplicationService(t *testing.T) {
 func TestOnboardingScreenStartsEditsAndSubmitsThroughApplicationService(t *testing.T) {
 	t.Parallel()
 	view := tuiOnboardingView(t)
-	service := &fakeService{result: app.Result{Onboarding: &view}}
+	setup := learningapp.LearnerSetupView{Setup: learning.LearnerSetup{Status: learning.SetupAwaitingOnboarding}, Onboarding: &view}
+	service := &fakeService{result: app.Result{Setup: &setup}}
 	model := readyModel(service)
 	opening, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if command == nil || opening.(Model).screen != screenOnboarding || !opening.(Model).onboardingLoading {
@@ -349,9 +350,56 @@ func TestOnboardingScreenStartsEditsAndSubmitsThroughApplicationService(t *testi
 	}
 	_ = submit()
 	last := service.executed[len(service.executed)-1]
-	if len(service.executed) != 2 || last.Action != app.ActionOnboarding ||
-		last.OnboardingOperation != "submit" || last.OnboardingAnswer != "q" {
+	if len(service.executed) != 2 || last.Action != app.ActionSetup ||
+		last.SetupOperation != "onboarding-submit" || len(last.SetupAnswers) != 1 || last.SetupAnswers[0] != "q" {
 		t.Fatalf("onboarding command = %#v", service.executed)
+	}
+}
+
+func TestModelAutomaticallyStartsIncompleteLearnerSetup(t *testing.T) {
+	t.Parallel()
+	view := tuiOnboardingView(t)
+	setup := learningapp.LearnerSetupView{Setup: learning.LearnerSetup{Status: learning.SetupAwaitingOnboarding}, Onboarding: &view}
+	snapshot := healthySnapshot()
+	snapshot.LearningPath = false
+	service := &fakeService{snapshot: snapshot, result: app.Result{Setup: &setup}, incompleteSetup: true}
+	model := NewModel(context.Background(), service, app.Command{}, true)
+
+	initialized, command := model.Update(model.Init()())
+	if command == nil || initialized.(Model).screen != screenOnboarding {
+		t.Fatalf("initial setup = model %#v command %v", initialized, command)
+	}
+	loaded, _ := initialized.(Model).Update(command())
+	if loaded.(Model).onboarding.Question.ID != learningapp.OnboardingDisplayNameQuestion || service.executed[0].SetupOperation != "start" {
+		t.Fatalf("loaded setup = model %#v calls %#v", loaded, service.executed)
+	}
+}
+
+func TestSetupScreenSubmitsOptionalDiagnosticThroughApplicationService(t *testing.T) {
+	t.Parallel()
+	item := learning.DiagnosticItem{Kind: learning.DiagnosticSingleChoice, Prompt: "Choose one", Options: []learning.DiagnosticOption{
+		{Value: "first", Label: "First"}, {Value: "second", Label: "Second"},
+	}}
+	setup := learningapp.LearnerSetupView{
+		Setup:      learning.LearnerSetup{Status: learning.SetupAwaitingDiagnostic},
+		Diagnostic: &learningapp.DiagnosticView{Item: &item},
+	}
+	service := &fakeService{result: app.Result{Setup: &setup}}
+	model := readyModel(service)
+	model.screen = screenOnboarding
+	loaded, _ := model.Update(onboardingLoadedMsg{view: setup})
+	if !strings.Contains(loaded.(Model).View(), "Optional initial diagnostic") {
+		t.Fatalf("diagnostic setup view:\n%s", loaded.(Model).View())
+	}
+	selecting, _ := loaded.(Model).Update(tea.KeyMsg{Type: tea.KeyDown})
+	_, command := selecting.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if command == nil {
+		t.Fatal("diagnostic Enter did not submit")
+	}
+	_ = command()
+	last := service.executed[len(service.executed)-1]
+	if last.Action != app.ActionSetup || last.SetupOperation != "diagnostic-submit" || len(last.SetupAnswers) != 1 || last.SetupAnswers[0] != "second" {
+		t.Fatalf("diagnostic command = %+v", last)
 	}
 }
 
@@ -442,23 +490,28 @@ func keyRunes(key string) []rune {
 }
 
 type fakeService struct {
-	snapshot      app.FoundationSnapshot
-	loadErr       error
-	result        app.Result
-	executeErr    error
-	loadedCommand app.Command
-	executed      []app.Command
-	resume        session.Resume
-	sessionErr    error
-	checkpoints   []session.State
-	checkpointErr error
-	completed     []session.State
-	completeErr   error
+	snapshot        app.FoundationSnapshot
+	loadErr         error
+	result          app.Result
+	executeErr      error
+	loadedCommand   app.Command
+	executed        []app.Command
+	resume          session.Resume
+	sessionErr      error
+	checkpoints     []session.State
+	checkpointErr   error
+	completed       []session.State
+	completeErr     error
+	incompleteSetup bool
 }
 
 func (service *fakeService) LoadFoundation(_ context.Context, command app.Command) (app.FoundationSnapshot, error) {
 	service.loadedCommand = command
-	return service.snapshot, service.loadErr
+	snapshot := service.snapshot
+	if !service.incompleteSetup {
+		snapshot.LearningPath = true
+	}
+	return snapshot, service.loadErr
 }
 
 func (service *fakeService) Execute(_ context.Context, command app.Command) (app.Result, error) {
