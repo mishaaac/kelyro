@@ -21,3 +21,7 @@ repository adapter are documented in
 The separation between immutable curriculum definitions, learner curriculum
 instances, and sparse instance-scoped concept state is documented in
 [learner-curriculum-instances.md](learner-curriculum-instances.md).
+
+The deterministic initial diagnostic contract, scoring/confidence policy,
+adaptive branching, evidence linkage, and resumable persistence are documented
+in [deterministic-initial-diagnostic.md](deterministic-initial-diagnostic.md).

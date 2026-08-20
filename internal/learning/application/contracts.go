@@ -95,6 +95,23 @@ type CurriculumInstanceService interface {
 	SaveState(context.Context, learning.InstanceConceptState) error
 }
 
+// DiagnosticView exposes the next deterministic item and estimated result.
+// Result always labels in-progress attempts as partial and never represents
+// confirmed mastery.
+type DiagnosticView struct {
+	Attempt learning.DiagnosticAttempt
+	Item    *learning.DiagnosticItem
+	Result  learning.DiagnosticResult
+}
+
+type DiagnosticService interface {
+	Start(context.Context, learning.ID, learning.Diagnostic) (DiagnosticView, error)
+	Resume(context.Context, learning.ID, learning.Diagnostic) (DiagnosticView, error)
+	Submit(context.Context, learning.ID, learning.Diagnostic, []string) (DiagnosticView, error)
+	Skip(context.Context, learning.ID, learning.Diagnostic) (DiagnosticView, error)
+	Result(context.Context, learning.ID, learning.Diagnostic) (learning.DiagnosticResult, error)
+}
+
 // ProfileStore scopes Student Core profile and goal operations, plus their
 // database lifetime, to one workspace without exposing SQLite to application
 // or presentation packages. The historical name is retained for compatibility.
@@ -104,6 +121,7 @@ type ProfileStore interface {
 	Onboarding() OnboardingService
 	Mastery() MasteryPolicyService
 	CurriculumInstances() CurriculumInstanceService
+	Diagnostics() DiagnosticService
 	Close() error
 }
 
@@ -160,6 +178,13 @@ type InstanceConceptStateRepository interface {
 	Get(context.Context, learning.ID, learning.ID) (learning.InstanceConceptState, error)
 	ListByInstance(context.Context, learning.ID) ([]learning.InstanceConceptState, error)
 	Save(context.Context, learning.InstanceConceptState) error
+}
+
+type DiagnosticRepository interface {
+	Create(context.Context, learning.DiagnosticAttempt) error
+	Get(context.Context, learning.ID) (learning.DiagnosticAttempt, error)
+	Find(context.Context, learning.ID, learning.ID, learning.DiagnosticRef) (learning.DiagnosticAttempt, error)
+	Save(context.Context, learning.DiagnosticAttempt) error
 }
 
 type ConceptStateRepository interface {
@@ -234,6 +259,7 @@ type Repositories struct {
 	CurriculumInstances   CurriculumInstanceRepository
 	Concepts              ConceptStateRepository
 	InstanceConceptStates InstanceConceptStateRepository
+	Diagnostics           DiagnosticRepository
 	Evidence              EvidenceRepository
 	Mistakes              MistakeRepository
 	Retention             RetentionRepository

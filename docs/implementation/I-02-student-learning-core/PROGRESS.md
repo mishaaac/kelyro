@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 11 (pending authorization)
-Last completed step: 10
+Current step: 12 (pending authorization)
+Last completed step: 11
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -454,3 +454,49 @@ Release: unreleased
 - El Paso 11 es el siguiente paso pendiente y requiere autorización explícita.
 - El diagnóstico debe escribir evidencia determinista y asociarse a una Curriculum Instance explícita; no debe volver a usar el estado legacy global ni adelantar el Mastery Engine del Paso 13.
 - La migration automática entre versiones curriculares permanece futura; el diagnóstico no debe copiar progreso entre instancias.
+
+## Step 11 — Diagnóstico inicial determinista
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Contrato de diagnóstico versionado con `Diagnostic`, secciones, cuatro tipos genéricos de ítem, intentos resumibles, observaciones calificadas, resultados y estimaciones por concepto.
+- Evaluadores deterministas para single choice, multiple choice exacto, short answer normalizado y self-report calibrado, sin code runner, LLM ni respuestas generadas.
+- Política explícita `diagnostic-scoring/v1`: evidencia objetiva con peso `1.0`, self-report con peso `0.25`, confidence separada y conceptos sin observación reportados como `unknown`.
+- Branching adaptativo puro que corta descendientes de un prerequisito fundamental fallido, continúa respuestas positivas y omite preguntas redundantes al acumular evidencia objetiva suficiente.
+- Caso de uso workspace-scoped para start/resume/submit/skip/result, con creación atómica de `EvidenceDiagnostic`, reanudación idempotente y protección por fingerprint de la definición.
+- Privacidad por diseño: la respuesta cruda se evalúa en memoria y no se persiste; el intento conserva solo item, concepto, score, evidence ID y timestamp.
+- Migration forward-only v10 con intentos ligados a una Curriculum Instance y observaciones normalizadas con FK a conceptos y evidencia; adapters SQLite e in-memory con terminales inmutables.
+- Fixture estricto y determinista `foundation-demo/diagnostic.json`, asociado exactamente a `foundation-demo@1.0.0` y cubriendo los cuatro tipos de ítem.
+- Documento arquitectónico con fórmulas, lifecycle, branching, evidencia, persistencia, privacidad y fronteras en `docs/architecture/deterministic-initial-diagnostic.md`.
+
+### Decisions
+
+- Diagnostic result expresa únicamente estimated mastery y confidence; el Paso 11 no escribe mastery, exposure ni `InstanceConceptState`, y no masteriza automáticamente ningún concepto.
+- La confidence v1 es `min(1, sum(weights)/2)`, por lo que una respuesta objetiva perfecta queda en confidence `0.5` y un self-report perfecto en `0.125`.
+- Una definición queda inmutable por su fingerprint SHA-256; reanudar con el mismo ID/version pero contenido modificado falla como invalid state.
+- Solo existe un intento inicial por `(student, curriculum instance, diagnostic ID/version)`; `Start` recupera ese intento y un estado terminal no puede reabrirse o mutarse.
+- Skip solo es válido antes de responder; un intento parcial se conserva para resume en lugar de descartar evidencia ya registrada.
+- Evidence conserva su agregado append-only existente; la relación explícita con Curriculum Instance se registra en provenance y mediante `diagnostic_observations → diagnostic_attempts`.
+- La integración automática onboarding → diagnostic → Student State permanece reservada para el Paso 12.
+
+### Verification
+
+- Tests de dominio para evaluadores, score/confidence/unknown, lifecycle, fingerprint, branching transitivo y omisión de redundancia.
+- Tests application para complete, skipped, partial, resume, evidence creation, curriculum mismatch y definición mutada.
+- Tests del loader estricto para estabilidad del fixture y presencia de single choice, multiple choice, short answer y self-report.
+- Tests SQLite para roundtrip normalizado, FK entre observación y evidence, terminales inmutables, índices y upgrade aditivo v9 → v10 conservando datos.
+- Reapertura real de workspace con intento parcial `foundation-demo`, verificando el mismo attempt, observación y siguiente ítem después de cerrar/abrir la DB.
+- `GOCACHE=<workspace>/.step11-gocache GOTMPDIR=<workspace>/.step11-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test ./...`.
+- `GOCACHE=<workspace>/.step11-gocache GOTMPDIR=<workspace>/.step11-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go vet ./...`.
+- `GOCACHE=<workspace>/.step11-gocache GOTMPDIR=<workspace>/.step11-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go run ./tools/quality all`, incluyendo tests, E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 12 es el siguiente paso pendiente y requiere autorización explícita.
+- El flujo integrado debe consumir `DiagnosticService`, respetar la decisión de opt-in del onboarding y marcar setup completo solo después de inicializar de forma consistente la Curriculum Instance y Student State.
+- No recalcular estimated mastery dentro de TUI/CLI ni convertirlo directamente en mastery confirmado; la política de inicialización debe permanecer explícita y transaccional.

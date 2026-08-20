@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/infra/curriculumyaml"
+	"github.com/mishaaac/kelyro/internal/infra/diagnosticjson"
 	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/platform"
@@ -198,6 +199,17 @@ func TestFactoryReopensCurriculumInstanceAndIsolatedConceptState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	diagnosticFixture, err := os.Open(filepath.Join("..", "..", "..", "testdata", "curricula", "foundation-demo", "diagnostic.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnostic, err := diagnosticjson.Load(diagnosticFixture)
+	if closeErr := diagnosticFixture.Close(); err == nil && closeErr != nil {
+		err = closeErr
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	factory := NewFactory("test")
 	factory.now = func() time.Time { return time.Date(2026, time.August, 19, 15, 0, 0, 0, time.UTC) }
@@ -238,6 +250,14 @@ func TestFactoryReopensCurriculumInstanceAndIsolatedConceptState(t *testing.T) {
 	if err := store.CurriculumInstances().SaveState(ctx, state); err != nil {
 		t.Fatal(err)
 	}
+	diagnosticView, err := store.Diagnostics().Start(ctx, instance.ID, diagnostic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnosticView, err = store.Diagnostics().Submit(ctx, diagnosticView.Attempt.ID, diagnostic, []string{"multiplicative"})
+	if err != nil || len(diagnosticView.Attempt.Observations) != 1 {
+		t.Fatalf("diagnostic checkpoint = (%+v, %v)", diagnosticView, err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -255,5 +275,9 @@ func TestFactoryReopensCurriculumInstanceAndIsolatedConceptState(t *testing.T) {
 	if err != nil || loadedState.Exposure != learning.ExposureLearning || loadedState.Mastery.Value() != .64 ||
 		len(loadedState.ManualFlags) != 1 || loadedState.ManualFlags[0] != "flag.needs-example" {
 		t.Fatalf("reopened state = (%+v, %v)", loadedState, err)
+	}
+	resumed, err := reopened.Diagnostics().Resume(ctx, diagnosticView.Attempt.ID, diagnostic)
+	if err != nil || resumed.Item == nil || resumed.Item.ID.String() != "item.ratio-words" || len(resumed.Attempt.Observations) != 1 {
+		t.Fatalf("reopened diagnostic = (%+v, %v)", resumed, err)
 	}
 }

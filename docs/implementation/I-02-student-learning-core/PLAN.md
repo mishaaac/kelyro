@@ -1187,7 +1187,7 @@ feat(curriculum): add learner curriculum instances
 
 ## Paso 11 — Implementar diagnóstico inicial determinista
 
-- [ ] Paso 11 completado
+- [x] Paso 11 completado
 
 ### Objetivo
 

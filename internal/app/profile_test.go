@@ -70,6 +70,7 @@ func (store *fakeProfileStore) Mastery() learningapp.MasteryPolicyService { retu
 func (store *fakeProfileStore) CurriculumInstances() learningapp.CurriculumInstanceService {
 	return nil
 }
+func (store *fakeProfileStore) Diagnostics() learningapp.DiagnosticService { return nil }
 func (store *fakeProfileStore) Close() error {
 	store.close()
 	return nil

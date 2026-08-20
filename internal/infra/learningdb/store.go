@@ -57,9 +57,10 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		instanceOptions = append(instanceOptions, application.WithCurriculumInstanceIDGenerator(factory.curriculumInstanceID))
 	}
 	curriculumInstances := application.NewCurriculumInstanceService(profiles, database, instanceOptions...)
+	diagnostics := application.NewDiagnosticService(profiles, database, application.WithDiagnosticClock(now))
 	return &store{
 		database: database, profiles: profiles,
-		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances,
+		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
 		onboarding: application.NewOnboardingService(profiles, goals, database.LearningRepositories().Onboarding,
 			application.WithOnboardingClock(now), application.WithOnboardingMasteryPolicy(mastery)),
 	}, nil
@@ -72,6 +73,7 @@ type store struct {
 	onboarding          application.OnboardingService
 	mastery             application.MasteryPolicyService
 	curriculumInstances application.CurriculumInstanceService
+	diagnostics         application.DiagnosticService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -81,6 +83,7 @@ func (store *store) Mastery() application.MasteryPolicyService { return store.ma
 func (store *store) CurriculumInstances() application.CurriculumInstanceService {
 	return store.curriculumInstances
 }
+func (store *store) Diagnostics() application.DiagnosticService { return store.diagnostics }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

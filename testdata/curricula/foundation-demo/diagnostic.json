@@ -1,0 +1,64 @@
+{
+  "contract_version": "diagnostic/v1",
+  "scoring_version": "diagnostic-scoring/v1",
+  "id": "foundation-demo-initial",
+  "version": "1.0.0",
+  "curriculum_id": "foundation-demo",
+  "curriculum_version": "1.0.0",
+  "title": "Quantitative reasoning initial diagnostic",
+  "sections": [
+    {
+      "id": "section.ratios",
+      "title": "Ratios",
+      "items": [
+        {
+          "id": "item.ratio-comparison",
+          "concept_id": "concept.ratio-meaning",
+          "kind": "single_choice",
+          "prompt": "A ratio compares two quantities in which way?",
+          "options": [
+            {"value": "multiplicative", "label": "Multiplicatively"},
+            {"value": "additive", "label": "By their additive difference"}
+          ],
+          "accepted_answers": ["multiplicative"]
+        },
+        {
+          "id": "item.ratio-words",
+          "concept_id": "concept.ratio-meaning",
+          "kind": "short_answer",
+          "prompt": "Write the ratio 3:2 in words.",
+          "accepted_answers": ["three to two"],
+          "requirements": [
+            {"item_id": "item.ratio-comparison", "minimum_score": 1.0}
+          ]
+        },
+        {
+          "id": "item.equivalent-selection",
+          "concept_id": "concept.equivalent-ratios",
+          "kind": "multiple_choice",
+          "prompt": "Select every ratio equivalent to 2:3.",
+          "options": [
+            {"value": "4:6", "label": "4:6"},
+            {"value": "6:9", "label": "6:9"},
+            {"value": "4:5", "label": "4:5"}
+          ],
+          "accepted_answers": ["4:6", "6:9"],
+          "requirements": [
+            {"item_id": "item.ratio-comparison", "minimum_score": 1.0}
+          ]
+        },
+        {
+          "id": "item.equivalent-confidence",
+          "concept_id": "concept.equivalent-ratios",
+          "kind": "self_report",
+          "prompt": "How comfortable are you explaining why two ratios are equivalent?",
+          "options": [
+            {"value": "new", "label": "This is new to me", "score": 0.0},
+            {"value": "somewhat", "label": "Somewhat comfortable", "score": 0.5},
+            {"value": "confident", "label": "Confident", "score": 1.0}
+          ]
+        }
+      ]
+    }
+  ]
+}

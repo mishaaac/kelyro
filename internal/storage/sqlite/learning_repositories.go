@@ -26,6 +26,7 @@ type learningCurriculumDefinitionRepository struct{ learningRepository }
 type learningCurriculumRepository struct{ learningRepository }
 type learningCurriculumInstanceRepository struct{ learningRepository }
 type learningInstanceConceptStateRepository struct{ learningRepository }
+type learningDiagnosticRepository struct{ learningRepository }
 type learningConceptRepository struct{ learningRepository }
 type learningEvidenceRepository struct{ learningRepository }
 type learningMistakeRepository struct{ learningRepository }
@@ -53,6 +54,7 @@ func newLearningRepositories(target executor, timeout time.Duration) application
 		CurriculumInstances:   learningCurriculumInstanceRepository{repository},
 		Concepts:              learningConceptRepository{repository},
 		InstanceConceptStates: learningInstanceConceptStateRepository{repository},
+		Diagnostics:           learningDiagnosticRepository{repository},
 		Evidence:              learningEvidenceRepository{repository}, Mistakes: learningMistakeRepository{repository},
 		Retention: learningRetentionRepository{repository}, Sessions: learningSessionRepository{repository},
 		Reviews: learningReviewRepository{repository}, Streaks: learningStreakRepository{repository},

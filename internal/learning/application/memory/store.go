@@ -50,6 +50,7 @@ type Store struct {
 	curricula      map[curriculumKey]curriculumFixture
 	instances      map[learning.ID]learning.CurriculumInstance
 	instanceStates map[instanceConceptKey]learning.InstanceConceptState
+	diagnostics    map[learning.ID]learning.DiagnosticAttempt
 	concepts       map[studentConceptKey]learning.ConceptState
 	evidence       map[learning.ID]learning.Evidence
 	mistakes       map[learning.ID]learning.Mistake
@@ -73,6 +74,7 @@ func New() *Store {
 		curricula:      make(map[curriculumKey]curriculumFixture),
 		instances:      make(map[learning.ID]learning.CurriculumInstance),
 		instanceStates: make(map[instanceConceptKey]learning.InstanceConceptState),
+		diagnostics:    make(map[learning.ID]learning.DiagnosticAttempt),
 		concepts:       make(map[studentConceptKey]learning.ConceptState),
 		evidence:       make(map[learning.ID]learning.Evidence),
 		mistakes:       make(map[learning.ID]learning.Mistake),
@@ -98,6 +100,7 @@ func (store *Store) Repositories() application.Repositories {
 		Curricula:             curriculumRepository{store},
 		CurriculumInstances:   curriculumInstanceRepository{store},
 		InstanceConceptStates: instanceConceptStateRepository{store},
+		Diagnostics:           diagnosticRepository{store},
 		Concepts:              conceptRepository{store},
 		Evidence:              evidenceRepository{store},
 		Mistakes:              mistakeRepository{store},
@@ -197,6 +200,9 @@ func (store *Store) cloneLocked() *Store {
 	for key, value := range store.instanceStates {
 		clone.instanceStates[key] = cloneInstanceConceptState(value)
 	}
+	for key, value := range store.diagnostics {
+		clone.diagnostics[key] = cloneDiagnosticAttempt(value)
+	}
 	for key, value := range store.concepts {
 		clone.concepts[key] = cloneConceptState(value)
 	}
@@ -244,6 +250,7 @@ func (store *Store) replaceLocked(replacement *Store) {
 	store.curricula = replacement.curricula
 	store.instances = replacement.instances
 	store.instanceStates = replacement.instanceStates
+	store.diagnostics = replacement.diagnostics
 	store.concepts = replacement.concepts
 	store.evidence = replacement.evidence
 	store.mistakes = replacement.mistakes
@@ -317,6 +324,19 @@ func cloneInstanceConceptState(value learning.InstanceConceptState) learning.Ins
 		value.ReviewDueAt = &copy
 	}
 	value.ManualFlags = append([]string(nil), value.ManualFlags...)
+	return value
+}
+
+func cloneDiagnosticAttempt(value learning.DiagnosticAttempt) learning.DiagnosticAttempt {
+	value.Observations = append([]learning.DiagnosticObservation(nil), value.Observations...)
+	if value.CompletedAt != nil {
+		copy := *value.CompletedAt
+		value.CompletedAt = &copy
+	}
+	if value.SkippedAt != nil {
+		copy := *value.SkippedAt
+		value.SkippedAt = &copy
+	}
 	return value
 }
 

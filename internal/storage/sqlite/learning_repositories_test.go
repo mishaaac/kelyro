@@ -209,11 +209,42 @@ func TestCurriculumInstanceMigrationPreservesLegacyConceptStateWithoutInferringI
 	}
 }
 
+func TestDiagnosticMigrationFromV9IsAdditive(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:9]); err != nil {
+		t.Fatalf("migrate through v9: %v", err)
+	}
+	if _, err := handle.Exec(`INSERT INTO app_state (namespace,key,value,updated_at) VALUES ('step10','kept',X'6F6B',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate diagnostics: %v", err)
+	}
+	var value []byte
+	if err := handle.QueryRow(`SELECT value FROM app_state WHERE namespace='step10' AND key='kept'`).Scan(&value); err != nil || string(value) != "ok" {
+		t.Fatalf("preserved value = (%q, %v)", value, err)
+	}
+	for _, table := range []string{"diagnostic_attempts", "diagnostic_observations"} {
+		var count int
+		if err := handle.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("table %s count=%d err=%v", table, count, err)
+		}
+	}
+}
+
 func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	ctx := context.Background()
 	repositories := database.LearningRepositories()
-	want := []string{"curriculum_nodes_concept_idx", "learning_goals_active_idx", "learning_goals_one_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
+	want := []string{"curriculum_nodes_concept_idx", "diagnostic_attempts_student_status_idx", "diagnostic_observations_concept_idx", "learning_goals_active_idx", "learning_goals_one_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
 	for _, name := range want {
 		var count int
 		if err := database.sql.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", name).Scan(&count); err != nil || count != 1 {
@@ -496,6 +527,92 @@ func TestSQLiteOnboardingRoundTripAndCorruptPayloadDetection(t *testing.T) {
 	if _, err := database.LearningRepositories().Onboarding.Get(ctx, student.ID); !errors.Is(err, application.ErrPersistenceFailure) {
 		t.Fatalf("corrupt Get() error = %v, want persistence failure", err)
 	}
+}
+
+func TestSQLiteDiagnosticRoundTripKeepsEvidenceLinked(t *testing.T) {
+	t.Parallel()
+	database, _ := openTestDatabase(t)
+	ctx := context.Background()
+	repositories := database.LearningRepositories()
+	student := testStudent(t)
+	if err := repositories.Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	goal := testGoal(t, student.ID)
+	goal, err := goal.Activate(mustTimestamp(t, fixedTime.Add(time.Minute)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Goals.Create(ctx, goal); err != nil {
+		t.Fatal(err)
+	}
+	reference := learning.CurriculumRef{ID: mustID(t, "fixture.diagnostic"), Version: "1.0.0"}
+	concept := learning.Concept{ID: mustID(t, "concept.diagnostic"), TopicID: mustID(t, "topic.diagnostic"), Title: "Diagnostic concept"}
+	if err := database.SeedCurriculum(ctx, reference, []learning.Concept{concept}, nil); err != nil {
+		t.Fatal(err)
+	}
+	instance, err := learning.NewCurriculumInstance(mustID(t, "instance.diagnostic"), student.ID, goal.ID, reference, learning.CurriculumSourceFixture, mustTimestamp(t, fixedTime.Add(2*time.Minute)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.CurriculumInstances.Create(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	diagnostic := sqliteDiagnosticFixture(t, reference, concept.ID)
+	attempt, err := learning.NewDiagnosticAttempt(mustID(t, "attempt.diagnostic"), student.ID, instance.ID, diagnostic, mustTimestamp(t, fixedTime.Add(3*time.Minute)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Diagnostics.Create(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+	answeredAt := mustTimestamp(t, fixedTime.Add(4*time.Minute))
+	evidence, err := learning.NewEvidence(mustID(t, "evidence.diagnostic"), student.ID, concept.ID, learning.EvidenceDiagnostic, "diagnostic fixture", mustScore(t, 1), answeredAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Evidence.Append(ctx, evidence); err != nil {
+		t.Fatal(err)
+	}
+	attempt, err = attempt.Record(learning.DiagnosticObservation{ItemID: diagnostic.Items()[0].ID, ConceptID: concept.ID, Score: evidence.Score, EvidenceID: evidence.ID, AnsweredAt: answeredAt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attempt, err = attempt.Complete(answeredAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Diagnostics.Save(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := repositories.Diagnostics.Get(ctx, attempt.ID)
+	if err != nil || !reflect.DeepEqual(loaded, attempt) {
+		t.Fatalf("Get() = (%+v, %v), want %+v", loaded, err, attempt)
+	}
+	found, err := repositories.Diagnostics.Find(ctx, student.ID, instance.ID, diagnostic.Reference)
+	if err != nil || found.ID != attempt.ID {
+		t.Fatalf("Find() = (%+v, %v)", found, err)
+	}
+	if _, err := database.sql.ExecContext(ctx, "DELETE FROM learning_evidence WHERE id=?", evidence.ID.String()); err == nil {
+		t.Fatal("SQLite deleted evidence referenced by diagnostic observation")
+	}
+	if err := repositories.Diagnostics.Save(ctx, attempt); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("Save(terminal) error = %v", err)
+	}
+}
+
+func sqliteDiagnosticFixture(t *testing.T, curriculum learning.CurriculumRef, conceptID learning.ID) learning.Diagnostic {
+	t.Helper()
+	diagnostic, err := learning.NewDiagnostic(learning.DiagnosticContractVersion, learning.DiagnosticScoringPolicyVersion,
+		learning.DiagnosticRef{ID: mustID(t, "diagnostic.sqlite"), Version: "1.0.0"}, curriculum, "SQLite diagnostic",
+		[]learning.DiagnosticSection{{ID: mustID(t, "section.sqlite"), Title: "Section", Items: []learning.DiagnosticItem{{
+			ID: mustID(t, "item.sqlite"), ConceptID: conceptID, Kind: learning.DiagnosticSingleChoice, Prompt: "Choose yes",
+			Options: []learning.DiagnosticOption{{Value: "yes", Label: "Yes"}, {Value: "no", Label: "No"}}, AcceptedAnswers: []string{"yes"},
+		}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return diagnostic
 }
 
 func TestSQLiteMasteryThresholdRoundTripAndConstraints(t *testing.T) {

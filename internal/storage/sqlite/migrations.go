@@ -506,6 +506,52 @@ ON learner_curriculum_instances (student_id, status, created_at, id)`,
 ON learner_curriculum_concept_states (curriculum_instance_id, exposure, concept_id)`,
 		},
 	},
+	{
+		version: 10,
+		name:    "deterministic diagnostics",
+		statements: []string{
+			`CREATE TABLE diagnostic_attempts (
+    id TEXT PRIMARY KEY CHECK (length(id) > 0),
+    student_id TEXT NOT NULL,
+    curriculum_instance_id TEXT NOT NULL,
+    diagnostic_id TEXT NOT NULL CHECK (length(diagnostic_id) > 0),
+    diagnostic_version TEXT NOT NULL CHECK (length(trim(diagnostic_version)) > 0),
+    definition_fingerprint TEXT NOT NULL CHECK (length(definition_fingerprint) = 71 AND definition_fingerprint GLOB 'sha256:*'),
+    status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'skipped')),
+    started_at TEXT NOT NULL CHECK (started_at GLOB '*Z'),
+    updated_at TEXT NOT NULL CHECK (updated_at GLOB '*Z'),
+    completed_at TEXT CHECK (completed_at IS NULL OR completed_at GLOB '*Z'),
+    skipped_at TEXT CHECK (skipped_at IS NULL OR skipped_at GLOB '*Z'),
+    UNIQUE (student_id, curriculum_instance_id, diagnostic_id, diagnostic_version),
+    FOREIGN KEY (curriculum_instance_id, student_id) REFERENCES learner_curriculum_instances(id, student_id) ON DELETE CASCADE,
+    CHECK (updated_at >= started_at),
+    CHECK (
+        (status = 'in_progress' AND completed_at IS NULL AND skipped_at IS NULL) OR
+        (status = 'completed' AND completed_at IS NOT NULL AND skipped_at IS NULL AND completed_at = updated_at) OR
+        (status = 'skipped' AND completed_at IS NULL AND skipped_at IS NOT NULL AND skipped_at = updated_at)
+    )
+)`,
+			`CREATE INDEX diagnostic_attempts_student_status_idx
+ON diagnostic_attempts (student_id, status, updated_at, id)`,
+			`CREATE TABLE diagnostic_observations (
+    attempt_id TEXT NOT NULL,
+    item_id TEXT NOT NULL CHECK (length(item_id) > 0),
+    concept_id TEXT NOT NULL,
+    evidence_id TEXT NOT NULL,
+    score REAL NOT NULL CHECK (score BETWEEN 0 AND 1),
+    answered_at TEXT NOT NULL CHECK (answered_at GLOB '*Z'),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (attempt_id, item_id),
+    UNIQUE (attempt_id, position),
+    UNIQUE (evidence_id),
+    FOREIGN KEY (attempt_id) REFERENCES diagnostic_attempts(id) ON DELETE CASCADE,
+    FOREIGN KEY (concept_id) REFERENCES concept_registry(id),
+    FOREIGN KEY (evidence_id) REFERENCES learning_evidence(id)
+)`,
+			`CREATE INDEX diagnostic_observations_concept_idx
+ON diagnostic_observations (attempt_id, concept_id, position)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this
