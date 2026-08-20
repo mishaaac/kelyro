@@ -43,21 +43,24 @@ func TestServiceCoordinatesWorkspaceProfileShowAndEdit(t *testing.T) {
 
 type fakeProfileStoreFactory struct {
 	profiles learningapp.ProfileService
+	goals    learningapp.GoalLifecycleService
 	openRoot string
 	closed   int
 }
 
 func (factory *fakeProfileStoreFactory) Open(_ context.Context, root string) (learningapp.ProfileStore, error) {
 	factory.openRoot = root
-	return &fakeProfileStore{profiles: factory.profiles, close: func() { factory.closed++ }}, nil
+	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, close: func() { factory.closed++ }}, nil
 }
 
 type fakeProfileStore struct {
 	profiles learningapp.ProfileService
+	goals    learningapp.GoalLifecycleService
 	close    func()
 }
 
-func (store *fakeProfileStore) Profiles() learningapp.ProfileService { return store.profiles }
+func (store *fakeProfileStore) Profiles() learningapp.ProfileService    { return store.profiles }
+func (store *fakeProfileStore) Goals() learningapp.GoalLifecycleService { return store.goals }
 func (store *fakeProfileStore) Close() error {
 	store.close()
 	return nil

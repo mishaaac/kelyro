@@ -86,11 +86,51 @@ func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	}
 }
 
+func TestLearningGoalMigrationPreservesHistoryAndResolvesActiveDuplicates(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:5]); err != nil {
+		t.Fatalf("migrate through v5: %v", err)
+	}
+	timestamp := fixedTime.Format(timestampFormat)
+	later := fixedTime.Add(time.Minute).Format(timestampFormat)
+	if _, err := handle.Exec(`INSERT INTO students (id,created_at,updated_at) VALUES ('student.legacy',?,?)`, timestamp, later); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO student_profiles (student_id,display_name,experience,weekly_minutes) VALUES ('student.legacy','Legacy Learner','beginner',180)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO learning_goals (id,student_id,title,status,mastery_threshold,created_at,updated_at) VALUES
+('goal.old','student.legacy','Old goal','active',0.8,?,?),
+('goal.new','student.legacy','New goal','active',0.8,?,?)`, timestamp, timestamp, timestamp, later); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate goal lifecycle: %v", err)
+	}
+	goals, err := database.LearningRepositories().Goals.ListByStudent(context.Background(), mustID(t, "student.legacy"))
+	if err != nil || len(goals) != 2 {
+		t.Fatalf("migrated goals = (%+v, %v)", goals, err)
+	}
+	byID := map[string]learning.LearningGoal{goals[0].ID.String(): goals[0], goals[1].ID.String(): goals[1]}
+	if byID["goal.old"].Status != learning.GoalPaused || byID["goal.new"].Status != learning.GoalActive ||
+		byID["goal.new"].TargetOutcome != "New goal" || byID["goal.new"].ActivatedAt == nil {
+		t.Fatalf("migrated goal lifecycle = %+v", goals)
+	}
+}
+
 func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	ctx := context.Background()
 	repositories := database.LearningRepositories()
-	want := []string{"curriculum_nodes_concept_idx", "learning_goals_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
+	want := []string{"curriculum_nodes_concept_idx", "learning_goals_active_idx", "learning_goals_one_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
 	for _, name := range want {
 		var count int
 		if err := database.sql.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", name).Scan(&count); err != nil || count != 1 {
@@ -114,6 +154,24 @@ func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	goal := testGoal(t, student.ID)
 	if err := repositories.Goals.Create(ctx, goal); err != nil {
 		t.Fatal(err)
+	}
+	firstActive := goal
+	firstActive.ID = mustID(t, "goal-active-1")
+	firstActive, activateErr := firstActive.Activate(mustTimestamp(t, fixedTime.Add(time.Minute)))
+	if activateErr != nil {
+		t.Fatal(activateErr)
+	}
+	if err := repositories.Goals.Create(ctx, firstActive); err != nil {
+		t.Fatal(err)
+	}
+	secondActive := goal
+	secondActive.ID = mustID(t, "goal-active-2")
+	secondActive, activateErr = secondActive.Activate(mustTimestamp(t, fixedTime.Add(time.Minute)))
+	if activateErr != nil {
+		t.Fatal(activateErr)
+	}
+	if err := repositories.Goals.Create(ctx, secondActive); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("second active goal error = %v, want conflict", err)
 	}
 	if _, err := database.sql.ExecContext(ctx, "DELETE FROM students WHERE id = ?", student.ID.String()); err != nil {
 		t.Fatal(err)
@@ -337,7 +395,10 @@ func testStudent(t *testing.T) learning.Student {
 }
 func testGoal(t *testing.T, studentID learning.ID) learning.LearningGoal {
 	t.Helper()
-	goal, err := learning.NewLearningGoal(mustID(t, "goal-1"), studentID, "Learn a subject", mustThreshold(t, .8), mustTimestamp(t, fixedTime))
+	goal, err := learning.NewLearningGoal(mustID(t, "goal-1"), studentID, learning.GoalDetails{
+		Title: "Learn a subject", Domain: "General", TargetOutcome: "Apply the subject",
+		StartingLevel: learning.ExperienceNovice,
+	}, mustThreshold(t, .8), mustTimestamp(t, fixedTime))
 	if err != nil {
 		t.Fatal(err)
 	}

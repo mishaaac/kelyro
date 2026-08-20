@@ -59,7 +59,10 @@ func (repository goalRepository) Create(ctx context.Context, goal learning.Learn
 	if _, exists := repository.store.goals[goal.ID]; exists {
 		return conflict("create memory goal")
 	}
-	repository.store.goals[goal.ID] = goal
+	if goal.Status == learning.GoalActive && repository.hasOtherActive(goal.StudentID, goal.ID) {
+		return conflict("create memory goal")
+	}
+	repository.store.goals[goal.ID] = cloneGoal(goal)
 	return nil
 }
 
@@ -73,7 +76,7 @@ func (repository goalRepository) Get(ctx context.Context, id learning.ID) (learn
 	if !exists {
 		return learning.LearningGoal{}, notFound("get memory goal")
 	}
-	return goal, nil
+	return cloneGoal(goal), nil
 }
 
 func (repository goalRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.LearningGoal, error) {
@@ -85,7 +88,7 @@ func (repository goalRepository) ListByStudent(ctx context.Context, studentID le
 	goals := make([]learning.LearningGoal, 0)
 	for _, goal := range repository.store.goals {
 		if goal.StudentID == studentID {
-			goals = append(goals, goal)
+			goals = append(goals, cloneGoal(goal))
 		}
 	}
 	sort.Slice(goals, func(i, j int) bool {
@@ -106,8 +109,20 @@ func (repository goalRepository) Update(ctx context.Context, goal learning.Learn
 	if _, exists := repository.store.goals[goal.ID]; !exists {
 		return notFound("update memory goal")
 	}
-	repository.store.goals[goal.ID] = goal
+	if goal.Status == learning.GoalActive && repository.hasOtherActive(goal.StudentID, goal.ID) {
+		return conflict("update memory goal")
+	}
+	repository.store.goals[goal.ID] = cloneGoal(goal)
 	return nil
+}
+
+func (repository goalRepository) hasOtherActive(studentID, except learning.ID) bool {
+	for id, goal := range repository.store.goals {
+		if id != except && goal.StudentID == studentID && goal.Status == learning.GoalActive {
+			return true
+		}
+	}
+	return false
 }
 
 type curriculumRepository struct{ store *Store }

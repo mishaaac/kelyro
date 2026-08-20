@@ -46,6 +46,7 @@ const (
 	ActionImport  Action = "import"
 	ActionUpdate  Action = "update"
 	ActionProfile Action = "profile"
+	ActionGoal    Action = "goal"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -76,6 +77,8 @@ type Command struct {
 	UpdateOperation  string
 	ProfileOperation string
 	ProfileChanges   learningapp.ProfileChanges
+	GoalOperation    string
+	GoalInput        learningapp.SetGoalInput
 	Verbose          bool
 }
 
@@ -90,6 +93,8 @@ type Result struct {
 	Portability *portability.Report
 	Update      *update.Result
 	Profile     *learning.Student
+	Goal        *learning.LearningGoal
+	Goals       []learning.LearningGoal
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -240,6 +245,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionProfile {
 		return service.executeProfile(ctx, command)
+	}
+	if command.Action == ActionGoal {
+		return service.executeGoal(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

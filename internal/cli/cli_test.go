@@ -40,6 +40,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "import", args: []string{"import", "workspace.tar.gz"}, wantAction: app.ActionImport},
 		{name: "update check", args: []string{"update", "check"}, wantAction: app.ActionUpdate},
 		{name: "profile show", args: []string{"profile", "show"}, wantAction: app.ActionProfile},
+		{name: "goal show", args: []string{"goal", "show"}, wantAction: app.ActionGoal},
 	}
 
 	for _, test := range tests {
@@ -68,6 +69,78 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunnerParsesLearningGoalLifecycleAndRendersGoal(t *testing.T) {
+	t.Parallel()
+
+	goal := testLearningGoal(t)
+	service := &fakeService{result: app.Result{Goal: &goal}}
+	var stdout, stderr bytes.Buffer
+	exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{
+		"goal", "set", "--title", "Backend Engineer with Go", "--description", "Production services",
+		"--domain", "Software engineering", "--target-outcome", "Build production backend services",
+		"--starting-level", "intermediate", "--mastery-threshold", "0.85",
+	})
+	if exitCode != ExitOK || stderr.Len() != 0 || len(service.commands) != 1 {
+		t.Fatalf("goal set exit=%d commands=%+v stderr=%q", exitCode, service.commands, stderr.String())
+	}
+	command := service.commands[0]
+	if command.Action != app.ActionGoal || command.GoalOperation != "set" || command.GoalInput.Title != "Backend Engineer with Go" ||
+		command.GoalInput.Domain != "Software engineering" || command.GoalInput.StartingLevel != learning.ExperienceIntermediate ||
+		command.GoalInput.MasteryThreshold.Value() != .85 {
+		t.Fatalf("goal command = %+v", command)
+	}
+	for _, want := range []string{"Learning goal", "Title: Backend Engineer with Go", "Domain: Software engineering", "Status: active", "Mastery threshold: 0.85"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("goal output missing %q:\n%s", want, stdout.String())
+		}
+	}
+
+	service = &fakeService{result: app.Result{Goals: []learning.LearningGoal{goal}}}
+	stdout.Reset()
+	stderr.Reset()
+	if exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"goal", "show"}); exitCode != ExitOK {
+		t.Fatalf("goal show exit=%d stderr=%q", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Learning goals (1)") || !strings.Contains(stdout.String(), "[active]") {
+		t.Fatalf("goal history output = %q", stdout.String())
+	}
+}
+
+func TestRunnerRejectsIncompleteLearningGoalCommands(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{
+		{"goal"},
+		{"goal", "set", "--title", "Missing fields"},
+		{"goal", "show", "--domain", "Invalid here"},
+		{"goal", "set", "--title", "X", "--domain", "Y", "--target-outcome", "Z", "--mastery-threshold", "1.1"},
+	} {
+		var stderr bytes.Buffer
+		if exitCode := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); exitCode != ExitUsage {
+			t.Fatalf("Run(%v) exit=%d stderr=%q", args, exitCode, stderr.String())
+		}
+	}
+}
+
+func testLearningGoal(t *testing.T) learning.LearningGoal {
+	t.Helper()
+	id, _ := learning.NewID("goal.go")
+	studentID, _ := learning.NewID("student.primary")
+	timestamp, _ := learning.NewTimestamp(time.Date(2026, 8, 19, 15, 0, 0, 0, time.UTC))
+	threshold, _ := learning.NewMasteryThreshold(.85)
+	goal, err := learning.NewLearningGoal(id, studentID, learning.GoalDetails{
+		Title: "Backend Engineer with Go", Description: "Production services", Domain: "Software engineering",
+		TargetOutcome: "Build production backend services", StartingLevel: learning.ExperienceIntermediate,
+	}, threshold, timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	goal, err = goal.Activate(timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return goal
 }
 
 func TestRunnerParsesProfileEditAndRendersHumanReadableProfile(t *testing.T) {

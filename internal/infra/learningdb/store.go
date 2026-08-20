@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/storage/sqlite"
 )
@@ -16,6 +17,7 @@ type Factory struct {
 	appVersion string
 	backup     sqlite.BackupFunc
 	now        func() time.Time
+	goalID     func() (learning.ID, error)
 }
 
 func NewFactory(appVersion ...string) *Factory {
@@ -41,15 +43,25 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		now = time.Now
 	}
 	students := application.NewStudentService(database.LearningRepositories().Students)
-	return &store{database: database, profiles: application.NewProfileService(students, application.WithProfileClock(now))}, nil
+	profiles := application.NewProfileService(students, application.WithProfileClock(now))
+	goalOptions := []application.GoalLifecycleOption{application.WithGoalClock(now)}
+	if factory.goalID != nil {
+		goalOptions = append(goalOptions, application.WithGoalIDGenerator(factory.goalID))
+	}
+	return &store{
+		database: database, profiles: profiles,
+		goals: application.NewGoalLifecycleService(profiles, database, goalOptions...),
+	}, nil
 }
 
 type store struct {
 	database *sqlite.Database
 	profiles application.ProfileService
+	goals    application.GoalLifecycleService
 }
 
-func (store *store) Profiles() application.ProfileService { return store.profiles }
+func (store *store) Profiles() application.ProfileService    { return store.profiles }
+func (store *store) Goals() application.GoalLifecycleService { return store.goals }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

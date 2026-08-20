@@ -24,7 +24,10 @@ func TestStudentAndGoalConstructorsEnforceRequiredState(t *testing.T) {
 	}
 
 	goal, err := NewLearningGoal(
-		mustID(t, "goal.statistics"), studentID, "Understand descriptive statistics",
+		mustID(t, "goal.statistics"), studentID, GoalDetails{
+			Title: "Understand descriptive statistics", Domain: "Statistics",
+			TargetOutcome: "Apply descriptive statistics", StartingLevel: ExperienceBeginner,
+		},
 		mustThreshold(t, 0.8), createdAt,
 	)
 	if err != nil {

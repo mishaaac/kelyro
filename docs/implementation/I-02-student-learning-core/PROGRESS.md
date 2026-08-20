@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 5 (pending authorization)
-Last completed step: 4
+Current step: 6 (pending authorization)
+Last completed step: 5
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -187,3 +187,43 @@ Release: unreleased
 
 - El Paso 5 es el siguiente paso pendiente y requiere autorización explícita.
 - Learning Goals debe consumir el `student.primary` persistido mediante application services; no debe acceder directamente al schema ni convertir experiencia general en conocimiento específico.
+
+## Step 05 — Learning Goals
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- `LearningGoal` ampliado con descripción opcional, dominio extensible, resultado objetivo, nivel inicial específico del objetivo y timestamps explícitos de activación/completado.
+- Transiciones de dominio validadas para activar, pausar, reanudar, completar y archivar, con cronología consistente y preservación de la primera activación.
+- Caso de uso workspace-scoped para `show`, `set`, `pause` y `resume`; toda sustitución o reanudación pausa el objetivo activo dentro de la misma transacción.
+- IDs opacos generados con entropía criptográfica, desacoplados del título visible y reemplazables por generadores deterministas en tests.
+- Migration forward-only v6 con nuevas columnas, normalización compatible de filas anteriores, resolución conservadora de activos duplicados e índice parcial único por estudiante.
+- Adapters SQLite y fake in-memory actualizados con semántica equivalente, aislamiento de timestamps y conservación completa del historial.
+- CLI `kelyro goal show|set|pause|resume`, defaults explícitos para nivel/threshold y salida humana para el objetivo actual y el historial.
+- Documentación de datos, lifecycle, selección determinista, atomicidad, compatibilidad y límites en `docs/architecture/learning-goals.md`.
+
+### Decisions
+
+- `domain` es texto abierto validado, no un enum; el Student Core permanece general para tecnología, matemáticas y otros campos.
+- El nivel inicial del objetivo siempre es entrada explícita y nunca se infiere desde la experiencia general del perfil ni se confunde con un diagnóstico futuro.
+- `goal set` crea una identidad nueva y pausa el activo anterior; no sobrescribe ni elimina historial.
+- `goal resume` elige determinísticamente el objetivo pausado actualizado más recientemente y pausa cualquier activo diferente.
+- La política de único activo se protege tanto en el caso de uso transaccional como en SQLite y en el fake in-memory.
+- Completion/archival existen como transiciones de dominio, pero no se añadió superficie CLI fuera de los cuatro comandos solicitados ni se adelantó onboarding, diagnóstico, curriculum o TUI adicional.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-i02-step5-final-gocache go test ./...`
+- `GOCACHE=/tmp/kelyro-i02-step5-final-gocache go vet ./...`
+- `GOCACHE=/tmp/kelyro-i02-step5-final-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- Smoke real `init → goal show → goal set → goal set → goal show → goal pause → goal resume` sobre un workspace temporal, verificando persistencia, reemplazo con pausa, historial y reanudación.
+- Upgrade v5 → v6 con dos goals activos heredados, conservando ambas filas y dejando exactamente uno activo.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 6 es el siguiente paso pendiente y requiere autorización explícita.
+- Onboarding debe reutilizar `ProfileService` y `GoalLifecycleService`, persistir checkpoints resumibles y no adelantar todavía el diagnóstico del Paso 7.

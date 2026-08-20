@@ -15,9 +15,11 @@ func (repository learningGoalRepository) Create(ctx context.Context, goal learni
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
 	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO learning_goals
-(id, student_id, title, status, mastery_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		goal.ID.String(), goal.StudentID.String(), goal.Title, goal.Status, goal.MasteryThreshold.Value(),
-		encodeTimestamp(goal.CreatedAt), encodeTimestamp(goal.UpdatedAt))
+(id, student_id, title, description, domain, target_outcome, starting_level, status, mastery_threshold,
+ created_at, updated_at, activated_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		goal.ID.String(), goal.StudentID.String(), goal.Title, goal.Description, goal.Domain, goal.TargetOutcome,
+		goal.StartingLevel, goal.Status, goal.MasteryThreshold.Value(), encodeTimestamp(goal.CreatedAt),
+		encodeTimestamp(goal.UpdatedAt), encodeOptionalTimestamp(goal.ActivatedAt), encodeOptionalTimestamp(goal.CompletedAt))
 	return classifyLearningError(operation, err)
 }
 
@@ -28,7 +30,9 @@ func (repository learningGoalRepository) Get(ctx context.Context, id learning.ID
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	goal, err := scanGoal(repository.executor.QueryRowContext(operationContext, `SELECT id, student_id, title, status, mastery_threshold, created_at, updated_at FROM learning_goals WHERE id = ?`, id.String()))
+	goal, err := scanGoal(repository.executor.QueryRowContext(operationContext, `SELECT id, student_id, title, description, domain,
+target_outcome, starting_level, status, mastery_threshold, created_at, updated_at, activated_at, completed_at
+FROM learning_goals WHERE id = ?`, id.String()))
 	if err != nil {
 		return learning.LearningGoal{}, classifyLearningError(operation, err)
 	}
@@ -42,7 +46,8 @@ func (repository learningGoalRepository) ListByStudent(ctx context.Context, stud
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	rows, err := repository.executor.QueryContext(operationContext, `SELECT id, student_id, title, status, mastery_threshold, created_at, updated_at
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT id, student_id, title, description, domain, target_outcome,
+starting_level, status, mastery_threshold, created_at, updated_at, activated_at, completed_at
 FROM learning_goals WHERE student_id = ? ORDER BY created_at, id`, studentID.String())
 	if err != nil {
 		return nil, classifyLearningError(operation, err)
@@ -69,8 +74,11 @@ func (repository learningGoalRepository) Update(ctx context.Context, goal learni
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	result, err := repository.executor.ExecContext(operationContext, `UPDATE learning_goals SET student_id = ?, title = ?, status = ?, mastery_threshold = ?, created_at = ?, updated_at = ? WHERE id = ?`,
-		goal.StudentID.String(), goal.Title, goal.Status, goal.MasteryThreshold.Value(), encodeTimestamp(goal.CreatedAt), encodeTimestamp(goal.UpdatedAt), goal.ID.String())
+	result, err := repository.executor.ExecContext(operationContext, `UPDATE learning_goals SET student_id = ?, title = ?, description = ?,
+domain = ?, target_outcome = ?, starting_level = ?, status = ?, mastery_threshold = ?, created_at = ?, updated_at = ?,
+activated_at = ?, completed_at = ? WHERE id = ?`, goal.StudentID.String(), goal.Title, goal.Description, goal.Domain,
+		goal.TargetOutcome, goal.StartingLevel, goal.Status, goal.MasteryThreshold.Value(), encodeTimestamp(goal.CreatedAt),
+		encodeTimestamp(goal.UpdatedAt), encodeOptionalTimestamp(goal.ActivatedAt), encodeOptionalTimestamp(goal.CompletedAt), goal.ID.String())
 	if err == nil {
 		err = requireAffected(result)
 	}
@@ -80,9 +88,11 @@ func (repository learningGoalRepository) Update(ctx context.Context, goal learni
 type rowScanner interface{ Scan(...any) error }
 
 func scanGoal(scanner rowScanner) (learning.LearningGoal, error) {
-	var idValue, studentValue, title, status, createdValue, updatedValue string
+	var idValue, studentValue, title, description, domain, targetOutcome, startingLevel, status, createdValue, updatedValue string
 	var thresholdValue float64
-	if err := scanner.Scan(&idValue, &studentValue, &title, &status, &thresholdValue, &createdValue, &updatedValue); err != nil {
+	var activatedValue, completedValue sql.NullString
+	if err := scanner.Scan(&idValue, &studentValue, &title, &description, &domain, &targetOutcome, &startingLevel,
+		&status, &thresholdValue, &createdValue, &updatedValue, &activatedValue, &completedValue); err != nil {
 		return learning.LearningGoal{}, err
 	}
 	id, err := decodeID(idValue)
@@ -105,7 +115,20 @@ func scanGoal(scanner rowScanner) (learning.LearningGoal, error) {
 	if err != nil {
 		return learning.LearningGoal{}, err
 	}
-	goal := learning.LearningGoal{ID: id, StudentID: studentID, Title: title, Status: learning.GoalStatus(status), MasteryThreshold: threshold, CreatedAt: createdAt, UpdatedAt: updatedAt}
+	activatedAt, err := decodeOptionalTimestamp(activatedValue)
+	if err != nil {
+		return learning.LearningGoal{}, err
+	}
+	completedAt, err := decodeOptionalTimestamp(completedValue)
+	if err != nil {
+		return learning.LearningGoal{}, err
+	}
+	goal := learning.LearningGoal{
+		ID: id, StudentID: studentID, Title: title, Description: description, Domain: domain,
+		TargetOutcome: targetOutcome, StartingLevel: learning.ExperienceLevel(startingLevel), Status: learning.GoalStatus(status),
+		MasteryThreshold: threshold, CreatedAt: createdAt, UpdatedAt: updatedAt,
+		ActivatedAt: activatedAt, CompletedAt: completedAt,
+	}
 	return goal, goal.Validate()
 }
 

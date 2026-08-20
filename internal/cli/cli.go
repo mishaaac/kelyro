@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/audit"
@@ -51,6 +52,7 @@ Commands:
   import   Validate and import a portable workspace archive
   update   Check for releases; installation remains unsupported
   profile  Show or edit the persistent learner profile
+  goal     Show or manage the persistent learning goal
 
 Options:
   -h, --help          Show this help message
@@ -111,6 +113,15 @@ Profile commands:
   LEVEL: novice, beginner, intermediate, advanced
   LIST: comma-separated theory_first, practice, projects, reflection
   Use --display-name= or --learning-styles= to clear optional values.
+
+Goal commands:
+  kelyro goal show
+  kelyro goal set --title TITLE --domain DOMAIN --target-outcome OUTCOME
+    [--description TEXT] [--starting-level LEVEL] [--mastery-threshold SCORE]
+  kelyro goal pause
+  kelyro goal resume
+  LEVEL: novice, beginner, intermediate, advanced
+  SCORE: number from 0 to 1 (default: 0.8)
 `
 
 var actions = map[string]app.Action{
@@ -128,6 +139,7 @@ var actions = map[string]app.Action{
 	"import":  app.ActionImport,
 	"update":  app.ActionUpdate,
 	"profile": app.ActionProfile,
+	"goal":    app.ActionGoal,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -229,6 +241,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		UpdateOperation:  invocation.updateOperation,
 		ProfileOperation: invocation.profileOperation,
 		ProfileChanges:   invocation.profileChanges,
+		GoalOperation:    invocation.goalOperation,
+		GoalInput:        invocation.goalInput,
 		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
@@ -302,6 +316,10 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatUpdate(*result.Update))
 	} else if result.Profile != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatProfile(*result.Profile))
+	} else if result.Goal != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatGoal(*result.Goal))
+	} else if result.Goals != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatGoals(result.Goals))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -310,6 +328,45 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatGoal(goal learning.LearningGoal) string {
+	description := goal.Description
+	if description == "" {
+		description = "<not set>"
+	}
+	activated := "<not yet>"
+	if goal.ActivatedAt != nil {
+		activated = goal.ActivatedAt.Time().Format(time.RFC3339)
+	}
+	completed := "<not yet>"
+	if goal.CompletedAt != nil {
+		completed = goal.CompletedAt.Time().Format(time.RFC3339)
+	}
+	return strings.Join([]string{
+		"Learning goal",
+		"ID: " + goal.ID.String(),
+		"Title: " + goal.Title,
+		"Description: " + description,
+		"Domain: " + goal.Domain,
+		"Target outcome: " + goal.TargetOutcome,
+		"Starting level: " + string(goal.StartingLevel),
+		"Status: " + string(goal.Status),
+		fmt.Sprintf("Mastery threshold: %.2f", goal.MasteryThreshold.Value()),
+		"Activated: " + activated,
+		"Completed: " + completed,
+	}, "\n")
+}
+
+func formatGoals(goals []learning.LearningGoal) string {
+	if len(goals) == 0 {
+		return "No learning goals."
+	}
+	lines := []string{fmt.Sprintf("Learning goals (%d)", len(goals))}
+	for _, goal := range goals {
+		lines = append(lines, fmt.Sprintf("[%s] %s (%s) — %s", goal.Status, goal.Title, goal.ID, goal.TargetOutcome))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatProfile(student learning.Student) string {
@@ -502,10 +559,17 @@ type invocation struct {
 	profileOperation string
 	profileChanges   learningapp.ProfileChanges
 	profileFlagsSet  bool
+	goalOperation    string
+	goalInput        learningapp.SetGoalInput
+	goalFlagsSet     bool
 }
 
 func parse(args []string) (invocation, error) {
-	result := invocation{exportMode: portability.ModeHuman, importConflicts: portability.ConflictFail}
+	defaultThreshold, _ := learning.NewMasteryThreshold(0.8)
+	result := invocation{
+		exportMode: portability.ModeHuman, importConflicts: portability.ConflictFail,
+		goalInput: learningapp.SetGoalInput{StartingLevel: learning.ExperienceNovice, MasteryThreshold: defaultThreshold},
+	}
 
 	for index := 0; index < len(args); index++ {
 		argument := args[index]
@@ -604,6 +668,58 @@ func parse(args []string) (invocation, error) {
 			value := strings.TrimPrefix(argument, "--timezone=")
 			result.profileChanges.Timezone = &value
 			result.profileFlagsSet = true
+		case argument == "--title" || strings.HasPrefix(argument, "--title="):
+			value, next, optionErr := textOption(args, index, "--title", argument, false)
+			if optionErr != nil {
+				return invocation{}, optionErr
+			}
+			index = next
+			result.goalInput.Title = value
+			result.goalFlagsSet = true
+		case argument == "--description" || strings.HasPrefix(argument, "--description="):
+			value, next, optionErr := textOption(args, index, "--description", argument, true)
+			if optionErr != nil {
+				return invocation{}, optionErr
+			}
+			index = next
+			result.goalInput.Description = value
+			result.goalFlagsSet = true
+		case argument == "--domain" || strings.HasPrefix(argument, "--domain="):
+			value, next, optionErr := textOption(args, index, "--domain", argument, false)
+			if optionErr != nil {
+				return invocation{}, optionErr
+			}
+			index = next
+			result.goalInput.Domain = value
+			result.goalFlagsSet = true
+		case argument == "--target-outcome" || strings.HasPrefix(argument, "--target-outcome="):
+			value, next, optionErr := textOption(args, index, "--target-outcome", argument, false)
+			if optionErr != nil {
+				return invocation{}, optionErr
+			}
+			index = next
+			result.goalInput.TargetOutcome = value
+			result.goalFlagsSet = true
+		case argument == "--starting-level" || strings.HasPrefix(argument, "--starting-level="):
+			value, next, optionErr := textOption(args, index, "--starting-level", argument, false)
+			if optionErr != nil {
+				return invocation{}, optionErr
+			}
+			index = next
+			result.goalInput.StartingLevel = learning.ExperienceLevel(value)
+			result.goalFlagsSet = true
+		case argument == "--mastery-threshold" || strings.HasPrefix(argument, "--mastery-threshold="):
+			value, next, optionErr := floatOption(args, index, "--mastery-threshold", argument)
+			if optionErr != nil {
+				return invocation{}, optionErr
+			}
+			index = next
+			threshold, thresholdErr := learning.NewMasteryThreshold(value)
+			if thresholdErr != nil {
+				return invocation{}, fmt.Errorf("option --mastery-threshold must be between 0 and 1")
+			}
+			result.goalInput.MasteryThreshold = threshold
+			result.goalFlagsSet = true
 		case argument == "--output":
 			index++
 			if index >= len(args) || strings.TrimSpace(args[index]) == "" || strings.HasPrefix(args[index], "-") {
@@ -744,6 +860,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseProfileArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "goal":
+		if err := parseGoalArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -770,8 +890,32 @@ func parse(args []string) (invocation, error) {
 	if result.profileFlagsSet && (result.command != "profile" || result.profileOperation != "edit") {
 		return invocation{}, fmt.Errorf("profile edit options require the profile edit command")
 	}
+	if result.goalFlagsSet && (result.command != "goal" || result.goalOperation != "set") {
+		return invocation{}, fmt.Errorf("learning goal options require the goal set command")
+	}
 
 	return result, nil
+}
+
+func parseGoalArguments(result *invocation) error {
+	if len(result.arguments) != 1 {
+		return fmt.Errorf("goal requires show, set, pause, or resume")
+	}
+	result.goalOperation = result.arguments[0]
+	switch result.goalOperation {
+	case "show", "pause", "resume":
+		return nil
+	case "set":
+		if strings.TrimSpace(result.goalInput.Title) == "" || strings.TrimSpace(result.goalInput.Domain) == "" || strings.TrimSpace(result.goalInput.TargetOutcome) == "" {
+			return fmt.Errorf("goal set requires --title, --domain, and --target-outcome")
+		}
+		if !result.goalInput.StartingLevel.Valid() {
+			return fmt.Errorf("option --starting-level requires novice, beginner, intermediate, or advanced")
+		}
+		return nil
+	default:
+		return fmt.Errorf("goal requires show, set, pause, or resume")
+	}
 }
 
 func parseProfileArguments(result *invocation) error {
@@ -799,6 +943,42 @@ func integerOption(args []string, index int, name, argument string) (int, int, e
 	value, err := strconv.Atoi(valueText)
 	if err != nil {
 		return 0, index, fmt.Errorf("option %s requires an integer", name)
+	}
+	return value, index, nil
+}
+
+func floatOption(args []string, index int, name, argument string) (float64, int, error) {
+	valueText := ""
+	if argument == name {
+		index++
+		if index >= len(args) {
+			return 0, index, fmt.Errorf("option %s requires a number", name)
+		}
+		valueText = args[index]
+	} else {
+		valueText = strings.TrimPrefix(argument, name+"=")
+	}
+	value, err := strconv.ParseFloat(valueText, 64)
+	if err != nil {
+		return 0, index, fmt.Errorf("option %s requires a number", name)
+	}
+	return value, index, nil
+}
+
+func textOption(args []string, index int, name, argument string, allowEmpty bool) (string, int, error) {
+	value := ""
+	if argument == name {
+		index++
+		if index >= len(args) {
+			return "", index, fmt.Errorf("option %s requires a value", name)
+		}
+		value = args[index]
+	} else {
+		value = strings.TrimPrefix(argument, name+"=")
+	}
+	value = strings.TrimSpace(value)
+	if value == "" && !allowEmpty {
+		return "", index, fmt.Errorf("option %s requires a value", name)
 	}
 	return value, index, nil
 }

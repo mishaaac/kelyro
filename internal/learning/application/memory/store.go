@@ -156,7 +156,7 @@ func (store *Store) cloneLocked() *Store {
 		clone.students[key] = cloneStudent(value)
 	}
 	for key, value := range store.goals {
-		clone.goals[key] = value
+		clone.goals[key] = cloneGoal(value)
 	}
 	for key, value := range store.curricula {
 		fixture := curriculumFixture{concepts: make(map[learning.ID]learning.Concept, len(value.concepts))}
@@ -241,6 +241,18 @@ func conflict(operation string) error {
 func cloneStudent(value learning.Student) learning.Student {
 	value.Profile.Preferences = append([]learning.StudyPreference(nil), value.Profile.Preferences...)
 	value.Profile.Availability.PreferredDays = append([]int(nil), value.Profile.Availability.PreferredDays...)
+	return value
+}
+
+func cloneGoal(value learning.LearningGoal) learning.LearningGoal {
+	if value.ActivatedAt != nil {
+		copy := *value.ActivatedAt
+		value.ActivatedAt = &copy
+	}
+	if value.CompletedAt != nil {
+		copy := *value.CompletedAt
+		value.CompletedAt = &copy
+	}
 	return value
 }
 

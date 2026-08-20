@@ -51,8 +51,10 @@ func TestStudentAndGoalServicesUsePersistenceNeutralRepositories(t *testing.T) {
 		t.Fatalf("GoalService.List() = %+v", listed)
 	}
 
-	goal.Status = learning.GoalActive
-	goal.UpdatedAt = testTimestamp(t, 2)
+	goal, err = goal.Activate(testTimestamp(t, 2))
+	if err != nil {
+		t.Fatalf("LearningGoal.Activate() error = %v", err)
+	}
 	if err := goals.Update(ctx, goal); err != nil {
 		t.Fatalf("GoalService.Update() error = %v", err)
 	}
@@ -302,7 +304,10 @@ func testGoal(t *testing.T, studentID learning.ID) learning.LearningGoal {
 		t.Fatalf("NewMasteryThreshold() error = %v", err)
 	}
 	goal, err := learning.NewLearningGoal(
-		testID(t, "goal.statistics"), studentID, "Learn statistics", threshold, testTimestamp(t, 1),
+		testID(t, "goal.statistics"), studentID, learning.GoalDetails{
+			Title: "Learn statistics", Domain: "Statistics", TargetOutcome: "Apply statistics",
+			StartingLevel: learning.ExperienceNovice,
+		}, threshold, testTimestamp(t, 1),
 	)
 	if err != nil {
 		t.Fatalf("NewLearningGoal() error = %v", err)

@@ -79,7 +79,7 @@ loading and graph policies without changing the identity of concepts.
 | `ExperienceLevel` | Coarse starting point: novice, beginner, intermediate, or advanced. |
 | `StudyPreference` | Preferred learning mode, independent from subject and UI. |
 | `Availability` | Sustainable daily time budget, weekly-days target, and optional preferred weekdays. |
-| `LearningGoal` | Intended learning outcome, lifecycle status, and mastery threshold. |
+| `LearningGoal` | Intended learning outcome, open-text domain, goal-specific starting level, lifecycle status, and mastery threshold. |
 | `CurriculumRef` | Stable identity plus version of deterministic curriculum supplied elsewhere. |
 | `Phase`, `Module`, `Lesson`, `Topic` | Ordered curriculum containers connected through stable child IDs. |
 | `Concept` | Smallest independently tracked unit of knowledge. |
@@ -118,7 +118,8 @@ and a score does not silently change exposure state.
 - All internal timestamps are non-zero UTC instants.
 - Creation, update, resolution, session, and activity ranges are chronological.
 - A concept cannot require itself.
-- A learning goal always has a valid lifecycle status.
+- A learning goal always has valid details and lifecycle timestamps consistent
+  with its status; its domain is open text rather than a rigid taxonomy.
 - Evidence always records student, concept, type, source, score, and observation
   time.
 - A mistake can be checked against an in-memory curriculum concept set without

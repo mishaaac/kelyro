@@ -367,6 +367,33 @@ SET daily_minutes = MIN(1440, MAX(5, CAST(
 )))`,
 		},
 	},
+	{
+		version: 6,
+		name:    "learning goal lifecycle",
+		statements: []string{
+			`ALTER TABLE learning_goals ADD COLUMN description TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE learning_goals ADD COLUMN domain TEXT NOT NULL DEFAULT 'General' CHECK (length(trim(domain)) > 0)`,
+			`ALTER TABLE learning_goals ADD COLUMN target_outcome TEXT NOT NULL DEFAULT 'Continue learning' CHECK (length(trim(target_outcome)) > 0)`,
+			`ALTER TABLE learning_goals ADD COLUMN starting_level TEXT NOT NULL DEFAULT 'novice' CHECK (starting_level IN ('novice', 'beginner', 'intermediate', 'advanced'))`,
+			`ALTER TABLE learning_goals ADD COLUMN activated_at TEXT CHECK (activated_at IS NULL OR activated_at GLOB '*Z')`,
+			`ALTER TABLE learning_goals ADD COLUMN completed_at TEXT CHECK (completed_at IS NULL OR completed_at GLOB '*Z')`,
+			`UPDATE learning_goals
+SET target_outcome = title,
+    activated_at = CASE WHEN status IN ('active', 'paused', 'completed') THEN updated_at ELSE NULL END,
+    completed_at = CASE WHEN status = 'completed' THEN updated_at ELSE NULL END`,
+			`UPDATE learning_goals AS goal
+SET status = 'paused'
+WHERE status = 'active'
+  AND id <> (
+      SELECT candidate.id
+      FROM learning_goals AS candidate
+      WHERE candidate.student_id = goal.student_id AND candidate.status = 'active'
+      ORDER BY candidate.updated_at DESC, candidate.id DESC
+      LIMIT 1
+  )`,
+			`CREATE UNIQUE INDEX learning_goals_one_active_idx ON learning_goals (student_id) WHERE status = 'active'`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

@@ -681,7 +681,7 @@ feat(student): add persistent learner profile
 
 ## Paso 5 — Implementar Learning Goals
 
-- [ ] Paso 5 completado
+- [x] Paso 5 completado
 
 ### Objetivo
 

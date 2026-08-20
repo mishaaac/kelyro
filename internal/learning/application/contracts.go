@@ -26,10 +26,30 @@ type ProfileService interface {
 	Edit(context.Context, ProfileChanges) (learning.Student, error)
 }
 
-// ProfileStore scopes profile operations and their database lifetime to one
-// workspace without exposing SQLite to application or presentation packages.
+type SetGoalInput struct {
+	Title            string
+	Description      string
+	Domain           string
+	TargetOutcome    string
+	StartingLevel    learning.ExperienceLevel
+	MasteryThreshold learning.MasteryThreshold
+}
+
+// GoalLifecycleService owns the single-active-goal workspace policy while
+// retaining every previous goal as history.
+type GoalLifecycleService interface {
+	Show(context.Context) ([]learning.LearningGoal, error)
+	Set(context.Context, SetGoalInput) (learning.LearningGoal, error)
+	Pause(context.Context) (learning.LearningGoal, error)
+	Resume(context.Context) (learning.LearningGoal, error)
+}
+
+// ProfileStore scopes Student Core profile and goal operations, plus their
+// database lifetime, to one workspace without exposing SQLite to application
+// or presentation packages. The historical name is retained for compatibility.
 type ProfileStore interface {
 	Profiles() ProfileService
+	Goals() GoalLifecycleService
 	Close() error
 }
 
