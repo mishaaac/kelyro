@@ -55,6 +55,7 @@ type Store struct {
 	concepts       map[studentConceptKey]learning.ConceptState
 	evidence       map[learning.ID]learning.Evidence
 	mistakes       map[learning.ID]learning.Mistake
+	mistakeEvents  map[learning.ID]learning.MistakeEvent
 	retention      map[studentConceptKey]learning.RetentionState
 	sessions       map[learning.ID]learning.LearningSession
 	schedules      map[studentConceptKey]learning.ReviewSchedule
@@ -80,6 +81,7 @@ func New() *Store {
 		concepts:       make(map[studentConceptKey]learning.ConceptState),
 		evidence:       make(map[learning.ID]learning.Evidence),
 		mistakes:       make(map[learning.ID]learning.Mistake),
+		mistakeEvents:  make(map[learning.ID]learning.MistakeEvent),
 		retention:      make(map[studentConceptKey]learning.RetentionState),
 		sessions:       make(map[learning.ID]learning.LearningSession),
 		schedules:      make(map[studentConceptKey]learning.ReviewSchedule),
@@ -218,6 +220,9 @@ func (store *Store) cloneLocked() *Store {
 	for key, value := range store.mistakes {
 		clone.mistakes[key] = cloneMistake(value)
 	}
+	for key, value := range store.mistakeEvents {
+		clone.mistakeEvents[key] = value
+	}
 	for key, value := range store.retention {
 		clone.retention[key] = value
 	}
@@ -261,6 +266,7 @@ func (store *Store) replaceLocked(replacement *Store) {
 	store.concepts = replacement.concepts
 	store.evidence = replacement.evidence
 	store.mistakes = replacement.mistakes
+	store.mistakeEvents = replacement.mistakeEvents
 	store.retention = replacement.retention
 	store.sessions = replacement.sessions
 	store.schedules = replacement.schedules

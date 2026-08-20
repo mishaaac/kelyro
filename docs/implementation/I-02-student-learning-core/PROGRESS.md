@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 15 (pending authorization)
-Last completed step: 14
+Current step: 16 (pending authorization)
+Last completed step: 15
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -633,3 +633,50 @@ Release: unreleased
 - El Paso 15 es el siguiente paso pendiente y requiere autorización explícita.
 - Mistake Memory deberá registrar/deduplicar errores mediante sus propios casos de uso; cualquier Evidence asociada deberá entrar por `ProgressionService` cuando corresponda actualizar mastery/state.
 - No persistir unlocks ni duplicar `progression-v1`, `mastery-v1`, `threshold-v1` o traversal del Knowledge Graph en Mistake Memory.
+
+## Step 15 — Mistake Memory persistente
+
+Status: completed
+Date: 2026-08-20
+Release: unreleased
+
+### Delivered
+
+- Modelo de dominio genérico para patrones de error con `mistake_key` estable, categorías neutrales al tema, resumen y source acotados, primera/última aparición, ocurrencias y estados `recent`, `reinforced` y `resolved`.
+- Lifecycle explícito para incrementar, reforzar, resolver y reabrir tras recurrencia, preservando `first_seen_at` y sin borrar resoluciones históricas.
+- Historial inmutable `MistakeEvent` para observaciones, refuerzos y resoluciones, ordenado canónicamente por timestamp e ID.
+- `MistakeMemoryService` presentation-neutral como único límite de escritura para evaluadores y clasificadores futuros, con dedupe, transiciones e historial atómicos mediante `UnitOfWork`.
+- Adapter in-memory determinista y adapter SQLite con consultas por estudiante, concepto, ID y clave; dedupe único e historial durable.
+- Migration forward-only v13 que amplía `mistakes`, crea `mistake_events`, índices y guards, y migra filas legacy sin modificar migrations publicadas ni reescribir su descripción original.
+- Store workspace-scoped con persistencia verificada entre reaperturas y CLI de inspección `kelyro mistakes` / `kelyro mistakes show <id>`.
+- Contrato, límites de privacidad, lifecycle, compatibilidad y fronteras con Evidence/Retention documentados en `docs/architecture/mistake-memory.md`.
+
+### Decisions
+
+- La identidad de dedupe es `(student_id, concept_id, mistake_key)`; reutilizar una clave con categoría o summary distintos es conflicto para evitar mezclar patrones no equivalentes.
+- Categoría y summary son clasificación inmutable del patrón; cada recurrencia solo incrementa el contador, avanza `last_seen_at`, actualiza el source más reciente y reabre el estado.
+- Refuerzo no cuenta como nueva ocurrencia. Un error resuelto requiere una recurrencia real antes de poder reforzarse otra vez.
+- El agregado es la proyección actual y `mistake_events` es la historia auditable; ambos cambian dentro de una transacción.
+- Summaries se limitan a 500 bytes, keys a 128 y source refs a 256. No se almacenan respuestas completas, código grande ni payloads de ejercicios.
+- Legacy usa `unknown`, una clave `legacy:<id>` acotada con fallback por row para IDs extraordinariamente largos, un summary acotado separado y eventos históricos sintetizados; IDs, ownership, timestamps y descripción publicada permanecen intactos.
+- El runner SQLite renueva el timeout configurado por migration, manteniendo el límite individual y la cancelación del caller sin aplicar un único deadline acumulativo a toda la historia forward-only.
+- Mistake Memory no crea Evidence ni modifica mastery, Concept State, unlocks, retention o reviews. Un evaluator que necesite afectar progresión debe llamar separadamente a `ProgressionService`.
+
+### Verification
+
+- Tests de dominio para creación, límites, cronología, incrementos, refuerzo, resolución, resolución duplicada y reapertura por recurrencia.
+- Tests application para dedupe, colisión de key, incrementos, resolve/reopen, historia canónica, concepto desconocido y rollback atómico.
+- Tests SQLite para roundtrip, unique dedupe, eventos, constraints y upgrade v12 → v13, incluyendo compatibilidad con ID/description legacy largos.
+- Test de persistencia workspace-scoped entre reaperturas y tests app/CLI para list/show y parsing inválido.
+- Smoke real `init → mistakes` sobre un workspace temporal.
+- `GOCACHE=<workspace>/.step15-gocache GOTMPDIR=<workspace>/.step15-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test ./...`.
+- `GOCACHE=<workspace>/.step15-gocache GOTMPDIR=<workspace>/.step15-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go vet ./...`.
+- `GOCACHE=<workspace>/.step15-gocache GOTMPDIR=<workspace>/.step15-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go run ./tools/quality all`, incluyendo E2E, race, build y smoke checks de CLI.
+- `GOCACHE=<workspace>/.step15-gocache GOTMPDIR=<workspace>/.step15-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test -race ./internal/infra/learningdb -count=2`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 16 es el siguiente paso pendiente y requiere autorización explícita.
+- Study Sessions deberá reutilizar los conceptos y Curriculum Instance persistidos, sin inferir actividad detallada desde Mistake Memory.
+- No adelantar Retention, Review scheduling, warm-ups, analytics o el Exercise Engine completo.

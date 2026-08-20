@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,6 +118,58 @@ func TestMasteryEvidenceMigrationPreservesAndClassifiesLegacyRows(t *testing.T) 
 	if byID["evidence.pass"].Type != learning.EvidencePracticeSuccess || byID["evidence.fail"].Type != learning.EvidencePracticeFailure ||
 		byID["evidence.pass"].AlgorithmVersion != learning.LegacyEvidenceAlgorithmVersion {
 		t.Fatalf("classified legacy evidence = %+v", items)
+	}
+}
+
+func TestMistakeMemoryMigrationPreservesLegacyHistory(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:12]); err != nil {
+		t.Fatalf("migrate through v12: %v", err)
+	}
+	first := fixedTime.Format(timestampFormat)
+	resolved := fixedTime.Add(time.Hour).Format(timestampFormat)
+	if _, err := handle.Exec(`INSERT INTO students (id,created_at,updated_at) VALUES ('student.legacy',?,?)`, first, first); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO concept_registry (id) VALUES ('concept.legacy')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO mistakes (id,student_id,concept_id,description,occurred_at,resolved_at)
+VALUES ('mistake.legacy','student.legacy','concept.legacy','Legacy confusion',?,?)`, first, resolved); err != nil {
+		t.Fatal(err)
+	}
+	longID := "mistake." + strings.Repeat("x", 180)
+	longDescription := strings.Repeat("detail", 120)
+	if _, err := handle.Exec(`INSERT INTO mistakes (id,student_id,concept_id,description,occurred_at,resolved_at)
+VALUES (?,'student.legacy','concept.legacy',?,?,NULL)`, longID, longDescription, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate mistake memory: %v", err)
+	}
+	mistake, err := database.LearningRepositories().Mistakes.Get(context.Background(), mustID(t, "student.legacy"), mustID(t, "mistake.legacy"))
+	if err != nil || mistake.Key != "legacy:mistake.legacy" || mistake.Category != learning.MistakeUnknown || mistake.Status != learning.MistakeResolved || mistake.Occurrences != 1 {
+		t.Fatalf("legacy mistake = (%+v, %v)", mistake, err)
+	}
+	longMistake, err := database.LearningRepositories().Mistakes.Get(context.Background(), mustID(t, "student.legacy"), mustID(t, longID))
+	if err != nil || len(longMistake.Key) > learning.MaxMistakeKeyLength || len(longMistake.Summary) != learning.MaxMistakeSummaryLength {
+		t.Fatalf("bounded legacy mistake = (key=%q summary_len=%d, %v)", longMistake.Key, len(longMistake.Summary), err)
+	}
+	var preservedDescription string
+	if err := handle.QueryRow(`SELECT description FROM mistakes WHERE id = ?`, longID).Scan(&preservedDescription); err != nil || preservedDescription != longDescription {
+		t.Fatalf("legacy description = (len=%d, %v), want len=%d", len(preservedDescription), err, len(longDescription))
+	}
+	history, err := database.LearningRepositories().Mistakes.ListEvents(context.Background(), mistake.ID)
+	if err != nil || len(history) != 2 || history[0].Type != learning.MistakeObservedEvent || history[1].Type != learning.MistakeResolvedEvent {
+		t.Fatalf("legacy history = (%+v, %v)", history, err)
 	}
 }
 
@@ -464,18 +517,32 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 			t.Fatalf("evidence %s constraint accepted malformed metadata", name)
 		}
 	}
-	mistake, _ := learning.NewMistake(mustID(t, "mistake-1"), student.ID, conceptA.ID, "mixed two rules", introduced)
+	mistake, _ := learning.NewMistake(mustID(t, "mistake-1"), student.ID, conceptA.ID, learning.MistakeKey("mixed-rules"),
+		learning.MistakeProcedure, "mixed two rules", introduced, "fixture/evaluator/1")
 	if err := repositories.Mistakes.Create(ctx, mistake); err != nil {
 		t.Fatal(err)
 	}
+	event, _ := learning.NewMistakeEvent(mustID(t, "mistake-event-1"), mistake.ID, learning.MistakeObservedEvent, introduced, "fixture/evaluator/1")
+	if err := repositories.Mistakes.AppendEvent(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	duplicate, _ := learning.NewMistake(mustID(t, "mistake-duplicate"), student.ID, conceptA.ID, mistake.Key,
+		mistake.Category, mistake.Summary, introduced, "fixture/evaluator/duplicate")
+	if err := repositories.Mistakes.Create(ctx, duplicate); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate mistake key error = %v, want conflict", err)
+	}
 	resolved := mustTimestamp(t, fixedTime.Add(3*time.Minute))
-	mistake.ResolvedAt = &resolved
+	mistake, _ = mistake.Resolve(resolved)
 	if err := repositories.Mistakes.Update(ctx, mistake); err != nil {
 		t.Fatal(err)
 	}
 	mistakes, err := repositories.Mistakes.ListByConcept(ctx, student.ID, conceptA.ID)
 	if err != nil || !reflect.DeepEqual(mistakes, []learning.Mistake{mistake}) {
 		t.Fatalf("mistakes=(%+v,%v)", mistakes, err)
+	}
+	history, err := repositories.Mistakes.ListEvents(ctx, mistake.ID)
+	if err != nil || !reflect.DeepEqual(history, []learning.MistakeEvent{event}) {
+		t.Fatalf("mistake history=(%+v,%v)", history, err)
 	}
 	retention := learning.RetentionState{StudentID: student.ID, ConceptID: conceptA.ID, Strength: mustScore(t, .6), MeasuredAt: resolved}
 	if err := repositories.Retention.Save(ctx, retention); err != nil {

@@ -44,6 +44,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "goal show", args: []string{"goal", "show"}, wantAction: app.ActionGoal},
 		{name: "mastery threshold", args: []string{"mastery", "threshold"}, wantAction: app.ActionMastery},
 		{name: "setup status", args: []string{"setup", "status"}, wantAction: app.ActionSetup},
+		{name: "mistakes", args: []string{"mistakes"}, wantAction: app.ActionMistakes},
 	}
 
 	for _, test := range tests {
@@ -72,6 +73,68 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunnerParsesAndRendersMistakeMemory(t *testing.T) {
+	t.Parallel()
+	first, _ := learning.NewTimestamp(time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC))
+	last, _ := learning.NewTimestamp(time.Date(2026, 8, 20, 11, 0, 0, 0, time.UTC))
+	resolved, _ := learning.NewTimestamp(time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC))
+	mistake, err := learning.NewMistake(mustCLIid(t, "mistake.mean"), mustCLIid(t, "student.primary"), mustCLIid(t, "concept.mean"),
+		"mean-vs-median", learning.MistakeMisconception, "Confused mean and median", first, "fixture/check/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mistake, _ = mistake.Observe(last, "fixture/check/2")
+	mistake, _ = mistake.Resolve(resolved)
+	service := &fakeService{result: app.Result{Mistakes: []learning.Mistake{mistake}}}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"mistakes"}); code != ExitOK {
+		t.Fatalf("mistakes exit=%d stderr=%q", code, stderr.String())
+	}
+	if command := service.commands[0]; command.Action != app.ActionMistakes || command.MistakeOperation != "list" {
+		t.Fatalf("mistakes command = %+v", command)
+	}
+	for _, want := range []string{"Mistakes (1)", "[resolved]", "Confused mean and median", "2 occurrence(s)"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("mistakes output missing %q:\n%s", want, stdout.String())
+		}
+	}
+
+	event, _ := learning.NewMistakeEvent(mustCLIid(t, "mistake-event.1"), mistake.ID, learning.MistakeObservedEvent, first, "fixture/check/1")
+	service = &fakeService{result: app.Result{Mistake: &learningapp.MistakeView{Mistake: mistake, History: []learning.MistakeEvent{event}}}}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"mistakes", "show", "mistake.mean"}); code != ExitOK {
+		t.Fatalf("mistakes show exit=%d stderr=%q", code, stderr.String())
+	}
+	if command := service.commands[0]; command.MistakeOperation != "show" || command.MistakeID.String() != "mistake.mean" {
+		t.Fatalf("mistakes show command = %+v", command)
+	}
+	for _, want := range []string{"Mistake memory", "Key: mean-vs-median", "Latest source: fixture/check/2", "History (1)", "observed at"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("mistake detail missing %q:\n%s", want, stdout.String())
+		}
+	}
+}
+
+func TestRunnerRejectsInvalidMistakeCommands(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{{"mistakes", "show"}, {"mistakes", "unknown"}, {"mistakes", "show", "bad id"}} {
+		var stderr bytes.Buffer
+		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) exit=%d stderr=%q", args, code, stderr.String())
+		}
+	}
+}
+
+func mustCLIid(t *testing.T, value string) learning.ID {
+	t.Helper()
+	id, err := learning.NewID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 func TestRunnerRendersIntegratedLearnerSetupStatus(t *testing.T) {

@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	"github.com/mishaaac/kelyro/internal/learning"
@@ -271,13 +272,70 @@ func (repository mistakeRepository) Create(ctx context.Context, mistake learning
 	if err := contextError("create memory mistake", ctx); err != nil {
 		return err
 	}
+	if err := mistake.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "create memory mistake", err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	if _, exists := repository.store.mistakes[mistake.ID]; exists {
 		return conflict("create memory mistake")
 	}
+	if _, exists := repository.store.students[mistake.StudentID]; !exists {
+		return application.Classify(application.ErrorInvalidState, "create memory mistake", errors.New("student does not exist"))
+	}
+	if !repository.conceptKnownLocked(mistake.ConceptID) {
+		return application.Classify(application.ErrorInvalidState, "create memory mistake", errors.New("concept does not exist"))
+	}
+	for _, existing := range repository.store.mistakes {
+		if existing.StudentID == mistake.StudentID && existing.ConceptID == mistake.ConceptID && existing.Key == mistake.Key {
+			return conflict("create memory mistake")
+		}
+	}
 	repository.store.mistakes[mistake.ID] = cloneMistake(mistake)
 	return nil
+}
+
+func (repository mistakeRepository) Get(ctx context.Context, studentID, id learning.ID) (learning.Mistake, error) {
+	if err := contextError("get memory mistake", ctx); err != nil {
+		return learning.Mistake{}, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	mistake, exists := repository.store.mistakes[id]
+	if !exists || mistake.StudentID != studentID {
+		return learning.Mistake{}, notFound("get memory mistake")
+	}
+	return cloneMistake(mistake), nil
+}
+
+func (repository mistakeRepository) FindByKey(ctx context.Context, studentID, conceptID learning.ID, key learning.MistakeKey) (learning.Mistake, error) {
+	if err := contextError("find memory mistake by key", ctx); err != nil {
+		return learning.Mistake{}, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	for _, mistake := range repository.store.mistakes {
+		if mistake.StudentID == studentID && mistake.ConceptID == conceptID && mistake.Key == key {
+			return cloneMistake(mistake), nil
+		}
+	}
+	return learning.Mistake{}, notFound("find memory mistake by key")
+}
+
+func (repository mistakeRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.Mistake, error) {
+	if err := contextError("list memory student mistakes", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	items := make([]learning.Mistake, 0)
+	for _, mistake := range repository.store.mistakes {
+		if mistake.StudentID == studentID {
+			items = append(items, cloneMistake(mistake))
+		}
+	}
+	sortMistakes(items)
+	return items, nil
 }
 
 func (repository mistakeRepository) ListByConcept(ctx context.Context, studentID, conceptID learning.ID) ([]learning.Mistake, error) {
@@ -292,6 +350,65 @@ func (repository mistakeRepository) ListByConcept(ctx context.Context, studentID
 			items = append(items, cloneMistake(mistake))
 		}
 	}
+	sortMistakes(items)
+	return items, nil
+}
+
+func (repository mistakeRepository) Update(ctx context.Context, mistake learning.Mistake) error {
+	if err := contextError("update memory mistake", ctx); err != nil {
+		return err
+	}
+	if err := mistake.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "update memory mistake", err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	existing, exists := repository.store.mistakes[mistake.ID]
+	if !exists {
+		return notFound("update memory mistake")
+	}
+	if existing.StudentID != mistake.StudentID || existing.ConceptID != mistake.ConceptID || existing.Key != mistake.Key ||
+		existing.Category != mistake.Category || existing.Summary != mistake.Summary || existing.FirstSeenAt != mistake.FirstSeenAt {
+		return application.Classify(application.ErrorInvalidState, "update memory mistake", errors.New("mistake identity and classification are immutable"))
+	}
+	repository.store.mistakes[mistake.ID] = cloneMistake(mistake)
+	return nil
+}
+
+func (repository mistakeRepository) AppendEvent(ctx context.Context, event learning.MistakeEvent) error {
+	if err := contextError("append memory mistake event", ctx); err != nil {
+		return err
+	}
+	if err := event.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "append memory mistake event", err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	if _, exists := repository.store.mistakes[event.MistakeID]; !exists {
+		return application.Classify(application.ErrorInvalidState, "append memory mistake event", errors.New("mistake does not exist"))
+	}
+	if _, exists := repository.store.mistakeEvents[event.ID]; exists {
+		return conflict("append memory mistake event")
+	}
+	repository.store.mistakeEvents[event.ID] = event
+	return nil
+}
+
+func (repository mistakeRepository) ListEvents(ctx context.Context, mistakeID learning.ID) ([]learning.MistakeEvent, error) {
+	if err := contextError("list memory mistake events", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	if _, exists := repository.store.mistakes[mistakeID]; !exists {
+		return nil, notFound("list memory mistake events")
+	}
+	items := make([]learning.MistakeEvent, 0)
+	for _, event := range repository.store.mistakeEvents {
+		if event.MistakeID == mistakeID {
+			items = append(items, event)
+		}
+	}
 	sort.Slice(items, func(i, j int) bool {
 		if items[i].OccurredAt == items[j].OccurredAt {
 			return items[i].ID.String() < items[j].ID.String()
@@ -301,17 +418,22 @@ func (repository mistakeRepository) ListByConcept(ctx context.Context, studentID
 	return items, nil
 }
 
-func (repository mistakeRepository) Update(ctx context.Context, mistake learning.Mistake) error {
-	if err := contextError("update memory mistake", ctx); err != nil {
-		return err
+func (repository mistakeRepository) conceptKnownLocked(conceptID learning.ID) bool {
+	for _, fixture := range repository.store.curricula {
+		if _, exists := fixture.concepts[conceptID]; exists {
+			return true
+		}
 	}
-	repository.store.mu.Lock()
-	defer repository.store.mu.Unlock()
-	if _, exists := repository.store.mistakes[mistake.ID]; !exists {
-		return notFound("update memory mistake")
-	}
-	repository.store.mistakes[mistake.ID] = cloneMistake(mistake)
-	return nil
+	return false
+}
+
+func sortMistakes(items []learning.Mistake) {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].LastSeenAt == items[j].LastSeenAt {
+			return items[i].ID.String() < items[j].ID.String()
+		}
+		return items[i].LastSeenAt.After(items[j].LastSeenAt)
+	})
 }
 
 type retentionRepository struct{ store *Store }

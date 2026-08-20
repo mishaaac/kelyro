@@ -150,17 +150,6 @@ func (service *progressService) RecordEvidence(ctx context.Context, evidence lea
 	return repositoryError(operation, service.evidence.Append(ctx, evidence))
 }
 
-func (service *progressService) RecordMistake(ctx context.Context, mistake learning.Mistake) error {
-	const operation = "record learning mistake"
-	if err := mistake.Validate(); err != nil {
-		return invalid(operation, err)
-	}
-	if err := requireRepository(operation, service.mistakes); err != nil {
-		return err
-	}
-	return repositoryError(operation, service.mistakes.Create(ctx, mistake))
-}
-
 func (service *progressService) SaveConceptState(ctx context.Context, state learning.ConceptState) error {
 	const operation = "save concept state"
 	if err := state.Validate(); err != nil {

@@ -34,6 +34,10 @@ The transactional connection between evidence, mastery, instance concept
 state, thresholds, and derived prerequisite unlock decisions is documented in
 [concept-state-progression-v1.md](concept-state-progression-v1.md).
 
+The persistent, deduplicated mistake model, generic classification vocabulary,
+immutable lifecycle history, application write boundary, and legacy migration
+are documented in [mistake-memory.md](mistake-memory.md).
+
 The resumable orchestration from onboarding through optional diagnostic and
 transactional initial learner state is documented in
 [integrated-learner-setup.md](integrated-learner-setup.md).

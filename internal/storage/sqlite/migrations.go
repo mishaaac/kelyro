@@ -606,6 +606,70 @@ SET mastery_evidence_type = CASE evidence_type
 END`,
 		},
 	},
+	{
+		version: 13,
+		name:    "persistent mistake memory",
+		statements: []string{
+			`ALTER TABLE mistakes ADD COLUMN mistake_key TEXT NOT NULL DEFAULT 'legacy'
+CHECK (length(trim(mistake_key)) BETWEEN 1 AND 128)`,
+			`ALTER TABLE mistakes ADD COLUMN category TEXT NOT NULL DEFAULT 'unknown'
+CHECK (category IN ('conceptual', 'syntax', 'procedure', 'misconception', 'careless', 'tooling', 'unknown'))`,
+			`ALTER TABLE mistakes ADD COLUMN summary TEXT NOT NULL DEFAULT 'legacy'
+CHECK (length(trim(summary)) BETWEEN 1 AND 500)`,
+			`ALTER TABLE mistakes ADD COLUMN first_seen_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z'
+CHECK (first_seen_at GLOB '*Z')`,
+			`ALTER TABLE mistakes ADD COLUMN last_seen_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z'
+CHECK (last_seen_at GLOB '*Z')`,
+			`ALTER TABLE mistakes ADD COLUMN occurrences INTEGER NOT NULL DEFAULT 1 CHECK (occurrences > 0)`,
+			`ALTER TABLE mistakes ADD COLUMN status TEXT NOT NULL DEFAULT 'recent'
+CHECK (status IN ('recent', 'reinforced', 'resolved'))`,
+			`ALTER TABLE mistakes ADD COLUMN source_ref TEXT NOT NULL DEFAULT 'legacy:migration/v13'
+CHECK (length(trim(source_ref)) BETWEEN 1 AND 256)`,
+			`UPDATE mistakes
+SET mistake_key = CASE
+        WHEN length('legacy:' || id) <= 128 THEN 'legacy:' || id
+        ELSE 'legacy-row:' || rowid
+    END,
+    summary = substr(trim(description), 1, 500),
+    first_seen_at = occurred_at,
+    last_seen_at = occurred_at,
+    status = CASE WHEN resolved_at IS NULL THEN 'recent' ELSE 'resolved' END`,
+			`CREATE UNIQUE INDEX mistakes_dedupe_idx
+ON mistakes (student_id, concept_id, mistake_key)`,
+			`CREATE INDEX mistakes_student_recent_idx
+ON mistakes (student_id, last_seen_at DESC, id)`,
+			`CREATE TRIGGER mistakes_memory_insert_guard
+BEFORE INSERT ON mistakes
+WHEN length(trim(NEW.summary)) NOT BETWEEN 1 AND 500
+  OR NEW.first_seen_at > NEW.last_seen_at
+  OR (NEW.status = 'resolved') <> (NEW.resolved_at IS NOT NULL)
+  OR (NEW.resolved_at IS NOT NULL AND NEW.resolved_at < NEW.last_seen_at)
+BEGIN SELECT RAISE(ABORT, 'invalid mistake memory aggregate'); END`,
+			`CREATE TRIGGER mistakes_memory_update_guard
+BEFORE UPDATE ON mistakes
+WHEN length(trim(NEW.summary)) NOT BETWEEN 1 AND 500
+  OR NEW.first_seen_at > NEW.last_seen_at
+  OR (NEW.status = 'resolved') <> (NEW.resolved_at IS NOT NULL)
+  OR (NEW.resolved_at IS NOT NULL AND NEW.resolved_at < NEW.last_seen_at)
+BEGIN SELECT RAISE(ABORT, 'invalid mistake memory aggregate'); END`,
+			`CREATE TABLE mistake_events (
+    id TEXT PRIMARY KEY CHECK (length(id) > 0),
+    mistake_id TEXT NOT NULL,
+    event_type TEXT NOT NULL CHECK (event_type IN ('observed', 'reinforced', 'resolved')),
+    occurred_at TEXT NOT NULL CHECK (occurred_at GLOB '*Z'),
+    source_ref TEXT NOT NULL CHECK (length(trim(source_ref)) BETWEEN 1 AND 256),
+    FOREIGN KEY (mistake_id) REFERENCES mistakes(id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX mistake_events_history_idx
+ON mistake_events (mistake_id, occurred_at, id)`,
+			`INSERT INTO mistake_events (id, mistake_id, event_type, occurred_at, source_ref)
+SELECT 'mistake-event.legacy.observed.' || id, id, 'observed', occurred_at, 'legacy:migration/v13'
+FROM mistakes`,
+			`INSERT INTO mistake_events (id, mistake_id, event_type, occurred_at, source_ref)
+SELECT 'mistake-event.legacy.resolved.' || id, id, 'resolved', resolved_at, 'legacy:migration/v13'
+FROM mistakes WHERE resolved_at IS NOT NULL`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this
@@ -643,13 +707,14 @@ func (database *Database) migrate(ctx context.Context, migrations []migration) e
 	}
 
 	operationContext, cancel := database.operationContext(ctx)
-	defer cancel()
 
 	if _, err := database.sql.ExecContext(operationContext, migrationTableSQL); err != nil {
+		cancel()
 		return fmt.Errorf("initialize SQLite migration history: %w", err)
 	}
 
 	applied, err := loadAppliedMigrations(operationContext, database.sql)
+	cancel()
 	if err != nil {
 		return err
 	}
@@ -665,18 +730,24 @@ func (database *Database) migrate(ctx context.Context, migrations []migration) e
 			if database.backup == nil {
 				return fmt.Errorf("%w: migration %d (%s)", ErrBackupRequired, next.version, next.name)
 			}
-			if err := database.backup(operationContext, database.path, MigrationInfo{
+			backupContext, cancelBackup := database.operationContext(ctx)
+			err := database.backup(backupContext, database.path, MigrationInfo{
 				Version: next.version,
 				Name:    next.name,
-			}); err != nil {
+			})
+			cancelBackup()
+			if err != nil {
 				return fmt.Errorf("backup before migration %d (%s): %w", next.version, next.name, err)
 			}
 		}
-		if err := database.applyMigration(operationContext, next); err != nil {
+		migrationContext, cancelMigration := database.operationContext(ctx)
+		err := database.applyMigration(migrationContext, next)
+		cancelMigration()
+		if err != nil {
 			return err
 		}
 		if next.version >= 3 {
-			if err := database.Repositories().Audit.Record(operationContext, audit.Event{
+			if err := database.Repositories().Audit.Record(ctx, audit.Event{
 				Name:    "migration.applied",
 				Actor:   audit.ActorSystem,
 				Subject: "workspace-database",

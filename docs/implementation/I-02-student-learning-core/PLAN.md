@@ -1545,7 +1545,7 @@ feat(progress): connect mastery to curriculum progression
 
 ## Paso 15 — Implementar Mistake Memory
 
-- [ ] Paso 15 completado
+- [x] Paso 15 completado
 
 ### Objetivo
 

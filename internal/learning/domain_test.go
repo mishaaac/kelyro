@@ -166,7 +166,8 @@ func TestEvidenceAndMistakesRequireTraceableKnownConcepts(t *testing.T) {
 
 	mistake, err := NewMistake(
 		mustID(t, "mistake.001"), studentID, conceptID,
-		"Confused the arithmetic mean with the median", observedAt,
+		MistakeKey("mean-vs-median"), MistakeMisconception,
+		"Confused the arithmetic mean with the median", observedAt, "fixture/evaluator/001",
 	)
 	if err != nil {
 		t.Fatalf("NewMistake() error = %v", err)

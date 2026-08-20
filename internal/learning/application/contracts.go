@@ -120,6 +120,36 @@ type ProgressionService interface {
 	Recalculate(context.Context, learning.ID, learning.ID, *learning.PackMasteryOverride) (ProgressionUpdate, error)
 }
 
+type RecordMistakeInput struct {
+	ConceptID  learning.ID
+	Key        learning.MistakeKey
+	Category   learning.MistakeCategory
+	Summary    string
+	ObservedAt learning.Timestamp
+	SourceRef  string
+}
+
+type MistakeRecordResult struct {
+	Mistake learning.Mistake
+	Created bool
+}
+
+type MistakeView struct {
+	Mistake learning.Mistake
+	History []learning.MistakeEvent
+}
+
+// MistakeMemoryService is the only write boundary for deduplicated mistake
+// patterns. Evaluators and future AI classifiers use this service rather than
+// storage adapters; CLI currently consumes only List and Get.
+type MistakeMemoryService interface {
+	Record(context.Context, RecordMistakeInput) (MistakeRecordResult, error)
+	List(context.Context) ([]learning.Mistake, error)
+	Get(context.Context, learning.ID) (MistakeView, error)
+	Reinforce(context.Context, learning.ID, string) (MistakeView, error)
+	Resolve(context.Context, learning.ID, string) (MistakeView, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -180,6 +210,7 @@ type ProfileStore interface {
 	CurriculumInstances() CurriculumInstanceService
 	Diagnostics() DiagnosticService
 	Setup() LearnerSetupService
+	Mistakes() MistakeMemoryService
 	Close() error
 }
 
@@ -264,8 +295,13 @@ type EvidenceRepository interface {
 
 type MistakeRepository interface {
 	Create(context.Context, learning.Mistake) error
+	Get(context.Context, learning.ID, learning.ID) (learning.Mistake, error)
+	FindByKey(context.Context, learning.ID, learning.ID, learning.MistakeKey) (learning.Mistake, error)
+	ListByStudent(context.Context, learning.ID) ([]learning.Mistake, error)
 	ListByConcept(context.Context, learning.ID, learning.ID) ([]learning.Mistake, error)
 	Update(context.Context, learning.Mistake) error
+	AppendEvent(context.Context, learning.MistakeEvent) error
+	ListEvents(context.Context, learning.ID) ([]learning.MistakeEvent, error)
 }
 
 type RetentionRepository interface {
@@ -366,7 +402,6 @@ type ConceptProgress struct {
 type ProgressService interface {
 	Concept(context.Context, learning.ID, learning.ID) (ConceptProgress, error)
 	RecordEvidence(context.Context, learning.Evidence) error
-	RecordMistake(context.Context, learning.Mistake) error
 	SaveConceptState(context.Context, learning.ConceptState) error
 }
 

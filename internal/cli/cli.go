@@ -55,6 +55,7 @@ Commands:
   goal     Show or manage the persistent learning goal
   mastery  Show or configure the progression mastery threshold
   setup    Show or reset the integrated learner setup
+  mistakes Inspect persistent mistake memory
 
 Options:
   -h, --help          Show this help message
@@ -136,26 +137,31 @@ Setup commands:
   kelyro setup status
   kelyro setup reset
   reset is available only in development/demo builds and requires confirmation.
+
+Mistake commands:
+  kelyro mistakes
+  kelyro mistakes show <id>
 `
 
 var actions = map[string]app.Action{
-	"init":    app.ActionInit,
-	"doctor":  app.ActionDoctor,
-	"config":  app.ActionConfig,
-	"secrets": app.ActionSecrets,
-	"status":  app.ActionStatus,
-	"roadmap": app.ActionRoadmap,
-	"open":    app.ActionOpen,
-	"logs":    app.ActionLogs,
-	"audit":   app.ActionAudit,
-	"backup":  app.ActionBackup,
-	"export":  app.ActionExport,
-	"import":  app.ActionImport,
-	"update":  app.ActionUpdate,
-	"profile": app.ActionProfile,
-	"goal":    app.ActionGoal,
-	"mastery": app.ActionMastery,
-	"setup":   app.ActionSetup,
+	"init":     app.ActionInit,
+	"doctor":   app.ActionDoctor,
+	"config":   app.ActionConfig,
+	"secrets":  app.ActionSecrets,
+	"status":   app.ActionStatus,
+	"roadmap":  app.ActionRoadmap,
+	"open":     app.ActionOpen,
+	"logs":     app.ActionLogs,
+	"audit":    app.ActionAudit,
+	"backup":   app.ActionBackup,
+	"export":   app.ActionExport,
+	"import":   app.ActionImport,
+	"update":   app.ActionUpdate,
+	"profile":  app.ActionProfile,
+	"goal":     app.ActionGoal,
+	"mastery":  app.ActionMastery,
+	"setup":    app.ActionSetup,
+	"mistakes": app.ActionMistakes,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -262,6 +268,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		MasteryOperation: invocation.masteryOperation,
 		MasteryThreshold: invocation.masteryThreshold,
 		SetupOperation:   invocation.setupOperation,
+		MistakeOperation: invocation.mistakeOperation,
+		MistakeID:        invocation.mistakeID,
 		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
@@ -362,6 +370,10 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatMasteryThreshold(*result.Mastery))
 	} else if result.Setup != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatLearnerSetup(*result.Setup))
+	} else if result.Mistake != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatMistake(*result.Mistake))
+	} else if result.Mistakes != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatMistakes(result.Mistakes))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -384,6 +396,46 @@ func formatLearnerSetup(view learningapp.LearnerSetupView) string {
 		lines = append(lines, "Diagnostic: opted in")
 	} else {
 		lines = append(lines, "Diagnostic: not selected")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatMistakes(mistakes []learning.Mistake) string {
+	if len(mistakes) == 0 {
+		return "No remembered mistakes."
+	}
+	lines := []string{fmt.Sprintf("Mistakes (%d)", len(mistakes))}
+	for _, mistake := range mistakes {
+		lines = append(lines, fmt.Sprintf("[%s] %s (%s) — %s, %d occurrence(s), last seen %s",
+			mistake.Status, mistake.Summary, mistake.ID, mistake.Category, mistake.Occurrences,
+			mistake.LastSeenAt.Time().Format(time.RFC3339)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatMistake(view learningapp.MistakeView) string {
+	mistake := view.Mistake
+	resolved := "<not resolved>"
+	if mistake.ResolvedAt != nil {
+		resolved = mistake.ResolvedAt.Time().Format(time.RFC3339)
+	}
+	lines := []string{
+		"Mistake memory",
+		"ID: " + mistake.ID.String(),
+		"Concept: " + mistake.ConceptID.String(),
+		"Key: " + string(mistake.Key),
+		"Category: " + string(mistake.Category),
+		"Summary: " + mistake.Summary,
+		"Status: " + string(mistake.Status),
+		fmt.Sprintf("Occurrences: %d", mistake.Occurrences),
+		"First seen: " + mistake.FirstSeenAt.Time().Format(time.RFC3339),
+		"Last seen: " + mistake.LastSeenAt.Time().Format(time.RFC3339),
+		"Latest source: " + mistake.SourceRef,
+		"Resolved: " + resolved,
+		fmt.Sprintf("History (%d)", len(view.History)),
+	}
+	for _, event := range view.History {
+		lines = append(lines, fmt.Sprintf("- %s at %s — %s", event.Type, event.OccurredAt.Time().Format(time.RFC3339), event.SourceRef))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -634,6 +686,8 @@ type invocation struct {
 	masteryOperation string
 	masteryThreshold learning.MasteryThreshold
 	setupOperation   string
+	mistakeOperation string
+	mistakeID        learning.ID
 }
 
 func parse(args []string) (invocation, error) {
@@ -947,6 +1001,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseSetupArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "mistakes":
+		if err := parseMistakeArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -978,6 +1036,23 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseMistakeArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		result.mistakeOperation = "list"
+		return nil
+	}
+	if len(result.arguments) != 2 || result.arguments[0] != "show" {
+		return fmt.Errorf("mistakes accepts no arguments or show <id>")
+	}
+	id, err := learning.NewID(result.arguments[1])
+	if err != nil {
+		return fmt.Errorf("mistakes show requires a valid id: %w", err)
+	}
+	result.mistakeOperation = "show"
+	result.mistakeID = id
+	return nil
 }
 
 func parseSetupArguments(result *invocation) error {

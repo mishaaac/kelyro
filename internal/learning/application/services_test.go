@@ -127,7 +127,8 @@ func TestProgressServiceAssemblesStoredFactsWithoutCalculatingMastery(t *testing
 		t.Fatalf("NewEvidence() error = %v", err)
 	}
 	mistake, err := learning.NewMistake(
-		testID(t, "mistake.1"), studentID, conceptID, "Confused mean and median", observedAt,
+		testID(t, "mistake.1"), studentID, conceptID, learning.MistakeKey("mean-vs-median"),
+		learning.MistakeMisconception, "Confused mean and median", observedAt, "fixture/evaluator/1",
 	)
 	if err != nil {
 		t.Fatalf("NewMistake() error = %v", err)
@@ -139,8 +140,19 @@ func TestProgressServiceAssemblesStoredFactsWithoutCalculatingMastery(t *testing
 	if err := service.RecordEvidence(ctx, evidence); err != nil {
 		t.Fatalf("RecordEvidence() error = %v", err)
 	}
-	if err := service.RecordMistake(ctx, mistake); err != nil {
-		t.Fatalf("RecordMistake() error = %v", err)
+	student, err := learning.NewStudent(studentID, learning.DefaultStudentProfile(), introducedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	reference := learning.CurriculumRef{ID: testID(t, "curriculum.progress"), Version: "1.0.0"}
+	if err := store.SeedCurriculum(reference, []learning.Concept{{ID: conceptID, TopicID: testID(t, "topic.mean"), Title: "Mean"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Mistakes.Create(ctx, mistake); err != nil {
+		t.Fatalf("Mistakes.Create() error = %v", err)
 	}
 	progress, err := service.Concept(ctx, studentID, conceptID)
 	if err != nil {

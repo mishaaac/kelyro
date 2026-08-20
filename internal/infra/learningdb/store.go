@@ -69,10 +69,11 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	}
 	setup := application.NewLearnerSetupService(profiles, onboarding, curriculumInstances, diagnostics, database, curriculum, diagnostic,
 		application.WithLearnerSetupClock(now), application.WithDevelopmentSetupReset(version.IsDevelopment(factory.appVersion)))
+	mistakes := application.NewMistakeMemoryService(profiles, database, application.WithMistakeMemoryClock(now))
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
-		onboarding: onboarding, setup: setup,
+		onboarding: onboarding, setup: setup, mistakes: mistakes,
 	}, nil
 }
 
@@ -85,6 +86,7 @@ type store struct {
 	curriculumInstances application.CurriculumInstanceService
 	diagnostics         application.DiagnosticService
 	setup               application.LearnerSetupService
+	mistakes            application.MistakeMemoryService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -96,6 +98,7 @@ func (store *store) CurriculumInstances() application.CurriculumInstanceService 
 }
 func (store *store) Diagnostics() application.DiagnosticService { return store.diagnostics }
 func (store *store) Setup() application.LearnerSetupService     { return store.setup }
+func (store *store) Mistakes() application.MistakeMemoryService { return store.mistakes }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

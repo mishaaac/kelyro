@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/mishaaac/kelyro/internal/learning"
 )
@@ -432,15 +433,70 @@ func (repository learningMistakeRepository) Create(ctx context.Context, mistake 
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO mistakes (id, student_id, concept_id, description, occurred_at, resolved_at) VALUES (?, ?, ?, ?, ?, ?)`, mistake.ID.String(), mistake.StudentID.String(), mistake.ConceptID.String(), mistake.Description, encodeTimestamp(mistake.OccurredAt), encodeOptionalTimestamp(mistake.ResolvedAt))
+	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO mistakes
+(id, student_id, concept_id, description, occurred_at, resolved_at, mistake_key, category, summary,
+ first_seen_at, last_seen_at, occurrences, status, source_ref)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, mistake.ID.String(), mistake.StudentID.String(), mistake.ConceptID.String(),
+		mistake.Summary, encodeTimestamp(mistake.FirstSeenAt), encodeOptionalTimestamp(mistake.ResolvedAt), string(mistake.Key), string(mistake.Category), mistake.Summary,
+		encodeTimestamp(mistake.FirstSeenAt), encodeTimestamp(mistake.LastSeenAt), mistake.Occurrences,
+		string(mistake.Status), mistake.SourceRef)
 	return classifyLearningError(operation, err)
+}
+
+func (repository learningMistakeRepository) Get(ctx context.Context, studentID, id learning.ID) (learning.Mistake, error) {
+	const operation = "get SQLite mistake"
+	if err := validateMistakeIDs("student", studentID, "mistake", id); err != nil {
+		return learning.Mistake{}, invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	mistake, err := scanMistake(repository.executor.QueryRowContext(operationContext, mistakeSelect+" WHERE student_id = ? AND id = ?", studentID.String(), id.String()))
+	if err != nil {
+		return learning.Mistake{}, classifyLearningError(operation, err)
+	}
+	return mistake, nil
+}
+
+func (repository learningMistakeRepository) FindByKey(ctx context.Context, studentID, conceptID learning.ID, key learning.MistakeKey) (learning.Mistake, error) {
+	const operation = "find SQLite mistake by key"
+	if err := validateMistakeIDs("student", studentID, "concept", conceptID); err != nil {
+		return learning.Mistake{}, invalidLearning(operation, err)
+	}
+	if err := key.Validate(); err != nil {
+		return learning.Mistake{}, invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	mistake, err := scanMistake(repository.executor.QueryRowContext(operationContext, mistakeSelect+" WHERE student_id = ? AND concept_id = ? AND mistake_key = ?", studentID.String(), conceptID.String(), string(key)))
+	if err != nil {
+		return learning.Mistake{}, classifyLearningError(operation, err)
+	}
+	return mistake, nil
+}
+
+func (repository learningMistakeRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.Mistake, error) {
+	const operation = "list SQLite student mistakes"
+	if err := studentID.Validate(); err != nil {
+		return nil, invalidLearning(operation, err)
+	}
+	return repository.listMistakes(ctx, operation, mistakeSelect+" WHERE student_id = ? ORDER BY last_seen_at DESC, id", studentID.String())
 }
 
 func (repository learningMistakeRepository) ListByConcept(ctx context.Context, studentID, conceptID learning.ID) ([]learning.Mistake, error) {
 	const operation = "list SQLite mistakes"
+	if err := validateMistakeIDs("student", studentID, "concept", conceptID); err != nil {
+		return nil, invalidLearning(operation, err)
+	}
+	return repository.listMistakes(ctx, operation, mistakeSelect+" WHERE student_id = ? AND concept_id = ? ORDER BY last_seen_at DESC, id", studentID.String(), conceptID.String())
+}
+
+const mistakeSelect = `SELECT id, student_id, concept_id, mistake_key, category, summary,
+first_seen_at, last_seen_at, occurrences, status, source_ref, resolved_at FROM mistakes`
+
+func (repository learningMistakeRepository) listMistakes(ctx context.Context, operation, query string, arguments ...any) ([]learning.Mistake, error) {
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	rows, err := repository.executor.QueryContext(operationContext, `SELECT id, student_id, concept_id, description, occurred_at, resolved_at FROM mistakes WHERE student_id = ? AND concept_id = ? ORDER BY occurred_at, id`, studentID.String(), conceptID.String())
+	rows, err := repository.executor.QueryContext(operationContext, query, arguments...)
 	if err != nil {
 		return nil, classifyLearningError(operation, err)
 	}
@@ -466,7 +522,12 @@ func (repository learningMistakeRepository) Update(ctx context.Context, mistake 
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	result, err := repository.executor.ExecContext(operationContext, `UPDATE mistakes SET student_id=?, concept_id=?, description=?, occurred_at=?, resolved_at=? WHERE id=?`, mistake.StudentID.String(), mistake.ConceptID.String(), mistake.Description, encodeTimestamp(mistake.OccurredAt), encodeOptionalTimestamp(mistake.ResolvedAt), mistake.ID.String())
+	result, err := repository.executor.ExecContext(operationContext, `UPDATE mistakes SET
+resolved_at=?, last_seen_at=?, occurrences=?, status=?, source_ref=?
+WHERE id=? AND student_id=? AND concept_id=? AND mistake_key=? AND category=? AND summary=? AND first_seen_at=?`,
+		encodeOptionalTimestamp(mistake.ResolvedAt), encodeTimestamp(mistake.LastSeenAt), mistake.Occurrences, string(mistake.Status), mistake.SourceRef,
+		mistake.ID.String(), mistake.StudentID.String(), mistake.ConceptID.String(), string(mistake.Key), string(mistake.Category), mistake.Summary,
+		encodeTimestamp(mistake.FirstSeenAt))
 	if err == nil {
 		err = requireAffected(result)
 	}
@@ -474,9 +535,11 @@ func (repository learningMistakeRepository) Update(ctx context.Context, mistake 
 }
 
 func scanMistake(scanner rowScanner) (learning.Mistake, error) {
-	var idValue, studentValue, conceptValue, description, occurredValue string
+	var idValue, studentValue, conceptValue, keyValue, categoryValue, summary, firstSeenValue, lastSeenValue, statusValue, sourceRef string
+	var occurrences int
 	var resolvedValue sql.NullString
-	if err := scanner.Scan(&idValue, &studentValue, &conceptValue, &description, &occurredValue, &resolvedValue); err != nil {
+	if err := scanner.Scan(&idValue, &studentValue, &conceptValue, &keyValue, &categoryValue, &summary, &firstSeenValue,
+		&lastSeenValue, &occurrences, &statusValue, &sourceRef, &resolvedValue); err != nil {
 		return learning.Mistake{}, err
 	}
 	id, err := decodeID(idValue)
@@ -491,7 +554,11 @@ func scanMistake(scanner rowScanner) (learning.Mistake, error) {
 	if err != nil {
 		return learning.Mistake{}, err
 	}
-	occurredAt, err := decodeTimestamp(occurredValue)
+	firstSeenAt, err := decodeTimestamp(firstSeenValue)
+	if err != nil {
+		return learning.Mistake{}, err
+	}
+	lastSeenAt, err := decodeTimestamp(lastSeenValue)
 	if err != nil {
 		return learning.Mistake{}, err
 	}
@@ -499,8 +566,83 @@ func scanMistake(scanner rowScanner) (learning.Mistake, error) {
 	if err != nil {
 		return learning.Mistake{}, err
 	}
-	item := learning.Mistake{ID: id, StudentID: studentID, ConceptID: conceptID, Description: description, OccurredAt: occurredAt, ResolvedAt: resolvedAt}
+	item := learning.Mistake{
+		ID: id, StudentID: studentID, ConceptID: conceptID, Key: learning.MistakeKey(keyValue),
+		Category: learning.MistakeCategory(categoryValue), Summary: summary, FirstSeenAt: firstSeenAt,
+		LastSeenAt: lastSeenAt, Occurrences: occurrences, Status: learning.MistakeStatus(statusValue),
+		SourceRef: sourceRef, ResolvedAt: resolvedAt,
+	}
 	return item, item.Validate()
+}
+
+func (repository learningMistakeRepository) AppendEvent(ctx context.Context, event learning.MistakeEvent) error {
+	const operation = "append SQLite mistake event"
+	if err := event.Validate(); err != nil {
+		return invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO mistake_events
+(id, mistake_id, event_type, occurred_at, source_ref) VALUES (?, ?, ?, ?, ?)`, event.ID.String(), event.MistakeID.String(),
+		string(event.Type), encodeTimestamp(event.OccurredAt), event.SourceRef)
+	return classifyLearningError(operation, err)
+}
+
+func (repository learningMistakeRepository) ListEvents(ctx context.Context, mistakeID learning.ID) ([]learning.MistakeEvent, error) {
+	const operation = "list SQLite mistake events"
+	if err := mistakeID.Validate(); err != nil {
+		return nil, invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	var present int
+	if err := repository.executor.QueryRowContext(operationContext, "SELECT 1 FROM mistakes WHERE id = ?", mistakeID.String()).Scan(&present); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT id, mistake_id, event_type, occurred_at, source_ref
+FROM mistake_events WHERE mistake_id = ? ORDER BY occurred_at, id`, mistakeID.String())
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer rows.Close()
+	items := make([]learning.MistakeEvent, 0)
+	for rows.Next() {
+		var idValue, ownerValue, typeValue, occurredValue, sourceRef string
+		if err := rows.Scan(&idValue, &ownerValue, &typeValue, &occurredValue, &sourceRef); err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		id, err := decodeID(idValue)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		owner, err := decodeID(ownerValue)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		occurredAt, err := decodeTimestamp(occurredValue)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		event, err := learning.NewMistakeEvent(id, owner, learning.MistakeEventType(typeValue), occurredAt, sourceRef)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		items = append(items, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	return items, nil
+}
+
+func validateMistakeIDs(firstName string, first learning.ID, secondName string, second learning.ID) error {
+	if err := first.Validate(); err != nil {
+		return fmt.Errorf("%s: %w", firstName, err)
+	}
+	if err := second.Validate(); err != nil {
+		return fmt.Errorf("%s: %w", secondName, err)
+	}
+	return nil
 }
 
 func (repository learningRetentionRepository) Get(ctx context.Context, studentID, conceptID learning.ID) (learning.RetentionState, error) {

@@ -224,6 +224,55 @@ func TestFactoryPersistsCompletedIntegratedSetupAcrossStoreLifetimes(t *testing.
 	}
 }
 
+func TestFactoryPersistsMistakeMemoryAcrossStoreLifetimes(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	internal, err := platform.WorkspaceInternalDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(internal, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	factory := NewFactory("test")
+	current := time.Date(2026, time.August, 20, 9, 0, 0, 0, time.UTC)
+	factory.now = func() time.Time { value := current; current = current.Add(time.Minute); return value }
+	store, err := factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup := completeIntegratedSetupWithoutDiagnostic(t, ctx, store.Setup())
+	states, err := store.CurriculumInstances().States(ctx, *setup.Setup.CurriculumInstanceID)
+	if err != nil || len(states) == 0 {
+		t.Fatalf("curriculum states = (%+v, %v)", states, err)
+	}
+	observedAt, _ := learning.NewTimestamp(current.Add(time.Hour))
+	recorded, err := store.Mistakes().Record(ctx, application.RecordMistakeInput{
+		ConceptID: states[0].ConceptID, Key: "fixture-misread", Category: learning.MistakeCareless,
+		Summary: "Misread the deterministic fixture prompt", ObservedAt: observedAt, SourceRef: "fixture/check/persistence",
+	})
+	if err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	items, err := reopened.Mistakes().List(ctx)
+	if err != nil || len(items) != 1 || items[0].ID != recorded.Mistake.ID {
+		t.Fatalf("persisted mistakes = (%+v, %v)", items, err)
+	}
+	view, err := reopened.Mistakes().Get(ctx, recorded.Mistake.ID)
+	if err != nil || len(view.History) != 1 || view.History[0].Type != learning.MistakeObservedEvent {
+		t.Fatalf("persisted mistake history = (%+v, %v)", view, err)
+	}
+}
+
 func TestDevelopmentSetupResetPreservesProfileGoalAndFoundationData(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
