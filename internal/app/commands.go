@@ -31,55 +31,58 @@ import (
 type Action string
 
 const (
-	ActionTUI     Action = "tui"
-	ActionInit    Action = "init"
-	ActionDoctor  Action = "doctor"
-	ActionConfig  Action = "config"
-	ActionSecrets Action = "secrets"
-	ActionStatus  Action = "status"
-	ActionRoadmap Action = "roadmap"
-	ActionOpen    Action = "open"
-	ActionLogs    Action = "logs"
-	ActionAudit   Action = "audit"
-	ActionBackup  Action = "backup"
-	ActionExport  Action = "export"
-	ActionImport  Action = "import"
-	ActionUpdate  Action = "update"
-	ActionProfile Action = "profile"
-	ActionGoal    Action = "goal"
+	ActionTUI        Action = "tui"
+	ActionInit       Action = "init"
+	ActionDoctor     Action = "doctor"
+	ActionConfig     Action = "config"
+	ActionSecrets    Action = "secrets"
+	ActionStatus     Action = "status"
+	ActionRoadmap    Action = "roadmap"
+	ActionOpen       Action = "open"
+	ActionLogs       Action = "logs"
+	ActionAudit      Action = "audit"
+	ActionBackup     Action = "backup"
+	ActionExport     Action = "export"
+	ActionImport     Action = "import"
+	ActionUpdate     Action = "update"
+	ActionProfile    Action = "profile"
+	ActionGoal       Action = "goal"
+	ActionOnboarding Action = "onboarding"
 )
 
 // Command contains presentation-independent input for a Foundation action.
 type Command struct {
-	Action           Action
-	Workspace        string
-	AllowNested      bool
-	ConfigOperation  string
-	ConfigScope      config.Scope
-	ConfigKey        string
-	ConfigValue      string
-	ConfigOverrides  config.Settings
-	SecretOperation  string
-	SecretName       string
-	SecretValue      string
-	OpenTarget       string
-	DoctorContext    doctor.Context
-	DoctorExplain    string
-	LogOperation     string
-	BackupOperation  string
-	BackupID         string
-	BackupConfirmed  bool
-	ExportMode       portability.Mode
-	ExportOutput     string
-	ImportArchive    string
-	ImportDryRun     bool
-	ImportConflicts  portability.ConflictStrategy
-	UpdateOperation  string
-	ProfileOperation string
-	ProfileChanges   learningapp.ProfileChanges
-	GoalOperation    string
-	GoalInput        learningapp.SetGoalInput
-	Verbose          bool
+	Action              Action
+	Workspace           string
+	AllowNested         bool
+	ConfigOperation     string
+	ConfigScope         config.Scope
+	ConfigKey           string
+	ConfigValue         string
+	ConfigOverrides     config.Settings
+	SecretOperation     string
+	SecretName          string
+	SecretValue         string
+	OpenTarget          string
+	DoctorContext       doctor.Context
+	DoctorExplain       string
+	LogOperation        string
+	BackupOperation     string
+	BackupID            string
+	BackupConfirmed     bool
+	ExportMode          portability.Mode
+	ExportOutput        string
+	ImportArchive       string
+	ImportDryRun        bool
+	ImportConflicts     portability.ConflictStrategy
+	UpdateOperation     string
+	ProfileOperation    string
+	ProfileChanges      learningapp.ProfileChanges
+	GoalOperation       string
+	GoalInput           learningapp.SetGoalInput
+	OnboardingOperation string
+	OnboardingAnswer    string
+	Verbose             bool
 }
 
 // Result contains presentation-independent output from a Foundation action.
@@ -95,6 +98,7 @@ type Result struct {
 	Profile     *learning.Student
 	Goal        *learning.LearningGoal
 	Goals       []learning.LearningGoal
+	Onboarding  *learningapp.OnboardingView
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -248,6 +252,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionGoal {
 		return service.executeGoal(ctx, command)
+	}
+	if command.Action == ActionOnboarding {
+		return service.executeOnboarding(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

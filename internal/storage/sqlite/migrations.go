@@ -394,6 +394,32 @@ WHERE status = 'active'
 			`CREATE UNIQUE INDEX learning_goals_one_active_idx ON learning_goals (student_id) WHERE status = 'active'`,
 		},
 	},
+	{
+		version: 7,
+		name:    "resumable onboarding",
+		statements: []string{
+			`CREATE TABLE onboarding_interviews (
+    student_id TEXT PRIMARY KEY,
+    flow_id TEXT NOT NULL CHECK (length(trim(flow_id)) > 0),
+    flow_version TEXT NOT NULL CHECK (length(trim(flow_version)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('not_started', 'in_progress', 'completed', 'cancelled')),
+    current_question_id TEXT NOT NULL DEFAULT '',
+    answers_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    updated_at TEXT NOT NULL CHECK (updated_at GLOB '*Z'),
+    completed_at TEXT CHECK (completed_at IS NULL OR completed_at GLOB '*Z'),
+    cancelled_at TEXT CHECK (cancelled_at IS NULL OR cancelled_at GLOB '*Z'),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    CHECK (updated_at >= created_at),
+    CHECK (
+        (status = 'not_started' AND current_question_id = '' AND completed_at IS NULL AND cancelled_at IS NULL) OR
+        (status = 'in_progress' AND length(current_question_id) > 0 AND completed_at IS NULL AND cancelled_at IS NULL) OR
+        (status = 'completed' AND current_question_id = '' AND completed_at IS NOT NULL AND cancelled_at IS NULL) OR
+        (status = 'cancelled' AND current_question_id = '' AND completed_at IS NULL AND cancelled_at IS NOT NULL)
+    )
+)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

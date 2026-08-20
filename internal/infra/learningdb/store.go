@@ -48,20 +48,25 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	if factory.goalID != nil {
 		goalOptions = append(goalOptions, application.WithGoalIDGenerator(factory.goalID))
 	}
+	goals := application.NewGoalLifecycleService(profiles, database, goalOptions...)
 	return &store{
 		database: database, profiles: profiles,
-		goals: application.NewGoalLifecycleService(profiles, database, goalOptions...),
+		goals: goals,
+		onboarding: application.NewOnboardingService(profiles, goals, database.LearningRepositories().Onboarding,
+			application.WithOnboardingClock(now)),
 	}, nil
 }
 
 type store struct {
-	database *sqlite.Database
-	profiles application.ProfileService
-	goals    application.GoalLifecycleService
+	database   *sqlite.Database
+	profiles   application.ProfileService
+	goals      application.GoalLifecycleService
+	onboarding application.OnboardingService
 }
 
-func (store *store) Profiles() application.ProfileService    { return store.profiles }
-func (store *store) Goals() application.GoalLifecycleService { return store.goals }
+func (store *store) Profiles() application.ProfileService      { return store.profiles }
+func (store *store) Goals() application.GoalLifecycleService   { return store.goals }
+func (store *store) Onboarding() application.OnboardingService { return store.onboarding }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

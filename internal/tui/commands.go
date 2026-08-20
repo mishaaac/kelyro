@@ -98,6 +98,22 @@ func loadProfileCmd(ctx context.Context, service Service, base app.Command) tea.
 	}
 }
 
+func onboardingCmd(ctx context.Context, service Service, base app.Command, operation, answer string) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{
+			Action: app.ActionOnboarding, Workspace: base.Workspace,
+			OnboardingOperation: operation, OnboardingAnswer: answer,
+		})
+		if err != nil {
+			return onboardingFailedMsg{err: err}
+		}
+		if result.Onboarding == nil {
+			return onboardingFailedMsg{err: fmt.Errorf("onboarding state was not returned")}
+		}
+		return onboardingLoadedMsg{view: *result.Onboarding}
+	}
+}
+
 func checkpointSessionCmd(ctx context.Context, service Service, command app.Command, state session.State) tea.Cmd {
 	state = state.Clone()
 	return func() tea.Msg {

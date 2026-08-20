@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 6 (pending authorization)
-Last completed step: 5
+Current step: 7 (pending authorization)
+Last completed step: 6
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -226,4 +226,48 @@ Release: unreleased
 ### Notes for next session
 
 - El Paso 6 es el siguiente paso pendiente y requiere autorización explícita.
-- Onboarding debe reutilizar `ProfileService` y `GoalLifecycleService`, persistir checkpoints resumibles y no adelantar todavía el diagnóstico del Paso 7.
+- Onboarding debe reutilizar `ProfileService` y `GoalLifecycleService`, persistir checkpoints resumibles y no adelantar todavía el diagnóstico del Paso 11.
+
+## Step 06 — Framework de onboarding resumible
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Agregado de onboarding determinista y versionado con estados `not_started`, `in_progress`, `completed` y `cancelled`, current question, respuestas por ID estable y timestamps auditables.
+- Flow core `core.onboarding@1` con las diez secciones requeridas, preguntas de texto/selección/revisión/confirmación y configuración sustituible para futuras extensiones de Learning Packs.
+- Caso de uso presentation-neutral para `Show`, `Start`, `Submit`, `Back`, `Cancel` y `Confirm`, con validación y checkpoint durable en cada transición.
+- Confirmación que reutiliza `ProfileService` y `GoalLifecycleService`, actualiza perfil, activa el goal definitivo solo al confirmar y conserva opt-in diagnóstico sin ejecutar ningún diagnóstico.
+- Recuperación idempotente si el proceso cae después de activar el goal y antes del checkpoint final, evitando goals duplicados al reintentar.
+- Migration forward-only v7 y adapters SQLite/in-memory para el draft versionado, con constraints de lifecycle, FK al estudiante y detección de payload corrupto.
+- Experiencia TUI responsive con edición de texto, selección, back, abandono resumible, cancelación explícita, summary y confirmación, separada de las reglas del wizard.
+- Documentación de flow, lifecycle, persistencia, recuperación y fronteras en `docs/architecture/resumable-onboarding.md`.
+
+### Decisions
+
+- Las preguntas comunes usan IDs estables y neutrales al dominio; un pack futuro puede añadir preguntas a un flow versionado sin mover validación o navegación a Bubble Tea.
+- Solo las respuestas enviadas con Enter son checkpoints educativos; el buffer aún no enviado permanece como estado efímero de presentación.
+- Escape abandona la pantalla sin cancelar y Ctrl+C usa el cierre normal de sesión; el último checkpoint de onboarding se persiste independientemente del session state TUI.
+- La confirmación reutiliza los servicios existentes y es reintentable: un active goal que coincide exactamente con el draft confirmado se reconoce como el mismo resultado después de una caída.
+- La selección de estrictitud se persiste como threshold del goal. Defaults globales, presets, custom ranges y precedencia siguen reservados para el Paso 7.
+- El opt-in de diagnóstico se conserva únicamente como respuesta; no se implementó ni ejecutó el diagnóstico, curriculum, Exercise Engine o IA.
+- El draft evolutivo usa JSON dentro de una fila lifecycle por estudiante; perfil y goals confirmados permanecen normalizados en sus tablas existentes.
+
+### Verification
+
+- Tests de dominio para transiciones, back, cancel/restart, input inválido y confirmación final.
+- Tests application para resume persistente, cancel sin side effects, aplicación de perfil/goal y recuperación idempotente ante fallo del checkpoint final.
+- Roundtrip SQLite, FK/schema v7, detección de JSON corrupto y persistencia entre reaperturas del workspace.
+- Tests TUI para navegación, entrada de texto (incluyendo `q` sin salir), dispatch por application service, rendering responsive y golden views.
+- `GOCACHE=/tmp/kelyro-i02-step6-final-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step6-final-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step6-final-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 7 es el siguiente paso pendiente y requiere autorización explícita.
+- Mastery Threshold debe tomar la selección persistida por onboarding y añadir defaults, presets, custom range y precedencia sin convertir el threshold en una nota de examen.
+- El diagnóstico determinista permanece pendiente para su paso autorizado posterior; `diagnostic.opt_in` ya está disponible como respuesta durable.

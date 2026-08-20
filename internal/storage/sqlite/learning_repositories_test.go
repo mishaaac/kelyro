@@ -385,6 +385,36 @@ func TestSQLiteLearningRepositoriesClassifyCancellation(t *testing.T) {
 	}
 }
 
+func TestSQLiteOnboardingRoundTripAndCorruptPayloadDetection(t *testing.T) {
+	t.Parallel()
+	database, _ := openTestDatabase(t)
+	ctx := context.Background()
+	student := testStudent(t)
+	if err := database.LearningRepositories().Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	flow := application.DefaultOnboardingFlow()
+	interview, err := learning.NewOnboardingInterview(student.ID, flow, mustTimestamp(t, fixedTime))
+	if err != nil {
+		t.Fatal(err)
+	}
+	interview, _ = interview.Start(flow, mustTimestamp(t, fixedTime.Add(time.Minute)))
+	interview, _ = interview.Submit(flow, "Ada", mustTimestamp(t, fixedTime.Add(2*time.Minute)))
+	if err := database.LearningRepositories().Onboarding.Save(ctx, interview); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	got, err := database.LearningRepositories().Onboarding.Get(ctx, student.ID)
+	if err != nil || got.CurrentQuestionID != application.OnboardingGoalTitleQuestion || got.Answers[application.OnboardingDisplayNameQuestion] != "Ada" {
+		t.Fatalf("Get() = (%+v, %v)", got, err)
+	}
+	if _, err := database.sql.ExecContext(ctx, "UPDATE onboarding_interviews SET answers_json = '{broken' WHERE student_id = ?", student.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.LearningRepositories().Onboarding.Get(ctx, student.ID); !errors.Is(err, application.ErrPersistenceFailure) {
+		t.Fatalf("corrupt Get() error = %v, want persistence failure", err)
+	}
+}
+
 func testStudent(t *testing.T) learning.Student {
 	t.Helper()
 	student, err := learning.NewStudent(mustID(t, "student-1"), learning.StudentProfile{DisplayName: "Ada", Experience: learning.ExperienceBeginner, PreferredLanguage: "es-PE", Preferences: []learning.StudyPreference{learning.PreferencePractice, learning.PreferenceTheoryFirst}, Availability: learning.Availability{DailyMinutes: 60, WeeklyDaysTarget: 3, PreferredDays: []int{1, 3, 5}}, Timezone: "America/Lima"}, mustTimestamp(t, fixedTime))

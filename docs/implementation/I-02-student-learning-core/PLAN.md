@@ -752,7 +752,7 @@ feat(goal): add learning goal lifecycle
 
 ## Paso 6 — Construir el framework de onboarding resumible
 
-- [ ] Paso 6 completado
+- [x] Paso 6 completado
 
 ### Objetivo
 

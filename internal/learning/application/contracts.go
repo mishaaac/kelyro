@@ -44,12 +44,38 @@ type GoalLifecycleService interface {
 	Resume(context.Context) (learning.LearningGoal, error)
 }
 
+// OnboardingView is a presentation-neutral snapshot of the resumable wizard.
+// Question is populated only while the interview is in progress.
+type OnboardingView struct {
+	Interview learning.OnboardingInterview
+	Question  learning.OnboardingQuestion
+	Position  int
+	Total     int
+}
+
+type OnboardingConfirmation struct {
+	View learning.OnboardingInterview
+	Goal learning.LearningGoal
+}
+
+// OnboardingService exposes deterministic wizard transitions for TUI and
+// future non-interactive adapters. Every successful transition is durable.
+type OnboardingService interface {
+	Show(context.Context) (OnboardingView, error)
+	Start(context.Context) (OnboardingView, error)
+	Submit(context.Context, string) (OnboardingView, error)
+	Back(context.Context) (OnboardingView, error)
+	Cancel(context.Context) (OnboardingView, error)
+	Confirm(context.Context) (OnboardingConfirmation, error)
+}
+
 // ProfileStore scopes Student Core profile and goal operations, plus their
 // database lifetime, to one workspace without exposing SQLite to application
 // or presentation packages. The historical name is retained for compatibility.
 type ProfileStore interface {
 	Profiles() ProfileService
 	Goals() GoalLifecycleService
+	Onboarding() OnboardingService
 	Close() error
 }
 
@@ -71,6 +97,11 @@ type GoalRepository interface {
 	Get(context.Context, learning.ID) (learning.LearningGoal, error)
 	ListByStudent(context.Context, learning.ID) ([]learning.LearningGoal, error)
 	Update(context.Context, learning.LearningGoal) error
+}
+
+type OnboardingRepository interface {
+	Get(context.Context, learning.ID) (learning.OnboardingInterview, error)
+	Save(context.Context, learning.OnboardingInterview) error
 }
 
 // CurriculumStateRepository is a read port for deterministic, versioned
@@ -147,6 +178,7 @@ type DailyPlanRepository interface {
 type Repositories struct {
 	Students     StudentRepository
 	Goals        GoalRepository
+	Onboarding   OnboardingRepository
 	Curricula    CurriculumStateRepository
 	Concepts     ConceptStateRepository
 	Evidence     EvidenceRepository

@@ -25,11 +25,12 @@ const (
 type View string
 
 const (
-	ViewHome    View = "home"
-	ViewDoctor  View = "doctor"
-	ViewConfig  View = "config"
-	ViewRoadmap View = "roadmap"
-	ViewProfile View = "profile"
+	ViewHome       View = "home"
+	ViewDoctor     View = "doctor"
+	ViewConfig     View = "config"
+	ViewRoadmap    View = "roadmap"
+	ViewProfile    View = "profile"
+	ViewOnboarding View = "onboarding"
 )
 
 // State is the small durable subset needed to continue a workspace session.
@@ -258,7 +259,7 @@ func normalize(state State) State {
 
 func validView(view View) bool {
 	switch view {
-	case ViewHome, ViewDoctor, ViewConfig, ViewRoadmap, ViewProfile:
+	case ViewHome, ViewDoctor, ViewConfig, ViewRoadmap, ViewProfile, ViewOnboarding:
 		return true
 	default:
 		return false

@@ -20,6 +20,7 @@ type learningRepository struct {
 
 type learningStudentRepository struct{ learningRepository }
 type learningGoalRepository struct{ learningRepository }
+type learningOnboardingRepository struct{ learningRepository }
 type learningCurriculumRepository struct{ learningRepository }
 type learningConceptRepository struct{ learningRepository }
 type learningEvidenceRepository struct{ learningRepository }
@@ -41,7 +42,8 @@ func newLearningRepositories(target executor, timeout time.Duration) application
 	repository := learningRepository{executor: target, timeout: timeout}
 	return application.Repositories{
 		Students: learningStudentRepository{repository}, Goals: learningGoalRepository{repository},
-		Curricula: learningCurriculumRepository{repository}, Concepts: learningConceptRepository{repository},
+		Onboarding: learningOnboardingRepository{repository},
+		Curricula:  learningCurriculumRepository{repository}, Concepts: learningConceptRepository{repository},
 		Evidence: learningEvidenceRepository{repository}, Mistakes: learningMistakeRepository{repository},
 		Retention: learningRetentionRepository{repository}, Sessions: learningSessionRepository{repository},
 		Reviews: learningReviewRepository{repository}, Streaks: learningStreakRepository{repository},

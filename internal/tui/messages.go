@@ -4,6 +4,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/learning"
+	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -34,6 +35,10 @@ type roadmapOpenFailedMsg struct{ err error }
 type profileLoadedMsg struct{ student learning.Student }
 
 type profileLoadFailedMsg struct{ err error }
+
+type onboardingLoadedMsg struct{ view learningapp.OnboardingView }
+
+type onboardingFailedMsg struct{ err error }
 
 type sessionCheckpointedMsg struct{}
 

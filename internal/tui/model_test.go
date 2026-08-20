@@ -12,6 +12,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/learning"
+	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -321,13 +322,46 @@ func TestProfileScreenLoadsThroughApplicationService(t *testing.T) {
 	}
 }
 
+func TestOnboardingScreenStartsEditsAndSubmitsThroughApplicationService(t *testing.T) {
+	t.Parallel()
+	view := tuiOnboardingView(t)
+	service := &fakeService{result: app.Result{Onboarding: &view}}
+	model := readyModel(service)
+	opening, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if command == nil || opening.(Model).screen != screenOnboarding || !opening.(Model).onboardingLoading {
+		t.Fatalf("setup navigation = model %#v command %v", opening, command)
+	}
+	loaded, _ := opening.(Model).Update(command())
+	got := loaded.(Model)
+	if got.onboardingLoading || got.onboarding.Question.ID != learningapp.OnboardingDisplayNameQuestion {
+		t.Fatalf("loaded onboarding = %#v", got.onboarding)
+	}
+	if !strings.Contains(got.View(), "Kelyro Setup") || !strings.Contains(got.View(), "Step 1 of") {
+		t.Fatalf("onboarding view:\n%s", got.View())
+	}
+	typing, quit := got.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if quit != nil || typing.(Model).onboardingInput != "q" {
+		t.Fatalf("q did not edit text: input=%q command=%v", typing.(Model).onboardingInput, quit)
+	}
+	submitting, submit := typing.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if submit == nil || !submitting.(Model).onboardingLoading {
+		t.Fatal("Enter did not submit onboarding answer")
+	}
+	_ = submit()
+	last := service.executed[len(service.executed)-1]
+	if len(service.executed) != 2 || last.Action != app.ActionOnboarding ||
+		last.OnboardingOperation != "submit" || last.OnboardingAnswer != "q" {
+		t.Fatalf("onboarding command = %#v", service.executed)
+	}
+}
+
 func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 	t.Parallel()
 
 	for _, width := range []int{24, 40, 80, 120} {
 		model := readyModel(&fakeService{})
 		model.width = width
-		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenProfile} {
+		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenProfile, screenOnboarding} {
 			model.screen = current
 			for _, line := range strings.Split(model.View(), "\n") {
 				if got := lipgloss.Width(line); got > width {
@@ -336,6 +370,26 @@ func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 			}
 		}
 	}
+}
+
+func tuiOnboardingView(t *testing.T) learningapp.OnboardingView {
+	t.Helper()
+	flow := learningapp.DefaultOnboardingFlow()
+	studentID, _ := learning.NewID("student.primary")
+	timestamp, _ := learning.NewTimestamp(time.Date(2026, time.August, 19, 15, 0, 0, 0, time.UTC))
+	interview, err := learning.NewOnboardingInterview(studentID, flow, timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interview, err = interview.Start(flow, timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	question, index, err := interview.Current(flow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return learningapp.OnboardingView{Interview: interview, Question: question, Position: index + 1, Total: len(flow.Questions)}
 }
 
 func tuiProfileStudent(t *testing.T) learning.Student {
