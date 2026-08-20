@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 9 (pending authorization)
-Last completed step: 8
+Current step: 10 (pending authorization)
+Last completed step: 9
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -361,3 +361,48 @@ Release: unreleased
 - El Paso 9 es el siguiente paso pendiente y requiere autorización explícita.
 - El Prerequisite Engine debe consumir `ConceptPrerequisite.Requirement`, `MasteryPolicyService` y estados del estudiante sin hacer traversal dentro de repositorios ni del adapter YAML.
 - Persistencia de Curriculum Instance y asociación a goal/source siguen reservadas para el Paso 10.
+
+## Step 09 — Knowledge Graph y Prerequisite Engine
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- `KnowledgeGraph` in-memory sobre un `Curriculum` validado, sin dependencias de DB, YAML, presentación u OS.
+- Índices defensivos para conceptos, prerequisitos directos y dependientes, con `GetPrerequisites`, `GetDependents`, `Ancestors`, `CanIntroduce`, `MissingPrerequisites` y `TopologicalOrder`.
+- Orden topológico determinista mediante Kahn + priority queue por stable ID, independiente del orden visual, maps, títulos o YAML.
+- Política educativa versionada `prerequisite-v1`, con AND sobre prerequisitos directos, missing state bloqueante y conceptos raíz introducibles.
+- Semántica separada: `introduced` exige `exposure != not_seen`; `mastered` usa únicamente calculated mastery contra `threshold-v1` inclusivo.
+- `StudentStateSnapshot` validado, con rechazo de estados inválidos, duplicados o pertenecientes a estudiantes diferentes y copias defensivas.
+- Decisiones explicables con checks estructurados, reason codes estables, score/exposure observados, threshold requerido y resumen humano.
+- Validación auditable de `ResolvedMasteryThreshold`, incluyendo requirement, source y policy version.
+- `application.PrerequisiteService`, que resuelve política mediante `MasteryPolicyService`, carga estados una sola vez y delega traversal al dominio.
+- Tests de chain, diamond, múltiples prerequisitos, root concept, missing state, separación exposure/mastery, cycle, unknown concept, threshold boundary, ordering determinista, snapshot inválido y cadena de 3.000 conceptos.
+- Diseño, fórmula, complejidad, explainability y boundary de persistencia documentados en `docs/architecture/knowledge-graph-prerequisite-engine.md`.
+
+### Decisions
+
+- El knowledge edge apunta prerequisite → dependent; `ParentID` y `order` continúan siendo solo jerarquía/UX.
+- `CanIntroduce` evalúa prerequisitos directos declarados. `Ancestors` expone el cierre transitivo de forma independiente y foundations-first.
+- Mastery y exposure conservan independencia: un requisito de mastery no exige un exposure label específico, y un requisito de exposure no usa el score.
+- El graph engine recibe `ResolvedMasteryThreshold`; no conoce presets, precedencia, goal, pack loading ni cálculo de mastery.
+- La evaluación no muta student state ni curriculum y no implementa overrides manuales de unlock.
+- El application service realiza un único `ListByStudent` por evaluación; no existen N+1 queries ni traversal dentro de repositories.
+- No se añadieron migrations, dependencias externas, CLI/TUI o Curriculum Instances; estas últimas permanecen reservadas para el Paso 10.
+
+### Verification
+
+- Tests dirigidos: `GOCACHE=/tmp/kelyro-i02-step9-target-gocache go test ./internal/learning ./internal/learning/application`.
+- `GOCACHE=/tmp/kelyro-i02-step9-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step9-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step9-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- `git diff --check`.
+- Revisión de imports: `prerequisite_graph.go` depende solo de la librería estándar y del mismo paquete de dominio.
+
+### Notes for next session
+
+- El Paso 10 es el siguiente paso pendiente y requiere autorización explícita.
+- Curriculum Instance debe persistir curriculum ID/version, goal, source kind, lifecycle y student-state isolation sin mutar la definición ni duplicar evidence.
+- Reutilizar `KnowledgeGraph` y `PrerequisiteService`; no reconstruir traversal, threshold precedence o unlock explanations dentro de SQLite/CLI/TUI.

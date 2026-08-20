@@ -71,6 +71,27 @@ func TestResolveMasteryThresholdPrecedenceAndPackLimits(t *testing.T) {
 	}
 }
 
+func TestResolvedMasteryThresholdValidatesAuditMetadata(t *testing.T) {
+	t.Parallel()
+	requirement, _ := NewMasteryRequirement(.80)
+	resolved := ResolvedMasteryThreshold{
+		Requirement: requirement, Source: MasterySourceStudentDefault,
+		PolicyVersion: MasteryThresholdPolicyVersion,
+	}
+	if err := resolved.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	resolved.Source = MasteryThresholdSource("unknown")
+	if err := resolved.Validate(); err == nil {
+		t.Fatal("Validate() accepted unknown source")
+	}
+	resolved.Source = MasterySourceStudentDefault
+	resolved.PolicyVersion = "threshold-future"
+	if err := resolved.Validate(); err == nil {
+		t.Fatal("Validate() accepted unknown policy version")
+	}
+}
+
 func TestMasteryThresholdSettingsTransitions(t *testing.T) {
 	t.Parallel()
 	studentID, _ := NewID("student.settings")

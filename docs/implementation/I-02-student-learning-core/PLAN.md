@@ -1044,7 +1044,7 @@ feat(curriculum): define deterministic curriculum consumption model
 
 ## Paso 9 — Implementar Knowledge Graph y Prerequisite Engine
 
-- [ ] Paso 9 completado
+- [x] Paso 9 completado
 
 ### Objetivo
 

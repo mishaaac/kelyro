@@ -78,6 +78,12 @@ type MasteryPolicyService interface {
 	ClearWorkspaceOverride(context.Context) (learning.ResolvedMasteryThreshold, error)
 }
 
+// PrerequisiteService evaluates one concept against one durable student-state
+// snapshot and the effective mastery policy. Graph traversal stays in domain.
+type PrerequisiteService interface {
+	EvaluateIntroduction(context.Context, learning.ID, *learning.PackMasteryOverride) (learning.IntroductionDecision, error)
+}
+
 // ProfileStore scopes Student Core profile and goal operations, plus their
 // database lifetime, to one workspace without exposing SQLite to application
 // or presentation packages. The historical name is retained for compatibility.

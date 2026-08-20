@@ -53,7 +53,9 @@ another concept and records one of two requirements:
 - `introduced`: exposure is sufficient;
 - `mastered`: the configured mastery policy must be satisfied.
 
-Step 8 validates these declarations only. Step 9 will implement their behavior.
+Step 8 validates these declarations only. The versioned behavior is implemented
+separately by the Step 9 prerequisite engine described in
+`knowledge-graph-prerequisite-engine.md`.
 
 ## Node contract
 

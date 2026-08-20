@@ -118,6 +118,15 @@ const (
 	MasterySourcePackOverride      MasteryThresholdSource = "pack_override"
 )
 
+func (source MasteryThresholdSource) Valid() bool {
+	switch source {
+	case MasterySourceStudentDefault, MasterySourceWorkspaceOverride, MasterySourcePackOverride:
+		return true
+	default:
+		return false
+	}
+}
+
 func (source MasteryThresholdSource) DisplayName() string {
 	switch source {
 	case MasterySourceStudentDefault:
@@ -263,6 +272,19 @@ type ResolvedMasteryThreshold struct {
 	Requirement   MasteryRequirement
 	Source        MasteryThresholdSource
 	PolicyVersion string
+}
+
+func (resolved ResolvedMasteryThreshold) Validate() error {
+	if err := resolved.Requirement.Validate(); err != nil {
+		return err
+	}
+	if !resolved.Source.Valid() {
+		return fmt.Errorf("invalid mastery threshold source %q", resolved.Source)
+	}
+	if resolved.PolicyVersion != MasteryThresholdPolicyVersion {
+		return fmt.Errorf("unsupported mastery threshold policy version %q", resolved.PolicyVersion)
+	}
+	return nil
 }
 
 // ResolveMasteryThreshold applies threshold-v1 precedence:
