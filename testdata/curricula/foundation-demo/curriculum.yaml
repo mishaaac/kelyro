@@ -1,0 +1,97 @@
+contract_version: curriculum-consumption/v1
+id: foundation-demo
+version: 1.0.0
+title: Quantitative Reasoning Foundations
+description: A deterministic development curriculum for exercising Student Core contracts.
+nodes:
+  - id: phase.foundations
+    type: phase
+    title: Foundations
+    description: Establish the vocabulary and reasoning habits used throughout the fixture.
+    order: 0
+    display:
+      short_title: Foundations
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: module.quantities
+    type: module
+    parent: phase.foundations
+    title: Quantities and comparisons
+    description: Represent quantities and compare them using ratios.
+    order: 0
+    display:
+      short_title: Quantities
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: lesson.proportional-reasoning
+    type: lesson
+    parent: module.quantities
+    title: Proportional reasoning
+    description: Build comparisons from quantities before applying formulas.
+    order: 0
+    display:
+      short_title: Proportions
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: topic.ratios
+    type: topic
+    parent: lesson.proportional-reasoning
+    title: Ratios
+    description: Express and interpret relationships between two quantities.
+    order: 0
+    display:
+      short_title: Ratios
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: concept.ratio-meaning
+    type: concept
+    parent: topic.ratios
+    title: Meaning of a ratio
+    description: Interpret a ratio as a multiplicative comparison between quantities.
+    order: 0
+    display:
+      short_title: Ratio meaning
+    status:
+      state: active
+    version: 1.0.0
+    concept:
+      objectives:
+        - Explain a ratio in words using its two referenced quantities.
+        - Distinguish multiplicative comparison from additive difference.
+      difficulty: 1
+      estimated_effort_minutes: 20
+      theory_required: true
+      assessment_expectations:
+        - Correctly interpret ratios in at least two neutral real-world contexts.
+
+  - id: concept.equivalent-ratios
+    type: concept
+    parent: topic.ratios
+    title: Equivalent ratios
+    description: Recognize and construct ratios that express the same relationship.
+    order: 1
+    display:
+      short_title: Equivalence
+    status:
+      state: active
+    version: 1.0.0
+    concept:
+      objectives:
+        - Generate an equivalent ratio by scaling both quantities.
+        - Explain why scaling only one quantity changes the relationship.
+      prerequisites:
+        - concept_id: concept.ratio-meaning
+          requirement: mastered
+      difficulty: 2
+      estimated_effort_minutes: 30
+      theory_required: true
+      assessment_expectations:
+        - Construct and justify equivalent ratios without relying on a single notation.

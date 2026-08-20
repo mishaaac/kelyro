@@ -922,7 +922,7 @@ feat(mastery): add configurable progression threshold
 
 ## Paso 8 — Definir el modelo consumible de Curriculum, Phases, Modules, Lessons, Topics y Concepts
 
-- [ ] Paso 8 completado
+- [x] Paso 8 completado
 
 ### Objetivo
 

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 8 (pending authorization)
-Last completed step: 7
+Current step: 9 (pending authorization)
+Last completed step: 8
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -318,3 +318,46 @@ Release: unreleased
 - El Paso 8 es el siguiente paso pendiente y requiere autorización explícita.
 - Curriculum consumption deberá consultar `MasteryPolicyService` como boundary de política; no debe duplicar presets o precedencia en nodos curriculares, CLI o TUI.
 - Prerequisite unlocking y mastery calculation continúan pendientes para sus pasos autorizados posteriores.
+
+## Step 08 — Contrato consumible de curriculum
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Contrato de dominio versionado `curriculum-consumption/v1` para definiciones curriculares inmutables por identidad, con jerarquía visible `phase → module → lesson → topic → concept` expresada mediante padres explícitos.
+- Nodos con ID estable, tipo, título, descripción, orden entre hermanos, hints de display, metadata de estado y versión propia.
+- Definición pedagógica de concepto con objetivos, prerequisitos tipados (`introduced` o `mastered`), dificultad general 1–5, esfuerzo estimado, `theory_required` y expectativas de assessment sin contenido generado.
+- Validación global de IDs duplicados, tipos, metadata, padres ausentes o inválidos, órdenes negativos/duplicados, jerarquías cíclicas, prerequisitos desconocidos/duplicados y ciclos del knowledge graph.
+- Canonicalización determinista por tipo, padre, orden e ID, con copia defensiva de slices y canonicalización de prerequisitos.
+- Adapter `internal/infra/curriculumyaml` para decodificar exactamente un documento YAML desde `io.Reader`, con rechazo de campos desconocidos, mapping keys duplicadas y documentos extra.
+- Fixture versionado `testdata/curricula/foundation-demo/curriculum.yaml`, neutral al ecosistema y explícitamente no presentado como pack investigado real.
+- Tests de fixture válido, carga repetida, strict YAML, duplicate ID, tipos/padres/orden inválidos, hierarchy cycle, prerequisite dangling/cycle y fixture determinista de 1.500 conceptos.
+- Contrato, escalas, determinismo, validaciones, dependencia y fronteras I-02/I-03/I-04 documentados en `docs/architecture/curriculum-consumption-contract.md`.
+
+### Decisions
+
+- La jerarquía es un modelo plano con `ParentID`: facilita validación, referencias estables y rendering sin convertir el orden visual en knowledge graph.
+- Los prerequisitos viven en la definición del concepto y declaran el requisito futuro, pero este paso solo valida datos; traversal, explicaciones y desbloqueo permanecen en el Paso 9.
+- No se añadieron migraciones ni curriculum instances por estudiante. La asociación durable a goal/source y el estado personalizado pertenecen al Paso 10.
+- `order` es zero-based, no negativo y único entre hermanos; no hay límites artificiales de cantidad o profundidad curricular más allá de la jerarquía contractual.
+- El dominio `internal/learning` permanece standard-library-only. YAML se aísla en un adapter que consume `io.Reader`.
+- Se añadió `go.yaml.in/yaml/v3 v3.0.5` porque la librería estándar no decodifica YAML y el contrato requiere strict known-field decoding. Se eligió la línea estable v3; v4 continuaba en release candidate.
+- Objectives y assessment expectations conservan el orden autoral; nodos y prerequisitos se canonicalizan porque su orden textual no define semántica.
+
+### Verification
+
+- Tests dirigidos de dominio y loader YAML: `GOCACHE=/tmp/kelyro-i02-step8-target-gocache go test ./internal/learning ./internal/infra/curriculumyaml`.
+- `GOCACHE=/tmp/kelyro-i02-step8-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step8-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step8-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- `git diff --check`.
+- Revisión de imports: `internal/learning` no importa YAML, SQLite, Bubble Tea ni adapters de presentación.
+
+### Notes for next session
+
+- El Paso 9 es el siguiente paso pendiente y requiere autorización explícita.
+- El Prerequisite Engine debe consumir `ConceptPrerequisite.Requirement`, `MasteryPolicyService` y estados del estudiante sin hacer traversal dentro de repositorios ni del adapter YAML.
+- Persistencia de Curriculum Instance y asociación a goal/source siguen reservadas para el Paso 10.

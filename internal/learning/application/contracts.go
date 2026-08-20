@@ -119,9 +119,9 @@ type MasteryThresholdRepository interface {
 	Save(context.Context, learning.MasteryThresholdSettings) error
 }
 
-// CurriculumStateRepository is a read port for deterministic, versioned
-// curriculum data. Curriculum ingestion and graph policies belong to later
-// I-02 steps.
+// CurriculumStateRepository is the compact read port introduced before the
+// full curriculum definition contract. YAML decoding is a separate adapter;
+// graph traversal and progression policies belong to later I-02 steps.
 type CurriculumStateRepository interface {
 	Concept(context.Context, learning.CurriculumRef, learning.ID) (learning.Concept, error)
 	Concepts(context.Context, learning.CurriculumRef) ([]learning.Concept, error)
