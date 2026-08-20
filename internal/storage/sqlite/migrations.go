@@ -585,6 +585,27 @@ ON diagnostic_attempts (id, student_id, curriculum_instance_id)`,
 			`CREATE INDEX learner_setups_status_idx ON learner_setups (status, updated_at, student_id)`,
 		},
 	},
+	{
+		version: 12,
+		name:    "evidence metadata for mastery v1",
+		statements: []string{
+			`ALTER TABLE learning_evidence ADD COLUMN mastery_evidence_type TEXT NOT NULL DEFAULT 'manual_import'
+CHECK (mastery_evidence_type IN ('diagnostic_objective', 'diagnostic_self_report', 'knowledge_check', 'practice_success', 'practice_failure', 'assessment', 'project_evidence', 'review_recall', 'manual_import'))`,
+			`ALTER TABLE learning_evidence ADD COLUMN confidence REAL NOT NULL DEFAULT 1 CHECK (confidence > 0 AND confidence <= 1)`,
+			`ALTER TABLE learning_evidence ADD COLUMN independence REAL NOT NULL DEFAULT 1 CHECK (independence BETWEEN 0 AND 1)`,
+			`ALTER TABLE learning_evidence ADD COLUMN difficulty REAL NOT NULL DEFAULT 0.5 CHECK (difficulty BETWEEN 0 AND 1)`,
+			`ALTER TABLE learning_evidence ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'legacy-evidence/v1' CHECK (length(trim(algorithm_version)) > 0)`,
+			`UPDATE learning_evidence
+SET mastery_evidence_type = CASE evidence_type
+    WHEN 'diagnostic' THEN 'diagnostic_objective'
+    WHEN 'practice' THEN CASE WHEN score = 0 THEN 'practice_failure' ELSE 'practice_success' END
+    WHEN 'assessment' THEN 'assessment'
+    WHEN 'review' THEN 'review_recall'
+    WHEN 'observation' THEN 'project_evidence'
+    WHEN 'import' THEN 'manual_import'
+END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

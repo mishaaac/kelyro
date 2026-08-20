@@ -143,8 +143,17 @@ func (service *diagnosticService) Submit(ctx context.Context, attemptID learning
 		if evaluateErr != nil {
 			return Classify(ErrorInvalidState, operation, evaluateErr)
 		}
-		evidence, evidenceErr := learning.NewEvidence(evidenceID, student.ID, item.ConceptID, learning.EvidenceDiagnostic,
-			diagnosticEvidenceSource(diagnostic, loaded, *item), score, timestamp)
+		evidenceType := learning.EvidenceDiagnosticObjective
+		confidence := 1.0
+		if item.Kind == learning.DiagnosticSelfReport {
+			evidenceType = learning.EvidenceDiagnosticSelfReport
+			confidence = .5
+		}
+		evidence, evidenceErr := learning.NewEvidenceWithMetadata(evidenceID, student.ID, item.ConceptID, evidenceType,
+			diagnosticEvidenceSource(diagnostic, loaded, *item), score, learning.EvidenceMetadata{
+				Confidence: confidence, Independence: 1, Difficulty: .5,
+				AlgorithmVersion: diagnostic.ScoringVersion,
+			}, timestamp)
 		if evidenceErr != nil {
 			return Classify(ErrorInvalidState, operation, evidenceErr)
 		}

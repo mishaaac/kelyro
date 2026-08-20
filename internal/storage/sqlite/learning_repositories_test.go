@@ -80,6 +80,46 @@ func TestIntegratedSetupMigrationIsForwardOnlyAndPreservesExistingState(t *testi
 	}
 }
 
+func TestMasteryEvidenceMigrationPreservesAndClassifiesLegacyRows(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:11]); err != nil {
+		t.Fatalf("migrate through v11: %v", err)
+	}
+	timestamp := fixedTime.Format(timestampFormat)
+	if _, err := handle.Exec(`INSERT INTO students (id,created_at,updated_at) VALUES ('student.legacy',?,?)`, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO concept_registry (id) VALUES ('concept.legacy')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO learning_evidence
+(id,student_id,concept_id,evidence_type,source,score,observed_at) VALUES
+('evidence.pass','student.legacy','concept.legacy','practice','legacy/pass',0.7,?),
+('evidence.fail','student.legacy','concept.legacy','practice','legacy/fail',0,?)`, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate mastery evidence: %v", err)
+	}
+	items, err := database.LearningRepositories().Evidence.ListByConcept(context.Background(), mustID(t, "student.legacy"), mustID(t, "concept.legacy"))
+	if err != nil || len(items) != 2 {
+		t.Fatalf("legacy evidence = (%+v, %v)", items, err)
+	}
+	byID := map[string]learning.Evidence{items[0].ID.String(): items[0], items[1].ID.String(): items[1]}
+	if byID["evidence.pass"].Type != learning.EvidencePracticeSuccess || byID["evidence.fail"].Type != learning.EvidencePracticeFailure ||
+		byID["evidence.pass"].AlgorithmVersion != learning.LegacyEvidenceAlgorithmVersion {
+		t.Fatalf("classified legacy evidence = %+v", items)
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)
@@ -403,13 +443,26 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(gotState, state) {
 		t.Fatalf("state=(%+v,%v)", gotState, err)
 	}
-	evidence, _ := learning.NewEvidence(mustID(t, "evidence-1"), student.ID, conceptA.ID, learning.EvidencePractice, "fixture", mustScore(t, .7), introduced)
+	evidence, _ := learning.NewEvidenceWithMetadata(mustID(t, "evidence-1"), student.ID, conceptA.ID, learning.EvidenceKnowledgeCheck,
+		"fixture/knowledge-check", mustScore(t, .7), learning.EvidenceMetadata{
+			Confidence: .8, Independence: .6, Difficulty: .9, AlgorithmVersion: "fixture-evaluator/v1",
+		}, introduced)
 	if err := repositories.Evidence.Append(ctx, evidence); err != nil {
 		t.Fatal(err)
 	}
 	evidenceItems, err := repositories.Evidence.ListByConcept(ctx, student.ID, conceptA.ID)
 	if err != nil || !reflect.DeepEqual(evidenceItems, []learning.Evidence{evidence}) {
 		t.Fatalf("evidence=(%+v,%v)", evidenceItems, err)
+	}
+	for name, statement := range map[string]string{
+		"confidence":   `UPDATE learning_evidence SET confidence=0 WHERE id='evidence-1'`,
+		"independence": `UPDATE learning_evidence SET independence=1.1 WHERE id='evidence-1'`,
+		"difficulty":   `UPDATE learning_evidence SET difficulty=-0.1 WHERE id='evidence-1'`,
+		"algorithm":    `UPDATE learning_evidence SET algorithm_version=' ' WHERE id='evidence-1'`,
+	} {
+		if _, err := database.sql.ExecContext(ctx, statement); err == nil {
+			t.Fatalf("evidence %s constraint accepted malformed metadata", name)
+		}
 	}
 	mistake, _ := learning.NewMistake(mustID(t, "mistake-1"), student.ID, conceptA.ID, "mixed two rules", introduced)
 	if err := repositories.Mistakes.Create(ctx, mistake); err != nil {

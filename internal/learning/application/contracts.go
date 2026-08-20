@@ -78,6 +78,21 @@ type MasteryPolicyService interface {
 	ClearWorkspaceOverride(context.Context) (learning.ResolvedMasteryThreshold, error)
 }
 
+// MasteryExplanation is a human-readable summary backed by the complete
+// mastery-v1 contribution breakdown. Presentation may render the structured
+// calculation without parsing Summary.
+type MasteryExplanation struct {
+	Calculation learning.MasteryCalculation
+	Summary     string
+}
+
+// MasteryCalculationService reads immutable evidence and applies one
+// replaceable domain policy. It does not update Concept State or progression.
+type MasteryCalculationService interface {
+	Calculate(context.Context, learning.ID, learning.ID) (learning.MasteryCalculation, error)
+	Explain(context.Context, learning.ID, learning.ID) (MasteryExplanation, error)
+}
+
 // PrerequisiteService evaluates one concept against one durable student-state
 // snapshot and the effective mastery policy. Graph traversal stays in domain.
 type PrerequisiteService interface {

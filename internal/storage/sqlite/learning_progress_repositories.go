@@ -342,7 +342,10 @@ func (repository learningEvidenceRepository) Append(ctx context.Context, evidenc
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
 	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO learning_evidence
-(id, student_id, concept_id, evidence_type, source, score, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, evidence.ID.String(), evidence.StudentID.String(), evidence.ConceptID.String(), evidence.Type, evidence.Source, evidence.Score.Value(), encodeTimestamp(evidence.ObservedAt))
+(id, student_id, concept_id, evidence_type, source, score, observed_at, mastery_evidence_type, confidence, independence, difficulty, algorithm_version)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, evidence.ID.String(), evidence.StudentID.String(), evidence.ConceptID.String(),
+		storageEvidenceCategory(evidence.Type), evidence.Source, evidence.Score.Value(), encodeTimestamp(evidence.ObservedAt), evidence.Type,
+		evidence.Confidence, evidence.Independence, evidence.Difficulty, evidence.AlgorithmVersion)
 	return classifyLearningError(operation, err)
 }
 
@@ -350,7 +353,7 @@ func (repository learningEvidenceRepository) ListByConcept(ctx context.Context, 
 	const operation = "list SQLite evidence"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	rows, err := repository.executor.QueryContext(operationContext, `SELECT id, student_id, concept_id, evidence_type, source, score, observed_at FROM learning_evidence
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT id, student_id, concept_id, mastery_evidence_type, source, score, observed_at, confidence, independence, difficulty, algorithm_version FROM learning_evidence
 WHERE student_id = ? AND concept_id = ? ORDER BY observed_at, id`, studentID.String(), conceptID.String())
 	if err != nil {
 		return nil, classifyLearningError(operation, err)
@@ -371,9 +374,9 @@ WHERE student_id = ? AND concept_id = ? ORDER BY observed_at, id`, studentID.Str
 }
 
 func scanEvidence(scanner rowScanner) (learning.Evidence, error) {
-	var idValue, studentValue, conceptValue, kind, source, observedValue string
-	var scoreValue float64
-	if err := scanner.Scan(&idValue, &studentValue, &conceptValue, &kind, &source, &scoreValue, &observedValue); err != nil {
+	var idValue, studentValue, conceptValue, kind, source, observedValue, algorithmVersion string
+	var scoreValue, confidence, independence, difficulty float64
+	if err := scanner.Scan(&idValue, &studentValue, &conceptValue, &kind, &source, &scoreValue, &observedValue, &confidence, &independence, &difficulty, &algorithmVersion); err != nil {
 		return learning.Evidence{}, err
 	}
 	id, err := decodeID(idValue)
@@ -396,8 +399,30 @@ func scanEvidence(scanner rowScanner) (learning.Evidence, error) {
 	if err != nil {
 		return learning.Evidence{}, err
 	}
-	item := learning.Evidence{ID: id, StudentID: studentID, ConceptID: conceptID, Type: learning.EvidenceType(kind), Source: source, Score: score, ObservedAt: observedAt}
+	item := learning.Evidence{
+		ID: id, StudentID: studentID, ConceptID: conceptID, Type: learning.EvidenceType(kind), Source: source, Score: score,
+		Confidence: confidence, Independence: independence, Difficulty: difficulty, ObservedAt: observedAt, AlgorithmVersion: algorithmVersion,
+	}
 	return item, item.Validate()
+}
+
+func storageEvidenceCategory(evidenceType learning.EvidenceType) learning.EvidenceType {
+	switch evidenceType {
+	case learning.EvidenceDiagnosticObjective, learning.EvidenceDiagnosticSelfReport:
+		return "diagnostic"
+	case learning.EvidenceKnowledgeCheck, learning.EvidencePracticeSuccess, learning.EvidencePracticeFailure:
+		return "practice"
+	case learning.EvidenceAssessment:
+		return "assessment"
+	case learning.EvidenceReviewRecall:
+		return "review"
+	case learning.EvidenceProject:
+		return "observation"
+	case learning.EvidenceManualImport:
+		return "import"
+	default:
+		return evidenceType
+	}
 }
 
 func (repository learningMistakeRepository) Create(ctx context.Context, mistake learning.Mistake) error {

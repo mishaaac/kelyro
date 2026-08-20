@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 12 (pending authorization)
-Last completed step: 11
+Current step: 14 (pending authorization)
+Last completed step: 13
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -546,3 +546,46 @@ Release: unreleased
 - El Paso 13 es el siguiente paso pendiente y requiere autorización explícita.
 - El Mastery Engine debe combinar Evidence con una fórmula versionada; no debe inferir que los estados iniciales `not_seen/0` son evidencia negativa.
 - La selección de curriculum personalizada sigue reservada para I-04; no extender el fixture bridge como UX final.
+
+## Step 13 — Evidence Model y Mastery Engine v1
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Modelo append-only de Evidence ampliado con nueve tipos semánticos, score, confidence, independence, dificultad normalizada, source ref, timestamp UTC y versión del algoritmo productor.
+- Política explícita `mastery-v1`: media ponderada por fuerza del tipo, confidence, independence y dificultad, sin decay temporal oculto.
+- Resultado que distingue `unknown` de fallo observado, comparación inclusiva contra threshold y breakdown auditable por cada evidencia.
+- Orden canónico por timestamp e ID para recalculación determinista, incluso con timestamps iguales o repositorios basados en maps.
+- `MasteryCalculationService` presentation-neutral para calcular y explicar el resultado leyendo únicamente el historial de Evidence.
+- Diagnóstico actualizado para emitir `diagnostic_objective` o `diagnostic_self_report` con metadata y versión `diagnostic-scoring/v1`.
+- Migration forward-only v12 con metadata de mastery, constraints de rango y clasificación determinista de filas legacy sin modificar la migration v4 publicada.
+- Fórmula, pesos, compatibilidad, determinismo, explainability y frontera con retention/progression documentados en `docs/architecture/mastery-v1.md`.
+
+### Decisions
+
+- `mastery-v1` usa `Σ(score × weight) / Σ(weight)`; el peso es base por tipo × confidence × factor de independence × factor de dificultad.
+- Un concepto sin evidencia devuelve `Known=false`; una evidencia válida con score cero devuelve `Known=true` y mastery cero.
+- La antigüedad no cambia el peso en v1. El Retention Engine del Paso 18 deberá introducir cualquier efecto temporal mediante una política explícita y versionada.
+- Independence conserva un factor mínimo de 0.25 para mantener visible una observación asistida, mientras que dificultad neutral `0.5` no altera el peso.
+- El tipo semántico nuevo se persiste junto a la categoría gruesa publicada en v4; así se amplía el contrato sin reconstruir la tabla ni romper las FKs de diagnóstico.
+- Las filas legacy de diagnóstico se clasifican conservadoramente como objetivas porque el schema anterior no conservaba el tipo del ítem; la provenance y el score originales permanecen intactos.
+- Este paso no persiste mastery calculado, cambia exposure ni desbloquea prerequisitos. Esas mutaciones pertenecen al Paso 14.
+
+### Verification
+
+- Tests exhaustivos de no evidence, fallo observado, evidencia única, conflicto, confidence baja/alta, independence, dificultad, boundary threshold, orden determinista, timestamps iguales y evidencia malformed/mismatched/duplicada.
+- Tests application de cálculo y explicación para mastery conocido y unknown.
+- Tests SQLite de roundtrip de todos los metadatos, constraints y upgrade v11 → v12 preservando y clasificando evidencia legacy.
+- `GOCACHE=<workspace>/.step13-gocache GOTMPDIR=<workspace>/.step13-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test ./...`.
+- `GOCACHE=<workspace>/.step13-gocache GOTMPDIR=<workspace>/.step13-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go vet ./...`.
+- `GOCACHE=<workspace>/.step13-gocache GOTMPDIR=<workspace>/.step13-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go run ./tools/quality all`, incluyendo E2E, race, build y smoke checks de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 14 es el siguiente paso pendiente y requiere autorización explícita.
+- Progression deberá consumir `MasteryCalculationService` y `MasteryPolicyService`, actualizar el `InstanceConceptState` correcto de forma atómica y conservar Evidence inmutable.
+- No duplicar la fórmula, los pesos ni la comparación de threshold dentro de SQLite, CLI/TUI o el Prerequisite Engine.

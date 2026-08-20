@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/mishaaac/kelyro/internal/learning"
+	"github.com/mishaaac/kelyro/internal/learning/application"
 )
 
 type studentRepository struct{ store *Store }
@@ -230,6 +231,9 @@ type evidenceRepository struct{ store *Store }
 func (repository evidenceRepository) Append(ctx context.Context, evidence learning.Evidence) error {
 	if err := contextError("append memory evidence", ctx); err != nil {
 		return err
+	}
+	if err := evidence.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "append memory evidence", err)
 	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()

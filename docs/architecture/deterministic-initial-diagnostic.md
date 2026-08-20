@@ -73,7 +73,9 @@ Raw answer text is evaluated at the application boundary and is not persisted.
 The durable observation records only item ID, concept ID, score, evidence ID,
 and timestamp. Each submission transactionally:
 
-1. appends immutable `EvidenceDiagnostic` evidence;
+1. appends immutable `diagnostic_objective` or
+   `diagnostic_self_report` evidence, including evaluator version and mastery
+   weighting metadata;
 2. appends the scored observation that references that evidence;
 3. advances or completes the attempt.
 

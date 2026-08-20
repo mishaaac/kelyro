@@ -1355,7 +1355,7 @@ feat(onboarding): initialize learner state from interview and diagnostic
 
 ## Paso 13 — Implementar Evidence Model y Mastery Engine v1
 
-- [ ] Paso 13 completado
+- [x] Paso 13 completado
 
 ### Objetivo
 

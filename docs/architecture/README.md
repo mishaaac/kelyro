@@ -26,6 +26,10 @@ The deterministic initial diagnostic contract, scoring/confidence policy,
 adaptive branching, evidence linkage, and resumable persistence are documented
 in [deterministic-initial-diagnostic.md](deterministic-initial-diagnostic.md).
 
+The immutable evidence contract, explicit `mastery-v1` formula, deterministic
+calculation, explainability breakdown, and persistence compatibility are
+documented in [mastery-v1.md](mastery-v1.md).
+
 The resumable orchestration from onboarding through optional diagnostic and
 transactional initial learner state is documented in
 [integrated-learner-setup.md](integrated-learner-setup.md).
