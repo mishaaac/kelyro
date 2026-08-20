@@ -99,6 +99,27 @@ type PrerequisiteService interface {
 	EvaluateIntroduction(context.Context, learning.ID, learning.ID, *learning.PackMasteryOverride) (learning.IntroductionDecision, error)
 }
 
+// DependentProgression reports derived unlock eligibility before and after a
+// concept update. No unlock bit is persisted; Decision remains authoritative.
+type DependentProgression struct {
+	Decision      learning.IntroductionDecision
+	WasEligible   bool
+	NewlyEligible bool
+}
+
+type ProgressionUpdate struct {
+	Progression learning.ConceptProgression
+	Dependents  []DependentProgression
+}
+
+// ProgressionService atomically records evidence and updates one
+// instance-scoped concept state. Recalculate supports future policy upgrades
+// without rewriting immutable evidence.
+type ProgressionService interface {
+	RecordEvidence(context.Context, learning.ID, learning.Evidence, *learning.PackMasteryOverride) (ProgressionUpdate, error)
+	Recalculate(context.Context, learning.ID, learning.ID, *learning.PackMasteryOverride) (ProgressionUpdate, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {

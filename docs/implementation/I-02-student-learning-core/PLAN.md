@@ -1473,7 +1473,7 @@ feat(mastery): add evidence-based mastery engine v1
 
 ## Paso 14 — Implementar actualización de Concept State y Progression Policy
 
-- [ ] Paso 14 completado
+- [x] Paso 14 completado
 
 ### Objetivo
 

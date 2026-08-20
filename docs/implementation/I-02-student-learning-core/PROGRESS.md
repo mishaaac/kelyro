@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 14 (pending authorization)
-Last completed step: 13
+Current step: 15 (pending authorization)
+Last completed step: 14
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -589,3 +589,47 @@ Release: unreleased
 - El Paso 14 es el siguiente paso pendiente y requiere autorización explícita.
 - Progression deberá consumir `MasteryCalculationService` y `MasteryPolicyService`, actualizar el `InstanceConceptState` correcto de forma atómica y conservar Evidence inmutable.
 - No duplicar la fórmula, los pesos ni la comparación de threshold dentro de SQLite, CLI/TUI o el Prerequisite Engine.
+
+## Step 14 — Concept State y Progression Policy
+
+Status: completed
+Date: 2026-08-20
+Release: unreleased
+
+### Delivered
+
+- Política pura y versionada `progression-v1` que conecta mastery conocido, threshold efectivo y `InstanceConceptState` sin dependencias de persistencia o presentación.
+- Transiciones explícitas desde Evidence hacia `introduced`, `learning`, `practicing` y `mastered`, conservando la etapa de aprendizaje más avanzada observada.
+- Mastery reversible: una recalculación bajo threshold devuelve un concepto dominado a `practicing` sin borrar su `MasteredAt` histórico.
+- Separación de retention: `review_due` y `ReviewDueAt` se preservan aunque cambie el mastery; sus transitions siguen reservadas para los pasos de Retention/Review.
+- `ProgressionService.RecordEvidence` agrega Evidence, ejecuta `mastery-v1`, actualiza el state de la Curriculum Instance y deriva unlocks dentro de una sola unidad de trabajo.
+- `ProgressionService.Recalculate` reproduce el mismo flujo sin reescribir Evidence, preparando upgrades futuros del algoritmo.
+- Resultado explicable por dependiente con elegibilidad anterior, decisión completa de prerequisitos y señal `NewlyEligible`; no se persiste ningún unlock duplicado.
+- Validación reforzada de `MasteryCalculation` antes de aplicar progression, incluyendo ownership, versión, totales, contribuciones únicas y orden canónico.
+- Política, atomicidad, timestamps, lifecycle, unlock derivado y fronteras documentados en `docs/architecture/concept-state-progression-v1.md`.
+
+### Decisions
+
+- `KnowledgeGraph.EvaluateIntroduction`/`CanIntroduce` permanece como única fuente de verdad para unlock; no se añadió tabla, flag ni cache de elegibilidad.
+- El servicio evalúa solo dependientes directos del concepto actualizado. Los descendientes transitivos continúan bloqueados por sus propios prerequisitos hasta que éstos cambien.
+- Threshold equality masteriza mediante la política inclusiva `threshold-v1`; presets y precedencia no se duplican en progression.
+- Evidence es longitudinal por student/concept y state permanece aislado por Curriculum Instance. Evidence anterior a la instancia conserva su timestamp original, mientras su proyección first/last seen se limita al inicio de la instancia.
+- Un cálculo unknown deja el state intacto y nunca convierte ausencia de evidencia en score observado cero.
+- Evidence futura, ownership incorrecto, duplicate ID o cualquier fallo posterior causa rollback de Evidence y state.
+- No fue necesaria una migration: v12 ya persiste Evidence y el schema v9 ya persiste `InstanceConceptState`; SQLite no recibe fórmulas educativas.
+- No se añadieron CLI/TUI, Mistake Memory, Retention, Review scheduling ni Exercise Engine.
+
+### Verification
+
+- Tests de dominio para threshold exacto y just-below, stages por tipo de Evidence, furthest exposure, reversibilidad, unknown, review_due, evidence histórica y timestamp futuro.
+- Tests application para unlock nuevo, prereq todavía ausente, múltiples prerequisitos, relock, recalculation, ownership y rollback por duplicate/future Evidence.
+- `GOCACHE=<workspace>/.step14-gocache GOTMPDIR=<workspace>/.step14-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go test ./...`.
+- `GOCACHE=<workspace>/.step14-gocache GOTMPDIR=<workspace>/.step14-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go vet ./...`.
+- `GOCACHE=<workspace>/.step14-gocache GOTMPDIR=<workspace>/.step14-gotmp GOMODCACHE=/tmp/kelyro-i02-step10-modcache go run ./tools/quality all`, incluyendo E2E, race, build y smoke checks de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 15 es el siguiente paso pendiente y requiere autorización explícita.
+- Mistake Memory deberá registrar/deduplicar errores mediante sus propios casos de uso; cualquier Evidence asociada deberá entrar por `ProgressionService` cuando corresponda actualizar mastery/state.
+- No persistir unlocks ni duplicar `progression-v1`, `mastery-v1`, `threshold-v1` o traversal del Knowledge Graph en Mistake Memory.

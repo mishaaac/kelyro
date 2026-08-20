@@ -80,8 +80,9 @@ returns both a calculation and a human summary. The structured contribution
 for every item contains its score, type weight, metadata modifiers, effective
 and normalized weights, weighted score, timestamp, and source reference.
 
-The service only reads evidence. Persisting calculated mastery, changing
-exposure, and applying progression are reserved for Step 14.
+The calculation service only reads evidence. Step 14's `ProgressionService`
+uses it inside a transaction to persist calculated mastery, change exposure,
+and derive unlock decisions; the formula remains defined only here.
 
 ## Persistence compatibility
 

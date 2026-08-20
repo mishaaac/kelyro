@@ -30,6 +30,10 @@ The immutable evidence contract, explicit `mastery-v1` formula, deterministic
 calculation, explainability breakdown, and persistence compatibility are
 documented in [mastery-v1.md](mastery-v1.md).
 
+The transactional connection between evidence, mastery, instance concept
+state, thresholds, and derived prerequisite unlock decisions is documented in
+[concept-state-progression-v1.md](concept-state-progression-v1.md).
+
 The resumable orchestration from onboarding through optional diagnostic and
 transactional initial learner state is documented in
 [integrated-learner-setup.md](integrated-learner-setup.md).

@@ -2,6 +2,7 @@ package learning
 
 import (
 	"fmt"
+	"math"
 	"sort"
 )
 
@@ -37,6 +38,98 @@ type MasteryCalculation struct {
 	Contributions []MasteryContribution
 }
 
+func (calculation MasteryCalculation) Validate() error {
+	if err := calculation.StudentID.Validate(); err != nil {
+		return fmt.Errorf("mastery calculation student: %w", err)
+	}
+	if err := calculation.ConceptID.Validate(); err != nil {
+		return fmt.Errorf("mastery calculation concept: %w", err)
+	}
+	if calculation.PolicyVersion != MasteryAlgorithmVersion {
+		return fmt.Errorf("unsupported mastery calculation policy %q", calculation.PolicyVersion)
+	}
+	if err := calculation.Score.Validate(); err != nil {
+		return fmt.Errorf("mastery calculation: %w", err)
+	}
+	if math.IsNaN(calculation.TotalWeight) || math.IsInf(calculation.TotalWeight, 0) || calculation.TotalWeight < 0 {
+		return fmt.Errorf("mastery calculation total weight is invalid")
+	}
+	if !calculation.Known {
+		if calculation.Score.Value() != 0 || calculation.EvidenceCount != 0 || calculation.TotalWeight != 0 || len(calculation.Contributions) != 0 {
+			return fmt.Errorf("unknown mastery calculation cannot contain evidence")
+		}
+		return nil
+	}
+	if calculation.EvidenceCount == 0 || calculation.EvidenceCount != len(calculation.Contributions) || calculation.TotalWeight <= 0 {
+		return fmt.Errorf("known mastery calculation has inconsistent evidence totals")
+	}
+	seen := make(map[ID]struct{}, len(calculation.Contributions))
+	effectiveWeightSum := 0.0
+	normalizedWeightSum := 0.0
+	weightedScoreSum := 0.0
+	for index, contribution := range calculation.Contributions {
+		if err := contribution.EvidenceID.Validate(); err != nil {
+			return fmt.Errorf("mastery contribution: %w", err)
+		}
+		if !contribution.Type.Valid() {
+			return fmt.Errorf("mastery contribution evidence type %q is invalid", contribution.Type)
+		}
+		if err := contribution.Score.Validate(); err != nil {
+			return fmt.Errorf("mastery contribution: %w", err)
+		}
+		if err := contribution.OccurredAt.Validate(); err != nil {
+			return fmt.Errorf("mastery contribution occurred at: %w", err)
+		}
+		if err := requireText("mastery contribution source ref", contribution.SourceRef); err != nil {
+			return err
+		}
+		for _, field := range []struct {
+			name  string
+			value float64
+		}{
+			{name: "type weight", value: contribution.TypeWeight},
+			{name: "confidence", value: contribution.Confidence},
+			{name: "independence", value: contribution.Independence},
+			{name: "difficulty", value: contribution.Difficulty},
+			{name: "effective weight", value: contribution.EffectiveWeight},
+			{name: "normalized weight", value: contribution.NormalizedWeight},
+			{name: "weighted score", value: contribution.WeightedScore},
+		} {
+			if math.IsNaN(field.value) || math.IsInf(field.value, 0) || field.value < 0 {
+				return fmt.Errorf("mastery contribution %s is invalid", field.name)
+			}
+		}
+		if contribution.TypeWeight != masteryEvidenceTypeWeight(contribution.Type) || contribution.Confidence <= 0 || contribution.Confidence > 1 ||
+			contribution.Independence > 1 || contribution.Difficulty > 1 || contribution.EffectiveWeight <= 0 || contribution.NormalizedWeight > 1 {
+			return fmt.Errorf("mastery contribution weights are inconsistent")
+		}
+		wantEffective := contribution.TypeWeight * contribution.Confidence * (.25 + .75*contribution.Independence) * (.75 + .5*contribution.Difficulty)
+		if math.Abs(contribution.EffectiveWeight-wantEffective) > 1e-12 ||
+			math.Abs(contribution.WeightedScore-contribution.Score.Value()*contribution.EffectiveWeight) > 1e-12 {
+			return fmt.Errorf("mastery contribution formula is inconsistent")
+		}
+		if _, exists := seen[contribution.EvidenceID]; exists {
+			return fmt.Errorf("mastery calculation contains duplicate contribution %q", contribution.EvidenceID)
+		}
+		seen[contribution.EvidenceID] = struct{}{}
+		if index > 0 {
+			previous := calculation.Contributions[index-1]
+			if contribution.OccurredAt.Before(previous.OccurredAt) ||
+				(contribution.OccurredAt == previous.OccurredAt && contribution.EvidenceID.String() <= previous.EvidenceID.String()) {
+				return fmt.Errorf("mastery contributions are not canonically ordered")
+			}
+		}
+		effectiveWeightSum += contribution.EffectiveWeight
+		normalizedWeightSum += contribution.NormalizedWeight
+		weightedScoreSum += contribution.WeightedScore
+	}
+	if math.Abs(effectiveWeightSum-calculation.TotalWeight) > 1e-12 || math.Abs(normalizedWeightSum-1) > 1e-12 ||
+		math.Abs(weightedScoreSum/calculation.TotalWeight-calculation.Score.Value()) > 1e-12 {
+		return fmt.Errorf("mastery calculation aggregates are inconsistent")
+	}
+	return nil
+}
+
 func (calculation MasteryCalculation) MeetsThreshold(threshold MasteryThreshold) (bool, error) {
 	if err := threshold.Validate(); err != nil {
 		return false, err
@@ -55,7 +148,7 @@ func CalculateMasteryV1(studentID, conceptID ID, items []Evidence) (MasteryCalcu
 	}
 	calculation := MasteryCalculation{StudentID: studentID, ConceptID: conceptID, PolicyVersion: MasteryAlgorithmVersion}
 	if len(items) == 0 {
-		return calculation, nil
+		return calculation, calculation.Validate()
 	}
 
 	canonical := append([]Evidence(nil), items...)
@@ -105,7 +198,7 @@ func CalculateMasteryV1(studentID, conceptID ID, items []Evidence) (MasteryCalcu
 	for index := range calculation.Contributions {
 		calculation.Contributions[index].NormalizedWeight = calculation.Contributions[index].EffectiveWeight / calculation.TotalWeight
 	}
-	return calculation, nil
+	return calculation, calculation.Validate()
 }
 
 func masteryEvidenceTypeWeight(evidenceType EvidenceType) float64 {
