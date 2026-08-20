@@ -69,6 +69,15 @@ type OnboardingService interface {
 	Confirm(context.Context) (OnboardingConfirmation, error)
 }
 
+// MasteryPolicyService owns durable student/workspace threshold settings and
+// resolves the effective requirement with an optional bounded pack override.
+type MasteryPolicyService interface {
+	Show(context.Context, *learning.PackMasteryOverride) (learning.ResolvedMasteryThreshold, error)
+	SetStudentDefault(context.Context, learning.MasteryThreshold) (learning.ResolvedMasteryThreshold, error)
+	SetWorkspaceOverride(context.Context, learning.MasteryThreshold) (learning.ResolvedMasteryThreshold, error)
+	ClearWorkspaceOverride(context.Context) (learning.ResolvedMasteryThreshold, error)
+}
+
 // ProfileStore scopes Student Core profile and goal operations, plus their
 // database lifetime, to one workspace without exposing SQLite to application
 // or presentation packages. The historical name is retained for compatibility.
@@ -76,6 +85,7 @@ type ProfileStore interface {
 	Profiles() ProfileService
 	Goals() GoalLifecycleService
 	Onboarding() OnboardingService
+	Mastery() MasteryPolicyService
 	Close() error
 }
 
@@ -102,6 +112,11 @@ type GoalRepository interface {
 type OnboardingRepository interface {
 	Get(context.Context, learning.ID) (learning.OnboardingInterview, error)
 	Save(context.Context, learning.OnboardingInterview) error
+}
+
+type MasteryThresholdRepository interface {
+	Get(context.Context, learning.ID) (learning.MasteryThresholdSettings, error)
+	Save(context.Context, learning.MasteryThresholdSettings) error
 }
 
 // CurriculumStateRepository is a read port for deterministic, versioned
@@ -179,6 +194,7 @@ type Repositories struct {
 	Students     StudentRepository
 	Goals        GoalRepository
 	Onboarding   OnboardingRepository
+	Mastery      MasteryThresholdRepository
 	Curricula    CurriculumStateRepository
 	Concepts     ConceptStateRepository
 	Evidence     EvidenceRepository

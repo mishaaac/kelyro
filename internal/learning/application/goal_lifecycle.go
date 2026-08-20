@@ -63,6 +63,9 @@ func (service *goalLifecycleService) Show(ctx context.Context) ([]learning.Learn
 
 func (service *goalLifecycleService) Set(ctx context.Context, input SetGoalInput) (learning.LearningGoal, error) {
 	const operation = "set learning goal"
+	if _, err := learning.MasteryRequirementFromThreshold(input.MasteryThreshold); err != nil {
+		return learning.LearningGoal{}, invalid(operation, err)
+	}
 	student, err := service.student(ctx, operation)
 	if err != nil {
 		return learning.LearningGoal{}, err

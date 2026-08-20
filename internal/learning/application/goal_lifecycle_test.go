@@ -96,6 +96,18 @@ func TestGoalSetRollsBackPausedGoalWhenCreateConflicts(t *testing.T) {
 	}
 }
 
+func TestGoalSetRejectsThresholdOutsideProgressionPolicyRange(t *testing.T) {
+	t.Parallel()
+	store := memory.New()
+	profiles := application.NewProfileService(application.NewStudentService(store.Repositories().Students))
+	service := application.NewGoalLifecycleService(profiles, store)
+	input := goalInput(t, "Invalid threshold", "General")
+	input.MasteryThreshold, _ = learning.NewMasteryThreshold(.49)
+	if _, err := service.Set(context.Background(), input); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("Set() error = %v, want invalid state", err)
+	}
+}
+
 func goalInput(t *testing.T, title, domain string) application.SetGoalInput {
 	t.Helper()
 	threshold, err := learning.NewMasteryThreshold(.8)

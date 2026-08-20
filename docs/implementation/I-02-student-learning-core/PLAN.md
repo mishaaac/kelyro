@@ -843,7 +843,7 @@ feat(onboarding): add resumable learner interview
 
 ## Paso 7 — Implementar Mastery Threshold y política de avance
 
-- [ ] Paso 7 completado
+- [x] Paso 7 completado
 
 ### Objetivo
 

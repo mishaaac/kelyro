@@ -420,6 +420,33 @@ WHERE status = 'active'
 )`,
 		},
 	},
+	{
+		version: 8,
+		name:    "mastery threshold policy",
+		statements: []string{
+			`CREATE TABLE mastery_threshold_settings (
+    student_id TEXT PRIMARY KEY,
+    policy_version TEXT NOT NULL CHECK (policy_version = 'threshold-v1'),
+    student_default REAL NOT NULL CHECK (student_default BETWEEN 0.50 AND 0.99),
+    workspace_override REAL CHECK (workspace_override IS NULL OR workspace_override BETWEEN 0.50 AND 0.99),
+    updated_at TEXT NOT NULL CHECK (updated_at GLOB '*Z'),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+)`,
+			`INSERT INTO mastery_threshold_settings (student_id, policy_version, student_default, workspace_override, updated_at)
+SELECT student.id,
+       'threshold-v1',
+       COALESCE((
+           SELECT CASE WHEN goal.mastery_threshold BETWEEN 0.50 AND 0.99 THEN goal.mastery_threshold END
+           FROM learning_goals AS goal
+           WHERE goal.student_id = student.id AND goal.status = 'active'
+           ORDER BY goal.updated_at DESC, goal.id DESC
+           LIMIT 1
+       ), 0.80),
+       NULL,
+       student.updated_at
+FROM students AS student`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

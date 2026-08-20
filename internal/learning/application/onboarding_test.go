@@ -19,7 +19,9 @@ func TestOnboardingServicePersistsResumeBackCancelAndConfirmation(t *testing.T) 
 	profiles := application.NewProfileService(application.NewStudentService(store.Repositories().Students), application.WithProfileClock(clock))
 	goalID, _ := learning.NewID("goal.onboarding")
 	goals := application.NewGoalLifecycleService(profiles, store, application.WithGoalClock(clock), application.WithGoalIDGenerator(func() (learning.ID, error) { return goalID, nil }))
-	service := application.NewOnboardingService(profiles, goals, store.Repositories().Onboarding, application.WithOnboardingClock(clock))
+	mastery := application.NewMasteryPolicyService(profiles, store.Repositories().Mastery, application.WithMasteryPolicyClock(clock))
+	service := application.NewOnboardingService(profiles, goals, store.Repositories().Onboarding,
+		application.WithOnboardingClock(clock), application.WithOnboardingMasteryPolicy(mastery))
 
 	started, err := service.Start(ctx)
 	if err != nil || started.Interview.Status != learning.OnboardingInProgress || started.Position != 1 {
@@ -70,6 +72,10 @@ func TestOnboardingServicePersistsResumeBackCancelAndConfirmation(t *testing.T) 
 	}
 	if confirmation.View.Answers[application.OnboardingDiagnosticOptInQuestion] != "yes" {
 		t.Fatal("diagnostic preference was not retained")
+	}
+	resolved, err := mastery.Show(ctx, nil)
+	if err != nil || resolved.Source != learning.MasterySourceStudentDefault || resolved.Requirement.Mode != learning.MasteryModeStrict {
+		t.Fatalf("onboarding mastery default = (%+v, %v)", resolved, err)
 	}
 }
 

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 7 (pending authorization)
-Last completed step: 6
+Current step: 8 (pending authorization)
+Last completed step: 7
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -271,3 +271,50 @@ Release: unreleased
 - El Paso 7 es el siguiente paso pendiente y requiere autorización explícita.
 - Mastery Threshold debe tomar la selección persistida por onboarding y añadir defaults, presets, custom range y precedencia sin convertir el threshold en una nota de examen.
 - El diagnóstico determinista permanece pendiente para su paso autorizado posterior; `diagnostic.opt_in` ya está disponible como respuesta durable.
+
+## Step 07 — Mastery Threshold y política de avance
+
+Status: completed
+Date: 2026-08-19
+Release: unreleased
+
+### Delivered
+
+- Política de dominio versionada `threshold-v1` con regla inclusiva `calculated mastery >= required threshold`, separada del cálculo de mastery y de cualquier unlock.
+- Presets Relaxed 70%, Standard 80%, Strict 85% y Mastery 90%, más valores Custom dentro del rango inclusivo 50–99%.
+- Settings durables con default del estudiante, override opcional del workspace, fuente efectiva y resolución determinista `pack > workspace > student`.
+- Contrato futuro `PackMasteryOverride` que exige límites mínimo/máximo explícitos y rechaza valores fuera de esos límites o del rango global.
+- Caso de uso `MasteryPolicyService` para consultar, cambiar default, establecer/limpiar override y resolver el valor efectivo sin depender de SQLite o presentación.
+- Integración de onboarding: la estrictitud confirmada se guarda explícitamente como default del estudiante, además del threshold histórico del goal.
+- Migration forward-only v8 y adapters SQLite/in-memory; upgrades conservan el threshold del goal activo válido como default y usan Standard para valores ausentes o legacy fuera de rango.
+- CLI `kelyro mastery threshold`, `set`, `set-default` y `reset`, con porcentaje, mode, source, policy version y explicación humana.
+- Nuevos goals restringidos a progression thresholds 0.50–0.99; el value object genérico `[0,1]` permanece compatible con datos históricos publicados.
+- Fórmula, presets, rangos, precedencia, persistencia y límites documentados en `docs/architecture/mastery-threshold-policy.md`.
+
+### Decisions
+
+- El threshold nunca es una nota de examen: solo compara mastery ya calculado y no calcula evidencia, cambia exposure, desbloquea prerequisitos ni ejecuta assessments.
+- `MasteryThreshold` conserva el rango genérico `[0,1]`; `MasteryRequirement` encapsula y versiona la política de progresión más estrecha 50–99%.
+- `mastery threshold set PERCENT` escribe el override del workspace; `set-default` cambia el default del estudiante sin borrar el override y `reset` elimina solo el override.
+- El CLI acepta porcentajes enteros 50–99; las APIs de dominio/application permiten decimales finitos dentro de 0.50–0.99.
+- El pack override no implementa Learning Packs: define únicamente el contrato validado que un consumidor futuro podrá entregar al resolver.
+- La migration v8 usa el goal activo válido para conservar la elección de onboarding en workspaces creados antes de este paso.
+
+### Verification
+
+- Tests de presets, custom boundaries, inputs inválidos, comparación inclusiva y transición temporal.
+- Tests de precedencia student/workspace/pack y límites obligatorios del pack override.
+- Tests application de defaults, set/clear, persistencia, rechazo de out-of-range e integración con confirmación de onboarding.
+- Tests SQLite de roundtrip, constraints, FK y upgrade v7 → v8 conservando el threshold activo.
+- Tests app/CLI de routing, parsing, output humano, comandos inválidos y rango de nuevos goals.
+- Smoke real `init → mastery threshold → set 85 → set-default 70 → reset`, verificando persistencia y precedencia efectiva.
+- `GOCACHE=/tmp/kelyro-i02-step7-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step7-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step7-gocache go run ./tools/quality all`, incluyendo E2E Foundation, `go test -race ./...`, build y smoke checks de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 8 es el siguiente paso pendiente y requiere autorización explícita.
+- Curriculum consumption deberá consultar `MasteryPolicyService` como boundary de política; no debe duplicar presets o precedencia en nodos curriculares, CLI o TUI.
+- Prerequisite unlocking y mastery calculation continúan pendientes para sus pasos autorizados posteriores.

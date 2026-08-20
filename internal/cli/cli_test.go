@@ -41,6 +41,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "update check", args: []string{"update", "check"}, wantAction: app.ActionUpdate},
 		{name: "profile show", args: []string{"profile", "show"}, wantAction: app.ActionProfile},
 		{name: "goal show", args: []string{"goal", "show"}, wantAction: app.ActionGoal},
+		{name: "mastery threshold", args: []string{"mastery", "threshold"}, wantAction: app.ActionMastery},
 	}
 
 	for _, test := range tests {
@@ -68,6 +69,59 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerParsesAndRendersMasteryThreshold(t *testing.T) {
+	t.Parallel()
+	requirement, _ := learning.NewMasteryRequirement(.85)
+	resolved := learning.ResolvedMasteryThreshold{
+		Requirement: requirement, Source: learning.MasterySourceWorkspaceOverride,
+		PolicyVersion: learning.MasteryThresholdPolicyVersion,
+	}
+	service := &fakeService{result: app.Result{Mastery: &resolved}}
+	var stdout, stderr bytes.Buffer
+	if exitCode := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"mastery", "threshold", "set", "85"}); exitCode != ExitOK {
+		t.Fatalf("mastery set exit=%d stderr=%q", exitCode, stderr.String())
+	}
+	if len(service.commands) != 1 || service.commands[0].Action != app.ActionMastery || service.commands[0].MasteryOperation != "set" || service.commands[0].MasteryThreshold.Value() != .85 {
+		t.Fatalf("mastery command = %+v", service.commands)
+	}
+	for _, want := range []string{"Required mastery: 85%", "Mode: Strict", "Source: Workspace override", "Policy: threshold-v1", "not an assessment grade"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("mastery output missing %q:\n%s", want, stdout.String())
+		}
+	}
+
+	for _, test := range []struct {
+		args      []string
+		operation string
+	}{
+		{[]string{"mastery", "threshold"}, "show"},
+		{[]string{"mastery", "threshold", "set-default", "70"}, "set-default"},
+		{[]string{"mastery", "threshold", "reset"}, "reset"},
+	} {
+		service := &fakeService{result: app.Result{Mastery: &resolved}}
+		if exitCode := NewRunner(service, &bytes.Buffer{}, &bytes.Buffer{}).Run(context.Background(), test.args); exitCode != ExitOK {
+			t.Fatalf("Run(%v) exit=%d", test.args, exitCode)
+		}
+		if service.commands[0].MasteryOperation != test.operation {
+			t.Errorf("Run(%v) operation=%q", test.args, service.commands[0].MasteryOperation)
+		}
+	}
+}
+
+func TestRunnerRejectsInvalidMasteryThresholdCommands(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{
+		{"mastery"}, {"mastery", "threshold", "set"}, {"mastery", "threshold", "set", "49"},
+		{"mastery", "threshold", "set", "100"}, {"mastery", "threshold", "set", "85.5"},
+		{"mastery", "threshold", "unknown"},
+	} {
+		var stderr bytes.Buffer
+		if exitCode := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); exitCode != ExitUsage {
+			t.Fatalf("Run(%v) exit=%d stderr=%q", args, exitCode, stderr.String())
+		}
 	}
 }
 
@@ -115,6 +169,7 @@ func TestRunnerRejectsIncompleteLearningGoalCommands(t *testing.T) {
 		{"goal", "set", "--title", "Missing fields"},
 		{"goal", "show", "--domain", "Invalid here"},
 		{"goal", "set", "--title", "X", "--domain", "Y", "--target-outcome", "Z", "--mastery-threshold", "1.1"},
+		{"goal", "set", "--title", "X", "--domain", "Y", "--target-outcome", "Z", "--mastery-threshold", "0.49"},
 	} {
 		var stderr bytes.Buffer
 		if exitCode := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); exitCode != ExitUsage {

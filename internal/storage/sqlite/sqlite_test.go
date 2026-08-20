@@ -57,6 +57,7 @@ func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 		"daily_plans",
 		"learning_evidence",
 		"learning_goals",
+		"mastery_threshold_settings",
 		"milestones",
 		"mistakes",
 		"onboarding_interviews",

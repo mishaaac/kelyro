@@ -72,10 +72,15 @@ func WithOnboardingFlow(flow learning.OnboardingFlow) OnboardingOption {
 	return func(service *onboardingService) { service.flow = flow }
 }
 
+func WithOnboardingMasteryPolicy(policy MasteryPolicyService) OnboardingOption {
+	return func(service *onboardingService) { service.mastery = policy }
+}
+
 type onboardingService struct {
 	profiles ProfileService
 	goals    GoalLifecycleService
 	states   OnboardingRepository
+	mastery  MasteryPolicyService
 	flow     learning.OnboardingFlow
 	now      func() time.Time
 }
@@ -165,6 +170,11 @@ func (service *onboardingService) Confirm(ctx context.Context) (OnboardingConfir
 	changes, goalInput, err := onboardingOutputs(view.Interview.Answers)
 	if err != nil {
 		return OnboardingConfirmation{}, invalid(operation, err)
+	}
+	if service.mastery != nil {
+		if _, err := service.mastery.SetStudentDefault(ctx, goalInput.MasteryThreshold); err != nil {
+			return OnboardingConfirmation{}, err
+		}
 	}
 	if _, err := service.profiles.Edit(ctx, changes); err != nil {
 		return OnboardingConfirmation{}, err

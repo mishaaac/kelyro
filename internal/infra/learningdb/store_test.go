@@ -133,3 +133,43 @@ func TestFactoryPersistsOnboardingCheckpointAcrossStoreLifetimes(t *testing.T) {
 		t.Fatalf("resumed onboarding = (%+v, %v)", view, err)
 	}
 }
+
+func TestFactoryPersistsMasteryThresholdAcrossStoreLifetimes(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	internal, err := platform.WorkspaceInternalDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(internal, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	factory := NewFactory("test")
+	current := time.Date(2026, time.August, 19, 15, 0, 0, 0, time.UTC)
+	factory.now = func() time.Time {
+		value := current
+		current = current.Add(time.Minute)
+		return value
+	}
+	store, err := factory.Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	custom, _ := learning.NewMasteryThreshold(.77)
+	set, err := store.Mastery().SetWorkspaceOverride(context.Background(), custom)
+	if err != nil || set.Source != learning.MasterySourceWorkspaceOverride {
+		t.Fatalf("SetWorkspaceOverride() = (%+v, %v)", set, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := factory.Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	resolved, err := reopened.Mastery().Show(context.Background(), nil)
+	if err != nil || resolved.Source != learning.MasterySourceWorkspaceOverride || resolved.Requirement.Mode != learning.MasteryModeCustom || resolved.Requirement.Threshold.Value() != .77 {
+		t.Fatalf("persisted mastery = (%+v, %v)", resolved, err)
+	}
+}

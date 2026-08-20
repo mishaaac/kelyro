@@ -126,6 +126,40 @@ func TestLearningGoalMigrationPreservesHistoryAndResolvesActiveDuplicates(t *tes
 	}
 }
 
+func TestMasteryPolicyMigrationCarriesForwardActiveGoalThreshold(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:7]); err != nil {
+		t.Fatalf("migrate through v7: %v", err)
+	}
+	timestamp := fixedTime.Format(timestampFormat)
+	if _, err := handle.Exec(`INSERT INTO students (id,created_at,updated_at) VALUES ('student.onboarded',?,?)`, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO student_profiles
+(student_id,display_name,experience,weekly_minutes) VALUES ('student.onboarded','Ada','beginner',150)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO learning_goals
+(id,student_id,title,status,mastery_threshold,created_at,updated_at) VALUES ('goal.onboarded','student.onboarded','Calculus','active',0.85,?,?)`, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate mastery policy: %v", err)
+	}
+	settings, err := database.LearningRepositories().Mastery.Get(context.Background(), mustID(t, "student.onboarded"))
+	if err != nil || settings.StudentDefault.Value() != .85 || settings.WorkspaceOverride != nil {
+		t.Fatalf("migrated mastery settings = (%+v, %v)", settings, err)
+	}
+}
+
 func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	ctx := context.Background()
@@ -412,6 +446,36 @@ func TestSQLiteOnboardingRoundTripAndCorruptPayloadDetection(t *testing.T) {
 	}
 	if _, err := database.LearningRepositories().Onboarding.Get(ctx, student.ID); !errors.Is(err, application.ErrPersistenceFailure) {
 		t.Fatalf("corrupt Get() error = %v, want persistence failure", err)
+	}
+}
+
+func TestSQLiteMasteryThresholdRoundTripAndConstraints(t *testing.T) {
+	t.Parallel()
+	database, _ := openTestDatabase(t)
+	ctx := context.Background()
+	student := testStudent(t)
+	if err := database.LearningRepositories().Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := learning.NewMasteryThresholdSettings(student.ID, mustTimestamp(t, fixedTime))
+	if err != nil {
+		t.Fatal(err)
+	}
+	strict, _ := learning.NewMasteryThreshold(.85)
+	settings, _ = settings.SetWorkspaceOverride(strict, mustTimestamp(t, fixedTime.Add(time.Minute)))
+	if err := database.LearningRepositories().Mastery.Save(ctx, settings); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	got, err := database.LearningRepositories().Mastery.Get(ctx, student.ID)
+	if err != nil || got.WorkspaceOverride == nil || got.WorkspaceOverride.Value() != .85 || got.PolicyVersion != learning.MasteryThresholdPolicyVersion {
+		t.Fatalf("Get() = (%+v, %v)", got, err)
+	}
+	if _, err := database.sql.ExecContext(ctx, "UPDATE mastery_threshold_settings SET workspace_override = 0.49 WHERE student_id = ?", student.ID.String()); err == nil {
+		t.Fatal("SQLite accepted workspace threshold below 50%")
+	}
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO mastery_threshold_settings
+(student_id, policy_version, student_default, updated_at) VALUES ('student.missing', 'threshold-v1', 0.8, ?)`, encodeTimestamp(mustTimestamp(t, fixedTime))); err == nil {
+		t.Fatal("SQLite accepted mastery settings without a student")
 	}
 }
 

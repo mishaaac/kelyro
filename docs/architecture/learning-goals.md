@@ -76,3 +76,8 @@ kelyro goal resume
 `goal show` displays all retained goals and their statuses. The CLI only parses
 and renders; lifecycle policy remains in `internal/learning/application` and
 SQLite remains behind `internal/infra/learningdb`.
+
+From Step 7 onward, new goal thresholds must be valid progression requirements
+from `0.50` through `0.99`. The broader value object remains readable for
+historical compatibility; effective precedence and presets are documented in
+`mastery-threshold-policy.md`.

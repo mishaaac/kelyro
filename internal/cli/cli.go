@@ -53,6 +53,7 @@ Commands:
   update   Check for releases; installation remains unsupported
   profile  Show or edit the persistent learner profile
   goal     Show or manage the persistent learning goal
+  mastery  Show or configure the progression mastery threshold
 
 Options:
   -h, --help          Show this help message
@@ -121,7 +122,14 @@ Goal commands:
   kelyro goal pause
   kelyro goal resume
   LEVEL: novice, beginner, intermediate, advanced
-  SCORE: number from 0 to 1 (default: 0.8)
+  SCORE: number from 0.50 to 0.99 (default: 0.80)
+
+Mastery commands:
+  kelyro mastery threshold
+  kelyro mastery threshold set PERCENT
+  kelyro mastery threshold set-default PERCENT
+  kelyro mastery threshold reset
+  PERCENT: integer from 50 to 99. set writes the workspace override.
 `
 
 var actions = map[string]app.Action{
@@ -140,6 +148,7 @@ var actions = map[string]app.Action{
 	"update":  app.ActionUpdate,
 	"profile": app.ActionProfile,
 	"goal":    app.ActionGoal,
+	"mastery": app.ActionMastery,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -243,6 +252,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		ProfileChanges:   invocation.profileChanges,
 		GoalOperation:    invocation.goalOperation,
 		GoalInput:        invocation.goalInput,
+		MasteryOperation: invocation.masteryOperation,
+		MasteryThreshold: invocation.masteryThreshold,
 		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
@@ -320,6 +331,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatGoal(*result.Goal))
 	} else if result.Goals != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatGoals(result.Goals))
+	} else if result.Mastery != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatMasteryThreshold(*result.Mastery))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -328,6 +341,17 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func formatMasteryThreshold(resolved learning.ResolvedMasteryThreshold) string {
+	percentage := resolved.Requirement.Threshold.Value() * 100
+	return strings.Join([]string{
+		"Required mastery: " + strconv.FormatFloat(percentage, 'f', -1, 64) + "%",
+		"Mode: " + resolved.Requirement.Mode.DisplayName(),
+		"Source: " + resolved.Source.DisplayName(),
+		"Policy: " + resolved.PolicyVersion,
+		"Meaning: minimum calculated mastery required to advance; not an assessment grade.",
+	}, "\n")
 }
 
 func formatGoal(goal learning.LearningGoal) string {
@@ -562,6 +586,8 @@ type invocation struct {
 	goalOperation    string
 	goalInput        learningapp.SetGoalInput
 	goalFlagsSet     bool
+	masteryOperation string
+	masteryThreshold learning.MasteryThreshold
 }
 
 func parse(args []string) (invocation, error) {
@@ -716,7 +742,10 @@ func parse(args []string) (invocation, error) {
 			index = next
 			threshold, thresholdErr := learning.NewMasteryThreshold(value)
 			if thresholdErr != nil {
-				return invocation{}, fmt.Errorf("option --mastery-threshold must be between 0 and 1")
+				return invocation{}, fmt.Errorf("option --mastery-threshold must be between 0.50 and 0.99")
+			}
+			if _, thresholdErr := learning.MasteryRequirementFromThreshold(threshold); thresholdErr != nil {
+				return invocation{}, fmt.Errorf("option --mastery-threshold must be between 0.50 and 0.99")
 			}
 			result.goalInput.MasteryThreshold = threshold
 			result.goalFlagsSet = true
@@ -864,6 +893,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseGoalArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "mastery":
+		if err := parseMasteryArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -895,6 +928,31 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseMasteryArguments(result *invocation) error {
+	if len(result.arguments) == 1 && result.arguments[0] == "threshold" {
+		result.masteryOperation = "show"
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "threshold" && result.arguments[1] == "reset" {
+		result.masteryOperation = "reset"
+		return nil
+	}
+	if len(result.arguments) == 3 && result.arguments[0] == "threshold" && (result.arguments[1] == "set" || result.arguments[1] == "set-default") {
+		percentage, err := strconv.Atoi(result.arguments[2])
+		if err != nil || percentage < 50 || percentage > 99 {
+			return fmt.Errorf("mastery threshold percentage must be an integer from 50 to 99")
+		}
+		requirement, err := learning.NewMasteryRequirement(float64(percentage) / 100)
+		if err != nil {
+			return fmt.Errorf("mastery threshold percentage must be an integer from 50 to 99")
+		}
+		result.masteryOperation = result.arguments[1]
+		result.masteryThreshold = requirement.Threshold
+		return nil
+	}
+	return fmt.Errorf("mastery requires threshold, optionally followed by set PERCENT, set-default PERCENT, or reset")
 }
 
 func parseGoalArguments(result *invocation) error {

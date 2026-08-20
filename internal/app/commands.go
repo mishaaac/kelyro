@@ -48,6 +48,7 @@ const (
 	ActionProfile    Action = "profile"
 	ActionGoal       Action = "goal"
 	ActionOnboarding Action = "onboarding"
+	ActionMastery    Action = "mastery"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -82,6 +83,8 @@ type Command struct {
 	GoalInput           learningapp.SetGoalInput
 	OnboardingOperation string
 	OnboardingAnswer    string
+	MasteryOperation    string
+	MasteryThreshold    learning.MasteryThreshold
 	Verbose             bool
 }
 
@@ -99,6 +102,7 @@ type Result struct {
 	Goal        *learning.LearningGoal
 	Goals       []learning.LearningGoal
 	Onboarding  *learningapp.OnboardingView
+	Mastery     *learning.ResolvedMasteryThreshold
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -255,6 +259,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionOnboarding {
 		return service.executeOnboarding(ctx, command)
+	}
+	if command.Action == ActionMastery {
+		return service.executeMastery(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

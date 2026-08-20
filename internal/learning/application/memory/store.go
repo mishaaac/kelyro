@@ -40,6 +40,7 @@ type Store struct {
 	students     map[learning.ID]learning.Student
 	goals        map[learning.ID]learning.LearningGoal
 	onboarding   map[learning.ID]learning.OnboardingInterview
+	mastery      map[learning.ID]learning.MasteryThresholdSettings
 	curricula    map[curriculumKey]curriculumFixture
 	concepts     map[studentConceptKey]learning.ConceptState
 	evidence     map[learning.ID]learning.Evidence
@@ -60,6 +61,7 @@ func New() *Store {
 		students:     make(map[learning.ID]learning.Student),
 		goals:        make(map[learning.ID]learning.LearningGoal),
 		onboarding:   make(map[learning.ID]learning.OnboardingInterview),
+		mastery:      make(map[learning.ID]learning.MasteryThresholdSettings),
 		curricula:    make(map[curriculumKey]curriculumFixture),
 		concepts:     make(map[studentConceptKey]learning.ConceptState),
 		evidence:     make(map[learning.ID]learning.Evidence),
@@ -81,6 +83,7 @@ func (store *Store) Repositories() application.Repositories {
 		Students:     studentRepository{store},
 		Goals:        goalRepository{store},
 		Onboarding:   onboardingRepository{store},
+		Mastery:      masteryThresholdRepository{store},
 		Curricula:    curriculumRepository{store},
 		Concepts:     conceptRepository{store},
 		Evidence:     evidenceRepository{store},
@@ -164,6 +167,9 @@ func (store *Store) cloneLocked() *Store {
 	for key, value := range store.onboarding {
 		clone.onboarding[key] = cloneOnboarding(value)
 	}
+	for key, value := range store.mastery {
+		clone.mastery[key] = cloneMasterySettings(value)
+	}
 	for key, value := range store.curricula {
 		fixture := curriculumFixture{concepts: make(map[learning.ID]learning.Concept, len(value.concepts))}
 		for conceptID, concept := range value.concepts {
@@ -215,6 +221,7 @@ func (store *Store) replaceLocked(replacement *Store) {
 	store.students = replacement.students
 	store.goals = replacement.goals
 	store.onboarding = replacement.onboarding
+	store.mastery = replacement.mastery
 	store.curricula = replacement.curricula
 	store.concepts = replacement.concepts
 	store.evidence = replacement.evidence
