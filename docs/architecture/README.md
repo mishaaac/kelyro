@@ -41,6 +41,10 @@ The versioned review types, due priority, time budget, lifecycle, idempotency,
 and persistence compatibility are documented in
 [review-scheduler-v1.md](review-scheduler-v1.md).
 
+The contextual prerequisite/review/mistake priority, rotation, bounded time
+policy, and read-only Exercise Engine boundary are documented in
+[warm-up-selector-v1.md](warm-up-selector-v1.md).
+
 The persistent, deduplicated mistake model, generic classification vocabulary,
 immutable lifecycle history, application write boundary, and legacy migration
 are documented in [mistake-memory.md](mistake-memory.md).

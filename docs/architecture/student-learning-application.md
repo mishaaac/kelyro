@@ -22,9 +22,9 @@ small repository ports <---- SQLite / memory adapters
 Application services validate domain values, orchestrate repository calls, and
 translate errors. Educational formulas stay in the domain: application code
 loads their inputs, supplies transaction and clock boundaries, and persists
-their versioned outputs. Spaced-repetition scheduling now follows that
-boundary; streaks, achievements, analytics, and daily-plan selection remain
-deferred to their dedicated I-02 steps.
+their durable versioned outputs. Spaced-repetition scheduling and read-only
+warm-up selection follow that boundary; streaks, achievements, analytics, and
+daily-plan selection remain deferred to their dedicated I-02 steps.
 
 ## Repository ports
 
@@ -50,6 +50,8 @@ The initial service contracts are:
 - `StudySessionLifecycleService` for active study timing and crash recovery;
 - `ReviewSchedulerService` for idempotent review scheduling, bounded due queues,
   explicit postponement/skip, and transactional recall outcomes;
+- `WarmUpSelectorService` for contextual, time-bounded selection over existing
+  due reviews and mistake memory without mutating either source;
 - the legacy `SessionService` projection and `ReviewService` for completed
   activity records and review records;
 - `AnalyticsService` for auditable stored snapshots;

@@ -1941,7 +1941,7 @@ feat(review): add spaced repetition scheduler v1
 
 ## Paso 20 — Implementar Warm-up Selector
 
-- [ ] Paso 20 completado
+- [x] Paso 20 completado
 
 ### Objetivo
 

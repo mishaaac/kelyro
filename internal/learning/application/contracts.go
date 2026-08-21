@@ -158,6 +158,20 @@ type ReviewSchedulerService interface {
 	RecordOutcome(context.Context, learning.ID, learning.MasteryScore) (ReviewOutcomeUpdate, error)
 }
 
+type WarmUpRequest struct {
+	Lesson           learning.WarmUpLessonCandidate
+	AvailableMinutes int
+	// RecentConceptIDs is ordered newest first. It is caller-owned ephemeral
+	// context and prevents equal-priority concepts from always repeating.
+	RecentConceptIDs []learning.ID
+}
+
+// WarmUpSelectorService reads durable review and mistake signals and applies
+// warm-up-selector-v1. It never creates exercises, Evidence, or review state.
+type WarmUpSelectorService interface {
+	Select(context.Context, WarmUpRequest) (learning.WarmUpPlan, error)
+}
+
 type RecordMistakeInput struct {
 	ConceptID  learning.ID
 	Key        learning.MistakeKey
@@ -288,6 +302,7 @@ type ProfileStore interface {
 	History() StudyHistoryService
 	Retention() RetentionService
 	Reviews() ReviewSchedulerService
+	WarmUps() WarmUpSelectorService
 	Close() error
 }
 

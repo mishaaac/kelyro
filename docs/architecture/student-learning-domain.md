@@ -57,7 +57,7 @@ Student ---- LearningGoal ---- CurriculumRef
    |          +-- mastery     Topic <- Lesson <- Module <- Phase
    |          +-- exposure
    |
-   +---- Evidence / Mistake / RetentionState / ReviewSchedule
+   +---- Evidence / Mistake / RetentionState / ReviewSchedule / WarmUpPlan
    |
    +---- LearningSession ---- StudyActivity
    |
@@ -93,6 +93,7 @@ loading and graph policies without changing the identity of concepts.
 | `RetentionState` | Versioned point-in-time recall strength, stability, status, and due estimate; separate from mastery. |
 | `ReviewSchedule` | Versioned next due instant, review type, time estimate, and prerequisite priority for an introduced concept. |
 | `ReviewItem` | Trackable pending, completed, or skipped review with explicit outcome and postponement metadata. |
+| `WarmUpPlan` | Versioned, bounded selection of contextual concept reviews with explicit reasons and priorities; not an exercise. |
 | `Streak` | Materialized current and longest consistency counts. |
 | `Achievement` | Stable-key recognition with locked/unlocked lifecycle. |
 | `Milestone` | Meaningful goal progress event distinct from gamification. |

@@ -91,6 +91,7 @@ func (store *fakeProfileStore) StudySessions() learningapp.StudySessionLifecycle
 func (store *fakeProfileStore) History() learningapp.StudyHistoryService    { return store.history }
 func (store *fakeProfileStore) Retention() learningapp.RetentionService     { return store.retention }
 func (store *fakeProfileStore) Reviews() learningapp.ReviewSchedulerService { return store.reviews }
+func (store *fakeProfileStore) WarmUps() learningapp.WarmUpSelectorService  { return nil }
 func (store *fakeProfileStore) Close() error {
 	store.close()
 	return nil

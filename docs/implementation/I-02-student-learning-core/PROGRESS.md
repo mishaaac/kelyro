@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 20 (pending authorization)
-Last completed step: 19
+Current step: 21 (pending authorization)
+Last completed step: 20
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -866,3 +866,44 @@ Release: unreleased
 - El Paso 20 es el siguiente paso pendiente y requiere autorización explícita.
 - Warm-up Selector deberá consumir el backlog/schedule ya durable sin cambiar `review-scheduler-v1`, inventar Evidence ni mezclar Exercise Engine.
 - No adelantar streaks, achievements, analytics, daily plans, TUI Student Core completo o generación de ejercicios.
+
+## Step 20 — Warm-up Selector
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Política pura y versionada `warm-up-selector-v1` que selecciona conceptos antes de una lección candidata a partir de prerequisitos directos, reviews vencidas, errores persistentes y tiempo disponible.
+- Plan explícito y validado con concepto, razón, prioridad, explicación, estimación de cinco minutos, presupuesto, tiempo utilizado, instante UTC y versión del algoritmo; el resultado vacío es válido.
+- Prioridad determinista prerequisito due → prerequisito con error repetido → review due → error repetido, con deduplicación de señales y desempate estable por recencia de warm-ups, vencimiento, ocurrencias, última observación e ID.
+- Rotación mediante contexto efímero de conceptos seleccionados recientemente, favoreciendo alternativas no recientes y luego la selección menos reciente sin introducir cache o persistencia opaca.
+- Presupuesto de warm-up `floor_to_5(min(15, available_minutes / 3))`, adicionalmente acotado por la disponibilidad diaria del perfil en application, para reservar siempre tiempo al contenido nuevo.
+- Caso de uso workspace-scoped con clock inyectable que lee curriculum, cola due y mistake memory de forma coherente, filtra al curriculum candidato y no crea Evidence, reviews, ejercicios ni cambios de progreso.
+- Wiring en `ProfileStore`, documentación de fórmula, prioridades, límites y frontera con I-05/Step 24 en `docs/architecture/warm-up-selector-v1.md`; no fue necesaria una migration.
+
+### Decisions
+
+- El selector recibe la lección candidata y sus prerequisitos desde el consumidor; elegir la lección de hoy pertenece al Adaptive Daily Plan del Paso 24.
+- Solo son elegibles reviews realmente pending/due y patrones no resueltos con al menos dos ocurrencias. Un prerequisito sin señal de repaso no se añade para llenar tiempo.
+- Las señales se limitan al curriculum versionado de la lección candidata, evitando mezclar backlog de otro curriculum en un warm-up contextual.
+- Una señal due y una señal de error para el mismo concepto producen un solo item; la razón refleja la prioridad dominante y la explicación conserva la señal secundaria.
+- La lista recent es input explícito newest-first y caller-owned; Step 20 no persiste un nuevo plan ni adelanta Daily Plans o Study Sessions.
+- Step 20 no añade CLI/TUI porque la especificación solo requiere selección. I-05 seguirá siendo dueño de generar, ejecutar y evaluar el ejercicio concreto.
+
+### Verification
+
+- Tests de dominio para ausencia de reviews due, prerequisito crítico due, error repetido sin review, presupuesto corto/largo, preservación de contenido nuevo, rotación reciente y desempate determinista por ID.
+- Test application para clock inyectable, lectura de señales durables, prioridad contextual, límite de disponibilidad del perfil y ausencia de mutaciones en reviews/Evidence.
+- `GOCACHE=/tmp/kelyro-step20-target-gocache go test ./internal/learning/... ./internal/infra/learningdb ./internal/app`.
+- `GOCACHE=/tmp/kelyro-step20-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step20-vet-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-step20-quality-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 21 es el siguiente paso pendiente y requiere autorización explícita.
+- Streaks deberá basarse en actividad educativa significativa y la timezone del perfil sin reinterpretar warm-ups, study history o review outcomes.
+- No adelantar achievements, analytics, daily plans, TUI Student Core completo ni Exercise Engine.

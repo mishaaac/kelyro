@@ -41,6 +41,11 @@ the domain remains the source of scheduling policy. Analytics snapshots and
 daily plans are retained because they are auditable historical outputs, not
 transparent caches.
 
+Step 20 adds no persistence. `warm-up-selector-v1` reads existing curriculum,
+review, mistake, and profile state; its recent-selection rotation context and
+result remain caller-owned until a later daily-plan or session use case chooses
+to persist an auditable plan.
+
 ## Integrity and access paths
 
 Foreign keys reject student facts for unknown students or concepts and cascade
