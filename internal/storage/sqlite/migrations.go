@@ -670,6 +670,38 @@ SELECT 'mistake-event.legacy.resolved.' || id, id, 'resolved', resolved_at, 'leg
 FROM mistakes WHERE resolved_at IS NOT NULL`,
 		},
 	},
+	{
+		version: 14,
+		name:    "persistent study session lifecycle",
+		statements: []string{
+			`CREATE UNIQUE INDEX learner_curriculum_instances_session_parent_idx
+ON learner_curriculum_instances (id, student_id, goal_id)`,
+			`CREATE TABLE study_session_lifecycle (
+    id TEXT PRIMARY KEY CHECK (length(id) > 0),
+    student_id TEXT NOT NULL,
+    goal_id TEXT NOT NULL,
+    curriculum_instance_id TEXT NOT NULL,
+    started_at TEXT NOT NULL CHECK (started_at GLOB '*Z'),
+    ended_at TEXT CHECK (ended_at IS NULL OR ended_at GLOB '*Z'),
+    last_activity_at TEXT NOT NULL CHECK (last_activity_at GLOB '*Z'),
+    status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'interrupted', 'recovered')),
+    active_duration_ns INTEGER NOT NULL CHECK (active_duration_ns >= 0),
+    activity_count INTEGER NOT NULL CHECK (activity_count >= 0),
+    policy_version TEXT NOT NULL CHECK (policy_version = 'study-session-v1'),
+    idle_timeout_ns INTEGER NOT NULL CHECK (idle_timeout_ns > 0),
+    FOREIGN KEY (curriculum_instance_id, student_id, goal_id)
+        REFERENCES learner_curriculum_instances(id, student_id, goal_id),
+    CHECK (last_activity_at >= started_at),
+    CHECK (ended_at IS NULL OR ended_at >= last_activity_at),
+    CHECK ((status = 'active' AND ended_at IS NULL) OR
+           (status <> 'active' AND ended_at IS NOT NULL))
+)`,
+			`CREATE UNIQUE INDEX study_session_lifecycle_one_active_idx
+ON study_session_lifecycle (student_id) WHERE status = 'active'`,
+			`CREATE INDEX study_session_lifecycle_goal_timeline_idx
+ON study_session_lifecycle (student_id, goal_id, started_at, id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

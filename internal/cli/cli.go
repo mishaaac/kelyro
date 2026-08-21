@@ -56,6 +56,7 @@ Commands:
   mastery  Show or configure the progression mastery threshold
   setup    Show or reset the integrated learner setup
   mistakes Inspect persistent mistake memory
+  session  Inspect or stop the active study session
 
 Options:
   -h, --help          Show this help message
@@ -141,6 +142,10 @@ Setup commands:
 Mistake commands:
   kelyro mistakes
   kelyro mistakes show <id>
+
+Study session commands:
+  kelyro session status
+  kelyro session stop
 `
 
 var actions = map[string]app.Action{
@@ -162,6 +167,7 @@ var actions = map[string]app.Action{
 	"mastery":  app.ActionMastery,
 	"setup":    app.ActionSetup,
 	"mistakes": app.ActionMistakes,
+	"session":  app.ActionSession,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -270,6 +276,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		SetupOperation:   invocation.setupOperation,
 		MistakeOperation: invocation.mistakeOperation,
 		MistakeID:        invocation.mistakeID,
+		SessionOperation: invocation.sessionOperation,
 		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
@@ -374,6 +381,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatMistake(*result.Mistake))
 	} else if result.Mistakes != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatMistakes(result.Mistakes))
+	} else if result.StudySession != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatStudySession(*result.StudySession))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -436,6 +445,25 @@ func formatMistake(view learningapp.MistakeView) string {
 	}
 	for _, event := range view.History {
 		lines = append(lines, fmt.Sprintf("- %s at %s — %s", event.Type, event.OccurredAt.Time().Format(time.RFC3339), event.SourceRef))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatStudySession(session learning.StudySession) string {
+	lines := []string{
+		"Study session",
+		"Status: " + string(session.Status),
+		"Goal: " + session.GoalID.String(),
+		"Curriculum instance: " + session.CurriculumInstanceID.String(),
+		"Started: " + session.StartedAt.Time().Format(time.RFC3339),
+		"Last activity: " + session.LastActivityAt.Time().Format(time.RFC3339),
+		"Active time: " + session.ActiveDuration.String(),
+		fmt.Sprintf("Activities: %d", session.ActivityCount),
+		"Idle timeout: " + session.IdleTimeout.String(),
+		"Policy: " + session.PolicyVersion,
+	}
+	if session.EndedAt != nil {
+		lines = append(lines, "Ended: "+session.EndedAt.Time().Format(time.RFC3339))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -688,6 +716,7 @@ type invocation struct {
 	setupOperation   string
 	mistakeOperation string
 	mistakeID        learning.ID
+	sessionOperation string
 }
 
 func parse(args []string) (invocation, error) {
@@ -1005,6 +1034,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseMistakeArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "session":
+		if err := parseSessionArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -1052,6 +1085,14 @@ func parseMistakeArguments(result *invocation) error {
 	}
 	result.mistakeOperation = "show"
 	result.mistakeID = id
+	return nil
+}
+
+func parseSessionArguments(result *invocation) error {
+	if len(result.arguments) != 1 || (result.arguments[0] != "status" && result.arguments[0] != "stop") {
+		return fmt.Errorf("session requires status or stop")
+	}
+	result.sessionOperation = result.arguments[0]
 	return nil
 }
 

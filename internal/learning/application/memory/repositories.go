@@ -509,3 +509,100 @@ func (repository sessionRepository) ListByGoal(ctx context.Context, studentID, g
 	})
 	return sessions, nil
 }
+
+type studySessionRepository struct{ store *Store }
+
+func (repository studySessionRepository) Create(ctx context.Context, session learning.StudySession) error {
+	if err := contextError("create memory study session", ctx); err != nil {
+		return err
+	}
+	if err := session.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "create memory study session", err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	if _, exists := repository.store.studySessions[session.ID]; exists || repository.activeLocked(session.StudentID) != nil {
+		return conflict("create memory study session")
+	}
+	repository.store.studySessions[session.ID] = cloneStudySession(session)
+	return nil
+}
+
+func (repository studySessionRepository) Get(ctx context.Context, id learning.ID) (learning.StudySession, error) {
+	if err := contextError("get memory study session", ctx); err != nil {
+		return learning.StudySession{}, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	session, exists := repository.store.studySessions[id]
+	if !exists {
+		return learning.StudySession{}, notFound("get memory study session")
+	}
+	return cloneStudySession(session), nil
+}
+
+func (repository studySessionRepository) ActiveByStudent(ctx context.Context, studentID learning.ID) (learning.StudySession, error) {
+	if err := contextError("get active memory study session", ctx); err != nil {
+		return learning.StudySession{}, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	if active := repository.activeLocked(studentID); active != nil {
+		return cloneStudySession(*active), nil
+	}
+	return learning.StudySession{}, notFound("get active memory study session")
+}
+
+func (repository studySessionRepository) ListByGoal(ctx context.Context, studentID, goalID learning.ID) ([]learning.StudySession, error) {
+	if err := contextError("list memory study sessions", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	sessions := make([]learning.StudySession, 0)
+	for _, session := range repository.store.studySessions {
+		if session.StudentID == studentID && session.GoalID == goalID {
+			sessions = append(sessions, cloneStudySession(session))
+		}
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].StartedAt == sessions[j].StartedAt {
+			return sessions[i].ID.String() < sessions[j].ID.String()
+		}
+		return sessions[i].StartedAt.Before(sessions[j].StartedAt)
+	})
+	return sessions, nil
+}
+
+func (repository studySessionRepository) Update(ctx context.Context, session learning.StudySession) error {
+	if err := contextError("update memory study session", ctx); err != nil {
+		return err
+	}
+	if err := session.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "update memory study session", err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	if _, exists := repository.store.studySessions[session.ID]; !exists {
+		return notFound("update memory study session")
+	}
+	if session.Status == learning.StudySessionActive {
+		for id, candidate := range repository.store.studySessions {
+			if id != session.ID && candidate.StudentID == session.StudentID && candidate.Status == learning.StudySessionActive {
+				return conflict("update memory study session")
+			}
+		}
+	}
+	repository.store.studySessions[session.ID] = cloneStudySession(session)
+	return nil
+}
+
+func (repository studySessionRepository) activeLocked(studentID learning.ID) *learning.StudySession {
+	for _, session := range repository.store.studySessions {
+		if session.StudentID == studentID && session.Status == learning.StudySessionActive {
+			copy := session
+			return &copy
+		}
+	}
+	return nil
+}

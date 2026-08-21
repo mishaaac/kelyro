@@ -1628,7 +1628,7 @@ feat(learning): add persistent mistake memory
 
 ## Paso 16 — Implementar lifecycle de Study Sessions
 
-- [ ] Paso 16 completado
+- [x] Paso 16 completado
 
 ### Objetivo
 

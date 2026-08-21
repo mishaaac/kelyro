@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 16 (pending authorization)
-Last completed step: 15
+Current step: 17 (pending authorization)
+Last completed step: 16
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -680,3 +680,51 @@ Release: unreleased
 - El Paso 16 es el siguiente paso pendiente y requiere autorización explícita.
 - Study Sessions deberá reutilizar los conceptos y Curriculum Instance persistidos, sin inferir actividad detallada desde Mistake Memory.
 - No adelantar Retention, Review scheduling, warm-ups, analytics o el Exercise Engine completo.
+
+## Step 16 — Lifecycle persistente de Study Sessions
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Agregado `StudySession` con ownership explícito de student, goal y Curriculum Instance, estados `active`, `completed`, `interrupted` y `recovered`, timestamps UTC, duración activa y conteo de actividades significativas.
+- Política pura y versionada `study-session-v1`, timeout idle configurable con default de 15 minutos y configuración capturada por sesión para no reinterpretar sesiones abiertas.
+- Acumulación determinista que limita cada intervalo al idle timeout, sin registrar keypresses, navegación, heartbeats ni actividad externa a Kelyro.
+- `StudySessionLifecycleService` transaccional para start, current, record activity, stop, interrupt y recovery; duplicate active reciente es conflicto y un active obsoleto se recupera antes de crear su reemplazo.
+- Adapters in-memory y SQLite con create/get/active/list/update, identidad inmutable, orden canónico y enforcement de una sola sesión activa por workspace learner.
+- Migration forward-only v14 con tabla lifecycle, FK compuesta exacta a `(curriculum instance, student, goal)`, constraints y partial unique index, conservando intactas las tablas publicadas v4 de sesiones completadas legacy.
+- Persistencia workspace-scoped verificada entre reaperturas/crash y configuración pública de idle timeout para nuevas sesiones.
+- CLI `kelyro session status|stop`, incluyendo un resultado explícito cuando no existe active session.
+- Arquitectura, fórmula, recovery, compatibilidad, privacidad y frontera TUI documentadas en `docs/architecture/study-session-lifecycle.md`.
+
+### Decisions
+
+- `recovered` es terminal: una sesión se considera obsoleta solo después del boundary estricto y termina en `last_activity_at + idle_timeout`; una caída reciente conserva el mismo active para reanudarlo.
+- `RecordActivity` representa únicamente eventos educativos significativos y es el único que incrementa `activity_count`; stop/recovery acumulan tiempo acotado sin inventar actividad.
+- El timeout persistido en la sesión es autoritativo para todo su lifecycle. Cambiar el default afecta solo sesiones futuras.
+- `completed` significa fin explícito del periodo de estudio, nunca completion de lesson/concept. Cerrar la TUI tampoco completa lecciones implícitamente.
+- Foundation app session y Study Session permanecen separados. Como todavía no existe una pantalla real de lesson/exercise, abrir Home/Roadmap, onboarding, diagnóstico o la TUI no inicia tiempo de estudio; la futura superficie educativa deberá llamar explícitamente al servicio con goal e instance exactos.
+- No se migraron filas v4 a la tabla lifecycle porque carecen de Curriculum Instance autoritativa; las filas legacy se conservan y Step 17 podrá combinarlas como historia sin fabricar ownership.
+- No se implementaron Study History, rangos de time tracking, Retention, reviews, warm-ups, streaks, analytics ni Exercise Engine.
+
+### Verification
+
+- Tests de dominio para start/complete/interrupt, transición inválida, boundary idle, acumulación acotada, activity count y crash recovery.
+- Tests application para duplicate active, start/stop, múltiples intervalos, recovery reciente/obsoleto y reemplazo atómico.
+- Tests SQLite para roundtrip, unique active, canonical listing, migration v13 → v14 y preservación de sesiones legacy sin filas fabricadas.
+- Test de persistencia workspace-scoped a través de múltiples reaperturas, recuperación de crash y reemplazo durable.
+- Tests app/CLI para `session status|stop`, no-active, parsing inválido y salida humana.
+- `GOCACHE=/tmp/kelyro-step16-test-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step16-vet-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-step16-quality-gocache go run ./tools/quality all`, incluyendo E2E, race, build y smokes de CLI.
+- Smoke real `init → session status` sobre un workspace temporal.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 17 es el siguiente paso pendiente y requiere autorización explícita.
+- Study History deberá consumir sessions terminales y eventos educativos significativos sin duplicar el Audit Trail técnico.
+- Time Tracking debe usar `active_duration` ya acotado por `study-session-v1`, conservar UTC y presentar rangos/timezones sin recontar idle bruto.
+- No adelantar Retention, spaced repetition, warm-ups, streaks, achievements, analytics o el Exercise Engine completo.

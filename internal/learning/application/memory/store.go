@@ -58,6 +58,7 @@ type Store struct {
 	mistakeEvents  map[learning.ID]learning.MistakeEvent
 	retention      map[studentConceptKey]learning.RetentionState
 	sessions       map[learning.ID]learning.LearningSession
+	studySessions  map[learning.ID]learning.StudySession
 	schedules      map[studentConceptKey]learning.ReviewSchedule
 	reviewItems    map[learning.ID]learning.ReviewItem
 	streaks        map[learning.ID]learning.Streak
@@ -84,6 +85,7 @@ func New() *Store {
 		mistakeEvents:  make(map[learning.ID]learning.MistakeEvent),
 		retention:      make(map[studentConceptKey]learning.RetentionState),
 		sessions:       make(map[learning.ID]learning.LearningSession),
+		studySessions:  make(map[learning.ID]learning.StudySession),
 		schedules:      make(map[studentConceptKey]learning.ReviewSchedule),
 		reviewItems:    make(map[learning.ID]learning.ReviewItem),
 		streaks:        make(map[learning.ID]learning.Streak),
@@ -111,6 +113,7 @@ func (store *Store) Repositories() application.Repositories {
 		Mistakes:              mistakeRepository{store},
 		Retention:             retentionRepository{store},
 		Sessions:              sessionRepository{store},
+		StudySessions:         studySessionRepository{store},
 		Reviews:               reviewRepository{store},
 		Streaks:               streakRepository{store},
 		Achievements:          achievementRepository{store},
@@ -229,6 +232,9 @@ func (store *Store) cloneLocked() *Store {
 	for key, value := range store.sessions {
 		clone.sessions[key] = cloneSession(value)
 	}
+	for key, value := range store.studySessions {
+		clone.studySessions[key] = cloneStudySession(value)
+	}
 	for key, value := range store.schedules {
 		clone.schedules[key] = cloneSchedule(value)
 	}
@@ -269,6 +275,7 @@ func (store *Store) replaceLocked(replacement *Store) {
 	store.mistakeEvents = replacement.mistakeEvents
 	store.retention = replacement.retention
 	store.sessions = replacement.sessions
+	store.studySessions = replacement.studySessions
 	store.schedules = replacement.schedules
 	store.reviewItems = replacement.reviewItems
 	store.streaks = replacement.streaks
@@ -381,6 +388,14 @@ func cloneSession(value learning.LearningSession) learning.LearningSession {
 	value.Activities = append([]learning.StudyActivity(nil), value.Activities...)
 	for index := range value.Activities {
 		value.Activities[index].ConceptIDs = append([]learning.ID(nil), value.Activities[index].ConceptIDs...)
+	}
+	return value
+}
+
+func cloneStudySession(value learning.StudySession) learning.StudySession {
+	if value.EndedAt != nil {
+		copy := *value.EndedAt
+		value.EndedAt = &copy
 	}
 	return value
 }

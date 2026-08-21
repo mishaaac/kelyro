@@ -38,6 +38,10 @@ The persistent, deduplicated mistake model, generic classification vocabulary,
 immutable lifecycle history, application write boundary, and legacy migration
 are documented in [mistake-memory.md](mistake-memory.md).
 
+The persistent study-session lifecycle, versioned idle policy, bounded active
+time calculation, crash recovery, and separation from Foundation app sessions
+are documented in [study-session-lifecycle.md](study-session-lifecycle.md).
+
 The resumable orchestration from onboarding through optional diagnostic and
 transactional initial learner state is documented in
 [integrated-learner-setup.md](integrated-learner-setup.md).

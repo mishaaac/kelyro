@@ -51,6 +51,7 @@ const (
 	ActionMastery    Action = "mastery"
 	ActionSetup      Action = "setup"
 	ActionMistakes   Action = "mistakes"
+	ActionSession    Action = "session"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -91,27 +92,29 @@ type Command struct {
 	SetupAnswers        []string
 	MistakeOperation    string
 	MistakeID           learning.ID
+	SessionOperation    string
 	Verbose             bool
 }
 
 // Result contains presentation-independent output from a Foundation action.
 type Result struct {
-	Message     string
-	Diagnostics *doctor.Report
-	Guidance    *doctor.Guidance
-	Failed      bool
-	Audit       []audit.Entry
-	Backups     []backup.Info
-	Portability *portability.Report
-	Update      *update.Result
-	Profile     *learning.Student
-	Goal        *learning.LearningGoal
-	Goals       []learning.LearningGoal
-	Onboarding  *learningapp.OnboardingView
-	Mastery     *learning.ResolvedMasteryThreshold
-	Setup       *learningapp.LearnerSetupView
-	Mistake     *learningapp.MistakeView
-	Mistakes    []learning.Mistake
+	Message      string
+	Diagnostics  *doctor.Report
+	Guidance     *doctor.Guidance
+	Failed       bool
+	Audit        []audit.Entry
+	Backups      []backup.Info
+	Portability  *portability.Report
+	Update       *update.Result
+	Profile      *learning.Student
+	Goal         *learning.LearningGoal
+	Goals        []learning.LearningGoal
+	Onboarding   *learningapp.OnboardingView
+	Mastery      *learning.ResolvedMasteryThreshold
+	Setup        *learningapp.LearnerSetupView
+	Mistake      *learningapp.MistakeView
+	Mistakes     []learning.Mistake
+	StudySession *learning.StudySession
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -277,6 +280,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionMistakes {
 		return service.executeMistakes(ctx, command)
+	}
+	if command.Action == ActionSession {
+		return service.executeStudySession(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

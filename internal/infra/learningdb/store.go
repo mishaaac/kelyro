@@ -21,6 +21,8 @@ type Factory struct {
 	now                  func() time.Time
 	goalID               func() (learning.ID, error)
 	curriculumInstanceID func() (learning.ID, error)
+	studySessionID       func() (learning.ID, error)
+	studySessionIdle     time.Duration
 }
 
 func NewFactory(appVersion ...string) *Factory {
@@ -36,7 +38,17 @@ func (factory *Factory) WithMigrationBackup(create sqlite.BackupFunc) *Factory {
 	return factory
 }
 
+// WithStudySessionIdleTimeout configures the maximum inactive interval counted
+// by newly started study sessions. Existing sessions keep their captured value.
+func (factory *Factory) WithStudySessionIdleTimeout(timeout time.Duration) *Factory {
+	factory.studySessionIdle = timeout
+	return factory
+}
+
 func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (application.ProfileStore, error) {
+	if factory.studySessionIdle < 0 {
+		return nil, fmt.Errorf("study session idle timeout cannot be negative")
+	}
 	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion), sqlite.WithDestructiveMigrationBackup(factory.backup))
 	if err != nil {
 		return nil, err
@@ -70,10 +82,18 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	setup := application.NewLearnerSetupService(profiles, onboarding, curriculumInstances, diagnostics, database, curriculum, diagnostic,
 		application.WithLearnerSetupClock(now), application.WithDevelopmentSetupReset(version.IsDevelopment(factory.appVersion)))
 	mistakes := application.NewMistakeMemoryService(profiles, database, application.WithMistakeMemoryClock(now))
+	studySessionOptions := []application.StudySessionOption{application.WithStudySessionClock(now)}
+	if factory.studySessionID != nil {
+		studySessionOptions = append(studySessionOptions, application.WithStudySessionIDGenerator(factory.studySessionID))
+	}
+	if factory.studySessionIdle > 0 {
+		studySessionOptions = append(studySessionOptions, application.WithStudySessionIdleTimeout(factory.studySessionIdle))
+	}
+	studySessions := application.NewStudySessionLifecycleService(profiles, database, studySessionOptions...)
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
-		onboarding: onboarding, setup: setup, mistakes: mistakes,
+		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions,
 	}, nil
 }
 
@@ -87,6 +107,7 @@ type store struct {
 	diagnostics         application.DiagnosticService
 	setup               application.LearnerSetupService
 	mistakes            application.MistakeMemoryService
+	studySessions       application.StudySessionLifecycleService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -99,6 +120,9 @@ func (store *store) CurriculumInstances() application.CurriculumInstanceService 
 func (store *store) Diagnostics() application.DiagnosticService { return store.diagnostics }
 func (store *store) Setup() application.LearnerSetupService     { return store.setup }
 func (store *store) Mistakes() application.MistakeMemoryService { return store.mistakes }
+func (store *store) StudySessions() application.StudySessionLifecycleService {
+	return store.studySessions
+}
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

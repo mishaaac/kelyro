@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -48,6 +49,12 @@ func TestFactoryPersistsProfileAcrossStoreLifetimes(t *testing.T) {
 	student, err := reopened.Profiles().Show(context.Background())
 	if err != nil || student.Profile.DisplayName != "Ada" {
 		t.Fatalf("persisted profile = (%+v, %v)", student.Profile, err)
+	}
+}
+
+func TestFactoryRejectsNegativeStudySessionIdleTimeout(t *testing.T) {
+	if _, err := NewFactory("test").WithStudySessionIdleTimeout(-time.Second).Open(context.Background(), t.TempDir()); err == nil {
+		t.Fatal("Open() accepted a negative study session idle timeout")
 	}
 }
 
@@ -270,6 +277,86 @@ func TestFactoryPersistsMistakeMemoryAcrossStoreLifetimes(t *testing.T) {
 	view, err := reopened.Mistakes().Get(ctx, recorded.Mistake.ID)
 	if err != nil || len(view.History) != 1 || view.History[0].Type != learning.MistakeObservedEvent {
 		t.Fatalf("persisted mistake history = (%+v, %v)", view, err)
+	}
+}
+
+func TestFactoryPersistsAndRecoversStudySessionAcrossStoreLifetimes(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	internal, err := platform.WorkspaceInternalDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(internal, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	current := time.Date(2026, time.August, 21, 9, 0, 0, 0, time.UTC)
+	nextID := 0
+	factory := NewFactory("test")
+	factory.now = func() time.Time { return current }
+	factory.studySessionIdle = 15 * time.Minute
+	factory.studySessionID = func() (learning.ID, error) {
+		nextID++
+		return learning.NewID("session.persisted." + strconv.Itoa(nextID))
+	}
+	store, err := factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup := completeIntegratedSetupWithoutDiagnostic(t, ctx, store.Setup())
+	if setup.Instance == nil {
+		t.Fatal("completed setup has no curriculum instance")
+	}
+	started, err := store.StudySessions().Start(ctx, setup.Instance.GoalID, setup.Instance.ID)
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	current = current.Add(5 * time.Minute)
+	if _, err := store.StudySessions().RecordActivity(ctx); err != nil {
+		t.Fatalf("RecordActivity() error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	current = current.Add(10 * time.Minute)
+	reopened, err := factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumable, err := reopened.StudySessions().Recover(ctx)
+	if err != nil || resumable.ID != started.ID || resumable.Status != learning.StudySessionActive {
+		t.Fatalf("recent recovery = (%+v, %v)", resumable, err)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	current = current.Add(10 * time.Minute)
+	reopened, err = factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := reopened.StudySessions().Recover(ctx)
+	if err != nil || recovered.Status != learning.StudySessionRecovered || recovered.ActiveDuration != 20*time.Minute {
+		t.Fatalf("stale recovery = (%+v, %v)", recovered, err)
+	}
+	replacement, err := reopened.StudySessions().Start(ctx, setup.Instance.GoalID, setup.Instance.ID)
+	if err != nil || replacement.ID == started.ID {
+		t.Fatalf("replacement session = (%+v, %v)", replacement, err)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err = factory.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	active, err := reopened.StudySessions().Current(ctx)
+	if err != nil || active.ID != replacement.ID {
+		t.Fatalf("persisted replacement = (%+v, %v)", active, err)
 	}
 }
 

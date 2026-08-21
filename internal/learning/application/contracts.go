@@ -150,6 +150,18 @@ type MistakeMemoryService interface {
 	Resolve(context.Context, learning.ID, string) (MistakeView, error)
 }
 
+// StudySessionLifecycleService owns intentional study time. RecordActivity is
+// called only for meaningful educational actions; presentation adapters must
+// not use it as a keypress or app-presence heartbeat.
+type StudySessionLifecycleService interface {
+	Start(context.Context, learning.ID, learning.ID) (learning.StudySession, error)
+	Current(context.Context) (learning.StudySession, error)
+	RecordActivity(context.Context) (learning.StudySession, error)
+	Stop(context.Context) (learning.StudySession, error)
+	Interrupt(context.Context) (learning.StudySession, error)
+	Recover(context.Context) (learning.StudySession, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -211,6 +223,7 @@ type ProfileStore interface {
 	Diagnostics() DiagnosticService
 	Setup() LearnerSetupService
 	Mistakes() MistakeMemoryService
+	StudySessions() StudySessionLifecycleService
 	Close() error
 }
 
@@ -315,6 +328,14 @@ type SessionRepository interface {
 	ListByGoal(context.Context, learning.ID, learning.ID) ([]learning.LearningSession, error)
 }
 
+type StudySessionRepository interface {
+	Create(context.Context, learning.StudySession) error
+	Get(context.Context, learning.ID) (learning.StudySession, error)
+	ActiveByStudent(context.Context, learning.ID) (learning.StudySession, error)
+	ListByGoal(context.Context, learning.ID, learning.ID) ([]learning.StudySession, error)
+	Update(context.Context, learning.StudySession) error
+}
+
 type ReviewRepository interface {
 	GetSchedule(context.Context, learning.ID, learning.ID) (learning.ReviewSchedule, error)
 	SaveSchedule(context.Context, learning.ReviewSchedule) error
@@ -365,6 +386,7 @@ type Repositories struct {
 	Mistakes              MistakeRepository
 	Retention             RetentionRepository
 	Sessions              SessionRepository
+	StudySessions         StudySessionRepository
 	Reviews               ReviewRepository
 	Streaks               StreakRepository
 	Achievements          AchievementRepository

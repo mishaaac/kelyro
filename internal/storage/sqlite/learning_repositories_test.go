@@ -173,6 +173,51 @@ VALUES (?,'student.legacy','concept.legacy',?,?,NULL)`, longID, longDescription,
 	}
 }
 
+func TestStudySessionLifecycleMigrationPreservesLegacySessions(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:13]); err != nil {
+		t.Fatalf("migrate through v13: %v", err)
+	}
+	repositories := database.LearningRepositories()
+	student := testStudent(t)
+	goal := testGoal(t, student.ID)
+	if err := repositories.Students.Create(context.Background(), student); err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Goals.Create(context.Background(), goal); err != nil {
+		t.Fatal(err)
+	}
+	started := mustTimestamp(t, fixedTime.Add(time.Minute))
+	legacy, err := learning.NewLearningSession(mustID(t, "session.legacy"), student.ID, goal.ID, started, mustTimestamp(t, fixedTime.Add(2*time.Minute)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Sessions.Append(context.Background(), legacy); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate study session lifecycle: %v", err)
+	}
+	loaded, err := database.LearningRepositories().Sessions.Get(context.Background(), legacy.ID)
+	if err != nil || loaded.ID != legacy.ID || loaded.StudentID != legacy.StudentID || loaded.GoalID != legacy.GoalID ||
+		loaded.StartedAt != legacy.StartedAt || loaded.EndedAt != legacy.EndedAt || len(loaded.Activities) != 0 {
+		t.Fatalf("legacy session = (%+v, %v), want %+v", loaded, err, legacy)
+	}
+	var lifecycleCount int
+	if err := handle.QueryRow(`SELECT COUNT(*) FROM study_session_lifecycle`).Scan(&lifecycleCount); err != nil || lifecycleCount != 0 {
+		t.Fatalf("lifecycle rows = (%d, %v), want no fabricated rows", lifecycleCount, err)
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)
@@ -369,7 +414,7 @@ func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	ctx := context.Background()
 	repositories := database.LearningRepositories()
-	want := []string{"curriculum_nodes_concept_idx", "diagnostic_attempts_student_status_idx", "diagnostic_observations_concept_idx", "learning_goals_active_idx", "learning_goals_one_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
+	want := []string{"curriculum_nodes_concept_idx", "diagnostic_attempts_student_status_idx", "diagnostic_observations_concept_idx", "learning_goals_active_idx", "learning_goals_one_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "study_session_lifecycle_goal_timeline_idx", "study_session_lifecycle_one_active_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
 	for _, name := range want {
 		var count int
 		if err := database.sql.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", name).Scan(&count); err != nil || count != 1 {
@@ -478,6 +523,13 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	if err := database.SeedCurriculum(ctx, reference, []learning.Concept{conceptB, conceptA}, []learning.Prerequisite{edge}); err != nil {
 		t.Fatalf("SeedCurriculum: %v", err)
 	}
+	curriculumInstance, err := learning.NewCurriculumInstance(mustID(t, "instance-session"), student.ID, goal.ID, reference, learning.CurriculumSourceFixture, mustTimestamp(t, fixedTime))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.CurriculumInstances.Create(ctx, curriculumInstance); err != nil {
+		t.Fatalf("CurriculumInstances.Create: %v", err)
+	}
 	concepts, err := repositories.Curricula.Concepts(ctx, reference)
 	if err != nil || !reflect.DeepEqual(concepts, []learning.Concept{conceptA, conceptB}) {
 		t.Fatalf("concepts=(%+v,%v)", concepts, err)
@@ -561,6 +613,30 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	gotSession, err := repositories.Sessions.Get(ctx, session.ID)
 	if err != nil || !reflect.DeepEqual(gotSession, session) {
 		t.Fatalf("session=(%+v,%v), want %+v", gotSession, err, session)
+	}
+	studySession, err := learning.NewStudySession(mustID(t, "study-session-1"), student.ID, goal.ID, curriculumInstance.ID, introduced, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.StudySessions.Create(ctx, studySession); err != nil {
+		t.Fatal(err)
+	}
+	duplicateActive, _ := learning.NewStudySession(mustID(t, "study-session-duplicate"), student.ID, goal.ID, curriculumInstance.ID, introduced, 15*time.Minute)
+	if err := repositories.StudySessions.Create(ctx, duplicateActive); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate active study session error = %v, want conflict", err)
+	}
+	studySession, _ = studySession.RecordActivity(resolved)
+	studySession, _ = studySession.Complete(mustTimestamp(t, fixedTime.Add(4*time.Minute)))
+	if err := repositories.StudySessions.Update(ctx, studySession); err != nil {
+		t.Fatal(err)
+	}
+	gotStudySession, err := repositories.StudySessions.Get(ctx, studySession.ID)
+	if err != nil || !reflect.DeepEqual(gotStudySession, studySession) {
+		t.Fatalf("study session=(%+v,%v), want %+v", gotStudySession, err, studySession)
+	}
+	listedStudySessions, err := repositories.StudySessions.ListByGoal(ctx, student.ID, goal.ID)
+	if err != nil || !reflect.DeepEqual(listedStudySessions, []learning.StudySession{studySession}) {
+		t.Fatalf("study sessions=(%+v,%v)", listedStudySessions, err)
 	}
 	schedule, _ := learning.NewReviewSchedule(student.ID, conceptA.ID, &introduced, mustTimestamp(t, fixedTime.Add(24*time.Hour)), false)
 	if err := repositories.Reviews.SaveSchedule(ctx, schedule); err != nil {

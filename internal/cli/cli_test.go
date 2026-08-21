@@ -45,6 +45,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "mastery threshold", args: []string{"mastery", "threshold"}, wantAction: app.ActionMastery},
 		{name: "setup status", args: []string{"setup", "status"}, wantAction: app.ActionSetup},
 		{name: "mistakes", args: []string{"mistakes"}, wantAction: app.ActionMistakes},
+		{name: "session status", args: []string{"session", "status"}, wantAction: app.ActionSession},
 	}
 
 	for _, test := range tests {
@@ -72,6 +73,39 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerParsesAndRendersStudySession(t *testing.T) {
+	t.Parallel()
+	started, _ := learning.NewTimestamp(time.Date(2026, 8, 21, 9, 0, 0, 0, time.UTC))
+	session, err := learning.NewStudySession(mustCLIid(t, "session.cli"), mustCLIid(t, "student.primary"), mustCLIid(t, "goal.cli"), mustCLIid(t, "instance.cli"), started, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, _ = session.RecordActivity(mustCLITimestamp(t, started.Time().Add(5*time.Minute)))
+	service := &fakeService{result: app.Result{StudySession: &session}}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"session", "status"}); code != ExitOK {
+		t.Fatalf("session status exit=%d stderr=%q", code, stderr.String())
+	}
+	if command := service.commands[0]; command.Action != app.ActionSession || command.SessionOperation != "status" {
+		t.Fatalf("session command = %+v", command)
+	}
+	for _, want := range []string{"Study session", "Status: active", "Goal: goal.cli", "Active time: 5m0s", "Activities: 1", "Policy: study-session-v1"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("session output missing %q:\n%s", want, stdout.String())
+		}
+	}
+}
+
+func TestRunnerRejectsInvalidStudySessionCommands(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{{"session"}, {"session", "start"}, {"session", "status", "extra"}} {
+		var stderr bytes.Buffer
+		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) exit=%d stderr=%q", args, code, stderr.String())
+		}
 	}
 }
 
@@ -135,6 +169,15 @@ func mustCLIid(t *testing.T, value string) learning.ID {
 		t.Fatal(err)
 	}
 	return id
+}
+
+func mustCLITimestamp(t *testing.T, value time.Time) learning.Timestamp {
+	t.Helper()
+	timestamp, err := learning.NewTimestamp(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return timestamp
 }
 
 func TestRunnerRendersIntegratedLearnerSetupStatus(t *testing.T) {

@@ -45,7 +45,9 @@ The initial service contracts are:
 - `StudentService` and `GoalService` for validated aggregate lifecycle calls;
 - `ProgressService` for stored concept state and evidence projections;
 - `MistakeMemoryService` for deduplicated mistake lifecycle and history;
-- `SessionService` and `ReviewService` for study history and review records;
+- `StudySessionLifecycleService` for active study timing and crash recovery;
+- the legacy `SessionService` projection and `ReviewService` for completed
+  activity records and review records;
 - `AnalyticsService` for auditable stored snapshots;
 - `DailyPlanService` for stored plans selected by student, goal, and date.
 
