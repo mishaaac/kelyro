@@ -2008,7 +2008,7 @@ feat(review): add contextual warm-up selection
 
 ## Paso 21 — Implementar Streaks sin comportamiento punitivo
 
-- [ ] Paso 21 completado
+- [x] Paso 21 completado
 
 ### Objetivo
 

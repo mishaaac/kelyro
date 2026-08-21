@@ -46,6 +46,12 @@ review, mistake, and profile state; its recent-selection rotation context and
 result remain caller-owned until a later daily-plan or session use case chooses
 to persist an auditable plan.
 
+Forward-only migration v18 extends `streak_state` with total active days, the
+last active local date, captured timezone, minimum active minutes, and policy
+version. Existing v4 rows remain `legacy-streak/v0`; the application replaces
+them through a complete `streak-v1` recalculation. SQLite guards aggregate
+shape only—the educational and local-calendar policy remains in the domain.
+
 ## Integrity and access paths
 
 Foreign keys reject student facts for unknown students or concepts and cascade

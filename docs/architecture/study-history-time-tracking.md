@@ -98,6 +98,6 @@ kelyro time
 
 The timeline and totals never capture keystrokes, mouse movement, app
 presence, external-editor activity, exercise payloads, or telemetry. No data
-leaves the workspace. Retention, review scheduling, streaks, achievement
-policy, analytics, daily planning, and the full Exercise Engine remain outside
-this step.
+leaves the workspace. `streak-v1` now consumes these durable facts without
+changing them; retention, review scheduling, achievement policy, analytics,
+daily planning, and the full Exercise Engine remain separate policies.

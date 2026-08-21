@@ -20,6 +20,7 @@ const (
 	screenConfig
 	screenRoadmap
 	screenProfile
+	screenStreak
 	screenOnboarding
 )
 
@@ -39,6 +40,9 @@ type Model struct {
 	profile           learning.Student
 	profileLoading    bool
 	profileErr        error
+	streak            learning.Streak
+	streakLoading     bool
+	streakErr         error
 	onboarding        learningapp.OnboardingView
 	setup             learningapp.LearnerSetupView
 	onboardingLoading bool
@@ -131,6 +135,10 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.profileLoading = true
 			return model, loadProfileCmd(model.ctx, model.service, model.command)
 		}
+		if model.screen == screenStreak {
+			model.streakLoading = true
+			return model, loadStreakCmd(model.ctx, model.service, model.command)
+		}
 		if !model.snapshot.LearningPath {
 			model.screen = screenOnboarding
 			model.onboardingLoading = true
@@ -186,6 +194,24 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.profileErr = message.err
 		if model.session.LastView != session.ViewProfile {
 			model.session.LastView = session.ViewProfile
+			return model.queueCheckpoint()
+		}
+		return model, nil
+	case streakLoadedMsg:
+		model.streak = message.streak
+		model.streakLoading = false
+		model.streakErr = nil
+		model.notice = ""
+		if model.session.LastView != session.ViewStreak {
+			model.session.LastView = session.ViewStreak
+			return model.queueCheckpoint()
+		}
+		return model, nil
+	case streakLoadFailedMsg:
+		model.streakLoading = false
+		model.streakErr = message.err
+		if model.session.LastView != session.ViewStreak {
+			model.session.LastView = session.ViewStreak
 			return model.queueCheckpoint()
 		}
 		return model, nil
@@ -266,6 +292,11 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.profileLoading = true
 			model.profileErr = nil
 			return model, loadProfileCmd(model.ctx, model.service, model.command)
+		case "k":
+			model.screen = screenStreak
+			model.streakLoading = true
+			model.streakErr = nil
+			return model, loadStreakCmd(model.ctx, model.service, model.command)
 		case "s":
 			model.screen = screenOnboarding
 			model.onboardingLoading = true
@@ -294,6 +325,12 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.profileLoading = true
 			model.profileErr = nil
 			return model, loadProfileCmd(model.ctx, model.service, model.command)
+		}
+	case screenStreak:
+		if keyName == "r" && !model.streakLoading {
+			model.streakLoading = true
+			model.streakErr = nil
+			return model, loadStreakCmd(model.ctx, model.service, model.command)
 		}
 	case screenOnboarding:
 		return model.updateOnboarding(key)
@@ -359,6 +396,8 @@ func sessionView(current screen) session.View {
 		return session.ViewRoadmap
 	case screenProfile:
 		return session.ViewProfile
+	case screenStreak:
+		return session.ViewStreak
 	case screenOnboarding:
 		return session.ViewOnboarding
 	default:
@@ -376,6 +415,8 @@ func screenFromSession(view session.View) screen {
 		return screenRoadmap
 	case session.ViewProfile:
 		return screenProfile
+	case session.ViewStreak:
+		return screenStreak
 	case session.ViewOnboarding:
 		return screenOnboarding
 	default:

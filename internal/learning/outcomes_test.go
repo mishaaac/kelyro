@@ -31,7 +31,7 @@ func TestRetentionReviewAndOutcomeValueObjectsValidate(t *testing.T) {
 		t.Fatal("ReviewItem.Validate() accepted completed item without timestamp")
 	}
 
-	streak := Streak{StudentID: studentID, CurrentDays: 2, LongestDays: 3, LastStudyAt: &now}
+	streak := Streak{StudentID: studentID, CurrentDays: 2, LongestDays: 3, LastStudyAt: &now, PolicyVersion: LegacyStreakPolicyVersion}
 	if err := streak.Validate(); err != nil {
 		t.Fatalf("Streak.Validate() error = %v", err)
 	}

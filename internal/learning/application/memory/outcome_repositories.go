@@ -173,6 +173,9 @@ func (repository streakRepository) Save(ctx context.Context, streak learning.Str
 	if err := contextError("save memory streak", ctx); err != nil {
 		return err
 	}
+	if err := streak.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "save memory streak", err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	repository.store.streaks[streak.StudentID] = cloneStreak(streak)

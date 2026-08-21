@@ -237,6 +237,12 @@ type StudyHistoryService interface {
 	Time(context.Context) (StudyTimeSummary, error)
 }
 
+// StreakService always rebuilds the materialized streak from durable study
+// history under the current profile timezone before returning it.
+type StreakService interface {
+	Show(context.Context) (learning.Streak, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -303,6 +309,7 @@ type ProfileStore interface {
 	Retention() RetentionService
 	Reviews() ReviewSchedulerService
 	WarmUps() WarmUpSelectorService
+	Streaks() StreakService
 	Close() error
 }
 

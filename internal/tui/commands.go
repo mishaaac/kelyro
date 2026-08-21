@@ -98,6 +98,19 @@ func loadProfileCmd(ctx context.Context, service Service, base app.Command) tea.
 	}
 }
 
+func loadStreakCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionStreak, Workspace: base.Workspace})
+		if err != nil {
+			return streakLoadFailedMsg{err: err}
+		}
+		if result.Streak == nil {
+			return streakLoadFailedMsg{err: fmt.Errorf("study streak was not returned")}
+		}
+		return streakLoadedMsg{streak: *result.Streak}
+	}
+}
+
 func onboardingCmd(ctx context.Context, service Service, base app.Command, operation string, answers ...string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := service.Execute(ctx, app.Command{

@@ -472,6 +472,10 @@ func cloneReviewItem(value learning.ReviewItem) learning.ReviewItem {
 }
 
 func cloneStreak(value learning.Streak) learning.Streak {
+	if value.LastActiveLocalDate != nil {
+		copy := *value.LastActiveLocalDate
+		value.LastActiveLocalDate = &copy
+	}
 	if value.LastStudyAt != nil {
 		copy := *value.LastStudyAt
 		value.LastStudyAt = &copy

@@ -1,21 +1,30 @@
 package learning
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
-// Streak is a materialized learning consistency record. Streak calculation
-// policy and versioning are intentionally deferred to the dedicated I-02 step.
+// Streak is a recalculable learning-consistency projection. LastStudyAt is the
+// latest qualifying UTC signal; LastActiveLocalDate is its calendar date under
+// the captured profile timezone.
 type Streak struct {
-	StudentID   ID
-	CurrentDays int
-	LongestDays int
-	LastStudyAt *Timestamp
+	StudentID            ID
+	CurrentDays          int
+	LongestDays          int
+	LastActiveLocalDate  *LocalDate
+	TotalActiveDays      int
+	LastStudyAt          *Timestamp
+	Timezone             string
+	MinimumActiveMinutes int
+	PolicyVersion        string
 }
 
 func (streak Streak) Validate() error {
 	if err := streak.StudentID.Validate(); err != nil {
 		return fmt.Errorf("streak student: %w", err)
 	}
-	if streak.CurrentDays < 0 || streak.LongestDays < 0 {
+	if streak.CurrentDays < 0 || streak.LongestDays < 0 || streak.TotalActiveDays < 0 {
 		return fmt.Errorf("streak days cannot be negative")
 	}
 	if streak.CurrentDays > streak.LongestDays {
@@ -24,8 +33,43 @@ func (streak Streak) Validate() error {
 	if err := validateOptionalTimestamp("last study at", streak.LastStudyAt); err != nil {
 		return err
 	}
-	if streak.CurrentDays > 0 && streak.LastStudyAt == nil {
-		return fmt.Errorf("active streak is missing last study timestamp")
+	switch streak.PolicyVersion {
+	case LegacyStreakPolicyVersion:
+		if streak.LastActiveLocalDate != nil || streak.TotalActiveDays != 0 || streak.Timezone != "" || streak.MinimumActiveMinutes != 0 {
+			return fmt.Errorf("legacy streak contains v1 metadata")
+		}
+		if streak.CurrentDays > 0 && streak.LastStudyAt == nil {
+			return fmt.Errorf("active legacy streak is missing last study timestamp")
+		}
+		return nil
+	case StreakPolicyVersion:
+	default:
+		return fmt.Errorf("unsupported streak policy %q", streak.PolicyVersion)
+	}
+	if streak.LongestDays > streak.TotalActiveDays {
+		return fmt.Errorf("longest streak cannot exceed total active days")
+	}
+	if streak.MinimumActiveMinutes < 1 || streak.MinimumActiveMinutes > 24*60 {
+		return fmt.Errorf("streak minimum active minutes must be within 1..1440")
+	}
+	location, err := time.LoadLocation(streak.Timezone)
+	if err != nil {
+		return fmt.Errorf("streak timezone: %w", err)
+	}
+	if streak.TotalActiveDays == 0 {
+		if streak.CurrentDays != 0 || streak.LongestDays != 0 || streak.LastActiveLocalDate != nil || streak.LastStudyAt != nil {
+			return fmt.Errorf("empty streak contains active-day metadata")
+		}
+		return nil
+	}
+	if streak.LongestDays == 0 || streak.LastActiveLocalDate == nil || streak.LastStudyAt == nil {
+		return fmt.Errorf("non-empty streak is missing active-day metadata")
+	}
+	if err := streak.LastActiveLocalDate.Validate(); err != nil {
+		return err
+	}
+	if LocalDateFromTime(streak.LastStudyAt.Time(), location) != *streak.LastActiveLocalDate {
+		return fmt.Errorf("streak last study instant and local date disagree")
 	}
 	return nil
 }

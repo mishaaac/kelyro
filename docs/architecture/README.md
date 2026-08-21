@@ -45,6 +45,11 @@ The contextual prerequisite/review/mistake priority, rotation, bounded time
 policy, and read-only Exercise Engine boundary are documented in
 [warm-up-selector-v1.md](warm-up-selector-v1.md).
 
+The significant-activity threshold, local-calendar/DST policy, full-history
+recalculation, timezone-change behavior, and non-punitive presentation are
+documented in
+[non-punitive-study-streak-v1.md](non-punitive-study-streak-v1.md).
+
 The persistent, deduplicated mistake model, generic classification vocabulary,
 immutable lifecycle history, application write boundary, and legacy migration
 are documented in [mistake-memory.md](mistake-memory.md).

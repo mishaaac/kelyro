@@ -50,6 +50,7 @@ func TestModelNavigatesFoundationScreens(t *testing.T) {
 		{name: "roadmap", key: "r", want: screenRoadmap},
 		{name: "continue", key: "enter", want: screenRoadmap},
 		{name: "profile", key: "p", want: screenProfile},
+		{name: "streak", key: "k", want: screenStreak},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -322,6 +323,41 @@ func TestProfileScreenLoadsThroughApplicationService(t *testing.T) {
 	}
 }
 
+func TestStreakScreenLoadsThroughApplicationService(t *testing.T) {
+	t.Parallel()
+
+	lastDate, err := learning.NewLocalDate("2026-08-21")
+	if err != nil {
+		t.Fatal(err)
+	}
+	streak := learning.Streak{CurrentDays: 6, LongestDays: 9, TotalActiveDays: 20,
+		LastActiveLocalDate: &lastDate, Timezone: "America/Lima", PolicyVersion: learning.StreakPolicyVersion,
+		MinimumActiveMinutes: 10}
+	service := &fakeService{result: app.Result{Streak: &streak}}
+	model := readyModel(service)
+	opening, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	if command == nil || opening.(Model).screen != screenStreak || !opening.(Model).streakLoading {
+		t.Fatalf("streak navigation = model %#v command %v", opening, command)
+	}
+	loaded, _ := opening.(Model).Update(command())
+	got := loaded.(Model)
+	if got.streakLoading || got.streak.CurrentDays != 6 || len(service.executed) != 1 {
+		t.Fatalf("loaded streak = model %#v calls %#v", got, service.executed)
+	}
+	if call := service.executed[0]; call.Action != app.ActionStreak {
+		t.Fatalf("streak command = %#v", call)
+	}
+	for _, expected := range []string{"Study consistency", "Streak: 6 days", "Longest: 9 days", "Timezone: America/Lima", "does not change mastery or block learning"} {
+		if !strings.Contains(got.View(), expected) {
+			t.Errorf("streak view missing %q:\n%s", expected, got.View())
+		}
+	}
+	refreshing, refresh := got.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if refresh == nil || !refreshing.(Model).streakLoading {
+		t.Fatal("streak refresh did not reload through application")
+	}
+}
+
 func TestOnboardingScreenStartsEditsAndSubmitsThroughApplicationService(t *testing.T) {
 	t.Parallel()
 	view := tuiOnboardingView(t)
@@ -409,7 +445,7 @@ func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 	for _, width := range []int{24, 40, 80, 120} {
 		model := readyModel(&fakeService{})
 		model.width = width
-		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenProfile, screenOnboarding} {
+		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenProfile, screenStreak, screenOnboarding} {
 			model.screen = current
 			for _, line := range strings.Split(model.View(), "\n") {
 				if got := lipgloss.Width(line); got > width {

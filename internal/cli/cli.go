@@ -60,6 +60,7 @@ Commands:
   history  Show the learner-facing study timeline
   time     Show intentional active study time
   reviews  Show scheduled or currently due reviews
+  streak   Show study consistency without affecting progress
 
 Options:
   -h, --help          Show this help message
@@ -159,6 +160,9 @@ Study history commands:
 Review commands:
   kelyro reviews
   kelyro reviews due
+
+Streak command:
+  kelyro streak
 `
 
 var actions = map[string]app.Action{
@@ -184,6 +188,7 @@ var actions = map[string]app.Action{
 	"history":  app.ActionHistory,
 	"time":     app.ActionTime,
 	"reviews":  app.ActionReviews,
+	"streak":   app.ActionStreak,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -407,6 +412,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatStudyTime(*result.StudyTime))
 	} else if result.Reviews != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatReviews(*result.Reviews))
+	} else if result.Streak != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatStreak(*result.Streak))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -577,6 +584,29 @@ func formatReviews(view learningapp.ReviewQueueView) string {
 	}
 	lines = append(lines, "Policy: "+view.AlgorithmVersion)
 	return strings.Join(lines, "\n")
+}
+
+func formatStreak(streak learning.Streak) string {
+	lastActive := "none yet"
+	if streak.LastActiveLocalDate != nil {
+		lastActive = streak.LastActiveLocalDate.String()
+	}
+	return strings.Join([]string{
+		fmt.Sprintf("Streak: %d %s", streak.CurrentDays, pluralDays(streak.CurrentDays)),
+		fmt.Sprintf("Longest: %d %s", streak.LongestDays, pluralDays(streak.LongestDays)),
+		fmt.Sprintf("Total active days: %d", streak.TotalActiveDays),
+		"Last active date: " + lastActive,
+		"Timezone: " + streak.Timezone,
+		fmt.Sprintf("Policy: %s (%d active minutes or one completed educational activity)", streak.PolicyVersion, streak.MinimumActiveMinutes),
+		"Meaning: study consistency only; it does not change mastery or block learning.",
+	}, "\n")
+}
+
+func pluralDays(days int) string {
+	if days == 1 {
+		return "day"
+	}
+	return "days"
 }
 
 func formatStudyBreakdowns(items []learning.StudyTimeBreakdown) string {
@@ -1180,6 +1210,10 @@ func parse(args []string) (invocation, error) {
 			return invocation{}, fmt.Errorf("reviews accepts no arguments or due")
 		}
 		result.reviewsDue = true
+	case "streak":
+		if len(result.arguments) != 0 {
+			return invocation{}, fmt.Errorf("streak does not accept positional arguments")
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])

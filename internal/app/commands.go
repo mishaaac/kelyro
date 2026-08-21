@@ -55,6 +55,7 @@ const (
 	ActionHistory    Action = "history"
 	ActionTime       Action = "time"
 	ActionReviews    Action = "reviews"
+	ActionStreak     Action = "streak"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -123,6 +124,7 @@ type Result struct {
 	History      *learningapp.StudyHistoryView
 	StudyTime    *learningapp.StudyTimeSummary
 	Reviews      *learningapp.ReviewQueueView
+	Streak       *learning.Streak
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -297,6 +299,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionReviews {
 		return service.executeReviews(ctx, command)
+	}
+	if command.Action == ActionStreak {
+		return service.executeStreak(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

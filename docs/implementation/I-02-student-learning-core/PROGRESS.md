@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 21 (pending authorization)
-Last completed step: 20
+Current step: 22 (pending authorization)
+Last completed step: 21
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -907,3 +907,50 @@ Release: unreleased
 - El Paso 21 es el siguiente paso pendiente y requiere autorización explícita.
 - Streaks deberá basarse en actividad educativa significativa y la timezone del perfil sin reinterpretar warm-ups, study history o review outcomes.
 - No adelantar achievements, analytics, daily plans, TUI Student Core completo ni Exercise Engine.
+
+## Step 21 — Streaks sin comportamiento punitivo
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Política pura, configurable y versionada `streak-v1` con threshold default de diez minutos activos o una actividad educativa significativa completada.
+- Cálculo determinista desde Study History y Study Sessions que deduplica fechas locales, agrega sesiones cortas del mismo día y produce current, longest, last active local date y total active days.
+- Semántica no punitiva: abrir Kelyro/TUI, completar onboarding, desbloquear un achievement o detener una sesión vacía no cuenta; el streak nunca modifica mastery, prerequisites, progression, reviews ni acceso a contenido.
+- Calendario basado en la timezone IANA actual del perfil, conservación del current streak si la última actividad fue hoy o ayer y aritmética de calendario correcta sobre días DST de 23/25 horas.
+- Recálculo completo en cada `StreakService.Show`, reparación atómica del estado materializado y comportamiento de cambio de timezone sin acumulación permanente de fechas duplicadas.
+- Migration forward-only v18 que amplía `streak_state` con fecha local, total, timezone, threshold y policy version, preservando filas publicadas como `legacy-streak/v0` hasta su siguiente recálculo.
+- Adapters SQLite/in-memory, wiring workspace-scoped y validaciones/triggers de integridad para la proyección materializada.
+- CLI `kelyro streak` y vista TUI `Study consistency` accesible con `[k] Streak`, con texto neutral, longest/total como contexto y aclaración explícita de que no afecta el aprendizaje.
+- Decisiones, fórmula, señales, timezone/DST, compatibilidad y límites documentados en `docs/architecture/non-punitive-study-streak-v1.md`.
+
+### Decisions
+
+- Son actividades educativas significativas `diagnostic.completed`, `concept.introduced`, `evidence.recorded`, `concept.mastered` y `review.completed`; eventos derivados duplicados solo cuentan una vez por fecha.
+- `session.completed` no evita el threshold: la autoridad es `StudySession.ActiveDuration`, ya acotada por `study-session-v1`; sesiones active/interrupted/recovered con tiempo significativo siguen siendo actividad intencional válida.
+- Como no existen intervalos activos por minuto, una sesión se atribuye a la fecha local de su end o, si sigue activa, de su última actividad significativa, igual que `time-tracking-v1`.
+- El current streak conserva el último run durante todo el día posterior a la última actividad. Un hueco mayor lo muestra en cero sin borrar longest, total o historial.
+- Cambiar timezone recalcula todos los UTC facts: puede agrupar o separar observaciones cercanas a medianoche, pero nunca incrementa permanentemente un contador; volver a la timezone anterior reproduce la proyección anterior.
+- La fila `streak_state` es un materialized projection reparable, no una fuente educativa ni un contador incremental. Legacy state se conserva, no se presenta como si hubiera sido calculado por v1.
+- No se añadieron mensajes de pérdida, culpa, recuperación, notificaciones ni mecanismos de bloqueo; achievements y milestones permanecen reservados para el Paso 22.
+
+### Verification
+
+- Tests de dominio para mismo día, día siguiente, día omitido, grace de ayer, timezone/reversión, DST spring/fall, longest streak, total de fechas y acumulación del threshold entre sesiones.
+- Tests application para clock inyectable, recálculo desde facts durables, reparación de estado legacy, persistencia e idempotencia.
+- Tests SQLite para migration v17 → v18, preservación legacy, roundtrip v1 y trigger de consistencia longest/total.
+- Tests app/CLI para dispatch, parsing, texto neutral, singular/plural y ausencia de lenguaje punitivo.
+- Tests TUI para navegación, carga desde application, contenido neutral, refresh/layout responsive y nuevos golden files.
+- `GOCACHE=/tmp/kelyro-step21-gate-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step21-gate-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-step21-gate-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- Smoke real `init → streak` sobre un workspace temporal nuevo, verificando estado vacío, timezone, policy y mensaje no punitivo.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 22 es el siguiente paso pendiente y requiere autorización explícita.
+- Achievement & Milestone Framework deberá reconocer progreso real mediante reglas deterministas sin convertir streaks en moneda, barrera o fuente de culpa.
+- No adelantar analytics, adaptive daily plans, TUI Student Core completo ni Exercise Engine.

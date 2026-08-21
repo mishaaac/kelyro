@@ -911,6 +911,38 @@ WHEN (NEW.review_type='quick_recall' AND NEW.estimated_minutes<>5)
 BEGIN SELECT RAISE(ABORT, 'invalid review item aggregate'); END`,
 		},
 	},
+	{
+		version: 18,
+		name:    "non-punitive study streak v1",
+		statements: []string{
+			`ALTER TABLE streak_state ADD COLUMN last_active_local_date TEXT`,
+			`ALTER TABLE streak_state ADD COLUMN total_active_days INTEGER NOT NULL DEFAULT 0 CHECK (total_active_days >= 0)`,
+			`ALTER TABLE streak_state ADD COLUMN streak_timezone TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE streak_state ADD COLUMN minimum_active_minutes INTEGER NOT NULL DEFAULT 0 CHECK (minimum_active_minutes BETWEEN 0 AND 1440)`,
+			`ALTER TABLE streak_state ADD COLUMN policy_version TEXT NOT NULL DEFAULT 'legacy-streak/v0'
+CHECK (policy_version IN ('legacy-streak/v0','streak-v1'))`,
+			`CREATE TRIGGER streak_state_v1_insert_guard
+BEFORE INSERT ON streak_state
+WHEN (NEW.policy_version='legacy-streak/v0' AND
+      (NEW.last_active_local_date IS NOT NULL OR NEW.total_active_days<>0 OR NEW.streak_timezone<>'' OR NEW.minimum_active_minutes<>0))
+  OR (NEW.policy_version='streak-v1' AND (
+       length(trim(NEW.streak_timezone))=0 OR NEW.minimum_active_minutes<1 OR NEW.longest_days>NEW.total_active_days
+    OR (NEW.total_active_days=0 AND (NEW.current_days<>0 OR NEW.longest_days<>0 OR NEW.last_active_local_date IS NOT NULL OR NEW.last_study_at IS NOT NULL))
+    OR (NEW.total_active_days>0 AND (NEW.longest_days=0 OR NEW.last_active_local_date IS NULL OR NEW.last_study_at IS NULL))
+    OR (NEW.last_active_local_date IS NOT NULL AND (length(NEW.last_active_local_date)<>10 OR substr(NEW.last_active_local_date,5,1)<>'-' OR substr(NEW.last_active_local_date,8,1)<>'-'))))
+BEGIN SELECT RAISE(ABORT, 'invalid streak-v1 aggregate'); END`,
+			`CREATE TRIGGER streak_state_v1_update_guard
+BEFORE UPDATE ON streak_state
+WHEN (NEW.policy_version='legacy-streak/v0' AND
+      (NEW.last_active_local_date IS NOT NULL OR NEW.total_active_days<>0 OR NEW.streak_timezone<>'' OR NEW.minimum_active_minutes<>0))
+  OR (NEW.policy_version='streak-v1' AND (
+       length(trim(NEW.streak_timezone))=0 OR NEW.minimum_active_minutes<1 OR NEW.longest_days>NEW.total_active_days
+    OR (NEW.total_active_days=0 AND (NEW.current_days<>0 OR NEW.longest_days<>0 OR NEW.last_active_local_date IS NOT NULL OR NEW.last_study_at IS NOT NULL))
+    OR (NEW.total_active_days>0 AND (NEW.longest_days=0 OR NEW.last_active_local_date IS NULL OR NEW.last_study_at IS NULL))
+    OR (NEW.last_active_local_date IS NOT NULL AND (length(NEW.last_active_local_date)<>10 OR substr(NEW.last_active_local_date,5,1)<>'-' OR substr(NEW.last_active_local_date,8,1)<>'-'))))
+BEGIN SELECT RAISE(ABORT, 'invalid streak-v1 aggregate'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

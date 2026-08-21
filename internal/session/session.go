@@ -30,6 +30,7 @@ const (
 	ViewConfig     View = "config"
 	ViewRoadmap    View = "roadmap"
 	ViewProfile    View = "profile"
+	ViewStreak     View = "streak"
 	ViewOnboarding View = "onboarding"
 )
 
@@ -259,7 +260,7 @@ func normalize(state State) State {
 
 func validView(view View) bool {
 	switch view {
-	case ViewHome, ViewDoctor, ViewConfig, ViewRoadmap, ViewProfile, ViewOnboarding:
+	case ViewHome, ViewDoctor, ViewConfig, ViewRoadmap, ViewProfile, ViewStreak, ViewOnboarding:
 		return true
 	default:
 		return false

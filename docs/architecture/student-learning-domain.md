@@ -94,7 +94,7 @@ loading and graph policies without changing the identity of concepts.
 | `ReviewSchedule` | Versioned next due instant, review type, time estimate, and prerequisite priority for an introduced concept. |
 | `ReviewItem` | Trackable pending, completed, or skipped review with explicit outcome and postponement metadata. |
 | `WarmUpPlan` | Versioned, bounded selection of contextual concept reviews with explicit reasons and priorities; not an exercise. |
-| `Streak` | Materialized current and longest consistency counts. |
+| `Streak` | Versioned, recalculable current/longest/total active-day projection in the learner timezone; informational only. |
 | `Achievement` | Stable-key recognition with locked/unlocked lifecycle. |
 | `Milestone` | Meaningful goal progress event distinct from gamification. |
 | `AnalyticsSnapshot` | Auditable point-in-time metrics with explicit names and units. |
@@ -130,6 +130,8 @@ and a score does not silently change exposure state.
 - A v1 review has one of three fixed type/time pairs, and at most one pending
   item exists for a student and concept. Skipped items have no score or outcome;
   completed items have a score-consistent success or failure outcome.
+- A v1 streak has one captured timezone and threshold, deduplicates active
+  local dates, and cannot have a longest run above its total active days.
 - A non-`not_seen` concept has an introduction instant; a `not_seen` concept does
   not.
 - Session activities are individually valid and contained by the session range.
@@ -147,10 +149,10 @@ This keeps the domain deterministic and avoids a premature repository interface.
 ## Deferred policy
 
 The base domain did not define educational policies. Mastery, diagnostic,
-retention, progression, and spaced-repetition policies are now documented in
-their dedicated versioned architecture records. Streak calculation,
-achievement criteria, analytics aggregation, adaptive daily-plan selection,
-and exercise generation remain deferred to their explicit later steps. The
+retention, progression, spaced-repetition, warm-up, and streak policies are now
+documented in their dedicated versioned architecture records. Achievement
+criteria, analytics aggregation, adaptive daily-plan selection, and exercise
+generation remain deferred to their explicit later steps. The
 base domain also does not define database schemas, migrations, repositories,
 commands, screens, generated curricula,
 exercise engines, research, or AI behavior.

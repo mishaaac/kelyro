@@ -49,6 +49,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "history", args: []string{"history"}, wantAction: app.ActionHistory},
 		{name: "time", args: []string{"time"}, wantAction: app.ActionTime},
 		{name: "reviews", args: []string{"reviews"}, wantAction: app.ActionReviews},
+		{name: "streak", args: []string{"streak"}, wantAction: app.ActionStreak},
 	}
 
 	for _, test := range tests {
@@ -113,6 +114,46 @@ func TestRunnerParsesAndFormatsDueReviews(t *testing.T) {
 		if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), args); code != ExitUsage {
 			t.Fatalf("Run(%v) exit=%d, want failure", args, code)
 		}
+	}
+}
+
+func TestRunnerFormatsStreakWithoutPunitiveLanguage(t *testing.T) {
+	studentID := mustCLIid(t, "student.primary")
+	lastDate, err := learning.NewLocalDate("2026-08-21")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lastStudy := mustCLITimestamp(t, time.Date(2026, 8, 21, 14, 0, 0, 0, time.UTC))
+	streak := learning.Streak{
+		StudentID: studentID, CurrentDays: 6, LongestDays: 9, LastActiveLocalDate: &lastDate,
+		TotalActiveDays: 20, LastStudyAt: &lastStudy, Timezone: "America/Lima", MinimumActiveMinutes: 10,
+		PolicyVersion: learning.StreakPolicyVersion,
+	}
+	service := &fakeService{result: app.Result{Streak: &streak}}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"streak"}); code != ExitOK {
+		t.Fatalf("streak exit=%d stderr=%q", code, stderr.String())
+	}
+	for _, want := range []string{"Streak: 6 days", "Longest: 9 days", "Total active days: 20", "Last active date: 2026-08-21",
+		"Timezone: America/Lima", "Policy: streak-v1", "does not change mastery or block learning"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("streak output missing %q:\n%s", want, stdout.String())
+		}
+	}
+	for _, unwanted := range []string{"lost", "failure", "should have", "must study"} {
+		if strings.Contains(strings.ToLower(stdout.String()), unwanted) {
+			t.Errorf("streak output contains punitive language %q:\n%s", unwanted, stdout.String())
+		}
+	}
+	one := streak
+	one.CurrentDays = 1
+	if got := formatStreak(one); !strings.Contains(got, "Streak: 1 day") {
+		t.Errorf("singular streak output = %q", got)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"streak", "extra"}); code != ExitUsage {
+		t.Fatalf("streak extra exit=%d, want usage", code)
 	}
 }
 

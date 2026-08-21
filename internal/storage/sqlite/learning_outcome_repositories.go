@@ -11,10 +11,13 @@ func (repository learningStreakRepository) Get(ctx context.Context, studentID le
 	const operation = "get SQLite streak"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	var studentValue string
-	var current, longest int
-	var lastValue sql.NullString
-	err := repository.executor.QueryRowContext(operationContext, "SELECT student_id,current_days,longest_days,last_study_at FROM streak_state WHERE student_id=?", studentID.String()).Scan(&studentValue, &current, &longest, &lastValue)
+	var studentValue, timezone, policyVersion string
+	var current, longest, totalActive, minimumMinutes int
+	var lastValue, lastLocalDateValue sql.NullString
+	err := repository.executor.QueryRowContext(operationContext, `SELECT student_id,current_days,longest_days,last_study_at,
+last_active_local_date,total_active_days,streak_timezone,minimum_active_minutes,policy_version
+FROM streak_state WHERE student_id=?`, studentID.String()).Scan(&studentValue, &current, &longest, &lastValue,
+		&lastLocalDateValue, &totalActive, &timezone, &minimumMinutes, &policyVersion)
 	if err != nil {
 		return learning.Streak{}, classifyLearningError(operation, err)
 	}
@@ -26,7 +29,19 @@ func (repository learningStreakRepository) Get(ctx context.Context, studentID le
 	if err != nil {
 		return learning.Streak{}, corruptLearning(operation, err)
 	}
-	streak := learning.Streak{StudentID: student, CurrentDays: current, LongestDays: longest, LastStudyAt: last}
+	var lastLocalDate *learning.LocalDate
+	if lastLocalDateValue.Valid {
+		date, dateErr := learning.NewLocalDate(lastLocalDateValue.String)
+		if dateErr != nil {
+			return learning.Streak{}, corruptLearning(operation, dateErr)
+		}
+		lastLocalDate = &date
+	}
+	streak := learning.Streak{
+		StudentID: student, CurrentDays: current, LongestDays: longest, LastStudyAt: last,
+		LastActiveLocalDate: lastLocalDate, TotalActiveDays: totalActive, Timezone: timezone,
+		MinimumActiveMinutes: minimumMinutes, PolicyVersion: policyVersion,
+	}
 	if err := streak.Validate(); err != nil {
 		return learning.Streak{}, corruptLearning(operation, err)
 	}
@@ -40,7 +55,18 @@ func (repository learningStreakRepository) Save(ctx context.Context, streak lear
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO streak_state (student_id,current_days,longest_days,last_study_at) VALUES (?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET current_days=excluded.current_days,longest_days=excluded.longest_days,last_study_at=excluded.last_study_at`, streak.StudentID.String(), streak.CurrentDays, streak.LongestDays, encodeOptionalTimestamp(streak.LastStudyAt))
+	var lastLocalDate any
+	if streak.LastActiveLocalDate != nil {
+		lastLocalDate = streak.LastActiveLocalDate.String()
+	}
+	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO streak_state
+(student_id,current_days,longest_days,last_study_at,last_active_local_date,total_active_days,streak_timezone,minimum_active_minutes,policy_version)
+VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(student_id) DO UPDATE SET
+current_days=excluded.current_days,longest_days=excluded.longest_days,last_study_at=excluded.last_study_at,
+last_active_local_date=excluded.last_active_local_date,total_active_days=excluded.total_active_days,
+streak_timezone=excluded.streak_timezone,minimum_active_minutes=excluded.minimum_active_minutes,policy_version=excluded.policy_version`,
+		streak.StudentID.String(), streak.CurrentDays, streak.LongestDays, encodeOptionalTimestamp(streak.LastStudyAt),
+		lastLocalDate, streak.TotalActiveDays, streak.Timezone, streak.MinimumActiveMinutes, streak.PolicyVersion)
 	return classifyLearningError(operation, err)
 }
 

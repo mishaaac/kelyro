@@ -438,6 +438,59 @@ func TestReviewSchedulerV1MigrationDeduplicatesPendingAndSupportsLifecycleRoundT
 	}
 }
 
+func TestStreakV1MigrationPreservesLegacyStateAndSupportsRoundTrip(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:17]); err != nil {
+		t.Fatalf("migrate through v17: %v", err)
+	}
+	ctx := context.Background()
+	student := testStudent(t)
+	if err := database.LearningRepositories().Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	lastStudy := mustTimestamp(t, fixedTime)
+	if _, err := handle.Exec(`INSERT INTO streak_state (student_id,current_days,longest_days,last_study_at) VALUES (?,?,?,?)`,
+		student.ID.String(), 2, 3, encodeTimestamp(lastStudy)); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx); err != nil {
+		t.Fatalf("migrate streak-v1: %v", err)
+	}
+	legacy, err := database.LearningRepositories().Streaks.Get(ctx, student.ID)
+	if err != nil || legacy.PolicyVersion != learning.LegacyStreakPolicyVersion || legacy.CurrentDays != 2 ||
+		legacy.LongestDays != 3 || legacy.LastActiveLocalDate != nil || legacy.TotalActiveDays != 0 {
+		t.Fatalf("legacy streak = (%+v, %v)", legacy, err)
+	}
+
+	lastDate, err := learning.NewLocalDate(lastStudy.Time().Format("2006-01-02"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1 := learning.Streak{
+		StudentID: student.ID, CurrentDays: 2, LongestDays: 3, LastActiveLocalDate: &lastDate,
+		TotalActiveDays: 5, LastStudyAt: &lastStudy, Timezone: "UTC", MinimumActiveMinutes: 10,
+		PolicyVersion: learning.StreakPolicyVersion,
+	}
+	if err := database.LearningRepositories().Streaks.Save(ctx, v1); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := database.LearningRepositories().Streaks.Get(ctx, student.ID)
+	if err != nil || !reflect.DeepEqual(loaded, v1) {
+		t.Fatalf("streak-v1 roundtrip = (%+v, %v), want %+v", loaded, err, v1)
+	}
+	if _, err := handle.Exec(`UPDATE streak_state SET total_active_days=1 WHERE student_id=?`, student.ID.String()); err == nil {
+		t.Fatal("streak trigger accepted longest above total active days")
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)
@@ -904,7 +957,8 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	}
 
 	lastStudy := session.EndedAt
-	streak := learning.Streak{StudentID: student.ID, CurrentDays: 2, LongestDays: 3, LastStudyAt: &lastStudy}
+	streak := learning.Streak{StudentID: student.ID, CurrentDays: 2, LongestDays: 3, LastStudyAt: &lastStudy,
+		PolicyVersion: learning.LegacyStreakPolicyVersion}
 	if err := repositories.Streaks.Save(ctx, streak); err != nil {
 		t.Fatal(err)
 	}

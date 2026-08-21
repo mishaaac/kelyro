@@ -30,6 +30,8 @@ func (model Model) View() string {
 			lines = model.roadmapView(width)
 		case screenProfile:
 			lines = model.profileView(width)
+		case screenStreak:
+			lines = model.streakView(width)
 		case screenOnboarding:
 			lines = model.onboardingView(width)
 		default:
@@ -54,7 +56,7 @@ func (model Model) homeView(width int) []string {
 		lines = append(lines, model.styles.muted.Render("No learning path yet."))
 	}
 	lines = append(lines, "")
-	lines = append(lines, shortcutLines(width, "[Enter] Continue", "[s] Setup", "[p] Profile", "[d] Doctor", "[c] Config", "[r] Roadmap", "[q] Quit")...)
+	lines = append(lines, shortcutLines(width, "[Enter] Continue", "[s] Setup", "[p] Profile", "[k] Streak", "[d] Doctor", "[c] Config", "[r] Roadmap", "[q] Quit")...)
 	return lines
 }
 
@@ -249,6 +251,46 @@ func (model Model) profileView(width int) []string {
 	lines = append(lines, "")
 	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
 	return lines
+}
+
+func (model Model) streakView(width int) []string {
+	lines := []string{model.styles.title.Render("Study consistency"), ""}
+	switch {
+	case model.streakLoading:
+		lines = append(lines, "Calculating streak from study history...")
+	case model.streakErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not calculate streak"))
+		lines = append(lines, wrapText(model.streakErr.Error(), width)...)
+	default:
+		lastActive := "none yet"
+		if model.streak.LastActiveLocalDate != nil {
+			lastActive = model.streak.LastActiveLocalDate.String()
+		}
+		values := []string{
+			fmt.Sprintf("Streak: %d %s", model.streak.CurrentDays, streakDayWord(model.streak.CurrentDays)),
+			fmt.Sprintf("Longest: %d %s", model.streak.LongestDays, streakDayWord(model.streak.LongestDays)),
+			fmt.Sprintf("Total active days: %d", model.streak.TotalActiveDays),
+			"Last active date: " + lastActive,
+			"Timezone: " + model.streak.Timezone,
+		}
+		for _, value := range values {
+			lines = append(lines, truncate(value, width))
+		}
+		lines = append(lines, "")
+		for _, line := range wrapText("Consistency is informational; it does not change mastery or block learning.", width) {
+			lines = append(lines, model.styles.muted.Render(line))
+		}
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func streakDayWord(days int) string {
+	if days == 1 {
+		return "day"
+	}
+	return "days"
 }
 
 func (model Model) doctorView(width int) []string {
