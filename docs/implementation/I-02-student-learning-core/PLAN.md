@@ -1770,7 +1770,7 @@ feat(history): add study timeline and time tracking
 
 ## Paso 18 — Implementar Retention Model v1
 
-- [ ] Paso 18 completado
+- [x] Paso 18 completado
 
 ### Objetivo
 

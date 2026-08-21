@@ -31,10 +31,12 @@ for student facts that intentionally outlive a particular curriculum version.
 The fixture seeder only installs deterministic test curriculum data; it is not a
 Curriculum Compiler or an ingestion engine.
 
-No computed mastery, retention, scheduling, streak, or daily-plan cache is
-introduced here. Current state tables are authoritative values supplied by
-later versioned policies. Analytics snapshots and daily plans are retained
-because they are auditable historical outputs, not transparent caches.
+No computed mastery, scheduling, streak, or daily-plan cache was introduced by
+the initial schema. Current state tables are authoritative values supplied by
+versioned policies. Since Step 18, `retention_state` stores the replaceable,
+version-labelled output of `retention-v1`; immutable evidence remains the
+recalculation source. Analytics snapshots and daily plans are retained because
+they are auditable historical outputs, not transparent caches.
 
 ## Integrity and access paths
 

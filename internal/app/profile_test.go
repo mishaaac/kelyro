@@ -50,13 +50,14 @@ type fakeProfileStoreFactory struct {
 	mistakes   learningapp.MistakeMemoryService
 	sessions   learningapp.StudySessionLifecycleService
 	history    learningapp.StudyHistoryService
+	retention  learningapp.RetentionService
 	openRoot   string
 	closed     int
 }
 
 func (factory *fakeProfileStoreFactory) Open(_ context.Context, root string) (learningapp.ProfileStore, error) {
 	factory.openRoot = root
-	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, close: func() { factory.closed++ }}, nil
+	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, close: func() { factory.closed++ }}, nil
 }
 
 type fakeProfileStore struct {
@@ -68,6 +69,7 @@ type fakeProfileStore struct {
 	mistakes   learningapp.MistakeMemoryService
 	sessions   learningapp.StudySessionLifecycleService
 	history    learningapp.StudyHistoryService
+	retention  learningapp.RetentionService
 	close      func()
 }
 
@@ -85,6 +87,7 @@ func (store *fakeProfileStore) StudySessions() learningapp.StudySessionLifecycle
 	return store.sessions
 }
 func (store *fakeProfileStore) History() learningapp.StudyHistoryService { return store.history }
+func (store *fakeProfileStore) Retention() learningapp.RetentionService  { return store.retention }
 func (store *fakeProfileStore) Close() error {
 	store.close()
 	return nil

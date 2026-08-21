@@ -90,7 +90,7 @@ loading and graph policies without changing the identity of concepts.
 | `Mistake` | Remembered error or misconception assigned to a known concept. |
 | `LearningSession` | Completed bounded study period for a student and goal. |
 | `StudyActivity` | Typed, concept-linked interval contained by a learning session. |
-| `RetentionState` | Point-in-time recall strength, without a scheduling formula. |
+| `RetentionState` | Versioned point-in-time recall strength, stability, status, and due estimate; separate from mastery. |
 | `ReviewSchedule` | Next due instant for a concept and its introduction/import context. |
 | `ReviewItem` | Trackable pending, completed, or skipped review. |
 | `Streak` | Materialized current and longest consistency counts. |

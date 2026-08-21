@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/learning"
 )
@@ -683,9 +684,16 @@ func (repository learningRetentionRepository) Get(ctx context.Context, studentID
 	const operation = "get SQLite retention state"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	var studentValue, conceptValue, measuredValue string
+	var studentValue, conceptValue, measuredValue, statusValue, algorithmVersion string
+	var lastSuccessfulValue, lastPracticeValue, nextDueValue sql.NullString
 	var strengthValue float64
-	err := repository.executor.QueryRowContext(operationContext, "SELECT student_id, concept_id, strength, measured_at FROM retention_state WHERE student_id=? AND concept_id=?", studentID.String(), conceptID.String()).Scan(&studentValue, &conceptValue, &strengthValue, &measuredValue)
+	var reviewCount, successfulReviews, failedReviews int
+	var stabilitySeconds int64
+	err := repository.executor.QueryRowContext(operationContext, `SELECT student_id,concept_id,last_successful_recall,last_practice,
+review_count,successful_reviews,failed_reviews,stability_estimate_seconds,strength,retention_status,next_due_at,measured_at,algorithm_version
+FROM retention_state WHERE student_id=? AND concept_id=?`, studentID.String(), conceptID.String()).Scan(
+		&studentValue, &conceptValue, &lastSuccessfulValue, &lastPracticeValue, &reviewCount, &successfulReviews,
+		&failedReviews, &stabilitySeconds, &strengthValue, &statusValue, &nextDueValue, &measuredValue, &algorithmVersion)
 	if err != nil {
 		return learning.RetentionState{}, classifyLearningError(operation, err)
 	}
@@ -705,7 +713,27 @@ func (repository learningRetentionRepository) Get(ctx context.Context, studentID
 	if err != nil {
 		return learning.RetentionState{}, corruptLearning(operation, err)
 	}
-	state := learning.RetentionState{StudentID: student, ConceptID: concept, Strength: strength, MeasuredAt: measured}
+	lastSuccessful, err := decodeOptionalTimestamp(lastSuccessfulValue)
+	if err != nil {
+		return learning.RetentionState{}, corruptLearning(operation, err)
+	}
+	lastPractice, err := decodeOptionalTimestamp(lastPracticeValue)
+	if err != nil {
+		return learning.RetentionState{}, corruptLearning(operation, err)
+	}
+	nextDue, err := decodeOptionalTimestamp(nextDueValue)
+	if err != nil {
+		return learning.RetentionState{}, corruptLearning(operation, err)
+	}
+	if stabilitySeconds < 0 || stabilitySeconds > int64(90*24*time.Hour/time.Second) {
+		return learning.RetentionState{}, corruptLearning(operation, fmt.Errorf("retention stability seconds are invalid"))
+	}
+	state := learning.RetentionState{
+		StudentID: student, ConceptID: concept, LastSuccessfulRecall: lastSuccessful, LastPractice: lastPractice,
+		ReviewCount: reviewCount, SuccessfulReviews: successfulReviews, FailedReviews: failedReviews,
+		StabilityEstimate: time.Duration(stabilitySeconds) * time.Second, Strength: strength,
+		Status: learning.RetentionStatus(statusValue), NextDueAt: nextDue, MeasuredAt: measured, AlgorithmVersion: algorithmVersion,
+	}
 	if err := state.Validate(); err != nil {
 		return learning.RetentionState{}, corruptLearning(operation, err)
 	}
@@ -719,6 +747,18 @@ func (repository learningRetentionRepository) Save(ctx context.Context, state le
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO retention_state (student_id,concept_id,strength,measured_at) VALUES (?,?,?,?) ON CONFLICT(student_id,concept_id) DO UPDATE SET strength=excluded.strength,measured_at=excluded.measured_at`, state.StudentID.String(), state.ConceptID.String(), state.Strength.Value(), encodeTimestamp(state.MeasuredAt))
+	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO retention_state
+(student_id,concept_id,last_successful_recall,last_practice,review_count,successful_reviews,failed_reviews,
+ stability_estimate_seconds,strength,retention_status,next_due_at,measured_at,algorithm_version)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(student_id,concept_id) DO UPDATE SET
+last_successful_recall=excluded.last_successful_recall,last_practice=excluded.last_practice,
+review_count=excluded.review_count,successful_reviews=excluded.successful_reviews,failed_reviews=excluded.failed_reviews,
+stability_estimate_seconds=excluded.stability_estimate_seconds,strength=excluded.strength,
+retention_status=excluded.retention_status,next_due_at=excluded.next_due_at,measured_at=excluded.measured_at,
+algorithm_version=excluded.algorithm_version`,
+		state.StudentID.String(), state.ConceptID.String(), encodeOptionalTimestamp(state.LastSuccessfulRecall),
+		encodeOptionalTimestamp(state.LastPractice), state.ReviewCount, state.SuccessfulReviews, state.FailedReviews,
+		int64(state.StabilityEstimate/time.Second), state.Strength.Value(), state.Status, encodeOptionalTimestamp(state.NextDueAt),
+		encodeTimestamp(state.MeasuredAt), state.AlgorithmVersion)
 	return classifyLearningError(operation, err)
 }

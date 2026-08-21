@@ -92,10 +92,11 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	}
 	studySessions := application.NewStudySessionLifecycleService(profiles, database, studySessionOptions...)
 	history := application.NewStudyHistoryService(profiles, database, application.WithStudyHistoryClock(now))
+	retention := application.NewRetentionService(profiles, database, application.WithRetentionClock(now))
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
-		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions, history: history,
+		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions, history: history, retention: retention,
 	}, nil
 }
 
@@ -111,6 +112,7 @@ type store struct {
 	mistakes            application.MistakeMemoryService
 	studySessions       application.StudySessionLifecycleService
 	history             application.StudyHistoryService
+	retention           application.RetentionService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -127,6 +129,7 @@ func (store *store) StudySessions() application.StudySessionLifecycleService {
 	return store.studySessions
 }
 func (store *store) History() application.StudyHistoryService { return store.history }
+func (store *store) Retention() application.RetentionService  { return store.retention }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

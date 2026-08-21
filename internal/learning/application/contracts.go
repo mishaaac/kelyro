@@ -121,6 +121,14 @@ type ProgressionService interface {
 	Recalculate(context.Context, learning.ID, learning.ID, *learning.PackMasteryOverride) (ProgressionUpdate, error)
 }
 
+// RetentionService evaluates and persists retention-v1 using an injected UTC
+// clock. It may project review_due onto existing mastered instance states, but
+// it never creates review items; scheduling belongs to the next policy step.
+type RetentionService interface {
+	State(context.Context, learning.ID) (learning.RetentionState, error)
+	Recalculate(context.Context, learning.ID) (learning.RetentionCalculation, error)
+}
+
 type RecordMistakeInput struct {
 	ConceptID  learning.ID
 	Key        learning.MistakeKey
@@ -249,6 +257,7 @@ type ProfileStore interface {
 	Mistakes() MistakeMemoryService
 	StudySessions() StudySessionLifecycleService
 	History() StudyHistoryService
+	Retention() RetentionService
 	Close() error
 }
 

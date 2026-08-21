@@ -465,16 +465,19 @@ func (repository retentionRepository) Get(ctx context.Context, studentID, concep
 	if !exists {
 		return learning.RetentionState{}, notFound("get memory retention state")
 	}
-	return state, nil
+	return cloneRetentionState(state), nil
 }
 
 func (repository retentionRepository) Save(ctx context.Context, state learning.RetentionState) error {
 	if err := contextError("save memory retention state", ctx); err != nil {
 		return err
 	}
+	if err := state.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "save memory retention state", err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
-	repository.store.retention[studentConceptKey{student: state.StudentID, concept: state.ConceptID}] = state
+	repository.store.retention[studentConceptKey{student: state.StudentID, concept: state.ConceptID}] = cloneRetentionState(state)
 	return nil
 }
 

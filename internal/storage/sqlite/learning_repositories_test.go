@@ -289,6 +289,64 @@ func TestStudyHistoryMigrationBackfillsEducationalFactsInUTC(t *testing.T) {
 	}
 }
 
+func TestRetentionV1MigrationPreservesLegacySnapshotAndSupportsV1RoundTrip(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:15]); err != nil {
+		t.Fatalf("migrate through v15: %v", err)
+	}
+	ctx := context.Background()
+	repositories := database.LearningRepositories()
+	student := testStudent(t)
+	if err := repositories.Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	reference := learning.CurriculumRef{ID: mustID(t, "curriculum.retention"), Version: "1.0.0"}
+	concept := learning.Concept{ID: mustID(t, "concept.retention"), TopicID: mustID(t, "topic.retention"), Title: "Retention"}
+	if err := database.SeedCurriculum(ctx, reference, []learning.Concept{concept}, nil); err != nil {
+		t.Fatal(err)
+	}
+	legacyMeasured := mustTimestamp(t, fixedTime)
+	if _, err := handle.Exec(`INSERT INTO retention_state (student_id,concept_id,strength,measured_at) VALUES (?,?,?,?)`,
+		student.ID.String(), concept.ID.String(), .6, encodeTimestamp(legacyMeasured)); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx); err != nil {
+		t.Fatalf("migrate retention-v1: %v", err)
+	}
+	legacy, err := database.LearningRepositories().Retention.Get(ctx, student.ID, concept.ID)
+	if err != nil || legacy.AlgorithmVersion != learning.LegacyRetentionAlgorithmVersion ||
+		legacy.Status != learning.RetentionUnknown || legacy.Strength.Value() != .6 {
+		t.Fatalf("legacy retention = (%+v, %v)", legacy, err)
+	}
+
+	lastPractice := mustTimestamp(t, fixedTime.Add(time.Hour))
+	nextDue := mustTimestamp(t, fixedTime.Add(time.Hour+7*24*time.Hour))
+	v1 := learning.RetentionState{
+		StudentID: student.ID, ConceptID: concept.ID, LastSuccessfulRecall: &lastPractice, LastPractice: &lastPractice,
+		ReviewCount: 2, SuccessfulReviews: 1, FailedReviews: 1, StabilityEstimate: 7 * 24 * time.Hour,
+		Strength: mustScore(t, .72), Status: learning.RetentionStable, NextDueAt: &nextDue,
+		MeasuredAt: mustTimestamp(t, fixedTime.Add(2*time.Hour)), AlgorithmVersion: learning.RetentionAlgorithmVersion,
+	}
+	if err := database.LearningRepositories().Retention.Save(ctx, v1); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := database.LearningRepositories().Retention.Get(ctx, student.ID, concept.ID)
+	if err != nil || !reflect.DeepEqual(loaded, v1) {
+		t.Fatalf("retention-v1 roundtrip = (%+v, %v), want %+v", loaded, err, v1)
+	}
+	if _, err := handle.Exec(`UPDATE retention_state SET review_count=3 WHERE student_id=? AND concept_id=?`, student.ID.String(), concept.ID.String()); err == nil {
+		t.Fatal("retention aggregate trigger accepted inconsistent review counts")
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)
@@ -667,7 +725,8 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(history, []learning.MistakeEvent{event}) {
 		t.Fatalf("mistake history=(%+v,%v)", history, err)
 	}
-	retention := learning.RetentionState{StudentID: student.ID, ConceptID: conceptA.ID, Strength: mustScore(t, .6), MeasuredAt: resolved}
+	retention := learning.RetentionState{StudentID: student.ID, ConceptID: conceptA.ID, Strength: mustScore(t, .6),
+		Status: learning.RetentionUnknown, MeasuredAt: resolved, AlgorithmVersion: learning.LegacyRetentionAlgorithmVersion}
 	if err := repositories.Retention.Save(ctx, retention); err != nil {
 		t.Fatal(err)
 	}

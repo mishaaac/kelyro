@@ -10,7 +10,8 @@ func TestRetentionReviewAndOutcomeValueObjectsValidate(t *testing.T) {
 	now := mustTimestamp(t, 12)
 	retention := RetentionState{
 		StudentID: studentID, ConceptID: conceptID,
-		Strength: mustScore(t, 0.65), MeasuredAt: now,
+		Strength: mustScore(t, 0.65), Status: RetentionUnknown, MeasuredAt: now,
+		AlgorithmVersion: LegacyRetentionAlgorithmVersion,
 	}
 	if err := retention.Validate(); err != nil {
 		t.Fatalf("RetentionState.Validate() error = %v", err)

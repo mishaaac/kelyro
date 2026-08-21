@@ -789,6 +789,56 @@ SELECT 'history.legacy.achievement.' || rowid, student_id, 'achievement.unlocked
 FROM student_achievements WHERE status = 'unlocked'`,
 		},
 	},
+	{
+		version: 16,
+		name:    "retention model v1",
+		statements: []string{
+			`ALTER TABLE retention_state ADD COLUMN last_successful_recall TEXT
+CHECK (last_successful_recall IS NULL OR last_successful_recall GLOB '*Z')`,
+			`ALTER TABLE retention_state ADD COLUMN last_practice TEXT
+CHECK (last_practice IS NULL OR last_practice GLOB '*Z')`,
+			`ALTER TABLE retention_state ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0 CHECK (review_count >= 0)`,
+			`ALTER TABLE retention_state ADD COLUMN successful_reviews INTEGER NOT NULL DEFAULT 0 CHECK (successful_reviews >= 0)`,
+			`ALTER TABLE retention_state ADD COLUMN failed_reviews INTEGER NOT NULL DEFAULT 0 CHECK (failed_reviews >= 0)`,
+			`ALTER TABLE retention_state ADD COLUMN stability_estimate_seconds INTEGER NOT NULL DEFAULT 0 CHECK (stability_estimate_seconds >= 0)`,
+			`ALTER TABLE retention_state ADD COLUMN retention_status TEXT NOT NULL DEFAULT 'unknown'
+CHECK (retention_status IN ('fresh','stable','weakening','due','overdue','unknown'))`,
+			`ALTER TABLE retention_state ADD COLUMN next_due_at TEXT
+CHECK (next_due_at IS NULL OR next_due_at GLOB '*Z')`,
+			`ALTER TABLE retention_state ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'legacy-retention/v0'
+CHECK (algorithm_version IN ('legacy-retention/v0','retention-v1'))`,
+			`CREATE TRIGGER retention_state_v1_insert_guard
+BEFORE INSERT ON retention_state
+WHEN NEW.review_count <> NEW.successful_reviews + NEW.failed_reviews
+  OR (NEW.last_successful_recall IS NOT NULL AND NEW.last_practice IS NULL)
+  OR NEW.last_successful_recall > NEW.measured_at
+  OR NEW.last_practice > NEW.measured_at
+  OR (NEW.algorithm_version = 'legacy-retention/v0' AND
+      (NEW.retention_status <> 'unknown' OR NEW.last_successful_recall IS NOT NULL OR NEW.last_practice IS NOT NULL OR
+       NEW.review_count <> 0 OR NEW.stability_estimate_seconds <> 0 OR NEW.next_due_at IS NOT NULL))
+  OR (NEW.algorithm_version = 'retention-v1' AND NEW.retention_status = 'unknown' AND
+      (NEW.strength <> 0 OR NEW.last_successful_recall IS NOT NULL OR NEW.last_practice IS NOT NULL OR
+       NEW.review_count <> 0 OR NEW.stability_estimate_seconds <> 0 OR NEW.next_due_at IS NOT NULL))
+  OR (NEW.algorithm_version = 'retention-v1' AND NEW.retention_status <> 'unknown' AND
+      (NEW.last_practice IS NULL OR NEW.stability_estimate_seconds <= 0 OR NEW.next_due_at IS NULL OR NEW.next_due_at <= NEW.last_practice))
+BEGIN SELECT RAISE(ABORT, 'invalid retention-v1 aggregate'); END`,
+			`CREATE TRIGGER retention_state_v1_update_guard
+BEFORE UPDATE ON retention_state
+WHEN NEW.review_count <> NEW.successful_reviews + NEW.failed_reviews
+  OR (NEW.last_successful_recall IS NOT NULL AND NEW.last_practice IS NULL)
+  OR NEW.last_successful_recall > NEW.measured_at
+  OR NEW.last_practice > NEW.measured_at
+  OR (NEW.algorithm_version = 'legacy-retention/v0' AND
+      (NEW.retention_status <> 'unknown' OR NEW.last_successful_recall IS NOT NULL OR NEW.last_practice IS NOT NULL OR
+       NEW.review_count <> 0 OR NEW.stability_estimate_seconds <> 0 OR NEW.next_due_at IS NOT NULL))
+  OR (NEW.algorithm_version = 'retention-v1' AND NEW.retention_status = 'unknown' AND
+      (NEW.strength <> 0 OR NEW.last_successful_recall IS NOT NULL OR NEW.last_practice IS NOT NULL OR
+       NEW.review_count <> 0 OR NEW.stability_estimate_seconds <> 0 OR NEW.next_due_at IS NOT NULL))
+  OR (NEW.algorithm_version = 'retention-v1' AND NEW.retention_status <> 'unknown' AND
+      (NEW.last_practice IS NULL OR NEW.stability_estimate_seconds <= 0 OR NEW.next_due_at IS NULL OR NEW.next_due_at <= NEW.last_practice))
+BEGIN SELECT RAISE(ABORT, 'invalid retention-v1 aggregate'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

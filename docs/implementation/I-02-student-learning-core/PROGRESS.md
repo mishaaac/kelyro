@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 18 (pending authorization)
-Last completed step: 17
+Current step: 19 (pending authorization)
+Last completed step: 18
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -774,3 +774,48 @@ Release: unreleased
 - El Paso 18 es el siguiente paso pendiente y requiere autorización explícita.
 - Retention v1 deberá consumir Evidence/mastery/reviews sin reinterpretar `time-tracking-v1` ni modificar el historial educativo inmutable.
 - No adelantar spaced repetition, warm-ups, streaks, achievements, analytics, daily plans o el Exercise Engine completo.
+
+## Step 18 — Retention Model v1
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Política pura y versionada `retention-v1` que diferencia mastery histórico de fuerza de recuerdo estimada y consume `mastery-v1`, evidencia inmutable y un instante UTC explícito.
+- Estado durable por concepto con último recall exitoso, última práctica, conteos de reviews exitosas/fallidas, estabilidad, strength, estados `fresh|stable|weakening|due|overdue|unknown`, próxima fecha y versión del algoritmo.
+- Fórmula determinista que incorpora mastery previo, dificultad normalizada, historia de reviews y resultado reciente, con estabilidad acotada entre seis horas y noventa días y precisión persistida de segundos.
+- Semántica explícita de evidencia recall-bearing: self-report/manual import no inician el reloj; `review_recall` es la única fuente de outcomes de review y usa threshold de éxito `0.70`.
+- Caso de uso workspace-scoped con clock inyectable que recalcula y persiste dentro de una transacción, proyecta `review_due` únicamente sobre estados mastered de Curriculum Instances activos y nunca modifica mastery ni Evidence.
+- Migration forward-only v16 que amplía `retention_state`, conserva snapshots anteriores como `legacy-retention/v0` desconocidos y añade constraints/triggers de integridad.
+- Adapters SQLite e in-memory con roundtrip completo, clonación segura y la misma validación de dominio; `ProfileStore` expone el servicio para futuros consumidores.
+- Arquitectura, fórmula, boundaries, compatibilidad y frontera con scheduling documentadas en `docs/architecture/retention-v1.md`.
+
+### Decisions
+
+- `strength` es una predicción de recall al instante de medición; nunca sustituye ni reduce el mastery derivado de evidencia.
+- El exacto `next_due_at` ya está `due`; `overdue` comienza estrictamente después de otro intervalo de estabilidad. Due significa necesidad de comprobar, no prueba de olvido.
+- La dificultad del último evento recall-bearing es la entrada v1; reviews exitosas extienden estabilidad y un fallo reciente la acorta agresivamente, con clamps explícitos para evitar intervalos extremos.
+- Un snapshot es `unknown` cuando no hay mastery conocido o evidencia objetiva de recall. Evidencia futura respecto al clock inyectado se rechaza, no se ignora.
+- `ApplyRetentionV1` solo alterna `mastered ↔ review_due`, conserva score y `mastered_at`, y no promueve estados learning/practicing aunque exista mastery histórico.
+- La migración preserva el strength/measurement de snapshots v4 sin fingir que fueron calculados por v1; un recálculo posterior los sustituye desde Evidence.
+- Step 18 no crea `ReviewSchedule`, `ReviewItem`, colas, prioridades ni warm-ups; esas decisiones pertenecen a Steps 19 y 20.
+
+### Verification
+
+- Tests de dominio para concepto nuevo, mastered today, due later, due/overdue exactos, review exitoso, fallo, dificultad, orden determinista, clock boundary y proyección/limpieza de `review_due` sin cambiar mastery.
+- Tests application para clock inyectable, persistencia transaccional y proyección sobre Curriculum Instance activo.
+- Tests SQLite para migration v15 → v16, preservación legacy, roundtrip v1 y rejection de conteos inconsistentes por trigger.
+- `GOCACHE=/tmp/kelyro-step18-target2-gocache go test ./internal/learning/... ./internal/storage/sqlite ./internal/infra/learningdb`.
+- `GOCACHE=/tmp/kelyro-step18-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step18-full-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-step18-quality-gocache go run ./tools/quality all`, incluyendo E2E, `go test -race ./...`, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 19 es el siguiente paso pendiente y requiere autorización explícita.
+- Spaced Repetition Scheduler v1 deberá consumir `RetentionState.NextDueAt`/`Status`, crear o actualizar review records idempotentes y mantener la fórmula fuera de SQL.
+- No reinterpretar strength como mastery ni tratar due/overdue como fallo observado.
+- No adelantar warm-ups, streaks, achievements, analytics, daily plans o el Exercise Engine completo.

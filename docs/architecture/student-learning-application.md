@@ -20,9 +20,10 @@ small repository ports <---- SQLite / memory adapters
 ```
 
 Application services validate domain values, orchestrate repository calls, and
-translate errors. They do not calculate mastery, retention, scheduling,
-streaks, achievements, analytics, or daily-plan selection. Those policies stay
-deferred to their dedicated versioned I-02 steps.
+translate errors. Educational formulas stay in the domain: application code
+loads their inputs, supplies transaction and clock boundaries, and persists
+their versioned outputs. Scheduling, streaks, achievements, analytics, and
+daily-plan selection remain deferred to their dedicated I-02 steps.
 
 ## Repository ports
 

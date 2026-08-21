@@ -234,7 +234,7 @@ func (store *Store) cloneLocked() *Store {
 		clone.mistakeEvents[key] = value
 	}
 	for key, value := range store.retention {
-		clone.retention[key] = value
+		clone.retention[key] = cloneRetentionState(value)
 	}
 	for key, value := range store.sessions {
 		clone.sessions[key] = cloneSession(value)
@@ -391,6 +391,22 @@ func cloneMistake(value learning.Mistake) learning.Mistake {
 	if value.ResolvedAt != nil {
 		copy := *value.ResolvedAt
 		value.ResolvedAt = &copy
+	}
+	return value
+}
+
+func cloneRetentionState(value learning.RetentionState) learning.RetentionState {
+	if value.LastSuccessfulRecall != nil {
+		copy := *value.LastSuccessfulRecall
+		value.LastSuccessfulRecall = &copy
+	}
+	if value.LastPractice != nil {
+		copy := *value.LastPractice
+		value.LastPractice = &copy
+	}
+	if value.NextDueAt != nil {
+		copy := *value.NextDueAt
+		value.NextDueAt = &copy
 	}
 	return value
 }
