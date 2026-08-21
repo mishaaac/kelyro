@@ -104,5 +104,6 @@ coupling educational policy to Bubble Tea.
 
 Study sessions do not capture keystrokes, editor activity, telemetry, exercise
 payloads, mistakes, Evidence, retention, reviews, streaks, achievements, or
-analytics. Study History and time-range aggregation remain Step 17; retention,
-spaced repetition, warm-ups, and the full Exercise Engine remain later steps.
+analytics. Study History and time-range aggregation are defined separately in
+`study-history-time-tracking.md`; retention, spaced repetition, warm-ups, and
+the full Exercise Engine remain later steps.

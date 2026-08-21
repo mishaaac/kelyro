@@ -46,6 +46,8 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "setup status", args: []string{"setup", "status"}, wantAction: app.ActionSetup},
 		{name: "mistakes", args: []string{"mistakes"}, wantAction: app.ActionMistakes},
 		{name: "session status", args: []string{"session", "status"}, wantAction: app.ActionSession},
+		{name: "history", args: []string{"history"}, wantAction: app.ActionHistory},
+		{name: "time", args: []string{"time"}, wantAction: app.ActionTime},
 	}
 
 	for _, test := range tests {
@@ -74,6 +76,65 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunnerParsesAndRendersStudyHistoryAndTime(t *testing.T) {
+	t.Parallel()
+	event := mustCLIStudyEvent(t, time.Date(2026, 8, 21, 14, 0, 0, 0, time.UTC))
+	service := &fakeService{result: app.Result{History: &learningapp.StudyHistoryView{
+		Events: []learning.StudyEvent{event}, Period: learning.StudyPeriodToday, Timezone: "America/Lima",
+	}}}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"history", "--today"}); code != ExitOK {
+		t.Fatalf("history exit=%d stderr=%q", code, stderr.String())
+	}
+	if command := service.commands[0]; command.Action != app.ActionHistory || !command.HistoryToday {
+		t.Fatalf("history command = %+v", command)
+	}
+	for _, want := range []string{"Study history — today", "Timezone: America/Lima", "2026-08-21T09:00:00-05:00", "evidence.recorded", "concept=concept.cli"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("history output missing %q:\n%s", want, stdout.String())
+		}
+	}
+
+	service = &fakeService{result: app.Result{StudyTime: &learningapp.StudyTimeSummary{
+		Today: 15 * time.Minute, Week: 45 * time.Minute, Month: time.Hour, Total: 2 * time.Hour,
+		TodaySessions: 1, WeekSessions: 2, MonthSessions: 3, TotalSessions: 4, Timezone: "America/Lima",
+		ByConcept:     []learning.StudyTimeBreakdown{{ID: mustCLIid(t, "concept.cli"), Duration: 15 * time.Minute, Sessions: 1}},
+		PolicyVersion: learning.TimeTrackingPolicyVersion,
+	}}}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"time"}); code != ExitOK {
+		t.Fatalf("time exit=%d stderr=%q", code, stderr.String())
+	}
+	for _, want := range []string{"Study time", "Today: 15m0s (1 sessions)", "Total: 2h0m0s (4 sessions)", "concept.cli=15m0s", "By module: unavailable", "Policy: time-tracking-v1"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("time output missing %q:\n%s", want, stdout.String())
+		}
+	}
+}
+
+func TestRunnerRejectsInvalidStudyHistoryCommands(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{{"history", "extra"}, {"time", "extra"}, {"time", "--today"}} {
+		var stderr bytes.Buffer
+		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) exit=%d stderr=%q", args, code, stderr.String())
+		}
+	}
+}
+
+func mustCLIStudyEvent(t *testing.T, at time.Time) learning.StudyEvent {
+	t.Helper()
+	timestamp := mustCLITimestamp(t, at)
+	goalID, instanceID, conceptID := mustCLIid(t, "goal.cli"), mustCLIid(t, "instance.cli"), mustCLIid(t, "concept.cli")
+	event, err := learning.NewStudyEvent(mustCLIid(t, "history.cli"), mustCLIid(t, "student.primary"), learning.StudyEventEvidenceRecorded,
+		mustCLIid(t, "evidence.cli"), timestamp, &goalID, &instanceID, &conceptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return event
 }
 
 func TestRunnerParsesAndRendersStudySession(t *testing.T) {

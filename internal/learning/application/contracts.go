@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/learning"
 )
@@ -162,6 +163,29 @@ type StudySessionLifecycleService interface {
 	Recover(context.Context) (learning.StudySession, error)
 }
 
+type StudyHistoryView struct {
+	Events   []learning.StudyEvent
+	Period   learning.StudyPeriod
+	Timezone string
+	From     *learning.Timestamp
+	To       *learning.Timestamp
+}
+
+type StudyTimeSummary struct {
+	Today, Week, Month, Total                                 time.Duration
+	TodaySessions, WeekSessions, MonthSessions, TotalSessions int
+	ByConcept                                                 []learning.StudyTimeBreakdown
+	ByModule                                                  []learning.StudyTimeBreakdown
+	Timezone                                                  string
+	GeneratedAt                                               learning.Timestamp
+	PolicyVersion                                             string
+}
+
+type StudyHistoryService interface {
+	List(context.Context, learning.StudyPeriod) (StudyHistoryView, error)
+	Time(context.Context) (StudyTimeSummary, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -224,6 +248,7 @@ type ProfileStore interface {
 	Setup() LearnerSetupService
 	Mistakes() MistakeMemoryService
 	StudySessions() StudySessionLifecycleService
+	History() StudyHistoryService
 	Close() error
 }
 
@@ -264,6 +289,7 @@ type CurriculumStateRepository interface {
 	Concept(context.Context, learning.CurriculumRef, learning.ID) (learning.Concept, error)
 	Concepts(context.Context, learning.CurriculumRef) ([]learning.Concept, error)
 	Prerequisites(context.Context, learning.CurriculumRef, learning.ID) ([]learning.Prerequisite, error)
+	ModuleForConcept(context.Context, learning.CurriculumRef, learning.ID) (learning.ID, error)
 }
 
 type CurriculumDefinitionRepository interface {
@@ -333,7 +359,14 @@ type StudySessionRepository interface {
 	Get(context.Context, learning.ID) (learning.StudySession, error)
 	ActiveByStudent(context.Context, learning.ID) (learning.StudySession, error)
 	ListByGoal(context.Context, learning.ID, learning.ID) ([]learning.StudySession, error)
+	ListByStudent(context.Context, learning.ID) ([]learning.StudySession, error)
 	Update(context.Context, learning.StudySession) error
+}
+
+type StudyHistoryRepository interface {
+	Record(context.Context, learning.StudyEvent) error
+	Get(context.Context, learning.ID) (learning.StudyEvent, error)
+	ListByStudent(context.Context, learning.ID, *learning.Timestamp, *learning.Timestamp) ([]learning.StudyEvent, error)
 }
 
 type ReviewRepository interface {
@@ -387,6 +420,7 @@ type Repositories struct {
 	Retention             RetentionRepository
 	Sessions              SessionRepository
 	StudySessions         StudySessionRepository
+	History               StudyHistoryRepository
 	Reviews               ReviewRepository
 	Streaks               StreakRepository
 	Achievements          AchievementRepository

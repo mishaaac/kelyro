@@ -35,6 +35,7 @@ type planKey struct {
 type curriculumFixture struct {
 	concepts      map[learning.ID]learning.Concept
 	prerequisites []learning.Prerequisite
+	modules       map[learning.ID]learning.ID
 	fingerprint   string
 }
 
@@ -59,6 +60,7 @@ type Store struct {
 	retention      map[studentConceptKey]learning.RetentionState
 	sessions       map[learning.ID]learning.LearningSession
 	studySessions  map[learning.ID]learning.StudySession
+	history        map[learning.ID]learning.StudyEvent
 	schedules      map[studentConceptKey]learning.ReviewSchedule
 	reviewItems    map[learning.ID]learning.ReviewItem
 	streaks        map[learning.ID]learning.Streak
@@ -86,6 +88,7 @@ func New() *Store {
 		retention:      make(map[studentConceptKey]learning.RetentionState),
 		sessions:       make(map[learning.ID]learning.LearningSession),
 		studySessions:  make(map[learning.ID]learning.StudySession),
+		history:        make(map[learning.ID]learning.StudyEvent),
 		schedules:      make(map[studentConceptKey]learning.ReviewSchedule),
 		reviewItems:    make(map[learning.ID]learning.ReviewItem),
 		streaks:        make(map[learning.ID]learning.Streak),
@@ -114,6 +117,7 @@ func (store *Store) Repositories() application.Repositories {
 		Retention:             retentionRepository{store},
 		Sessions:              sessionRepository{store},
 		StudySessions:         studySessionRepository{store},
+		History:               studyHistoryRepository{store},
 		Reviews:               reviewRepository{store},
 		Streaks:               streakRepository{store},
 		Achievements:          achievementRepository{store},
@@ -195,11 +199,14 @@ func (store *Store) cloneLocked() *Store {
 		clone.mastery[key] = cloneMasterySettings(value)
 	}
 	for key, value := range store.curricula {
-		fixture := curriculumFixture{concepts: make(map[learning.ID]learning.Concept, len(value.concepts)), fingerprint: value.fingerprint}
+		fixture := curriculumFixture{concepts: make(map[learning.ID]learning.Concept, len(value.concepts)), modules: make(map[learning.ID]learning.ID, len(value.modules)), fingerprint: value.fingerprint}
 		for conceptID, concept := range value.concepts {
 			fixture.concepts[conceptID] = concept
 		}
 		fixture.prerequisites = append([]learning.Prerequisite(nil), value.prerequisites...)
+		for conceptID, moduleID := range value.modules {
+			fixture.modules[conceptID] = moduleID
+		}
 		clone.curricula[key] = fixture
 	}
 	for key, value := range store.instances {
@@ -234,6 +241,9 @@ func (store *Store) cloneLocked() *Store {
 	}
 	for key, value := range store.studySessions {
 		clone.studySessions[key] = cloneStudySession(value)
+	}
+	for key, value := range store.history {
+		clone.history[key] = cloneStudyEvent(value)
 	}
 	for key, value := range store.schedules {
 		clone.schedules[key] = cloneSchedule(value)
@@ -276,6 +286,7 @@ func (store *Store) replaceLocked(replacement *Store) {
 	store.retention = replacement.retention
 	store.sessions = replacement.sessions
 	store.studySessions = replacement.studySessions
+	store.history = replacement.history
 	store.schedules = replacement.schedules
 	store.reviewItems = replacement.reviewItems
 	store.streaks = replacement.streaks
@@ -396,6 +407,22 @@ func cloneStudySession(value learning.StudySession) learning.StudySession {
 	if value.EndedAt != nil {
 		copy := *value.EndedAt
 		value.EndedAt = &copy
+	}
+	return value
+}
+
+func cloneStudyEvent(value learning.StudyEvent) learning.StudyEvent {
+	if value.GoalID != nil {
+		copy := *value.GoalID
+		value.GoalID = &copy
+	}
+	if value.CurriculumInstanceID != nil {
+		copy := *value.CurriculumInstanceID
+		value.CurriculumInstanceID = &copy
+	}
+	if value.ConceptID != nil {
+		copy := *value.ConceptID
+		value.ConceptID = &copy
 	}
 	return value
 }

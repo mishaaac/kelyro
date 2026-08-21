@@ -47,6 +47,22 @@ func TestProgressionServiceAtomicallyMastersAndDerivesDependentUnlocks(t *testin
 	if err != nil || len(states) != 1 {
 		t.Fatalf("derived unlock persisted extra state = (%+v, %v)", states, err)
 	}
+	history, err := fixture.repositories.History.ListByStudent(ctx, fixture.student.ID, nil, nil)
+	if err != nil || len(history) != 3 {
+		t.Fatalf("progression history = (%+v, %v)", history, err)
+	}
+	types := map[learning.StudyEventType]bool{}
+	for _, event := range history {
+		types[event.Type] = true
+		if event.SourceID != evidence.ID || event.CurriculumInstanceID == nil || *event.CurriculumInstanceID != fixture.instance.ID || event.ConceptID == nil || *event.ConceptID != evidence.ConceptID {
+			t.Fatalf("progression event scope = %+v", event)
+		}
+	}
+	for _, want := range []learning.StudyEventType{learning.StudyEventEvidenceRecorded, learning.StudyEventConceptIntroduced, learning.StudyEventConceptMastered} {
+		if !types[want] {
+			t.Fatalf("progression history missing %s: %+v", want, history)
+		}
+	}
 }
 
 func TestProgressionServiceRelocksDependentWhenRecalculationFallsBelowThreshold(t *testing.T) {

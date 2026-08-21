@@ -34,6 +34,7 @@ type learningMistakeRepository struct{ learningRepository }
 type learningRetentionRepository struct{ learningRepository }
 type learningSessionRepository struct{ learningRepository }
 type learningStudySessionRepository struct{ learningRepository }
+type learningStudyHistoryRepository struct{ learningRepository }
 type learningReviewRepository struct{ learningRepository }
 type learningStreakRepository struct{ learningRepository }
 type learningAchievementRepository struct{ learningRepository }
@@ -61,6 +62,7 @@ func newLearningRepositories(target executor, timeout time.Duration) application
 		Evidence:              learningEvidenceRepository{repository}, Mistakes: learningMistakeRepository{repository},
 		Retention: learningRetentionRepository{repository}, Sessions: learningSessionRepository{repository},
 		StudySessions: learningStudySessionRepository{repository},
+		History:       learningStudyHistoryRepository{repository},
 		Reviews:       learningReviewRepository{repository}, Streaks: learningStreakRepository{repository},
 		Achievements: learningAchievementRepository{repository}, Analytics: learningAnalyticsRepository{repository},
 		DailyPlans: learningDailyPlanRepository{repository},

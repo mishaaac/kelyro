@@ -73,7 +73,8 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	curriculumInstances := application.NewCurriculumInstanceService(profiles, database, instanceOptions...)
 	diagnostics := application.NewDiagnosticService(profiles, database, application.WithDiagnosticClock(now))
 	onboarding := application.NewOnboardingService(profiles, goals, database.LearningRepositories().Onboarding,
-		application.WithOnboardingClock(now), application.WithOnboardingMasteryPolicy(mastery))
+		application.WithOnboardingClock(now), application.WithOnboardingMasteryPolicy(mastery),
+		application.WithOnboardingHistory(database.LearningRepositories().History))
 	curriculum, diagnostic, fixtureErr := developmentfixture.FoundationDemo()
 	if fixtureErr != nil {
 		_ = database.Close()
@@ -90,10 +91,11 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		studySessionOptions = append(studySessionOptions, application.WithStudySessionIdleTimeout(factory.studySessionIdle))
 	}
 	studySessions := application.NewStudySessionLifecycleService(profiles, database, studySessionOptions...)
+	history := application.NewStudyHistoryService(profiles, database, application.WithStudyHistoryClock(now))
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
-		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions,
+		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions, history: history,
 	}, nil
 }
 
@@ -108,6 +110,7 @@ type store struct {
 	setup               application.LearnerSetupService
 	mistakes            application.MistakeMemoryService
 	studySessions       application.StudySessionLifecycleService
+	history             application.StudyHistoryService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -123,6 +126,7 @@ func (store *store) Mistakes() application.MistakeMemoryService { return store.m
 func (store *store) StudySessions() application.StudySessionLifecycleService {
 	return store.studySessions
 }
+func (store *store) History() application.StudyHistoryService { return store.history }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

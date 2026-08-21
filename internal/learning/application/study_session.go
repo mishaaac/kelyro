@@ -123,7 +123,7 @@ func (service *studySessionLifecycleService) RecordActivity(ctx context.Context)
 }
 
 func (service *studySessionLifecycleService) Stop(ctx context.Context) (learning.StudySession, error) {
-	return service.transition(ctx, "stop study session", func(session learning.StudySession, timestamp learning.Timestamp) (learning.StudySession, error) {
+	return service.transitionWithEvent(ctx, "stop study session", learning.StudyEventSessionCompleted, func(session learning.StudySession, timestamp learning.Timestamp) (learning.StudySession, error) {
 		return session.Complete(timestamp)
 	})
 }
@@ -147,6 +147,10 @@ func (service *studySessionLifecycleService) Recover(ctx context.Context) (learn
 }
 
 func (service *studySessionLifecycleService) transition(ctx context.Context, operation string, apply func(learning.StudySession, learning.Timestamp) (learning.StudySession, error)) (learning.StudySession, error) {
+	return service.transitionWithEvent(ctx, operation, "", apply)
+}
+
+func (service *studySessionLifecycleService) transitionWithEvent(ctx context.Context, operation string, eventType learning.StudyEventType, apply func(learning.StudySession, learning.Timestamp) (learning.StudySession, error)) (learning.StudySession, error) {
 	student, timestamp, err := service.context(ctx, operation)
 	if err != nil {
 		return learning.StudySession{}, err
@@ -164,7 +168,14 @@ func (service *studySessionLifecycleService) transition(ctx context.Context, ope
 		if updated == active {
 			return nil
 		}
-		return repositories.StudySessions.Update(ctx, updated)
+		if updateErr := repositories.StudySessions.Update(ctx, updated); updateErr != nil {
+			return updateErr
+		}
+		if eventType.Valid() {
+			return recordStudyEvent(ctx, repositories.History, updated.StudentID, eventType, updated.ID, *updated.EndedAt,
+				&updated.GoalID, &updated.CurriculumInstanceID, nil)
+		}
+		return nil
 	})
 	return updated, err
 }

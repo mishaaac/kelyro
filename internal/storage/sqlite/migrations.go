@@ -702,6 +702,93 @@ ON study_session_lifecycle (student_id) WHERE status = 'active'`,
 ON study_session_lifecycle (student_id, goal_id, started_at, id)`,
 		},
 	},
+	{
+		version: 15,
+		name:    "study history timeline",
+		statements: []string{
+			`CREATE TABLE study_history_events (
+    id TEXT PRIMARY KEY CHECK (length(id) > 0),
+    student_id TEXT NOT NULL,
+    event_type TEXT NOT NULL CHECK (event_type IN (
+        'onboarding.completed','diagnostic.completed','concept.introduced','evidence.recorded',
+        'concept.mastered','review.completed','session.completed','achievement.unlocked'
+    )),
+    source_id TEXT NOT NULL CHECK (length(source_id) > 0),
+    occurred_at TEXT NOT NULL CHECK (occurred_at GLOB '*Z'),
+    goal_id TEXT,
+    curriculum_instance_id TEXT,
+    concept_id TEXT,
+    history_version TEXT NOT NULL CHECK (history_version = 'study-history-v1'),
+    UNIQUE (student_id, event_type, source_id),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (goal_id, student_id) REFERENCES learning_goals(id, student_id),
+    FOREIGN KEY (curriculum_instance_id, student_id, goal_id)
+        REFERENCES learner_curriculum_instances(id, student_id, goal_id),
+    FOREIGN KEY (concept_id) REFERENCES concept_registry(id),
+    CHECK (curriculum_instance_id IS NULL OR goal_id IS NOT NULL),
+    CHECK (event_type <> 'diagnostic.completed' OR curriculum_instance_id IS NOT NULL),
+    CHECK (event_type NOT IN ('concept.introduced','evidence.recorded','concept.mastered','review.completed') OR concept_id IS NOT NULL)
+)`,
+			`CREATE INDEX study_history_events_timeline_idx
+ON study_history_events (student_id, occurred_at DESC, id DESC)`,
+			`CREATE INDEX study_history_events_concept_idx
+ON study_history_events (student_id, concept_id, occurred_at DESC) WHERE concept_id IS NOT NULL`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,history_version)
+SELECT 'history.legacy.onboarding.' || rowid, student_id, 'onboarding.completed',
+       'onboarding.legacy.' || rowid, completed_at, 'study-history-v1'
+FROM onboarding_interviews WHERE status = 'completed'`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,goal_id,curriculum_instance_id,history_version)
+SELECT 'history.legacy.diagnostic.' || attempt.rowid, attempt.student_id, 'diagnostic.completed',
+       'diagnostic.legacy.' || attempt.rowid, attempt.completed_at, instance.goal_id,
+       attempt.curriculum_instance_id, 'study-history-v1'
+FROM diagnostic_attempts AS attempt
+JOIN learner_curriculum_instances AS instance ON instance.id = attempt.curriculum_instance_id
+WHERE attempt.status = 'completed'`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,concept_id,history_version)
+SELECT 'history.legacy.evidence.' || rowid, student_id, 'evidence.recorded',
+       'evidence.legacy.' || rowid, observed_at, concept_id, 'study-history-v1'
+FROM learning_evidence`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,goal_id,curriculum_instance_id,concept_id,history_version)
+SELECT 'history.legacy.introduced.' || state.rowid, state.student_id, 'concept.introduced',
+       'concept-introduced.legacy.' || state.rowid, state.first_seen_at, instance.goal_id,
+       state.curriculum_instance_id, state.concept_id, 'study-history-v1'
+FROM learner_curriculum_concept_states AS state
+JOIN learner_curriculum_instances AS instance ON instance.id = state.curriculum_instance_id
+WHERE state.first_seen_at IS NOT NULL`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,goal_id,curriculum_instance_id,concept_id,history_version)
+SELECT 'history.legacy.mastered.' || state.rowid, state.student_id, 'concept.mastered',
+       'concept-mastered.legacy.' || state.rowid, state.mastered_at, instance.goal_id,
+       state.curriculum_instance_id, state.concept_id, 'study-history-v1'
+FROM learner_curriculum_concept_states AS state
+JOIN learner_curriculum_instances AS instance ON instance.id = state.curriculum_instance_id
+WHERE state.mastered_at IS NOT NULL`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,concept_id,history_version)
+SELECT 'history.legacy.review.' || rowid, student_id, 'review.completed',
+       'review.legacy.' || rowid, completed_at, concept_id, 'study-history-v1'
+FROM review_items WHERE status = 'completed'`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,goal_id,curriculum_instance_id,history_version)
+SELECT 'history.legacy.session-lifecycle.' || rowid, student_id, 'session.completed',
+       'session-lifecycle.legacy.' || rowid, ended_at, goal_id, curriculum_instance_id, 'study-history-v1'
+FROM study_session_lifecycle WHERE status = 'completed'`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,goal_id,history_version)
+SELECT 'history.legacy.session.' || rowid, student_id, 'session.completed',
+       'session.legacy.' || rowid, ended_at, goal_id, 'study-history-v1'
+FROM study_sessions`,
+			`INSERT INTO study_history_events
+(id,student_id,event_type,source_id,occurred_at,history_version)
+SELECT 'history.legacy.achievement.' || rowid, student_id, 'achievement.unlocked',
+       'achievement.legacy.' || rowid, unlocked_at, 'study-history-v1'
+FROM student_achievements WHERE status = 'unlocked'`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

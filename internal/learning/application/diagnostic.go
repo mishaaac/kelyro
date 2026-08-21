@@ -129,6 +129,10 @@ func (service *diagnosticService) Submit(ctx context.Context, attemptID learning
 		if loaded.StudentID != student.ID {
 			return Classify(ErrorNotFound, operation, errors.New("diagnostic attempt not found"))
 		}
+		instance, getErr := repositories.CurriculumInstances.Get(ctx, loaded.CurriculumInstanceID)
+		if getErr != nil {
+			return getErr
+		}
 		if err := validateDiagnosticInstance(ctx, operation, repositories, student.ID, loaded.CurriculumInstanceID, diagnostic); err != nil {
 			return err
 		}
@@ -176,6 +180,16 @@ func (service *diagnosticService) Submit(ctx context.Context, attemptID learning
 		}
 		if saveErr := repositories.Diagnostics.Save(ctx, updated); saveErr != nil {
 			return saveErr
+		}
+		if eventErr := recordStudyEvent(ctx, repositories.History, student.ID, learning.StudyEventEvidenceRecorded,
+			evidence.ID, evidence.ObservedAt, &instance.GoalID, &instance.ID, &item.ConceptID); eventErr != nil {
+			return eventErr
+		}
+		if loaded.Status != learning.DiagnosticCompleted && updated.Status == learning.DiagnosticCompleted {
+			if eventErr := recordStudyEvent(ctx, repositories.History, student.ID, learning.StudyEventDiagnosticCompleted,
+				updated.ID, *updated.CompletedAt, &instance.GoalID, &instance.ID, nil); eventErr != nil {
+				return eventErr
+			}
 		}
 		attempt = updated
 		return nil

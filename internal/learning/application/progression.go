@@ -124,6 +124,24 @@ func (service *progressionService) update(ctx context.Context, operation string,
 				return saveErr
 			}
 		}
+		if evidence != nil {
+			if eventErr := recordStudyEvent(ctx, repositories.History, student.ID, learning.StudyEventEvidenceRecorded,
+				evidence.ID, evidence.ObservedAt, &instance.GoalID, &instance.ID, &conceptID); eventErr != nil {
+				return eventErr
+			}
+			if state.Exposure == learning.ExposureNotSeen && progression.State.Exposure != learning.ExposureNotSeen {
+				if eventErr := recordStudyEvent(ctx, repositories.History, student.ID, learning.StudyEventConceptIntroduced,
+					evidence.ID, evidence.ObservedAt, &instance.GoalID, &instance.ID, &conceptID); eventErr != nil {
+					return eventErr
+				}
+			}
+			if state.MasteredAt == nil && progression.State.MasteredAt != nil {
+				if eventErr := recordStudyEvent(ctx, repositories.History, student.ID, learning.StudyEventConceptMastered,
+					evidence.ID, *progression.State.MasteredAt, &instance.GoalID, &instance.ID, &conceptID); eventErr != nil {
+					return eventErr
+				}
+			}
+		}
 
 		beforeSnapshot, snapshotErr := progressionSnapshot(beforeStates)
 		if snapshotErr != nil {

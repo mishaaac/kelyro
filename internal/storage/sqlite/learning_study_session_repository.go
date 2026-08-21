@@ -73,6 +73,33 @@ func (repository learningStudySessionRepository) ListByGoal(ctx context.Context,
 	return sessions, nil
 }
 
+func (repository learningStudySessionRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.StudySession, error) {
+	const operation = "list SQLite study sessions by student"
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	rows, err := repository.executor.QueryContext(operationContext, "SELECT "+studySessionColumns+" FROM study_session_lifecycle WHERE student_id=? ORDER BY started_at,id", studentID.String())
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer rows.Close()
+	sessions := make([]learning.StudySession, 0)
+	for rows.Next() {
+		session, scanErr := scanStudySession(rows)
+		if scanErr != nil {
+			return nil, corruptLearning(operation, scanErr)
+		}
+		session, scanErr = validateScannedStudySession(operation, session)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		sessions = append(sessions, session)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	return sessions, nil
+}
+
 func (repository learningStudySessionRepository) Update(ctx context.Context, session learning.StudySession) error {
 	const operation = "update SQLite study session"
 	if err := session.Validate(); err != nil {

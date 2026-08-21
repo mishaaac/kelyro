@@ -42,6 +42,10 @@ func TestStudySessionServiceStartActivityStopAndDuplicateActive(t *testing.T) {
 	if _, err := fixture.sessions.Current(fixture.ctx); !errors.Is(err, application.ErrNotFound) {
 		t.Fatalf("Current(after stop) error = %v, want not found", err)
 	}
+	events, err := fixture.store.Repositories().History.ListByStudent(fixture.ctx, session.StudentID, nil, nil)
+	if err != nil || len(events) != 1 || events[0].Type != learning.StudyEventSessionCompleted || events[0].SourceID != session.ID {
+		t.Fatalf("session history = (%+v, %v)", events, err)
+	}
 }
 
 func TestStudySessionServiceCrashRecoveryAndAutomaticReplacement(t *testing.T) {

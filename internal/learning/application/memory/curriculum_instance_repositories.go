@@ -33,6 +33,7 @@ func (repository curriculumDefinitionRepository) Install(ctx context.Context, cu
 
 	fixture := curriculumFixture{
 		concepts:    make(map[learning.ID]learning.Concept),
+		modules:     make(map[learning.ID]learning.ID),
 		fingerprint: fingerprint,
 	}
 	for _, node := range curriculum.Nodes {
@@ -40,6 +41,9 @@ func (repository curriculumDefinitionRepository) Install(ctx context.Context, cu
 			continue
 		}
 		fixture.concepts[node.ID] = learning.Concept{ID: node.ID, TopicID: *node.ParentID, Title: node.Title}
+		if moduleID, ok := curriculumModuleForConcept(curriculum, node.ID); ok {
+			fixture.modules[node.ID] = moduleID
+		}
 		for _, prerequisite := range node.Concept.Prerequisites {
 			fixture.prerequisites = append(fixture.prerequisites, learning.Prerequisite{
 				ConceptID: node.ID, RequiredConceptID: prerequisite.ConceptID,
@@ -48,6 +52,17 @@ func (repository curriculumDefinitionRepository) Install(ctx context.Context, cu
 	}
 	repository.store.curricula[key] = fixture
 	return nil
+}
+
+func curriculumModuleForConcept(curriculum learning.Curriculum, conceptID learning.ID) (learning.ID, bool) {
+	node, ok := curriculum.Node(conceptID)
+	for ok && node.ParentID != nil {
+		node, ok = curriculum.Node(*node.ParentID)
+		if ok && node.Type == learning.CurriculumNodeModule {
+			return node.ID, true
+		}
+	}
+	return learning.ID{}, false
 }
 
 type curriculumInstanceRepository struct{ store *Store }

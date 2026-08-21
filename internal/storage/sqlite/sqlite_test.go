@@ -81,6 +81,7 @@ func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 		"students",
 		"study_activities",
 		"study_activity_concepts",
+		"study_history_events",
 		"study_session_lifecycle",
 		"study_sessions",
 		"workspace_meta",

@@ -76,11 +76,16 @@ func WithOnboardingMasteryPolicy(policy MasteryPolicyService) OnboardingOption {
 	return func(service *onboardingService) { service.mastery = policy }
 }
 
+func WithOnboardingHistory(history StudyHistoryRepository) OnboardingOption {
+	return func(service *onboardingService) { service.history = history }
+}
+
 type onboardingService struct {
 	profiles ProfileService
 	goals    GoalLifecycleService
 	states   OnboardingRepository
 	mastery  MasteryPolicyService
+	history  StudyHistoryRepository
 	flow     learning.OnboardingFlow
 	now      func() time.Time
 }
@@ -177,6 +182,9 @@ func (service *onboardingService) Confirm(ctx context.Context) (OnboardingConfir
 		if !found {
 			return OnboardingConfirmation{}, Classify(ErrorInvalidState, operation, errors.New("completed onboarding has no matching active goal"))
 		}
+		if err := service.recordCompleted(ctx, view.Interview, goal); err != nil {
+			return OnboardingConfirmation{}, err
+		}
 		return OnboardingConfirmation{View: view.Interview, Goal: goal}, nil
 	}
 	if view.Interview.Status != learning.OnboardingInProgress || view.Question.Kind != learning.OnboardingConfirmQuestion {
@@ -216,7 +224,25 @@ func (service *onboardingService) Confirm(ctx context.Context) (OnboardingConfir
 	if err := service.states.Save(ctx, completed); err != nil {
 		return OnboardingConfirmation{}, repositoryError(operation, err)
 	}
+	if err := service.recordCompleted(ctx, completed, goal); err != nil {
+		return OnboardingConfirmation{}, err
+	}
 	return OnboardingConfirmation{View: completed, Goal: goal}, nil
+}
+
+func (service *onboardingService) recordCompleted(ctx context.Context, interview learning.OnboardingInterview, goal learning.LearningGoal) error {
+	if service.history == nil {
+		return nil
+	}
+	if interview.CompletedAt == nil {
+		return Classify(ErrorInvalidState, "record completed onboarding", errors.New("completed onboarding has no completion time"))
+	}
+	sourceID, err := learning.NewID("onboarding." + interview.FlowID + "@" + interview.FlowVersion)
+	if err != nil {
+		return Classify(ErrorInvalidState, "record completed onboarding", err)
+	}
+	return repositoryError("record completed onboarding", recordStudyEvent(ctx, service.history, interview.StudentID,
+		learning.StudyEventOnboardingCompleted, sourceID, *interview.CompletedAt, &goal.ID, nil, nil))
 }
 
 func (service *onboardingService) transition(ctx context.Context, operation string, change func(learning.OnboardingInterview, learning.Timestamp) (learning.OnboardingInterview, error)) (OnboardingView, error) {

@@ -186,6 +186,23 @@ func (repository curriculumRepository) Prerequisites(ctx context.Context, refere
 	return prerequisites, nil
 }
 
+func (repository curriculumRepository) ModuleForConcept(ctx context.Context, reference learning.CurriculumRef, conceptID learning.ID) (learning.ID, error) {
+	if err := contextError("get memory concept module", ctx); err != nil {
+		return learning.ID{}, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	fixture, exists := repository.store.curricula[curriculumKey{id: reference.ID, version: reference.Version}]
+	if !exists {
+		return learning.ID{}, notFound("get memory concept module")
+	}
+	moduleID, exists := fixture.modules[conceptID]
+	if !exists {
+		return learning.ID{}, notFound("get memory concept module")
+	}
+	return moduleID, nil
+}
+
 type conceptRepository struct{ store *Store }
 
 func (repository conceptRepository) Get(ctx context.Context, studentID, conceptID learning.ID) (learning.ConceptState, error) {
@@ -562,6 +579,27 @@ func (repository studySessionRepository) ListByGoal(ctx context.Context, student
 	sessions := make([]learning.StudySession, 0)
 	for _, session := range repository.store.studySessions {
 		if session.StudentID == studentID && session.GoalID == goalID {
+			sessions = append(sessions, cloneStudySession(session))
+		}
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].StartedAt == sessions[j].StartedAt {
+			return sessions[i].ID.String() < sessions[j].ID.String()
+		}
+		return sessions[i].StartedAt.Before(sessions[j].StartedAt)
+	})
+	return sessions, nil
+}
+
+func (repository studySessionRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.StudySession, error) {
+	if err := contextError("list memory study sessions by student", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	sessions := make([]learning.StudySession, 0)
+	for _, session := range repository.store.studySessions {
+		if session.StudentID == studentID {
 			sessions = append(sessions, cloneStudySession(session))
 		}
 	}

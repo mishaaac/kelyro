@@ -21,7 +21,8 @@ func TestOnboardingServicePersistsResumeBackCancelAndConfirmation(t *testing.T) 
 	goals := application.NewGoalLifecycleService(profiles, store, application.WithGoalClock(clock), application.WithGoalIDGenerator(func() (learning.ID, error) { return goalID, nil }))
 	mastery := application.NewMasteryPolicyService(profiles, store.Repositories().Mastery, application.WithMasteryPolicyClock(clock))
 	service := application.NewOnboardingService(profiles, goals, store.Repositories().Onboarding,
-		application.WithOnboardingClock(clock), application.WithOnboardingMasteryPolicy(mastery))
+		application.WithOnboardingClock(clock), application.WithOnboardingMasteryPolicy(mastery),
+		application.WithOnboardingHistory(store.Repositories().History))
 
 	started, err := service.Start(ctx)
 	if err != nil || started.Interview.Status != learning.OnboardingInProgress || started.Position != 1 {
@@ -76,6 +77,17 @@ func TestOnboardingServicePersistsResumeBackCancelAndConfirmation(t *testing.T) 
 	resolved, err := mastery.Show(ctx, nil)
 	if err != nil || resolved.Source != learning.MasterySourceStudentDefault || resolved.Requirement.Mode != learning.MasteryModeStrict {
 		t.Fatalf("onboarding mastery default = (%+v, %v)", resolved, err)
+	}
+	history, err := store.Repositories().History.ListByStudent(ctx, student.ID, nil, nil)
+	if err != nil || len(history) != 1 || history[0].Type != learning.StudyEventOnboardingCompleted || history[0].GoalID == nil || *history[0].GoalID != confirmation.Goal.ID {
+		t.Fatalf("onboarding history = (%+v, %v)", history, err)
+	}
+	if _, err := service.Confirm(ctx); err != nil {
+		t.Fatalf("idempotent Confirm() error = %v", err)
+	}
+	history, _ = store.Repositories().History.ListByStudent(ctx, student.ID, nil, nil)
+	if len(history) != 1 {
+		t.Fatalf("idempotent onboarding history = %+v", history)
 	}
 }
 

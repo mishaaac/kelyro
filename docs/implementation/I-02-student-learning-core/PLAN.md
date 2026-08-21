@@ -1694,7 +1694,7 @@ feat(session): add persistent study session lifecycle
 
 ## Paso 17 — Implementar Study History y Time Tracking
 
-- [ ] Paso 17 completado
+- [x] Paso 17 completado
 
 ### Objetivo
 

@@ -218,6 +218,77 @@ func TestStudySessionLifecycleMigrationPreservesLegacySessions(t *testing.T) {
 	}
 }
 
+func TestStudyHistoryMigrationBackfillsEducationalFactsInUTC(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:14]); err != nil {
+		t.Fatalf("migrate through v14: %v", err)
+	}
+	ctx := context.Background()
+	repositories := database.LearningRepositories()
+	student := testStudent(t)
+	goal := testGoal(t, student.ID)
+	if err := repositories.Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Goals.Create(ctx, goal); err != nil {
+		t.Fatal(err)
+	}
+	reference := learning.CurriculumRef{ID: mustID(t, "curriculum.history"), Version: "1.0.0"}
+	concept := learning.Concept{ID: mustID(t, "concept.history"), TopicID: mustID(t, "topic.history"), Title: "History"}
+	if err := database.SeedCurriculum(ctx, reference, []learning.Concept{concept}, nil); err != nil {
+		t.Fatal(err)
+	}
+	instance, err := learning.NewCurriculumInstance(mustID(t, "instance.history"), student.ID, goal.ID, reference,
+		learning.CurriculumSourceFixture, mustTimestamp(t, fixedTime))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.CurriculumInstances.Create(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := learning.NewEvidence(mustID(t, "evidence.history"), student.ID, concept.ID, learning.EvidenceKnowledgeCheck,
+		"fixture/history", mustScore(t, .8), mustTimestamp(t, fixedTime.Add(time.Minute)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Evidence.Append(ctx, evidence); err != nil {
+		t.Fatal(err)
+	}
+	session, err := learning.NewStudySession(mustID(t, "session.history"), student.ID, goal.ID, instance.ID,
+		mustTimestamp(t, fixedTime.Add(2*time.Minute)), 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, _ = session.RecordActivity(mustTimestamp(t, fixedTime.Add(7*time.Minute)))
+	session, _ = session.Complete(mustTimestamp(t, fixedTime.Add(8*time.Minute)))
+	if err := repositories.StudySessions.Create(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx); err != nil {
+		t.Fatalf("migrate study history: %v", err)
+	}
+	events, err := database.LearningRepositories().History.ListByStudent(ctx, student.ID, nil, nil)
+	if err != nil || len(events) != 2 {
+		t.Fatalf("backfilled history = (%+v, %v)", events, err)
+	}
+	if events[0].Type != learning.StudyEventSessionCompleted || events[1].Type != learning.StudyEventEvidenceRecorded {
+		t.Fatalf("backfilled types = %+v", events)
+	}
+	for _, event := range events {
+		if event.OccurredAt.Time().Location() != time.UTC || event.Version != learning.StudyHistoryVersion {
+			t.Fatalf("backfilled event = %+v", event)
+		}
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)
@@ -637,6 +708,31 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	listedStudySessions, err := repositories.StudySessions.ListByGoal(ctx, student.ID, goal.ID)
 	if err != nil || !reflect.DeepEqual(listedStudySessions, []learning.StudySession{studySession}) {
 		t.Fatalf("study sessions=(%+v,%v)", listedStudySessions, err)
+	}
+	historyEvent, err := learning.NewStudyEvent(mustID(t, "history-1"), student.ID, learning.StudyEventEvidenceRecorded,
+		evidence.ID, evidence.ObservedAt, &goal.ID, &curriculumInstance.ID, &conceptA.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.History.Record(ctx, historyEvent); err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.History.Record(ctx, historyEvent); err != nil {
+		t.Fatalf("idempotent history record: %v", err)
+	}
+	conflicting := historyEvent
+	conflicting.ID = mustID(t, "history-conflict")
+	if err := repositories.History.Record(ctx, conflicting); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("conflicting history record = %v, want conflict", err)
+	}
+	gotHistory, err := repositories.History.Get(ctx, historyEvent.ID)
+	if err != nil || !reflect.DeepEqual(gotHistory, historyEvent) {
+		t.Fatalf("history=(%+v,%v), want %+v", gotHistory, err, historyEvent)
+	}
+	from, to := mustTimestamp(t, evidence.ObservedAt.Time().Add(-time.Second)), mustTimestamp(t, evidence.ObservedAt.Time().Add(time.Second))
+	historyItems, err := repositories.History.ListByStudent(ctx, student.ID, &from, &to)
+	if err != nil || !reflect.DeepEqual(historyItems, []learning.StudyEvent{historyEvent}) {
+		t.Fatalf("filtered history=(%+v,%v)", historyItems, err)
 	}
 	schedule, _ := learning.NewReviewSchedule(student.ID, conceptA.ID, &introduced, mustTimestamp(t, fixedTime.Add(24*time.Hour)), false)
 	if err := repositories.Reviews.SaveSchedule(ctx, schedule); err != nil {

@@ -57,6 +57,8 @@ Commands:
   setup    Show or reset the integrated learner setup
   mistakes Inspect persistent mistake memory
   session  Inspect or stop the active study session
+  history  Show the learner-facing study timeline
+  time     Show intentional active study time
 
 Options:
   -h, --help          Show this help message
@@ -73,6 +75,7 @@ Options:
       --conflict MODE Resolve import conflicts with fail, keep, or overwrite
       --global        Use global configuration scope
       --project       Use project configuration scope
+      --today         Limit study history to the local calendar day
 
 Config commands:
   kelyro config show
@@ -146,6 +149,11 @@ Mistake commands:
 Study session commands:
   kelyro session status
   kelyro session stop
+
+Study history commands:
+  kelyro history
+  kelyro history --today
+  kelyro time
 `
 
 var actions = map[string]app.Action{
@@ -168,6 +176,8 @@ var actions = map[string]app.Action{
 	"setup":    app.ActionSetup,
 	"mistakes": app.ActionMistakes,
 	"session":  app.ActionSession,
+	"history":  app.ActionHistory,
+	"time":     app.ActionTime,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -277,6 +287,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		MistakeOperation: invocation.mistakeOperation,
 		MistakeID:        invocation.mistakeID,
 		SessionOperation: invocation.sessionOperation,
+		HistoryToday:     invocation.historyToday,
 		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
@@ -383,6 +394,10 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatMistakes(result.Mistakes))
 	} else if result.StudySession != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatStudySession(*result.StudySession))
+	} else if result.History != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatStudyHistory(*result.History))
+	} else if result.StudyTime != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatStudyTime(*result.StudyTime))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -466,6 +481,66 @@ func formatStudySession(session learning.StudySession) string {
 		lines = append(lines, "Ended: "+session.EndedAt.Time().Format(time.RFC3339))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatStudyHistory(view learningapp.StudyHistoryView) string {
+	heading := "Study history"
+	if view.Period == learning.StudyPeriodToday {
+		heading += " — today"
+	}
+	if len(view.Events) == 0 {
+		return heading + "\nNo study events."
+	}
+	location, err := time.LoadLocation(view.Timezone)
+	if err != nil {
+		location = time.UTC
+	}
+	lines := []string{heading, "Timezone: " + view.Timezone}
+	for _, event := range view.Events {
+		scope := make([]string, 0, 3)
+		if event.GoalID != nil {
+			scope = append(scope, "goal="+event.GoalID.String())
+		}
+		if event.CurriculumInstanceID != nil {
+			scope = append(scope, "instance="+event.CurriculumInstanceID.String())
+		}
+		if event.ConceptID != nil {
+			scope = append(scope, "concept="+event.ConceptID.String())
+		}
+		suffix := ""
+		if len(scope) > 0 {
+			suffix = " — " + strings.Join(scope, ", ")
+		}
+		lines = append(lines, fmt.Sprintf("- %s  %s%s", event.OccurredAt.Time().In(location).Format(time.RFC3339), event.Type, suffix))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatStudyTime(summary learningapp.StudyTimeSummary) string {
+	lines := []string{
+		"Study time",
+		fmt.Sprintf("Today: %s (%d sessions)", summary.Today, summary.TodaySessions),
+		fmt.Sprintf("This week: %s (%d sessions)", summary.Week, summary.WeekSessions),
+		fmt.Sprintf("This month: %s (%d sessions)", summary.Month, summary.MonthSessions),
+		fmt.Sprintf("Total: %s (%d sessions)", summary.Total, summary.TotalSessions),
+		"Timezone: " + summary.Timezone,
+		"By concept: " + formatStudyBreakdowns(summary.ByConcept),
+		"By module: " + formatStudyBreakdowns(summary.ByModule),
+		"Policy: " + summary.PolicyVersion,
+		"Meaning: intentional active study time; concept and module totals appear only for unambiguous sessions.",
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatStudyBreakdowns(items []learning.StudyTimeBreakdown) string {
+	if len(items) == 0 {
+		return "unavailable"
+	}
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		values = append(values, fmt.Sprintf("%s=%s (%d sessions)", item.ID, item.Duration, item.Sessions))
+	}
+	return strings.Join(values, ", ")
 }
 
 func formatMasteryThreshold(resolved learning.ResolvedMasteryThreshold) string {
@@ -717,6 +792,7 @@ type invocation struct {
 	mistakeOperation string
 	mistakeID        learning.ID
 	sessionOperation string
+	historyToday     bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -747,6 +823,8 @@ func parse(args []string) (invocation, error) {
 			result.exportMode = portability.ModeFull
 		case argument == "--dry-run":
 			result.importDryRun = true
+		case argument == "--today":
+			result.historyToday = true
 		case argument == "--display-name":
 			index++
 			if index >= len(args) {
@@ -1038,6 +1116,14 @@ func parse(args []string) (invocation, error) {
 		if err := parseSessionArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "history":
+		if len(result.arguments) != 0 {
+			return invocation{}, fmt.Errorf("history does not accept positional arguments")
+		}
+	case "time":
+		if len(result.arguments) != 0 {
+			return invocation{}, fmt.Errorf("time does not accept positional arguments")
+		}
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -1066,6 +1152,9 @@ func parse(args []string) (invocation, error) {
 	}
 	if result.goalFlagsSet && (result.command != "goal" || result.goalOperation != "set") {
 		return invocation{}, fmt.Errorf("learning goal options require the goal set command")
+	}
+	if result.historyToday && result.command != "history" {
+		return invocation{}, fmt.Errorf("option --today requires the history command")
 	}
 
 	return result, nil

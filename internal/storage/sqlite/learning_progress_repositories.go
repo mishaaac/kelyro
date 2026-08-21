@@ -236,6 +236,40 @@ WHERE curriculum_id = ? AND curriculum_version = ? AND concept_id = ? ORDER BY r
 	return items, nil
 }
 
+func (repository learningCurriculumRepository) ModuleForConcept(ctx context.Context, reference learning.CurriculumRef, conceptID learning.ID) (learning.ID, error) {
+	const operation = "get SQLite curriculum module for concept"
+	if err := reference.Validate(); err != nil {
+		return learning.ID{}, invalidLearning(operation, err)
+	}
+	if err := conceptID.Validate(); err != nil {
+		return learning.ID{}, invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	var moduleValue string
+	err := repository.executor.QueryRowContext(operationContext, `SELECT module.node_id
+FROM curriculum_nodes AS concept
+JOIN curriculum_nodes AS topic
+  ON topic.curriculum_id=concept.curriculum_id AND topic.curriculum_version=concept.curriculum_version
+ AND topic.node_id=concept.parent_node_id AND topic.node_type='topic'
+JOIN curriculum_nodes AS lesson
+  ON lesson.curriculum_id=topic.curriculum_id AND lesson.curriculum_version=topic.curriculum_version
+ AND lesson.node_id=topic.parent_node_id AND lesson.node_type='lesson'
+JOIN curriculum_nodes AS module
+  ON module.curriculum_id=lesson.curriculum_id AND module.curriculum_version=lesson.curriculum_version
+ AND module.node_id=lesson.parent_node_id AND module.node_type='module'
+WHERE concept.curriculum_id=? AND concept.curriculum_version=? AND concept.concept_id=? AND concept.node_type='concept'`,
+		reference.ID.String(), reference.Version, conceptID.String()).Scan(&moduleValue)
+	if err != nil {
+		return learning.ID{}, classifyLearningError(operation, err)
+	}
+	moduleID, err := decodeID(moduleValue)
+	if err != nil {
+		return learning.ID{}, corruptLearning(operation, err)
+	}
+	return moduleID, nil
+}
+
 func requireCurriculum(ctx context.Context, target executor, reference learning.CurriculumRef) error {
 	var present int
 	return target.QueryRowContext(ctx, "SELECT 1 FROM curriculum_instances WHERE id = ? AND version = ?", reference.ID.String(), reference.Version).Scan(&present)

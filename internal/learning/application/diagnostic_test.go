@@ -42,6 +42,20 @@ func TestDiagnosticServiceCompletesResumesAndCreatesEvidence(t *testing.T) {
 	if err != nil || result.Partial || len(result.Estimates) != 2 || result.Estimates[0].Confidence.Value() != .5 {
 		t.Fatalf("Result() = (%+v, %v)", result, err)
 	}
+	history, err := fixture.repositories.History.ListByStudent(ctx, fixture.student.ID, nil, nil)
+	if err != nil || len(history) != 3 {
+		t.Fatalf("diagnostic history = (%+v, %v)", history, err)
+	}
+	counts := map[learning.StudyEventType]int{}
+	for _, event := range history {
+		counts[event.Type]++
+		if event.CurriculumInstanceID == nil || *event.CurriculumInstanceID != fixture.instance.ID {
+			t.Fatalf("diagnostic event scope = %+v", event)
+		}
+	}
+	if counts[learning.StudyEventEvidenceRecorded] != 2 || counts[learning.StudyEventDiagnosticCompleted] != 1 {
+		t.Fatalf("diagnostic history types = %+v", counts)
+	}
 }
 
 func TestDiagnosticServiceCanSkipButCannotSkipPartialAttempt(t *testing.T) {

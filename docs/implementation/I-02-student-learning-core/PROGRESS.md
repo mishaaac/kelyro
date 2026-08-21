@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 17 (pending authorization)
-Last completed step: 16
+Current step: 18 (pending authorization)
+Last completed step: 17
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -728,3 +728,49 @@ Release: unreleased
 - Study History deberá consumir sessions terminales y eventos educativos significativos sin duplicar el Audit Trail técnico.
 - Time Tracking debe usar `active_duration` ya acotado por `study-session-v1`, conservar UTC y presentar rangos/timezones sin recontar idle bruto.
 - No adelantar Retention, spaced repetition, warm-ups, streaks, achievements, analytics o el Exercise Engine completo.
+
+## Step 17 — Study History y Time Tracking
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Contrato inmutable y versionado `study-history-v1` para los ocho eventos educativos del plan, con source semántico idempotente, timestamps UTC y scopes opcionales de goal, Curriculum Instance y concepto.
+- Registro transaccional de Evidence, introducción/mastery de concepto, finalización de diagnóstico y cierre explícito de Study Session; onboarding completado se registra de forma idempotente y recuperable.
+- Repositorios in-memory y SQLite con record/get/list, orden canónico newest-first, filtros `[from,to)`, conflictos semánticos y validación de filas persistidas.
+- Migration forward-only v15 con tabla e índices de timeline/concept y backfill conservador de onboarding, diagnóstico, Evidence, concept state, reviews, sesiones lifecycle/legacy y achievements ya autoritativos.
+- Política explícita `time-tracking-v1` que agrega únicamente `StudySession.ActiveDuration` para today/week/month/total, con conteos de sesión y anchors definidos, sin reconstruir wall time ni idle bruto.
+- Ventanas de calendario según la timezone IANA del perfil, semanas desde lunes, almacenamiento/queries UTC y construcción DST-aware para días de 23/25 horas.
+- Breakdown conservador por concepto y módulo: atribuye la sesión completa solo cuando los eventos observados dentro de su instance/intervalo son inequívocos; ante ausencia o ambigüedad no fabrica un reparto.
+- Application/store workspace-scoped y CLI `kelyro history`, `kelyro history --today` y `kelyro time`, con timestamps locales y explicación visible de la política.
+- Arquitectura, semántica, compatibilidad legacy, privacidad y fronteras documentadas en `docs/architecture/study-history-time-tracking.md`.
+
+### Decisions
+
+- Study History contiene hechos educativos reconocibles y no copia comandos, migrations, diagnósticos o privacy denials del Audit Trail técnico de I-01.
+- La clave `(student, event_type, source_id)` hace retries idempotentes; reutilizar el mismo origen con contenido distinto es conflicto.
+- Los rangos usan inicio inclusivo y fin exclusivo. Today/week/month se construyen con aritmética de calendario local y se convierten a UTC antes de consultar.
+- Una sesión terminal pertenece al periodo de su `ended_at`; una sesión active usa `last_activity_at`. Anchors futuros se excluyen.
+- Las sesiones legacy v4 se muestran como historia mediante backfill, pero no entran en los totales porque no tienen `active_duration` acotado ni Curriculum Instance autoritativa.
+- El lookup de módulo recorre la jerarquía curricular genérica `concept → topic → lesson → module`; no introduce supuestos de lenguaje, ecosistema o materia.
+- Reviews y achievements existentes se proyectan durante migration, pero Step 17 no implementa sus políticas/lifecycles futuros ni Retention, scheduling, streaks, analytics o Exercise Engine.
+
+### Verification
+
+- Tests de dominio para validación/versiones, scopes, periodos, semana desde lunes y bordes DST spring/fall de 23/25 horas.
+- Tests application para orden cronológico, filtro today por timezone, rangos today/week/month/total, active duration, atribución inequívoca e integración atómica con onboarding, diagnóstico, progression y Study Sessions.
+- Tests SQLite para roundtrip, idempotencia/conflicto, filtro temporal, UTC, migration v14 → v15 y backfill de Evidence/sesiones.
+- Tests app/CLI para dispatch, parsing, `--today`, errores de uso, timestamps locales y salida de breakdown/política.
+- `GOCACHE=/tmp/kelyro-i02-step17-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step17-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step17-quality-gocache go run ./tools/quality all`, incluyendo E2E, race, build y smokes de CLI.
+- Smoke real `init → history → history --today → time` sobre un workspace temporal nuevo.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 18 es el siguiente paso pendiente y requiere autorización explícita.
+- Retention v1 deberá consumir Evidence/mastery/reviews sin reinterpretar `time-tracking-v1` ni modificar el historial educativo inmutable.
+- No adelantar spaced repetition, warm-ups, streaks, achievements, analytics, daily plans o el Exercise Engine completo.
