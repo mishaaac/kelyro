@@ -164,6 +164,28 @@ func (repository curriculumRepository) Concepts(ctx context.Context, reference l
 	return concepts, nil
 }
 
+func (repository curriculumRepository) PlanningConcepts(ctx context.Context, reference learning.CurriculumRef) ([]learning.DailyPlanCurriculumConcept, error) {
+	if err := contextError("list memory curriculum planning concepts", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	fixture, exists := repository.store.curricula[curriculumKey{id: reference.ID, version: reference.Version}]
+	if !exists {
+		return nil, notFound("list memory curriculum planning concepts")
+	}
+	return clonePlanningConcepts(fixture.planning), nil
+}
+
+func clonePlanningConcepts(source []learning.DailyPlanCurriculumConcept) []learning.DailyPlanCurriculumConcept {
+	result := make([]learning.DailyPlanCurriculumConcept, len(source))
+	for index, concept := range source {
+		result[index] = concept
+		result[index].PrerequisiteIDs = append([]learning.ID(nil), concept.PrerequisiteIDs...)
+	}
+	return result
+}
+
 func (repository curriculumRepository) Prerequisites(ctx context.Context, reference learning.CurriculumRef, conceptID learning.ID) ([]learning.Prerequisite, error) {
 	if err := contextError("list memory prerequisites", ctx); err != nil {
 		return nil, err

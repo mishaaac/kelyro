@@ -24,8 +24,8 @@ translate errors. Educational formulas stay in the domain: application code
 loads their inputs, supplies transaction and clock boundaries, and persists
 their durable versioned outputs. Spaced-repetition scheduling, read-only
 warm-up selection, full-history streak recalculation, historical achievement
-evaluation, and explainable analytics aggregation follow that boundary;
-daily-plan selection remains deferred to its dedicated I-02 step.
+evaluation, explainable analytics aggregation, and adaptive daily-plan
+selection follow that boundary.
 
 ## Repository ports
 
@@ -59,11 +59,13 @@ The initial service contracts are:
   eligibility from durable facts, and atomically recording only new unlocks;
 - `LearningAnalyticsService` for rebuilding a described, versioned snapshot
   from primary concept, retention, review, session, and history facts;
+- `AdaptiveDailyPlanService` for reusing or explicitly regenerating today's
+  persisted, explainable `daily-plan-v1` snapshot from primary facts;
 - the legacy `SessionService` projection and `ReviewService` for completed
   activity records and review records;
 - the legacy `AnalyticsService` for stored snapshot compatibility; Learning
   Analytics v1 never treats those rows as truth;
-- `DailyPlanService` for stored plans selected by student, goal, and date.
+- the legacy `DailyPlanService` for direct stored-plan compatibility.
 
 `ConceptProgress` is deliberately a read model of stored facts. It does not
 derive a mastery score from evidence or change exposure state.

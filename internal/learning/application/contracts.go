@@ -263,6 +263,13 @@ type LearningAnalyticsService interface {
 	Snapshot(context.Context) (learning.LearningAnalyticsSnapshot, error)
 }
 
+// AdaptiveDailyPlanService returns today's persisted, explainable plan. It
+// reuses an unchanged v1 snapshot and regenerates only when its policy or
+// primary-source fingerprint changes.
+type AdaptiveDailyPlanService interface {
+	Today(context.Context) (learning.DailyPlan, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -332,6 +339,7 @@ type ProfileStore interface {
 	Streaks() StreakService
 	Achievements() AchievementService
 	Analytics() LearningAnalyticsService
+	DailyPlan() AdaptiveDailyPlanService
 	Close() error
 }
 
@@ -371,6 +379,7 @@ type MasteryThresholdRepository interface {
 type CurriculumStateRepository interface {
 	Concept(context.Context, learning.CurriculumRef, learning.ID) (learning.Concept, error)
 	Concepts(context.Context, learning.CurriculumRef) ([]learning.Concept, error)
+	PlanningConcepts(context.Context, learning.CurriculumRef) ([]learning.DailyPlanCurriculumConcept, error)
 	Prerequisites(context.Context, learning.CurriculumRef, learning.ID) ([]learning.Prerequisite, error)
 	ModuleForConcept(context.Context, learning.CurriculumRef, learning.ID) (learning.ID, error)
 }

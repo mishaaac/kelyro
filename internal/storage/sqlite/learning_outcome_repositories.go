@@ -392,11 +392,31 @@ func (repository learningDailyPlanRepository) Save(ctx context.Context, plan lea
 		if _, err := target.ExecContext(ctx, "DELETE FROM daily_plans WHERE student_id=? AND goal_id=? AND plan_date=?", plan.StudentID.String(), plan.GoalID.String(), encodeTimestamp(plan.Date)); err != nil {
 			return err
 		}
-		if _, err := target.ExecContext(ctx, `INSERT INTO daily_plans (id,student_id,goal_id,plan_date,created_at) VALUES (?,?,?,?,?)`, plan.ID.String(), plan.StudentID.String(), plan.GoalID.String(), encodeTimestamp(plan.Date), encodeTimestamp(plan.CreatedAt)); err != nil {
+		policyVersion := plan.PolicyVersion
+		curriculumInstanceID, timezone := "", ""
+		availableMinutes, plannedMinutes, bufferMinutes := 0, 0, 0
+		status, generationReason, sourceFingerprint := "legacy", "legacy", ""
+		if policyVersion == "" || policyVersion == learning.LegacyDailyPlanPolicyVersion {
+			policyVersion = learning.LegacyDailyPlanPolicyVersion
+		} else {
+			curriculumInstanceID, timezone = plan.CurriculumInstanceID.String(), plan.Timezone
+			availableMinutes, plannedMinutes, bufferMinutes = plan.AvailableMinutes, plan.PlannedMinutes, plan.BufferMinutes
+			status, generationReason, sourceFingerprint = string(plan.Status), string(plan.GenerationReason), plan.SourceFingerprint
+		}
+		if _, err := target.ExecContext(ctx, `INSERT INTO daily_plans
+(id,student_id,goal_id,plan_date,created_at,curriculum_instance_id,timezone,available_minutes,planned_minutes,buffer_minutes,plan_status,generation_reason,source_fingerprint,policy_version)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, plan.ID.String(), plan.StudentID.String(), plan.GoalID.String(), encodeTimestamp(plan.Date), encodeTimestamp(plan.CreatedAt),
+			curriculumInstanceID, timezone, availableMinutes, plannedMinutes, bufferMinutes, status, generationReason, sourceFingerprint, policyVersion); err != nil {
 			return err
 		}
 		for _, item := range plan.Items {
-			if _, err := target.ExecContext(ctx, `INSERT INTO daily_plan_items (id,plan_id,item_type,estimated_minutes,position) VALUES (?,?,?,?,?)`, item.ID.String(), plan.ID.String(), item.Type, item.EstimatedMinutes, item.Position); err != nil {
+			role, reason, explanation := "legacy", "legacy", ""
+			if policyVersion == learning.DailyPlanPolicyVersion {
+				role, reason, explanation = string(item.Role), string(item.Reason), item.Explanation
+			}
+			if _, err := target.ExecContext(ctx, `INSERT INTO daily_plan_items
+(id,plan_id,item_type,estimated_minutes,position,item_role,selection_reason,explanation) VALUES (?,?,?,?,?,?,?,?)`,
+				item.ID.String(), plan.ID.String(), item.Type, item.EstimatedMinutes, item.Position, role, reason, explanation); err != nil {
 				return err
 			}
 			for position, conceptID := range item.ConceptIDs {
@@ -413,8 +433,14 @@ func (repository learningDailyPlanRepository) ForDate(ctx context.Context, stude
 	const operation = "get SQLite daily plan"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	var idValue, studentValue, goalValue, dateValue, createdValue string
-	err := repository.executor.QueryRowContext(operationContext, `SELECT id,student_id,goal_id,plan_date,created_at FROM daily_plans WHERE student_id=? AND goal_id=? AND plan_date=?`, studentID.String(), goalID.String(), encodeTimestamp(date)).Scan(&idValue, &studentValue, &goalValue, &dateValue, &createdValue)
+	var idValue, studentValue, goalValue, dateValue, createdValue, curriculumInstanceValue, timezone string
+	var status, generationReason, sourceFingerprint, policyVersion string
+	var availableMinutes, plannedMinutes, bufferMinutes int
+	err := repository.executor.QueryRowContext(operationContext, `SELECT id,student_id,goal_id,plan_date,created_at,
+curriculum_instance_id,timezone,available_minutes,planned_minutes,buffer_minutes,plan_status,generation_reason,source_fingerprint,policy_version
+FROM daily_plans WHERE student_id=? AND goal_id=? AND plan_date=?`, studentID.String(), goalID.String(), encodeTimestamp(date)).Scan(
+		&idValue, &studentValue, &goalValue, &dateValue, &createdValue, &curriculumInstanceValue, &timezone,
+		&availableMinutes, &plannedMinutes, &bufferMinutes, &status, &generationReason, &sourceFingerprint, &policyVersion)
 	if err != nil {
 		return learning.DailyPlan{}, classifyLearningError(operation, err)
 	}
@@ -439,14 +465,30 @@ func (repository learningDailyPlanRepository) ForDate(ctx context.Context, stude
 		return learning.DailyPlan{}, corruptLearning(operation, err)
 	}
 	plan := learning.DailyPlan{ID: id, StudentID: student, GoalID: goal, Date: planDate, CreatedAt: created}
-	rows, err := repository.executor.QueryContext(operationContext, `SELECT id,item_type,estimated_minutes,position FROM daily_plan_items WHERE plan_id=? ORDER BY position`, id.String())
+	if policyVersion == learning.DailyPlanPolicyVersion {
+		curriculumInstanceID, err := decodeID(curriculumInstanceValue)
+		if err != nil {
+			return learning.DailyPlan{}, corruptLearning(operation, err)
+		}
+		plan.CurriculumInstanceID = curriculumInstanceID
+		plan.Timezone = timezone
+		plan.AvailableMinutes, plan.PlannedMinutes, plan.BufferMinutes = availableMinutes, plannedMinutes, bufferMinutes
+		plan.Status = learning.DailyPlanStatus(status)
+		plan.GenerationReason = learning.DailyPlanGenerationReason(generationReason)
+		plan.SourceFingerprint = sourceFingerprint
+		plan.PolicyVersion = policyVersion
+	} else if policyVersion != learning.LegacyDailyPlanPolicyVersion {
+		return learning.DailyPlan{}, corruptLearning(operation, fmt.Errorf("unsupported daily plan policy %q", policyVersion))
+	}
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT id,item_type,estimated_minutes,position,item_role,selection_reason,explanation
+FROM daily_plan_items WHERE plan_id=? ORDER BY position`, id.String())
 	if err != nil {
 		return learning.DailyPlan{}, classifyLearningError(operation, err)
 	}
 	for rows.Next() {
-		var itemIDValue, itemType string
+		var itemIDValue, itemType, role, reason, explanation string
 		var minutes, position int
-		if err := rows.Scan(&itemIDValue, &itemType, &minutes, &position); err != nil {
+		if err := rows.Scan(&itemIDValue, &itemType, &minutes, &position, &role, &reason, &explanation); err != nil {
 			_ = rows.Close()
 			return learning.DailyPlan{}, corruptLearning(operation, err)
 		}
@@ -455,7 +497,13 @@ func (repository learningDailyPlanRepository) ForDate(ctx context.Context, stude
 			_ = rows.Close()
 			return learning.DailyPlan{}, corruptLearning(operation, err)
 		}
-		plan.Items = append(plan.Items, learning.DailyPlanItem{ID: itemID, Type: learning.DailyPlanItemType(itemType), EstimatedMinutes: minutes, Position: position})
+		item := learning.DailyPlanItem{ID: itemID, Type: learning.DailyPlanItemType(itemType), EstimatedMinutes: minutes, Position: position}
+		if plan.PolicyVersion == learning.DailyPlanPolicyVersion {
+			item.Role = learning.DailyPlanItemRole(role)
+			item.Reason = learning.DailyPlanSelectionReason(reason)
+			item.Explanation = explanation
+		}
+		plan.Items = append(plan.Items, item)
 	}
 	if err := rows.Close(); err != nil {
 		return learning.DailyPlan{}, classifyLearningError(operation, err)

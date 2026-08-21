@@ -42,6 +42,9 @@ func TestFactoryPersistsProfileAcrossStoreLifetimes(t *testing.T) {
 		analytics.Progress.ConceptsIntroduced.Value != 0 || analytics.Mastery.AverageKnown.Value != nil {
 		t.Fatalf("empty analytics = (%+v, %v)", analytics, err)
 	}
+	if _, err := store.DailyPlan().Today(context.Background()); !errors.Is(err, application.ErrNotFound) {
+		t.Fatalf("daily plan without active goal error = %v, want not found", err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}

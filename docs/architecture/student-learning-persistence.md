@@ -61,6 +61,15 @@ student unlock context and evaluator version. Existing rows remain readable as
 operations so the application can install deterministic data and use
 insert-if-absent semantics inside one unit of work.
 
+Forward-only migration v20 extends the published v4 daily-plan tables with the
+curriculum instance, local-date context, budget totals, result status,
+regeneration reason, source fingerprint, policy version, and explainable item
+metadata required by `daily-plan-v1`. Existing rows remain readable as
+`legacy-daily-plan/v0`. The unique student/goal/local-date row is an auditable
+daily snapshot; explicit regeneration atomically replaces only that day's
+invalidated snapshot. SQLite guards enforce snapshot shape and budget, while
+selection priorities remain in the domain.
+
 ## Integrity and access paths
 
 Foreign keys reject student facts for unknown students or concepts and cascade

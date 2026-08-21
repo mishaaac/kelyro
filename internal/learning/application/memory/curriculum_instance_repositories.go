@@ -50,8 +50,60 @@ func (repository curriculumDefinitionRepository) Install(ctx context.Context, cu
 			})
 		}
 	}
+	fixture.planning = memoryPlanningConcepts(curriculum)
 	repository.store.curricula[key] = fixture
 	return nil
+}
+
+func memoryPlanningConcepts(curriculum learning.Curriculum) []learning.DailyPlanCurriculumConcept {
+	concepts := make([]learning.CurriculumNode, 0)
+	for _, node := range curriculum.Nodes {
+		if node.Type == learning.CurriculumNodeConcept {
+			concepts = append(concepts, node)
+		}
+	}
+	sort.Slice(concepts, func(i, j int) bool {
+		return curriculumPathBefore(curriculum, concepts[i], concepts[j])
+	})
+	result := make([]learning.DailyPlanCurriculumConcept, 0, len(concepts))
+	for sequence, node := range concepts {
+		concept := learning.DailyPlanCurriculumConcept{ConceptID: node.ID, Sequence: sequence}
+		for _, prerequisite := range node.Concept.Prerequisites {
+			concept.PrerequisiteIDs = append(concept.PrerequisiteIDs, prerequisite.ConceptID)
+		}
+		sort.Slice(concept.PrerequisiteIDs, func(i, j int) bool { return concept.PrerequisiteIDs[i].String() < concept.PrerequisiteIDs[j].String() })
+		result = append(result, concept)
+	}
+	return result
+}
+
+func curriculumPathBefore(curriculum learning.Curriculum, left, right learning.CurriculumNode) bool {
+	leftPath, rightPath := memoryCurriculumPath(curriculum, left), memoryCurriculumPath(curriculum, right)
+	for index := 0; index < len(leftPath) && index < len(rightPath); index++ {
+		if leftPath[index].Order != rightPath[index].Order {
+			return leftPath[index].Order < rightPath[index].Order
+		}
+		if leftPath[index].ID != rightPath[index].ID {
+			return leftPath[index].ID.String() < rightPath[index].ID.String()
+		}
+	}
+	return len(leftPath) < len(rightPath)
+}
+
+func memoryCurriculumPath(curriculum learning.Curriculum, node learning.CurriculumNode) []learning.CurriculumNode {
+	path := []learning.CurriculumNode{node}
+	for node.ParentID != nil {
+		parent, exists := curriculum.Node(*node.ParentID)
+		if !exists {
+			break
+		}
+		path = append(path, parent)
+		node = parent
+	}
+	for left, right := 0, len(path)-1; left < right; left, right = left+1, right-1 {
+		path[left], path[right] = path[right], path[left]
+	}
+	return path
 }
 
 func curriculumModuleForConcept(curriculum learning.Curriculum, conceptID learning.ID) (learning.ID, bool) {

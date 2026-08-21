@@ -5,6 +5,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 
 	"github.com/mishaaac/kelyro/internal/learning"
@@ -35,6 +36,7 @@ type planKey struct {
 type curriculumFixture struct {
 	concepts      map[learning.ID]learning.Concept
 	prerequisites []learning.Prerequisite
+	planning      []learning.DailyPlanCurriculumConcept
 	modules       map[learning.ID]learning.ID
 	fingerprint   string
 }
@@ -175,6 +177,23 @@ func (store *Store) SeedCurriculum(reference learning.CurriculumRef, concepts []
 		}
 		fixture.prerequisites = append(fixture.prerequisites, prerequisite)
 	}
+	conceptIDs := make([]learning.ID, 0, len(fixture.concepts))
+	for conceptID := range fixture.concepts {
+		conceptIDs = append(conceptIDs, conceptID)
+	}
+	sort.Slice(conceptIDs, func(i, j int) bool { return conceptIDs[i].String() < conceptIDs[j].String() })
+	for sequence, conceptID := range conceptIDs {
+		planning := learning.DailyPlanCurriculumConcept{ConceptID: conceptID, Sequence: sequence}
+		for _, prerequisite := range fixture.prerequisites {
+			if prerequisite.ConceptID == conceptID {
+				planning.PrerequisiteIDs = append(planning.PrerequisiteIDs, prerequisite.RequiredConceptID)
+			}
+		}
+		sort.Slice(planning.PrerequisiteIDs, func(i, j int) bool {
+			return planning.PrerequisiteIDs[i].String() < planning.PrerequisiteIDs[j].String()
+		})
+		fixture.planning = append(fixture.planning, planning)
+	}
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -206,6 +225,7 @@ func (store *Store) cloneLocked() *Store {
 			fixture.concepts[conceptID] = concept
 		}
 		fixture.prerequisites = append([]learning.Prerequisite(nil), value.prerequisites...)
+		fixture.planning = clonePlanningConcepts(value.planning)
 		for conceptID, moduleID := range value.modules {
 			fixture.modules[conceptID] = moduleID
 		}

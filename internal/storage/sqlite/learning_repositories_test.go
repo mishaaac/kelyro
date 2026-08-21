@@ -557,6 +557,86 @@ VALUES ('achievement.legacy',?,'legacy.first','unlocked',?)`, student.ID.String(
 	}
 }
 
+func TestDailyPlanV1MigrationPreservesLegacyRowsAndSupportsExplainableSnapshots(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:19]); err != nil {
+		t.Fatalf("migrate through v19: %v", err)
+	}
+	ctx := context.Background()
+	student := testStudent(t)
+	goal := testGoal(t, student.ID)
+	if err := database.LearningRepositories().Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.LearningRepositories().Goals.Create(ctx, goal); err != nil {
+		t.Fatal(err)
+	}
+	reference := learning.CurriculumRef{ID: mustID(t, "curriculum.daily-migration"), Version: "1.0.0"}
+	concept := learning.Concept{ID: mustID(t, "concept.daily-migration"), TopicID: mustID(t, "topic.daily-migration"), Title: "Daily planning"}
+	if err := database.SeedCurriculum(ctx, reference, []learning.Concept{concept}, nil); err != nil {
+		t.Fatal(err)
+	}
+	instance, err := learning.NewCurriculumInstance(mustID(t, "instance.daily-migration"), student.ID, goal.ID,
+		reference, learning.CurriculumSourceFixture, mustTimestamp(t, fixedTime))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.LearningRepositories().CurriculumInstances.Create(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	legacyDate := mustTimestamp(t, fixedTime.Add(24*time.Hour))
+	if _, err := handle.Exec(`INSERT INTO daily_plans (id,student_id,goal_id,plan_date,created_at) VALUES ('plan.legacy',?,?,?,?)`,
+		student.ID.String(), goal.ID.String(), encodeTimestamp(legacyDate), encodeTimestamp(legacyDate)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO daily_plan_items (id,plan_id,item_type,estimated_minutes,position) VALUES ('plan-item.legacy','plan.legacy','review',10,0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO daily_plan_item_concepts (item_id,concept_id,position) VALUES ('plan-item.legacy',?,0)`, concept.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx); err != nil {
+		t.Fatalf("migrate daily-plan-v1: %v", err)
+	}
+	legacy, err := database.LearningRepositories().DailyPlans.ForDate(ctx, student.ID, goal.ID, legacyDate)
+	if err != nil || legacy.PolicyVersion != "" || legacy.Items[0].Role != "" || legacy.Items[0].Explanation != "" {
+		t.Fatalf("legacy daily plan = (%+v, %v)", legacy, err)
+	}
+
+	planDate := mustTimestamp(t, time.Date(2026, 8, 22, 5, 0, 0, 0, time.UTC))
+	createdAt := mustTimestamp(t, time.Date(2026, 8, 22, 15, 0, 0, 0, time.UTC))
+	plan := learning.DailyPlan{
+		ID: mustID(t, "plan.daily-v1"), StudentID: student.ID, GoalID: goal.ID, CurriculumInstanceID: instance.ID,
+		Date: planDate, CreatedAt: createdAt, Timezone: "America/Lima", AvailableMinutes: 45,
+		PlannedMinutes: 25, BufferMinutes: 5, Status: learning.DailyPlanReady,
+		GenerationReason: learning.DailyPlanGeneratedInitial, SourceFingerprint: "sha256:" + strings.Repeat("0", 64),
+		PolicyVersion: learning.DailyPlanPolicyVersion,
+		Items: []learning.DailyPlanItem{{
+			ID: mustID(t, "plan-item.daily-v1"), Type: learning.DailyPlanLearn, Role: learning.DailyPlanRoleNewLearning,
+			Reason: learning.DailyPlanNextEligibleConcept, Explanation: "Next eligible curriculum concept.",
+			ConceptIDs: []learning.ID{concept.ID}, EstimatedMinutes: 25, Position: 0,
+		}},
+	}
+	if err := database.LearningRepositories().DailyPlans.Save(ctx, plan); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := database.LearningRepositories().DailyPlans.ForDate(ctx, student.ID, goal.ID, planDate)
+	if err != nil || !reflect.DeepEqual(loaded, plan) {
+		t.Fatalf("daily-plan-v1 roundtrip = (%+v, %v), want %+v", loaded, err, plan)
+	}
+	if _, err := handle.Exec(`UPDATE daily_plans SET planned_minutes=available_minutes+1 WHERE id=?`, plan.ID.String()); err == nil {
+		t.Fatal("daily plan trigger accepted an over-budget snapshot")
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)
@@ -872,6 +952,13 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	concepts, err := repositories.Curricula.Concepts(ctx, reference)
 	if err != nil || !reflect.DeepEqual(concepts, []learning.Concept{conceptA, conceptB}) {
 		t.Fatalf("concepts=(%+v,%v)", concepts, err)
+	}
+	planningConcepts, err := repositories.Curricula.PlanningConcepts(ctx, reference)
+	if err != nil || !reflect.DeepEqual(planningConcepts, []learning.DailyPlanCurriculumConcept{
+		{ConceptID: conceptA.ID, Sequence: 0},
+		{ConceptID: conceptB.ID, Sequence: 1, PrerequisiteIDs: []learning.ID{conceptA.ID}},
+	}) {
+		t.Fatalf("planning concepts=(%+v,%v)", planningConcepts, err)
 	}
 	prerequisites, err := repositories.Curricula.Prerequisites(ctx, reference, conceptB.ID)
 	if err != nil || !reflect.DeepEqual(prerequisites, []learning.Prerequisite{edge}) {

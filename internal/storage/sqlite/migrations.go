@@ -987,6 +987,71 @@ WHEN NEW.policy_version='achievement-v1' AND (NEW.status<>'unlocked' OR NEW.unlo
 BEGIN SELECT RAISE(ABORT, 'invalid student achievement v1'); END`,
 		},
 	},
+	{
+		version: 20,
+		name:    "adaptive daily plan v1",
+		statements: []string{
+			`ALTER TABLE daily_plans ADD COLUMN curriculum_instance_id TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE daily_plans ADD COLUMN timezone TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE daily_plans ADD COLUMN available_minutes INTEGER NOT NULL DEFAULT 0 CHECK (available_minutes BETWEEN 0 AND 1440)`,
+			`ALTER TABLE daily_plans ADD COLUMN planned_minutes INTEGER NOT NULL DEFAULT 0 CHECK (planned_minutes BETWEEN 0 AND 1440)`,
+			`ALTER TABLE daily_plans ADD COLUMN buffer_minutes INTEGER NOT NULL DEFAULT 0 CHECK (buffer_minutes BETWEEN 0 AND 1440)`,
+			`ALTER TABLE daily_plans ADD COLUMN plan_status TEXT NOT NULL DEFAULT 'legacy'
+CHECK (plan_status IN ('legacy','ready','review_only','nothing_urgent','time_limited'))`,
+			`ALTER TABLE daily_plans ADD COLUMN generation_reason TEXT NOT NULL DEFAULT 'legacy'
+CHECK (generation_reason IN ('legacy','initial','source_changed','policy_changed'))`,
+			`ALTER TABLE daily_plans ADD COLUMN source_fingerprint TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE daily_plans ADD COLUMN policy_version TEXT NOT NULL DEFAULT 'legacy-daily-plan/v0'
+CHECK (policy_version IN ('legacy-daily-plan/v0','daily-plan-v1'))`,
+			`ALTER TABLE daily_plan_items ADD COLUMN item_role TEXT NOT NULL DEFAULT 'legacy'
+CHECK (item_role IN ('legacy','warm_up','review','new_learning','reinforcement'))`,
+			`ALTER TABLE daily_plan_items ADD COLUMN selection_reason TEXT NOT NULL DEFAULT 'legacy'
+CHECK (selection_reason IN ('legacy','critical_overdue_prerequisite','important_due_review','blocking_weakness','next_eligible_concept','optional_extra_practice'))`,
+			`ALTER TABLE daily_plan_items ADD COLUMN explanation TEXT NOT NULL DEFAULT ''`,
+			`CREATE TRIGGER daily_plans_v1_insert_guard
+BEFORE INSERT ON daily_plans
+WHEN (NEW.policy_version='legacy-daily-plan/v0' AND
+      (NEW.curriculum_instance_id<>'' OR NEW.timezone<>'' OR NEW.available_minutes<>0 OR NEW.planned_minutes<>0 OR
+       NEW.buffer_minutes<>0 OR NEW.plan_status<>'legacy' OR NEW.generation_reason<>'legacy' OR NEW.source_fingerprint<>''))
+  OR (NEW.policy_version='daily-plan-v1' AND
+      (length(trim(NEW.curriculum_instance_id))=0 OR length(trim(NEW.timezone))=0 OR
+       NEW.planned_minutes+NEW.buffer_minutes>NEW.available_minutes OR NEW.plan_status='legacy' OR
+       NEW.generation_reason='legacy' OR length(NEW.source_fingerprint)<>71 OR NEW.source_fingerprint NOT GLOB 'sha256:*' OR
+       NOT EXISTS (SELECT 1 FROM learner_curriculum_instances i
+                   WHERE i.id=NEW.curriculum_instance_id AND i.student_id=NEW.student_id AND i.goal_id=NEW.goal_id)))
+BEGIN SELECT RAISE(ABORT, 'invalid daily-plan-v1 snapshot'); END`,
+			`CREATE TRIGGER daily_plans_v1_update_guard
+BEFORE UPDATE ON daily_plans
+WHEN (NEW.policy_version='legacy-daily-plan/v0' AND
+      (NEW.curriculum_instance_id<>'' OR NEW.timezone<>'' OR NEW.available_minutes<>0 OR NEW.planned_minutes<>0 OR
+       NEW.buffer_minutes<>0 OR NEW.plan_status<>'legacy' OR NEW.generation_reason<>'legacy' OR NEW.source_fingerprint<>''))
+  OR (NEW.policy_version='daily-plan-v1' AND
+      (length(trim(NEW.curriculum_instance_id))=0 OR length(trim(NEW.timezone))=0 OR
+       NEW.planned_minutes+NEW.buffer_minutes>NEW.available_minutes OR NEW.plan_status='legacy' OR
+       NEW.generation_reason='legacy' OR length(NEW.source_fingerprint)<>71 OR NEW.source_fingerprint NOT GLOB 'sha256:*' OR
+       NOT EXISTS (SELECT 1 FROM learner_curriculum_instances i
+                   WHERE i.id=NEW.curriculum_instance_id AND i.student_id=NEW.student_id AND i.goal_id=NEW.goal_id)))
+BEGIN SELECT RAISE(ABORT, 'invalid daily-plan-v1 snapshot'); END`,
+			`CREATE TRIGGER daily_plan_items_v1_insert_guard
+BEFORE INSERT ON daily_plan_items
+WHEN EXISTS (SELECT 1 FROM daily_plans p WHERE p.id=NEW.plan_id AND p.policy_version='daily-plan-v1')
+ AND (NEW.item_role='legacy' OR NEW.selection_reason='legacy' OR length(trim(NEW.explanation))=0 OR
+      (NEW.item_role='warm_up' AND (NEW.item_type<>'review' OR NEW.selection_reason<>'critical_overdue_prerequisite')) OR
+      (NEW.item_role='review' AND (NEW.item_type<>'review' OR NEW.selection_reason<>'important_due_review')) OR
+      (NEW.item_role='new_learning' AND (NEW.item_type<>'learn' OR NEW.selection_reason<>'next_eligible_concept')) OR
+      (NEW.item_role='reinforcement' AND (NEW.item_type<>'practice' OR NEW.selection_reason NOT IN ('blocking_weakness','optional_extra_practice'))))
+BEGIN SELECT RAISE(ABORT, 'invalid daily-plan-v1 item'); END`,
+			`CREATE TRIGGER daily_plan_items_v1_update_guard
+BEFORE UPDATE ON daily_plan_items
+WHEN EXISTS (SELECT 1 FROM daily_plans p WHERE p.id=NEW.plan_id AND p.policy_version='daily-plan-v1')
+ AND (NEW.item_role='legacy' OR NEW.selection_reason='legacy' OR length(trim(NEW.explanation))=0 OR
+      (NEW.item_role='warm_up' AND (NEW.item_type<>'review' OR NEW.selection_reason<>'critical_overdue_prerequisite')) OR
+      (NEW.item_role='review' AND (NEW.item_type<>'review' OR NEW.selection_reason<>'important_due_review')) OR
+      (NEW.item_role='new_learning' AND (NEW.item_type<>'learn' OR NEW.selection_reason<>'next_eligible_concept')) OR
+      (NEW.item_role='reinforcement' AND (NEW.item_type<>'practice' OR NEW.selection_reason NOT IN ('blocking_weakness','optional_extra_practice'))))
+BEGIN SELECT RAISE(ABORT, 'invalid daily-plan-v1 item'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

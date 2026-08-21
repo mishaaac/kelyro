@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/learning"
@@ -190,6 +191,142 @@ WHERE curriculum_id = ? AND curriculum_version = ? AND node_type = 'concept' ORD
 		return nil, classifyLearningError(operation, err)
 	}
 	return concepts, nil
+}
+
+func (repository learningCurriculumRepository) PlanningConcepts(ctx context.Context, reference learning.CurriculumRef) ([]learning.DailyPlanCurriculumConcept, error) {
+	const operation = "list SQLite curriculum planning concepts"
+	if err := reference.Validate(); err != nil {
+		return nil, invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	if err := requireCurriculum(operationContext, repository.executor, reference); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT node_id,node_type,parent_node_id,concept_id,position
+FROM curriculum_nodes WHERE curriculum_id=? AND curriculum_version=? ORDER BY node_id`,
+		reference.ID.String(), reference.Version)
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer rows.Close()
+	nodes := make(map[learning.ID]sqlitePlanningNode)
+	conceptNodes := make([]sqlitePlanningNode, 0)
+	for rows.Next() {
+		var idValue, nodeType string
+		var parentValue, conceptValue sql.NullString
+		var position int
+		if err := rows.Scan(&idValue, &nodeType, &parentValue, &conceptValue, &position); err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		id, err := decodeID(idValue)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		node := sqlitePlanningNode{id: id, position: position}
+		if parentValue.Valid {
+			parentID, err := decodeID(parentValue.String)
+			if err != nil {
+				return nil, corruptLearning(operation, err)
+			}
+			node.parentID = &parentID
+		}
+		if learning.CurriculumNodeType(nodeType) == learning.CurriculumNodeConcept {
+			if !conceptValue.Valid {
+				return nil, corruptLearning(operation, fmt.Errorf("concept node %q has no concept identity", id))
+			}
+			conceptID, err := decodeID(conceptValue.String)
+			if err != nil {
+				return nil, corruptLearning(operation, err)
+			}
+			node.conceptID = &conceptID
+			conceptNodes = append(conceptNodes, node)
+		}
+		nodes[id] = node
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	sort.Slice(conceptNodes, func(i, j int) bool { return sqlitePlanningNodeBefore(nodes, conceptNodes[i], conceptNodes[j]) })
+	items := make([]learning.DailyPlanCurriculumConcept, 0, len(conceptNodes))
+	byConcept := make(map[learning.ID]int, len(conceptNodes))
+	for sequence, node := range conceptNodes {
+		items = append(items, learning.DailyPlanCurriculumConcept{ConceptID: *node.conceptID, Sequence: sequence})
+		byConcept[*node.conceptID] = sequence
+	}
+	edgeRows, err := repository.executor.QueryContext(operationContext, `SELECT concept_id,required_concept_id FROM curriculum_edges
+WHERE curriculum_id=? AND curriculum_version=? ORDER BY concept_id,required_concept_id`, reference.ID.String(), reference.Version)
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer edgeRows.Close()
+	for edgeRows.Next() {
+		var conceptValue, requiredValue string
+		if err := edgeRows.Scan(&conceptValue, &requiredValue); err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		conceptID, err := decodeID(conceptValue)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		requiredID, err := decodeID(requiredValue)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		index, exists := byConcept[conceptID]
+		if !exists {
+			return nil, corruptLearning(operation, fmt.Errorf("planning edge references missing concept %q", conceptID))
+		}
+		items[index].PrerequisiteIDs = append(items[index].PrerequisiteIDs, requiredID)
+	}
+	if err := edgeRows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	for _, item := range items {
+		if err := item.Validate(); err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+	}
+	return items, nil
+}
+
+type sqlitePlanningNode struct {
+	id        learning.ID
+	parentID  *learning.ID
+	conceptID *learning.ID
+	position  int
+}
+
+func sqlitePlanningNodeBefore(nodes map[learning.ID]sqlitePlanningNode, left, right sqlitePlanningNode) bool {
+	leftPath, rightPath := sqlitePlanningPath(nodes, left), sqlitePlanningPath(nodes, right)
+	for index := 0; index < len(leftPath) && index < len(rightPath); index++ {
+		if leftPath[index].position != rightPath[index].position {
+			return leftPath[index].position < rightPath[index].position
+		}
+		if leftPath[index].id != rightPath[index].id {
+			return leftPath[index].id.String() < rightPath[index].id.String()
+		}
+	}
+	return len(leftPath) < len(rightPath)
+}
+
+func sqlitePlanningPath(nodes map[learning.ID]sqlitePlanningNode, node sqlitePlanningNode) []sqlitePlanningNode {
+	path := []sqlitePlanningNode{node}
+	for node.parentID != nil {
+		parent, exists := nodes[*node.parentID]
+		if !exists {
+			break
+		}
+		path = append(path, parent)
+		node = parent
+	}
+	for left, right := 0, len(path)-1; left < right; left, right = left+1, right-1 {
+		path[left], path[right] = path[right], path[left]
+	}
+	return path
 }
 
 func (repository learningCurriculumRepository) Prerequisites(ctx context.Context, reference learning.CurriculumRef, conceptID learning.ID) ([]learning.Prerequisite, error) {

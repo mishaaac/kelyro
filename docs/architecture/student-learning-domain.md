@@ -156,8 +156,9 @@ This keeps the domain deterministic and avoids a premature repository interface.
 The base domain did not define educational policies. Mastery, diagnostic,
 retention, progression, spaced-repetition, warm-up, streak, and achievement
 policies are now documented in their dedicated versioned architecture records.
-Adaptive daily-plan selection and exercise generation remain deferred to their
-explicit later steps. Analytics aggregation is defined by
+Adaptive daily-plan selection is defined by the versioned, deterministic
+`daily-plan-v1` policy. Exercise and educational-content generation remain
+deferred to I-05. Analytics aggregation is defined by
 `learning-analytics-v1` and documented in
 [`explainable-learning-analytics-v1.md`](explainable-learning-analytics-v1.md).
 The base domain also does not define database schemas, migrations,

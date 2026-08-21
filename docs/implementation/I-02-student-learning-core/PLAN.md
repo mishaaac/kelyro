@@ -2253,7 +2253,7 @@ feat(analytics): add explainable learning analytics v1
 
 ## Paso 24 — Implementar Adaptive Daily Plan v1
 
-- [ ] Paso 24 completado
+- [x] Paso 24 completado
 
 ### Objetivo
 
@@ -3167,7 +3167,7 @@ Crear annotated tag únicamente si corresponde a release real.
 - [ ] Paso 21 — Streaks
 - [x] Paso 22 — Achievements
 - [x] Paso 23 — Learning Analytics v1
-- [ ] Paso 24 — Adaptive Daily Plan v1
+- [x] Paso 24 — Adaptive Daily Plan v1
 - [ ] Paso 25 — Progress Dashboard service
 - [ ] Paso 26 — TUI Student Core
 - [ ] Paso 27 — CLI Student Core

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 24 (pending authorization)
-Last completed step: 23
+Current step: 25 (pending authorization)
+Last completed step: 24
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1045,3 +1045,49 @@ Release: unreleased
 - El Paso 24 es el siguiente paso pendiente y requiere autorización explícita.
 - Adaptive Daily Plan v1 podrá consumir este snapshot como lectura explicable, pero deberá tomar sus decisiones desde fuentes/políticas autoritativas y no convertir analytics en un cache obligatorio.
 - No adelantar Progress Dashboard, TUI Student Core completo, Markdown de progreso ni Exercise Engine.
+
+## Step 24 — Adaptive Daily Plan v1
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Política pura, configurable y versionada `daily-plan-v1` que selecciona trabajo conceptual sin generar lesson, practice, assessment ni contenido educativo.
+- Frontier curricular estricto basado en el orden jerárquico y el mastery threshold resuelto: ningún concepto posterior puede saltarse una debilidad o prerequisito bloqueante.
+- Priorización determinista de critical overdue prerequisites, reviews vencidas, blocking weaknesses, siguiente concepto elegible y práctica opcional por mistake no resuelto.
+- Presupuesto con defaults explícitos de 5 minutos de warm-up, 10 de reinforcement, 25 de new learning, mínimo útil de 10 y buffer de 5; el aggregate impide que planned más buffer excedan availability.
+- Items explicables con role, selection reason, texto humano, concepto único, minutos y posición; estados `ready`, `review_only`, `nothing_urgent` y `time_limited` distinguen resultados completos y vacíos.
+- Fingerprint SHA-256 de fuentes/políticas y IDs deterministas que permiten reutilizar el snapshot del día si nada relevante cambió y regenerarlo explícitamente por cambio de source o policy.
+- `AdaptiveDailyPlanService.Today` workspace-scoped que resuelve fecha local, goal e instancia activos, mastery policy y hechos primarios dentro del boundary application; no consume el snapshot de Analytics como verdad.
+- Proyección mínima de planning curriculum en adapters memory/SQLite, preservando orden de jerarquía y prerequisitos sin exponer nodos o SQL al planner.
+- Migration forward-only v20 con metadata v1, guards de presupuesto/shape y compatibilidad completa de filas publicadas como `legacy-daily-plan/v0`.
+- Wiring en `ProfileStore`/`learningdb` y documentación de prioridades, desempates, budget, regeneración, persistencia y límites en `docs/architecture/daily-plan-v1.md`.
+
+### Decisions
+
+- Daily Plan selecciona únicamente qué concepto y clase de trabajo realizar; I-05 conserva la construcción y evaluación del contenido concreto.
+- El primer concepto bajo threshold es el frontier autoritativo. Si ya fue visto pero no dominado, o si un prerequisito no satisface mastery, el día refuerza la debilidad y no introduce material posterior.
+- Un critical prerequisite es overdue después de más de una stability interval desde `next_due_at`, consistente con `retention-v1` y Learning Analytics v1.
+- Reviews usan su estimate persistido; warm-up, reinforcement y new-learning usan slots indivisibles/configurados salvo que new learning pueda reducirse hasta su mínimo útil.
+- El buffer se reserva solo cuando el presupuesto permite al menos el mínimo útil de new learning más buffer; el límite total es estricto y no intenta optimización combinatoria perfecta.
+- El fingerprint excluye el instante exacto de generación, pero incluye fecha local, timezone, availability, curriculum/prerequisitos, mastery policy/state, reviews/retention, mistakes, history y configuración completa del planner.
+- La llamada `Today` es el boundary explícito de generación: reutiliza policy+fingerprint idénticos y reemplaza atómicamente solo el snapshot obsoleto del mismo goal/día; fechas anteriores permanecen como historial.
+- El servicio retorna `not_found` sin active goal o active curriculum instance. Step 24 no añade dashboard, CLI/TUI, Markdown, Exercise Engine, Research Engine, Curriculum Compiler, IA ni plugins.
+
+### Verification
+
+- Tests de dominio para brand-new student, reviews con critical warm-up, blocked next lesson, todo mastered, tiny budget y determinismo ante reordenamiento de facts.
+- Tests application para ausencia de active goal, persistencia inicial, reutilización sin cambios y regeneración al cambiar mastery state.
+- Tests memory/SQLite para orden de hierarchy, prerequisites, upgrade v19 → v20, preservación legacy, roundtrip v1 y rechazo de snapshots sobre presupuesto.
+- `GOCACHE=/tmp/kelyro-step24-early-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step24-early-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-step24-early-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 25 es el siguiente paso pendiente y requiere autorización explícita.
+- Progress Dashboard debe consumir servicios/read models coherentes sin duplicar queries ni recalcular en presentation las políticas de analytics o daily planning.
+- No adelantar TUI Student Core completo, CLI Student Core, Markdown de progreso, migration/recalculation general ni Exercise Engine.

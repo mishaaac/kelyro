@@ -1,6 +1,7 @@
 package learning
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -359,9 +360,50 @@ func (itemType DailyPlanItemType) Valid() bool {
 	}
 }
 
+type DailyPlanItemRole string
+
+const (
+	DailyPlanRoleWarmUp        DailyPlanItemRole = "warm_up"
+	DailyPlanRoleReview        DailyPlanItemRole = "review"
+	DailyPlanRoleNewLearning   DailyPlanItemRole = "new_learning"
+	DailyPlanRoleReinforcement DailyPlanItemRole = "reinforcement"
+)
+
+func (role DailyPlanItemRole) Valid() bool {
+	switch role {
+	case DailyPlanRoleWarmUp, DailyPlanRoleReview, DailyPlanRoleNewLearning, DailyPlanRoleReinforcement:
+		return true
+	default:
+		return false
+	}
+}
+
+type DailyPlanSelectionReason string
+
+const (
+	DailyPlanCriticalOverduePrerequisite DailyPlanSelectionReason = "critical_overdue_prerequisite"
+	DailyPlanImportantDueReview          DailyPlanSelectionReason = "important_due_review"
+	DailyPlanBlockingWeakness            DailyPlanSelectionReason = "blocking_weakness"
+	DailyPlanNextEligibleConcept         DailyPlanSelectionReason = "next_eligible_concept"
+	DailyPlanOptionalExtraPractice       DailyPlanSelectionReason = "optional_extra_practice"
+)
+
+func (reason DailyPlanSelectionReason) Valid() bool {
+	switch reason {
+	case DailyPlanCriticalOverduePrerequisite, DailyPlanImportantDueReview, DailyPlanBlockingWeakness,
+		DailyPlanNextEligibleConcept, DailyPlanOptionalExtraPractice:
+		return true
+	default:
+		return false
+	}
+}
+
 type DailyPlanItem struct {
 	ID               ID
 	Type             DailyPlanItemType
+	Role             DailyPlanItemRole
+	Reason           DailyPlanSelectionReason
+	Explanation      string
 	ConceptIDs       []ID
 	EstimatedMinutes int
 	Position         int
@@ -389,15 +431,59 @@ func (item DailyPlanItem) Validate() error {
 	return nil
 }
 
-// DailyPlan is a dated, ordered study proposal. Adaptation and selection policy
-// are deliberately deferred to the later Daily Plan implementation step.
+type DailyPlanStatus string
+
+const (
+	DailyPlanReady         DailyPlanStatus = "ready"
+	DailyPlanReviewOnly    DailyPlanStatus = "review_only"
+	DailyPlanNothingUrgent DailyPlanStatus = "nothing_urgent"
+	DailyPlanTimeLimited   DailyPlanStatus = "time_limited"
+)
+
+func (status DailyPlanStatus) Valid() bool {
+	switch status {
+	case DailyPlanReady, DailyPlanReviewOnly, DailyPlanNothingUrgent, DailyPlanTimeLimited:
+		return true
+	default:
+		return false
+	}
+}
+
+type DailyPlanGenerationReason string
+
+const (
+	DailyPlanGeneratedInitial       DailyPlanGenerationReason = "initial"
+	DailyPlanGeneratedSourceChanged DailyPlanGenerationReason = "source_changed"
+	DailyPlanGeneratedPolicyChanged DailyPlanGenerationReason = "policy_changed"
+)
+
+func (reason DailyPlanGenerationReason) Valid() bool {
+	switch reason {
+	case DailyPlanGeneratedInitial, DailyPlanGeneratedSourceChanged, DailyPlanGeneratedPolicyChanged:
+		return true
+	default:
+		return false
+	}
+}
+
+// DailyPlan is a dated, ordered study proposal. V1 plans are explainable
+// snapshots; empty policy metadata remains the published legacy contract.
 type DailyPlan struct {
-	ID        ID
-	StudentID ID
-	GoalID    ID
-	Date      Timestamp
-	CreatedAt Timestamp
-	Items     []DailyPlanItem
+	ID                   ID
+	StudentID            ID
+	GoalID               ID
+	CurriculumInstanceID ID
+	Date                 Timestamp
+	CreatedAt            Timestamp
+	Timezone             string
+	AvailableMinutes     int
+	PlannedMinutes       int
+	BufferMinutes        int
+	Status               DailyPlanStatus
+	GenerationReason     DailyPlanGenerationReason
+	SourceFingerprint    string
+	PolicyVersion        string
+	Items                []DailyPlanItem
 }
 
 func (plan DailyPlan) Validate() error {
@@ -416,8 +502,24 @@ func (plan DailyPlan) Validate() error {
 	if err := plan.CreatedAt.Validate(); err != nil {
 		return fmt.Errorf("daily plan created at: %w", err)
 	}
+	v1 := plan.PolicyVersion == DailyPlanPolicyVersion
+	if plan.PolicyVersion != "" && plan.PolicyVersion != LegacyDailyPlanPolicyVersion && !v1 {
+		return fmt.Errorf("daily plan policy %q is unsupported", plan.PolicyVersion)
+	}
+	if v1 {
+		if err := plan.validateV1Metadata(); err != nil {
+			return err
+		}
+	} else if plan.CurriculumInstanceID != (ID{}) || plan.Timezone != "" || plan.AvailableMinutes != 0 ||
+		plan.PlannedMinutes != 0 || plan.BufferMinutes != 0 || plan.Status != "" || plan.GenerationReason != "" ||
+		plan.SourceFingerprint != "" {
+		return fmt.Errorf("legacy daily plan contains v1 metadata")
+	}
 	seenIDs := make(map[ID]struct{}, len(plan.Items))
 	seenPositions := make(map[int]struct{}, len(plan.Items))
+	seenConcepts := make(map[ID]struct{}, len(plan.Items))
+	plannedMinutes := 0
+	hasNewLearning := false
 	for _, item := range plan.Items {
 		if err := item.Validate(); err != nil {
 			return err
@@ -430,6 +532,108 @@ func (plan DailyPlan) Validate() error {
 		}
 		seenIDs[item.ID] = struct{}{}
 		seenPositions[item.Position] = struct{}{}
+		if v1 {
+			if err := validateDailyPlanItemV1(item); err != nil {
+				return err
+			}
+			if _, exists := seenConcepts[item.ConceptIDs[0]]; exists {
+				return fmt.Errorf("daily plan v1 selects concept %q more than once", item.ConceptIDs[0])
+			}
+			seenConcepts[item.ConceptIDs[0]] = struct{}{}
+			plannedMinutes += item.EstimatedMinutes
+			hasNewLearning = hasNewLearning || item.Role == DailyPlanRoleNewLearning
+		} else if item.Role != "" || item.Reason != "" || item.Explanation != "" {
+			return fmt.Errorf("legacy daily plan item contains v1 metadata")
+		}
+	}
+	if v1 {
+		for position := range plan.Items {
+			if _, exists := seenPositions[position]; !exists {
+				return fmt.Errorf("daily plan v1 item positions must be contiguous")
+			}
+		}
+		if plannedMinutes != plan.PlannedMinutes {
+			return fmt.Errorf("daily plan v1 planned minutes do not match items")
+		}
+		switch plan.Status {
+		case DailyPlanReady:
+			if !hasNewLearning {
+				return fmt.Errorf("ready daily plan has no new learning item")
+			}
+		case DailyPlanReviewOnly:
+			if len(plan.Items) == 0 || hasNewLearning {
+				return fmt.Errorf("review-only daily plan item mix is invalid")
+			}
+		case DailyPlanNothingUrgent, DailyPlanTimeLimited:
+			if len(plan.Items) != 0 {
+				return fmt.Errorf("empty daily plan status %q contains items", plan.Status)
+			}
+		}
+	}
+	return nil
+}
+
+func (plan DailyPlan) validateV1Metadata() error {
+	if err := plan.CurriculumInstanceID.Validate(); err != nil {
+		return fmt.Errorf("daily plan curriculum instance: %w", err)
+	}
+	location, err := time.LoadLocation(plan.Timezone)
+	if err != nil {
+		return fmt.Errorf("daily plan timezone: %w", err)
+	}
+	localDate := plan.Date.Time().In(location)
+	if localDate.Hour() != 0 || localDate.Minute() != 0 || localDate.Second() != 0 || localDate.Nanosecond() != 0 {
+		return fmt.Errorf("daily plan date is not local midnight")
+	}
+	if LocalDateFromTime(plan.Date.Time(), location) != LocalDateFromTime(plan.CreatedAt.Time(), location) {
+		return fmt.Errorf("daily plan creation is outside its local date")
+	}
+	if plan.AvailableMinutes < 0 || plan.AvailableMinutes > 24*60 || plan.PlannedMinutes < 0 || plan.BufferMinutes < 0 ||
+		plan.PlannedMinutes+plan.BufferMinutes > plan.AvailableMinutes {
+		return fmt.Errorf("daily plan v1 time budget is inconsistent")
+	}
+	if !plan.Status.Valid() {
+		return fmt.Errorf("daily plan status %q is invalid", plan.Status)
+	}
+	if !plan.GenerationReason.Valid() {
+		return fmt.Errorf("daily plan generation reason %q is invalid", plan.GenerationReason)
+	}
+	if len(plan.SourceFingerprint) != 71 || !strings.HasPrefix(plan.SourceFingerprint, "sha256:") {
+		return fmt.Errorf("daily plan source fingerprint is invalid")
+	}
+	if _, err := hex.DecodeString(strings.TrimPrefix(plan.SourceFingerprint, "sha256:")); err != nil {
+		return fmt.Errorf("daily plan source fingerprint is invalid")
+	}
+	return nil
+}
+
+func validateDailyPlanItemV1(item DailyPlanItem) error {
+	if len(item.ConceptIDs) != 1 {
+		return fmt.Errorf("daily plan v1 item must select exactly one concept")
+	}
+	if !item.Role.Valid() {
+		return fmt.Errorf("daily plan item role %q is invalid", item.Role)
+	}
+	if !item.Reason.Valid() {
+		return fmt.Errorf("daily plan item reason %q is invalid", item.Reason)
+	}
+	if err := requireText("daily plan item explanation", item.Explanation); err != nil {
+		return err
+	}
+	validCombination := false
+	switch item.Role {
+	case DailyPlanRoleWarmUp:
+		validCombination = item.Type == DailyPlanReview && item.Reason == DailyPlanCriticalOverduePrerequisite
+	case DailyPlanRoleReview:
+		validCombination = item.Type == DailyPlanReview && item.Reason == DailyPlanImportantDueReview
+	case DailyPlanRoleNewLearning:
+		validCombination = item.Type == DailyPlanLearn && item.Reason == DailyPlanNextEligibleConcept
+	case DailyPlanRoleReinforcement:
+		validCombination = item.Type == DailyPlanPractice &&
+			(item.Reason == DailyPlanBlockingWeakness || item.Reason == DailyPlanOptionalExtraPractice)
+	}
+	if !validCombination {
+		return fmt.Errorf("daily plan item role, type, and reason are inconsistent")
 	}
 	return nil
 }

@@ -55,13 +55,14 @@ type fakeProfileStoreFactory struct {
 	streaks      learningapp.StreakService
 	achievements learningapp.AchievementService
 	analytics    learningapp.LearningAnalyticsService
+	dailyPlan    learningapp.AdaptiveDailyPlanService
 	openRoot     string
 	closed       int
 }
 
 func (factory *fakeProfileStoreFactory) Open(_ context.Context, root string) (learningapp.ProfileStore, error) {
 	factory.openRoot = root
-	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, achievements: factory.achievements, analytics: factory.analytics, close: func() { factory.closed++ }}, nil
+	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, achievements: factory.achievements, analytics: factory.analytics, dailyPlan: factory.dailyPlan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeProfileStore struct {
@@ -78,6 +79,7 @@ type fakeProfileStore struct {
 	streaks      learningapp.StreakService
 	achievements learningapp.AchievementService
 	analytics    learningapp.LearningAnalyticsService
+	dailyPlan    learningapp.AdaptiveDailyPlanService
 	close        func()
 }
 
@@ -104,6 +106,9 @@ func (store *fakeProfileStore) Achievements() learningapp.AchievementService {
 }
 func (store *fakeProfileStore) Analytics() learningapp.LearningAnalyticsService {
 	return store.analytics
+}
+func (store *fakeProfileStore) DailyPlan() learningapp.AdaptiveDailyPlanService {
+	return store.dailyPlan
 }
 func (store *fakeProfileStore) Close() error {
 	store.close()
