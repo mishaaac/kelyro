@@ -35,6 +35,7 @@ type planKey struct {
 
 type curriculumFixture struct {
 	concepts      map[learning.ID]learning.Concept
+	outline       []learning.CurriculumOutlineNode
 	prerequisites []learning.Prerequisite
 	planning      []learning.DailyPlanCurriculumConcept
 	modules       map[learning.ID]learning.ID
@@ -225,6 +226,7 @@ func (store *Store) cloneLocked() *Store {
 			fixture.concepts[conceptID] = concept
 		}
 		fixture.prerequisites = append([]learning.Prerequisite(nil), value.prerequisites...)
+		fixture.outline = cloneCurriculumOutline(value.outline)
 		fixture.planning = clonePlanningConcepts(value.planning)
 		for conceptID, moduleID := range value.modules {
 			fixture.modules[conceptID] = moduleID

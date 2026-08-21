@@ -45,6 +45,11 @@ func TestFactoryPersistsProfileAcrossStoreLifetimes(t *testing.T) {
 	if _, err := store.DailyPlan().Today(context.Background()); !errors.Is(err, application.ErrNotFound) {
 		t.Fatalf("daily plan without active goal error = %v, want not found", err)
 	}
+	dashboard, err := store.Dashboard().Show(context.Background())
+	if err != nil || dashboard.Goal != nil || dashboard.Curriculum != nil || dashboard.TodayPlan != nil ||
+		dashboard.ReadModelVersion != application.ProgressDashboardReadModelVersion {
+		t.Fatalf("empty dashboard = (%+v, %v)", dashboard, err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}

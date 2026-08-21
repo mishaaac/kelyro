@@ -70,6 +70,12 @@ daily snapshot; explicit regeneration atomically replaces only that day's
 invalidated snapshot. SQLite guards enforce snapshot shape and budget, while
 selection priorities remain in the domain.
 
+Step 25 adds no migration or dashboard cache. The progress dashboard reads a
+compact curriculum outline from existing `curriculum_nodes` rows in one query
+and combines it with primary Student Core facts through the application unit of
+work. Definition metadata that the published schema does not store is omitted
+instead of reconstructed or fabricated.
+
 ## Integrity and access paths
 
 Foreign keys reject student facts for unknown students or concepts and cascade

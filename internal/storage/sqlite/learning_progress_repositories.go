@@ -193,6 +193,53 @@ WHERE curriculum_id = ? AND curriculum_version = ? AND node_type = 'concept' ORD
 	return concepts, nil
 }
 
+func (repository learningCurriculumRepository) Outline(ctx context.Context, reference learning.CurriculumRef) ([]learning.CurriculumOutlineNode, error) {
+	const operation = "list SQLite curriculum outline"
+	if err := reference.Validate(); err != nil {
+		return nil, invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	if err := requireCurriculum(operationContext, repository.executor, reference); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT node_id,node_type,parent_node_id,title,position
+FROM curriculum_nodes WHERE curriculum_id=? AND curriculum_version=? ORDER BY node_id`, reference.ID.String(), reference.Version)
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer rows.Close()
+	items := make([]learning.CurriculumOutlineNode, 0)
+	for rows.Next() {
+		var idValue, nodeType, title string
+		var parentValue sql.NullString
+		var position int
+		if err := rows.Scan(&idValue, &nodeType, &parentValue, &title, &position); err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		id, err := decodeID(idValue)
+		if err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		item := learning.CurriculumOutlineNode{ID: id, Type: learning.CurriculumNodeType(nodeType), Title: title, Order: position}
+		if parentValue.Valid {
+			parentID, err := decodeID(parentValue.String)
+			if err != nil {
+				return nil, corruptLearning(operation, err)
+			}
+			item.ParentID = &parentID
+		}
+		if err := item.Validate(); err != nil {
+			return nil, corruptLearning(operation, err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	return items, nil
+}
+
 func (repository learningCurriculumRepository) PlanningConcepts(ctx context.Context, reference learning.CurriculumRef) ([]learning.DailyPlanCurriculumConcept, error) {
 	const operation = "list SQLite curriculum planning concepts"
 	if err := reference.Validate(); err != nil {

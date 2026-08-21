@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 25 (pending authorization)
-Last completed step: 24
+Current step: 26 (pending authorization)
+Last completed step: 25
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1091,3 +1091,47 @@ Release: unreleased
 - El Paso 25 es el siguiente paso pendiente y requiere autorización explícita.
 - Progress Dashboard debe consumir servicios/read models coherentes sin duplicar queries ni recalcular en presentation las políticas de analytics o daily planning.
 - No adelantar TUI Student Core completo, CLI Student Core, Markdown de progreso, migration/recalculation general ni Exercise Engine.
+
+## Step 25 — Progress Dashboard application service
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Read model versionado `progress-dashboard/v1` con goal, curriculum activo, progreso general, ubicación phase/module/lesson/topic/concept, resumen de mastery, reviews vencidas, plan de hoy, tiempo, streak, milestone reciente y conceptos débiles titulados.
+- Empty states explícitos: goal, curriculum, ubicación, plan y milestone usan ausencia real; mastery desconocido permanece `nil`; contadores de reviews, tiempo y streak conservan ceros significativos.
+- Métricas curriculares acotadas a la instancia activa, mientras tiempo y streak permanecen facts longitudinales del estudiante; milestones se acotan al goal activo.
+- Refresh que reutiliza `AdaptiveDailyPlanService.Today` para regeneración por fingerprint y calcula el resto desde hechos primarios coherentes mediante `learning-analytics-v1` dentro de un unit of work.
+- Frontier de navegación determinista: primer concepto en orden jerárquico que no está `mastered`/`review_due`, sin sustituir las decisiones de prerequisitos o Daily Plan.
+- Proyección `CurriculumOutlineNode` y puerto `Outline` implementados en memory/SQLite; SQLite lee toda la jerarquía en una query y application usa índices in-memory sin N+1.
+- Construcción de fixtures memory optimizada mediante índices y paths precalculados para mantener tiempos razonables con miles de conceptos.
+- Wiring workspace-scoped en `ProfileStore`/`learningdb`, sin exponer repositorios ni SQLite a CLI/TUI.
+- Contrato, coherencia, disponibilidad, ordenamiento, complejidad y fronteras documentados en `docs/architecture/progress-dashboard-read-model.md`.
+
+### Decisions
+
+- El dashboard es una proyección application, no un nuevo agregado persistido; no se añadió migration ni cache que pueda convertirse en una segunda fuente de verdad.
+- Los campos opcionales no usan entidades placeholder. Un active goal sin instancia conserva solo el goal; sin active goal se omite todo el contexto curricular incluso si existe historial de goals pausados.
+- Overall progress, mastery, reviews due y weak concepts describen únicamente el curriculum activo; study time y streak son globales porque cambiar de goal no borra el esfuerzo histórico.
+- La ubicación actual sigue el primer concepto no dominado en hierarchy order. Un curriculum completamente dominado no apunta artificialmente a contenido terminado.
+- El plan se refresca mediante el boundary autorizado del Paso 24 y luego se valida contra student/goal/instance activos; el dashboard no reimplementa selección diaria.
+- La persistencia publicada no conserva el título raíz del curriculum, por lo que el read model expone la referencia versionada y los títulos de nodos disponibles sin inventar metadata.
+- Step 25 no añade presentación CLI/TUI, Markdown de progreso, Exercise Engine, Research Engine, Curriculum Compiler, IA ni plugins.
+
+### Verification
+
+- Tests application para new student, progreso parcial, review vencida, goal pausado, refresh tras cambios de estado/sesión y 5.000 conceptos.
+- Test SQLite de la proyección completa de hierarchy y test de wiring/empty dashboard en `learningdb`.
+- `GOCACHE=/tmp/kelyro-step25-final-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step25-final-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step25-final-gocache go test -race ./internal/infra/learningdb`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step25-final-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 26 es el siguiente paso pendiente y requiere autorización explícita.
+- La TUI debe consumir `ProfileStore.Dashboard().Show` y renderizar sus empty states; no debe consultar SQLite, ensamblar métricas ni recalcular la ubicación.
+- No adelantar CLI Student Core completo, Markdown de progreso, migration/recalculation general, Exercise Engine ni I-03+.

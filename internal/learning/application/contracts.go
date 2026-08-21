@@ -270,6 +270,72 @@ type AdaptiveDailyPlanService interface {
 	Today(context.Context) (learning.DailyPlan, error)
 }
 
+const ProgressDashboardReadModelVersion = "progress-dashboard/v1"
+
+type DashboardCurriculum struct {
+	Instance      learning.CurriculumInstance
+	ConceptsTotal int
+}
+
+type DashboardOverallProgress struct {
+	ConceptsTotal      learning.AnalyticsCountMetric
+	ConceptsIntroduced learning.AnalyticsCountMetric
+	ConceptsLearning   learning.AnalyticsCountMetric
+	ConceptsMastered   learning.AnalyticsCountMetric
+	Completion         learning.AnalyticsRateMetric
+}
+
+type DashboardMasterySummary struct {
+	KnownConcepts learning.AnalyticsCountMetric
+	AverageKnown  learning.AnalyticsScoreMetric
+}
+
+type DashboardNode struct {
+	ID    learning.ID
+	Title string
+}
+
+type DashboardLocation struct {
+	Phase   DashboardNode
+	Module  DashboardNode
+	Lesson  DashboardNode
+	Topic   DashboardNode
+	Concept DashboardNode
+}
+
+type DashboardWeakConcept struct {
+	CurriculumInstanceID learning.ID
+	ConceptID            learning.ID
+	Title                string
+	Mastery              learning.MasteryScore
+}
+
+// ProgressDashboard is the single Student Core read model consumed by future
+// CLI and TUI adapters. Pointer fields explicitly represent unavailable data;
+// empty learning metrics remain real zero-value facts for a new student.
+type ProgressDashboard struct {
+	StudentID        learning.ID
+	GeneratedAt      learning.Timestamp
+	Timezone         string
+	Goal             *learning.LearningGoal
+	Curriculum       *DashboardCurriculum
+	OverallProgress  DashboardOverallProgress
+	Current          *DashboardLocation
+	Mastery          DashboardMasterySummary
+	ReviewsDue       learning.AnalyticsCountMetric
+	TodayPlan        *learning.DailyPlan
+	StudyTime        learning.AnalyticsTime
+	Streak           learning.AnalyticsActivity
+	RecentMilestone  *learning.Milestone
+	WeakConcepts     []DashboardWeakConcept
+	AnalyticsVersion string
+	ReadModelVersion string
+}
+
+type ProgressDashboardService interface {
+	Show(context.Context) (ProgressDashboard, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -340,6 +406,7 @@ type ProfileStore interface {
 	Achievements() AchievementService
 	Analytics() LearningAnalyticsService
 	DailyPlan() AdaptiveDailyPlanService
+	Dashboard() ProgressDashboardService
 	Close() error
 }
 
@@ -379,6 +446,7 @@ type MasteryThresholdRepository interface {
 type CurriculumStateRepository interface {
 	Concept(context.Context, learning.CurriculumRef, learning.ID) (learning.Concept, error)
 	Concepts(context.Context, learning.CurriculumRef) ([]learning.Concept, error)
+	Outline(context.Context, learning.CurriculumRef) ([]learning.CurriculumOutlineNode, error)
 	PlanningConcepts(context.Context, learning.CurriculumRef) ([]learning.DailyPlanCurriculumConcept, error)
 	Prerequisites(context.Context, learning.CurriculumRef, learning.ID) ([]learning.Prerequisite, error)
 	ModuleForConcept(context.Context, learning.CurriculumRef, learning.ID) (learning.ID, error)

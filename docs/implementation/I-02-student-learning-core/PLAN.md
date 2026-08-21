@@ -2357,7 +2357,7 @@ feat(planning): add adaptive daily learning plan v1
 
 ## Paso 25 — Construir Progress Dashboard application service
 
-- [ ] Paso 25 completado
+- [x] Paso 25 completado
 
 ### Objetivo
 

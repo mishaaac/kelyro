@@ -99,12 +99,13 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	achievements := application.NewAchievementService(profiles, database, application.WithAchievementClock(now))
 	analytics := application.NewLearningAnalyticsService(profiles, database, application.WithLearningAnalyticsClock(now))
 	dailyPlan := application.NewAdaptiveDailyPlanService(profiles, mastery, database, application.WithAdaptiveDailyPlanClock(now))
+	dashboard := application.NewProgressDashboardService(profiles, dailyPlan, database, application.WithProgressDashboardClock(now))
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
 		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions, history: history,
 		retention: retention, reviews: reviews, warmUps: warmUps, streaks: streaks, achievements: achievements,
-		analytics: analytics, dailyPlan: dailyPlan,
+		analytics: analytics, dailyPlan: dailyPlan, dashboard: dashboard,
 	}, nil
 }
 
@@ -127,6 +128,7 @@ type store struct {
 	achievements        application.AchievementService
 	analytics           application.LearningAnalyticsService
 	dailyPlan           application.AdaptiveDailyPlanService
+	dashboard           application.ProgressDashboardService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -150,6 +152,7 @@ func (store *store) Streaks() application.StreakService              { return st
 func (store *store) Achievements() application.AchievementService    { return store.achievements }
 func (store *store) Analytics() application.LearningAnalyticsService { return store.analytics }
 func (store *store) DailyPlan() application.AdaptiveDailyPlanService { return store.dailyPlan }
+func (store *store) Dashboard() application.ProgressDashboardService { return store.dashboard }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

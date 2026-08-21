@@ -9,10 +9,40 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mishaaac/kelyro/internal/infra/developmentfixture"
 	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/platform"
 )
+
+func TestSQLiteCurriculumOutlineReadsHierarchyInOneProjection(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	ctx := context.Background()
+	curriculum, _, err := developmentfixture.FoundationDemo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.LearningRepositories().Definitions.Install(ctx, curriculum); err != nil {
+		t.Fatal(err)
+	}
+	outline, err := database.LearningRepositories().Curricula.Outline(ctx, curriculum.Reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(outline) != len(curriculum.Nodes) {
+		t.Fatalf("outline nodes=%d, want %d", len(outline), len(curriculum.Nodes))
+	}
+	byID := make(map[learning.ID]learning.CurriculumOutlineNode, len(outline))
+	for _, node := range outline {
+		byID[node.ID] = node
+	}
+	conceptID := mustID(t, "concept.equivalent-ratios")
+	concept := byID[conceptID]
+	if concept.Type != learning.CurriculumNodeConcept || concept.Title != "Equivalent ratios" ||
+		concept.ParentID == nil || *concept.ParentID != mustID(t, "topic.ratios") || concept.Order != 1 {
+		t.Fatalf("concept outline = %+v", concept)
+	}
+}
 
 func TestFoundationDatabaseMigratesToStudentCoreWithoutLosingState(t *testing.T) {
 	root := newWorkspaceRoot(t)

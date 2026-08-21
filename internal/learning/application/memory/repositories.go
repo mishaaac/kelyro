@@ -164,6 +164,28 @@ func (repository curriculumRepository) Concepts(ctx context.Context, reference l
 	return concepts, nil
 }
 
+func (repository curriculumRepository) Outline(ctx context.Context, reference learning.CurriculumRef) ([]learning.CurriculumOutlineNode, error) {
+	if err := contextError("list memory curriculum outline", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	fixture, exists := repository.store.curricula[curriculumKey{id: reference.ID, version: reference.Version}]
+	if !exists {
+		return nil, notFound("list memory curriculum outline")
+	}
+	return cloneCurriculumOutline(fixture.outline), nil
+}
+
+func cloneCurriculumOutline(source []learning.CurriculumOutlineNode) []learning.CurriculumOutlineNode {
+	result := make([]learning.CurriculumOutlineNode, len(source))
+	for index, node := range source {
+		result[index] = node
+		result[index].ParentID = cloneIDPointer(node.ParentID)
+	}
+	return result
+}
+
 func (repository curriculumRepository) PlanningConcepts(ctx context.Context, reference learning.CurriculumRef) ([]learning.DailyPlanCurriculumConcept, error) {
 	if err := contextError("list memory curriculum planning concepts", ctx); err != nil {
 		return nil, err

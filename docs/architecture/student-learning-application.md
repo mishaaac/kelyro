@@ -61,6 +61,9 @@ The initial service contracts are:
   from primary concept, retention, review, session, and history facts;
 - `AdaptiveDailyPlanService` for reusing or explicitly regenerating today's
   persisted, explainable `daily-plan-v1` snapshot from primary facts;
+- `ProgressDashboardService` for assembling the active goal/curriculum,
+  progress, location, mastery, reviews, current plan, time, streak, milestone,
+  and weak-concept projection behind one presentation-neutral query;
 - the legacy `SessionService` projection and `ReviewService` for completed
   activity records and review records;
 - the legacy `AnalyticsService` for stored snapshot compatibility; Learning
@@ -69,6 +72,11 @@ The initial service contracts are:
 
 `ConceptProgress` is deliberately a read model of stored facts. It does not
 derive a mastery score from evidence or change exposure state.
+
+The curriculum read port also exposes a compact hierarchy outline. Dashboard
+assembly loads this projection once and indexes it in memory, so neither CLI nor
+TUI needs storage access or per-concept queries. See
+[`progress-dashboard-read-model.md`](progress-dashboard-read-model.md).
 
 ## Error taxonomy
 

@@ -36,12 +36,19 @@ func (repository curriculumDefinitionRepository) Install(ctx context.Context, cu
 		modules:     make(map[learning.ID]learning.ID),
 		fingerprint: fingerprint,
 	}
+	nodesByID := make(map[learning.ID]learning.CurriculumNode, len(curriculum.Nodes))
 	for _, node := range curriculum.Nodes {
+		nodesByID[node.ID] = node
+	}
+	for _, node := range curriculum.Nodes {
+		fixture.outline = append(fixture.outline, learning.CurriculumOutlineNode{
+			ID: node.ID, Type: node.Type, ParentID: cloneIDPointer(node.ParentID), Title: node.Title, Order: node.Order,
+		})
 		if node.Type != learning.CurriculumNodeConcept {
 			continue
 		}
 		fixture.concepts[node.ID] = learning.Concept{ID: node.ID, TopicID: *node.ParentID, Title: node.Title}
-		if moduleID, ok := curriculumModuleForConcept(curriculum, node.ID); ok {
+		if moduleID, ok := curriculumModuleForConcept(nodesByID, node.ID); ok {
 			fixture.modules[node.ID] = moduleID
 		}
 		for _, prerequisite := range node.Concept.Prerequisites {
@@ -55,15 +62,29 @@ func (repository curriculumDefinitionRepository) Install(ctx context.Context, cu
 	return nil
 }
 
+func cloneIDPointer(source *learning.ID) *learning.ID {
+	if source == nil {
+		return nil
+	}
+	value := *source
+	return &value
+}
+
 func memoryPlanningConcepts(curriculum learning.Curriculum) []learning.DailyPlanCurriculumConcept {
 	concepts := make([]learning.CurriculumNode, 0)
+	nodesByID := make(map[learning.ID]learning.CurriculumNode, len(curriculum.Nodes))
 	for _, node := range curriculum.Nodes {
+		nodesByID[node.ID] = node
 		if node.Type == learning.CurriculumNodeConcept {
 			concepts = append(concepts, node)
 		}
 	}
+	paths := make(map[learning.ID][]learning.CurriculumNode, len(concepts))
+	for _, concept := range concepts {
+		paths[concept.ID] = memoryCurriculumPath(nodesByID, concept)
+	}
 	sort.Slice(concepts, func(i, j int) bool {
-		return curriculumPathBefore(curriculum, concepts[i], concepts[j])
+		return curriculumPathBefore(paths[concepts[i].ID], paths[concepts[j].ID])
 	})
 	result := make([]learning.DailyPlanCurriculumConcept, 0, len(concepts))
 	for sequence, node := range concepts {
@@ -77,8 +98,7 @@ func memoryPlanningConcepts(curriculum learning.Curriculum) []learning.DailyPlan
 	return result
 }
 
-func curriculumPathBefore(curriculum learning.Curriculum, left, right learning.CurriculumNode) bool {
-	leftPath, rightPath := memoryCurriculumPath(curriculum, left), memoryCurriculumPath(curriculum, right)
+func curriculumPathBefore(leftPath, rightPath []learning.CurriculumNode) bool {
 	for index := 0; index < len(leftPath) && index < len(rightPath); index++ {
 		if leftPath[index].Order != rightPath[index].Order {
 			return leftPath[index].Order < rightPath[index].Order
@@ -90,10 +110,10 @@ func curriculumPathBefore(curriculum learning.Curriculum, left, right learning.C
 	return len(leftPath) < len(rightPath)
 }
 
-func memoryCurriculumPath(curriculum learning.Curriculum, node learning.CurriculumNode) []learning.CurriculumNode {
+func memoryCurriculumPath(nodes map[learning.ID]learning.CurriculumNode, node learning.CurriculumNode) []learning.CurriculumNode {
 	path := []learning.CurriculumNode{node}
 	for node.ParentID != nil {
-		parent, exists := curriculum.Node(*node.ParentID)
+		parent, exists := nodes[*node.ParentID]
 		if !exists {
 			break
 		}
@@ -106,10 +126,10 @@ func memoryCurriculumPath(curriculum learning.Curriculum, node learning.Curricul
 	return path
 }
 
-func curriculumModuleForConcept(curriculum learning.Curriculum, conceptID learning.ID) (learning.ID, bool) {
-	node, ok := curriculum.Node(conceptID)
+func curriculumModuleForConcept(nodes map[learning.ID]learning.CurriculumNode, conceptID learning.ID) (learning.ID, bool) {
+	node, ok := nodes[conceptID]
 	for ok && node.ParentID != nil {
-		node, ok = curriculum.Node(*node.ParentID)
+		node, ok = nodes[*node.ParentID]
 		if ok && node.Type == learning.CurriculumNodeModule {
 			return node.ID, true
 		}

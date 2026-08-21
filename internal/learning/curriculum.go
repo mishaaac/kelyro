@@ -171,6 +171,42 @@ type CurriculumNode struct {
 	Concept     *ConceptDefinition
 }
 
+// CurriculumOutlineNode is the persisted, presentation-neutral subset needed
+// to navigate a curriculum hierarchy without loading pedagogical metadata.
+// It is a read projection: the immutable Curriculum remains the authority for
+// validating a complete definition.
+type CurriculumOutlineNode struct {
+	ID       ID
+	Type     CurriculumNodeType
+	ParentID *ID
+	Title    string
+	Order    int
+}
+
+func (node CurriculumOutlineNode) Validate() error {
+	if err := node.ID.Validate(); err != nil {
+		return fmt.Errorf("curriculum outline node: %w", err)
+	}
+	if err := node.Type.Validate(); err != nil {
+		return err
+	}
+	if node.ParentID != nil {
+		if err := node.ParentID.Validate(); err != nil {
+			return fmt.Errorf("curriculum outline node parent: %w", err)
+		}
+		if *node.ParentID == node.ID {
+			return fmt.Errorf("curriculum outline node %q cannot parent itself", node.ID)
+		}
+	}
+	if err := requireText("curriculum outline node title", node.Title); err != nil {
+		return err
+	}
+	if node.Order < 0 {
+		return fmt.Errorf("curriculum outline node %q has invalid order %d", node.ID, node.Order)
+	}
+	return nil
+}
+
 func (node CurriculumNode) Validate() error {
 	if err := node.ID.Validate(); err != nil {
 		return fmt.Errorf("curriculum node: %w", err)
