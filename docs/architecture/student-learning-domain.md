@@ -98,7 +98,8 @@ loading and graph policies without changing the identity of concepts.
 | `AchievementDefinition` | Versioned data describing one deterministic criterion and professional display text. |
 | `Achievement` | Idempotent student recognition with historical unlock instant, explanatory context, and policy version. |
 | `Milestone` | Meaningful goal progress event distinct from gamification. |
-| `AnalyticsSnapshot` | Auditable point-in-time metrics with explicit names and units. |
+| `AnalyticsSnapshot` | Legacy stored summary retained for schema compatibility. |
+| `LearningAnalyticsSnapshot` | Explainable, versioned point-in-time metrics recalculated from primary learning facts. |
 | `DailyPlan` | Dated, ordered study proposal for a student and goal. |
 | `DailyPlanItem` | Typed concept work with explicit position and estimated minutes. |
 
@@ -137,7 +138,8 @@ and a score does not silently change exposure state.
   not.
 - Session activities are individually valid and contained by the session range.
 - Counts, durations, and analytics metrics cannot be negative; mastered concepts
-  cannot exceed introduced concepts.
+  cannot exceed introduced concepts. Learning Analytics v1 excludes `not_seen`
+  mastery rather than averaging it as zero.
 - Completed reviews and unlocked achievements have corresponding timestamps;
   other states do not.
 - A v1 achievement references a valid v1 definition, is always unlocked, and
@@ -154,8 +156,10 @@ This keeps the domain deterministic and avoids a premature repository interface.
 The base domain did not define educational policies. Mastery, diagnostic,
 retention, progression, spaced-repetition, warm-up, streak, and achievement
 policies are now documented in their dedicated versioned architecture records.
-Analytics aggregation, adaptive daily-plan selection, and exercise generation
-remain deferred to their explicit later steps. The
-base domain also does not define database schemas, migrations, repositories,
-commands, screens, generated curricula,
-exercise engines, research, or AI behavior.
+Adaptive daily-plan selection and exercise generation remain deferred to their
+explicit later steps. Analytics aggregation is defined by
+`learning-analytics-v1` and documented in
+[`explainable-learning-analytics-v1.md`](explainable-learning-analytics-v1.md).
+The base domain also does not define database schemas, migrations,
+repositories, commands, screens, generated curricula, exercise engines,
+research, or AI behavior.

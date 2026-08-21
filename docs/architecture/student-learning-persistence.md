@@ -37,9 +37,11 @@ versioned policies. Since Step 18, `retention_state` stores the replaceable,
 version-labelled output of `retention-v1`; immutable evidence remains the
 recalculation source. Since Step 19, review schedules and items carry
 `review-scheduler-v1` type, priority, time-budget, and lifecycle metadata while
-the domain remains the source of scheduling policy. Analytics snapshots and
-daily plans are retained because they are auditable historical outputs, not
-transparent caches.
+the domain remains the source of scheduling policy. Legacy analytics snapshots
+and daily plans are retained because they are auditable historical outputs,
+not transparent caches. The richer `learning-analytics-v1` snapshot is
+recalculated from primary facts and does not read or write the legacy analytics
+table; no new cache or migration is introduced in Step 23.
 
 Step 20 adds no persistence. `warm-up-selector-v1` reads existing curriculum,
 review, mistake, and profile state; its recent-selection rotation context and

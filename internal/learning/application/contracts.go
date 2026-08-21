@@ -257,6 +257,12 @@ type AchievementService interface {
 	Refresh(context.Context) (AchievementRefresh, error)
 }
 
+// LearningAnalyticsService rebuilds an explainable v1 snapshot from primary
+// learning sources. It does not read a stored analytics snapshot as truth.
+type LearningAnalyticsService interface {
+	Snapshot(context.Context) (learning.LearningAnalyticsSnapshot, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -325,6 +331,7 @@ type ProfileStore interface {
 	WarmUps() WarmUpSelectorService
 	Streaks() StreakService
 	Achievements() AchievementService
+	Analytics() LearningAnalyticsService
 	Close() error
 }
 

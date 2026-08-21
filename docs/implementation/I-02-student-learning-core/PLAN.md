@@ -2154,7 +2154,7 @@ feat(achievement): add learning milestone framework
 
 ## Paso 23 — Implementar Learning Analytics v1
 
-- [ ] Paso 23 completado
+- [x] Paso 23 completado
 
 ### Objetivo
 
@@ -3166,7 +3166,7 @@ Crear annotated tag únicamente si corresponde a release real.
 - [ ] Paso 20 — Warm-up Selector
 - [ ] Paso 21 — Streaks
 - [x] Paso 22 — Achievements
-- [ ] Paso 23 — Learning Analytics v1
+- [x] Paso 23 — Learning Analytics v1
 - [ ] Paso 24 — Adaptive Daily Plan v1
 - [ ] Paso 25 — Progress Dashboard service
 - [ ] Paso 26 — TUI Student Core

@@ -23,9 +23,9 @@ Application services validate domain values, orchestrate repository calls, and
 translate errors. Educational formulas stay in the domain: application code
 loads their inputs, supplies transaction and clock boundaries, and persists
 their durable versioned outputs. Spaced-repetition scheduling, read-only
-warm-up selection, full-history streak recalculation, and historical
-achievement evaluation follow that boundary; analytics and daily-plan
-selection remain deferred to their dedicated I-02 steps.
+warm-up selection, full-history streak recalculation, historical achievement
+evaluation, and explainable analytics aggregation follow that boundary;
+daily-plan selection remains deferred to its dedicated I-02 step.
 
 ## Repository ports
 
@@ -57,9 +57,12 @@ The initial service contracts are:
   projection from durable history in the current profile timezone;
 - `AchievementService` for installing versioned definitions, rebuilding
   eligibility from durable facts, and atomically recording only new unlocks;
+- `LearningAnalyticsService` for rebuilding a described, versioned snapshot
+  from primary concept, retention, review, session, and history facts;
 - the legacy `SessionService` projection and `ReviewService` for completed
   activity records and review records;
-- `AnalyticsService` for auditable stored snapshots;
+- the legacy `AnalyticsService` for stored snapshot compatibility; Learning
+  Analytics v1 never treats those rows as truth;
 - `DailyPlanService` for stored plans selected by student, goal, and date.
 
 `ConceptProgress` is deliberately a read model of stored facts. It does not

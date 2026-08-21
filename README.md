@@ -8,13 +8,15 @@ persistence needed to build the product incrementally.
 ## Status
 
 Foundation pre-release `v0.1.0-alpha.2`. I-02 Student & Learning Core is in
-progress through local study history and time tracking. The current executable provides
-workspace initialization, global/project configuration, secret management,
+progress through explainable Learning Analytics v1. The current executable
+provides workspace initialization, global/project configuration, secret management,
 safe opening of Foundation documents, portability and recovery operations, and
 an interactive TUI with resumable onboarding, a learning goal, mastery policy,
 an optional deterministic diagnostic, and fixture-backed initial curriculum
 state, persistent mistake/session lifecycles, and `history`/`time` inspection.
-Retention, scheduling, analytics, and exercise steps remain pending. See the
+The core now includes retention, review scheduling, warm-ups, non-punitive
+streaks, achievements, and analytics; dashboard presentation, adaptive daily
+planning, and exercise work remain pending. See the
 [release notes](docs/releases/v0.1.0-alpha.2.md) for scope and limitations.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.

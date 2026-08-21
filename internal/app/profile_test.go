@@ -54,13 +54,14 @@ type fakeProfileStoreFactory struct {
 	reviews      learningapp.ReviewSchedulerService
 	streaks      learningapp.StreakService
 	achievements learningapp.AchievementService
+	analytics    learningapp.LearningAnalyticsService
 	openRoot     string
 	closed       int
 }
 
 func (factory *fakeProfileStoreFactory) Open(_ context.Context, root string) (learningapp.ProfileStore, error) {
 	factory.openRoot = root
-	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, achievements: factory.achievements, close: func() { factory.closed++ }}, nil
+	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, achievements: factory.achievements, analytics: factory.analytics, close: func() { factory.closed++ }}, nil
 }
 
 type fakeProfileStore struct {
@@ -76,6 +77,7 @@ type fakeProfileStore struct {
 	reviews      learningapp.ReviewSchedulerService
 	streaks      learningapp.StreakService
 	achievements learningapp.AchievementService
+	analytics    learningapp.LearningAnalyticsService
 	close        func()
 }
 
@@ -99,6 +101,9 @@ func (store *fakeProfileStore) WarmUps() learningapp.WarmUpSelectorService  { re
 func (store *fakeProfileStore) Streaks() learningapp.StreakService          { return store.streaks }
 func (store *fakeProfileStore) Achievements() learningapp.AchievementService {
 	return store.achievements
+}
+func (store *fakeProfileStore) Analytics() learningapp.LearningAnalyticsService {
+	return store.analytics
 }
 func (store *fakeProfileStore) Close() error {
 	store.close()

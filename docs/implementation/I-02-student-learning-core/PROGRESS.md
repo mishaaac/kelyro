@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 23 (pending authorization)
-Last completed step: 22
+Current step: 24 (pending authorization)
+Last completed step: 23
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1001,3 +1001,47 @@ Release: unreleased
 - El Paso 23 es el siguiente paso pendiente y requiere autorización explícita.
 - Learning Analytics v1 deberá leer estas fuentes durables y no usar achievements como reemplazo de métricas de progreso, tiempo, mastery o reviews.
 - No adelantar adaptive daily plans, Progress Dashboard, TUI Student Core completo ni Exercise Engine.
+
+## Step 23 — Learning Analytics v1
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Política pura, configurable y versionada `learning-analytics-v1` que produce un snapshot tipado y validado de progress, time, mastery, retention, activity y pace.
+- Definiciones explícitas para concepts introduced/learning/mastered, reviews due, tiempo today/week/month/total, mastery conocido, strongest/weakest, retention fresh/due/overdue, active days/streaks y ritmo semanal.
+- Exclusión correcta de estados `not_seen` del promedio y rankings de mastery: un perfil vacío conserva average ausente, mientras un score conocido de cero sigue siendo dato válido.
+- Ventanas today/week/month y rolling pace construidas con calendario local IANA, inicio inclusivo/fin exclusivo, semana desde lunes y semántica DST compartida con Time Tracking.
+- Rankings top/bottom configurables con desempate por curriculum instance/concept ID y suma del promedio en orden estable, independiente del orden devuelto por repositorios.
+- Retention recalculada al instante del snapshot desde `next_due_at` y estabilidad para no convertir un status materializado potencialmente viejo en verdad analítica.
+- Pace default de cuatro semanas locales para concepts mastered/week y study minutes/week, sin forecast de graduación o terminación.
+- `LearningAnalyticsService.Snapshot` workspace-scoped que carga concept states, retention, reviews, Study Sessions y Study History dentro de una sola unidad de trabajo y calcula desde fuentes primarias.
+- Wiring en `ProfileStore`/`learningdb`, documentación de métricas, fórmulas, fuentes y límites en `docs/architecture/explainable-learning-analytics-v1.md`.
+
+### Decisions
+
+- La identidad analítica de concepto es `(curriculum_instance_id, concept_id)` para no mezclar estados de distintas versiones curriculares.
+- `review_due` conserva el conteo mastered: una revisión vencida solicita comprobación pero no borra el mastery histórico.
+- Reviews due incluye solo items pending cuyo due ya llegó. Retention legacy/unknown no se clasifica artificialmente como fresh, due u overdue.
+- Study time suma únicamente `StudySession.ActiveDuration`; sesiones terminales usan `ended_at` y activas usan `last_activity_at`, igual que `time-tracking-v1`.
+- Activity reutiliza exactamente `streak-v1` desde history/sessions en vez de leer la proyección materializada de streak o redefinir un día activo.
+- La tabla y servicio legacy de analytics permanecen por compatibilidad con el schema publicado, pero v1 no los lee ni escribe. No se añadió migration ni cache porque no se justificó por rendimiento.
+- Step 23 no añade dashboard, CLI/TUI, daily plan, Exercise Engine, Research Engine, Curriculum Compiler, proveedor de IA ni plugins.
+
+### Verification
+
+- Tests de dominio para exclusión de unknown, perfil vacío, score conocido cero, rangos locales, orden independiente del input, descripciones y fixture determinista de 5,000 conceptos.
+- Test application que prueba cálculo desde fuentes primarias e ignora deliberadamente un snapshot legacy obsoleto.
+- Test de integración `learningdb` para wiring y snapshot vacío sobre SQLite real sin nueva persistencia analítica.
+- `GOCACHE=/tmp/kelyro-step23-final-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step23-final-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-step23-quality-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 24 es el siguiente paso pendiente y requiere autorización explícita.
+- Adaptive Daily Plan v1 podrá consumir este snapshot como lectura explicable, pero deberá tomar sus decisiones desde fuentes/políticas autoritativas y no convertir analytics en un cache obligatorio.
+- No adelantar Progress Dashboard, TUI Student Core completo, Markdown de progreso ni Exercise Engine.

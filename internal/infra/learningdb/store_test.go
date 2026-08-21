@@ -37,6 +37,11 @@ func TestFactoryPersistsProfileAcrossStoreLifetimes(t *testing.T) {
 	if _, err := store.Profiles().Edit(context.Background(), application.ProfileChanges{DisplayName: &name}); err != nil {
 		t.Fatalf("Edit() error = %v", err)
 	}
+	analytics, err := store.Analytics().Snapshot(context.Background())
+	if err != nil || analytics.PolicyVersion != learning.LearningAnalyticsPolicyVersion ||
+		analytics.Progress.ConceptsIntroduced.Value != 0 || analytics.Mastery.AverageKnown.Value != nil {
+		t.Fatalf("empty analytics = (%+v, %v)", analytics, err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}

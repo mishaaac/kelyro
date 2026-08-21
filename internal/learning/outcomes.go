@@ -311,8 +311,9 @@ func (milestone Milestone) Validate() error {
 	return nil
 }
 
-// AnalyticsSnapshot is an auditable point-in-time summary. Its metrics are
-// named and unit-bearing so consumers never need to interpret magic numbers.
+// AnalyticsSnapshot is the legacy stored summary contract introduced with the
+// persistence boundary. Learning Analytics v1 calculates the richer
+// LearningAnalyticsSnapshot directly from primary facts instead.
 type AnalyticsSnapshot struct {
 	StudentID          ID
 	CapturedAt         Timestamp
