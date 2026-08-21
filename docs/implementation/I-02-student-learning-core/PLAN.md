@@ -2408,7 +2408,7 @@ feat(progress): add Student Core dashboard read model
 
 ## Paso 26 — Integrar el Student Core en la TUI de Kelyro
 
-- [ ] Paso 26 completado
+- [x] Paso 26 completado
 
 ### Objetivo
 
@@ -3168,8 +3168,8 @@ Crear annotated tag únicamente si corresponde a release real.
 - [x] Paso 22 — Achievements
 - [x] Paso 23 — Learning Analytics v1
 - [x] Paso 24 — Adaptive Daily Plan v1
-- [ ] Paso 25 — Progress Dashboard service
-- [ ] Paso 26 — TUI Student Core
+- [x] Paso 25 — Progress Dashboard service
+- [x] Paso 26 — TUI Student Core
 - [ ] Paso 27 — CLI Student Core
 - [ ] Paso 28 — Markdown de progreso
 - [ ] Paso 29 — Algorithm migration/recalculation

@@ -44,7 +44,7 @@ func TestModelShowsSubtleNewMilestoneMessage(t *testing.T) {
 		result: app.Result{Achievements: &learningapp.AchievementRefresh{NewlyUnlocked: []learning.Achievement{
 			{Name: "7 active study days"},
 			{Name: "Hidden fixture milestone", Hidden: true},
-		}}},
+		}}, Dashboard: dashboardPointer(tuiDashboard())},
 	}
 	model := NewModel(context.Background(), service, app.Command{Workspace: "/requested"}, true)
 	message := model.Init()()
@@ -53,7 +53,7 @@ func TestModelShowsSubtleNewMilestoneMessage(t *testing.T) {
 	if !strings.Contains(view, "Milestone unlocked") || !strings.Contains(view, "7 active study days") || strings.Contains(view, "Hidden fixture milestone") {
 		t.Fatalf("milestone view:\n%s", view)
 	}
-	if len(service.executed) != 1 || service.executed[0].Action != app.ActionAchievements {
+	if len(service.executed) != 2 || service.executed[0].Action != app.ActionAchievements || service.executed[1].Action != app.ActionDashboard {
 		t.Fatalf("initial actions = %+v", service.executed)
 	}
 }
@@ -67,10 +67,13 @@ func TestModelNavigatesFoundationScreens(t *testing.T) {
 		want screen
 	}{
 		{name: "doctor", key: "d", want: screenDoctor},
-		{name: "config", key: "c", want: screenConfig},
+		{name: "config", key: "C", want: screenConfig},
 		{name: "roadmap", key: "r", want: screenRoadmap},
-		{name: "continue", key: "enter", want: screenRoadmap},
-		{name: "profile", key: "p", want: screenProfile},
+		{name: "today", key: "enter", want: screenToday},
+		{name: "progress", key: "p", want: screenProgress},
+		{name: "concept", key: "c", want: screenConcept},
+		{name: "profile", key: "o", want: screenProfile},
+		{name: "goal", key: "g", want: screenGoal},
 		{name: "streak", key: "k", want: screenStreak},
 	}
 	for _, test := range tests {
@@ -325,7 +328,7 @@ func TestProfileScreenLoadsThroughApplicationService(t *testing.T) {
 	student := tuiProfileStudent(t)
 	service := &fakeService{result: app.Result{Profile: &student}}
 	model := readyModel(service)
-	opening, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	opening, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
 	if command == nil || opening.(Model).screen != screenProfile || !opening.(Model).profileLoading {
 		t.Fatalf("profile navigation = model %#v command %v", opening, command)
 	}
@@ -376,6 +379,157 @@ func TestStreakScreenLoadsThroughApplicationService(t *testing.T) {
 	refreshing, refresh := got.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if refresh == nil || !refreshing.(Model).streakLoading {
 		t.Fatal("streak refresh did not reload through application")
+	}
+}
+
+func TestStudentCoreScreensRenderDashboardWithoutRecalculatingIt(t *testing.T) {
+	t.Parallel()
+	model := readyModel(&fakeService{})
+
+	checks := []struct {
+		screen   screen
+		expected []string
+	}{
+		{screenToday, []string{"Today", "new learning - Short declarations (25m)", "next eligible concept"}},
+		{screenProgress, []string{"Progress", "Mastered: 1 of 2 concepts", "Average mastery (known concepts): 40%", "unknown concepts."}},
+		{screenConcept, []string{"Concept detail", "Short declarations", "Status: current", "Mastery: 40%"}},
+		{screenRoadmap, []string{"Roadmap", "Phase: Foundations", "Short declarations [current]", "Legend:"}},
+		{screenGoal, []string{"Learning goal", "Backend Engineering with Go", "Goal default mastery: 85%", "Current mastery requirement: 85%"}},
+	}
+	for _, check := range checks {
+		candidate := model
+		candidate.screen = check.screen
+		view := candidate.View()
+		for _, expected := range check.expected {
+			if !strings.Contains(view, expected) {
+				t.Errorf("screen %d missing %q:\n%s", check.screen, expected, view)
+			}
+		}
+	}
+}
+
+func TestReviewsAndHistoryScreensLoadThroughApplicationService(t *testing.T) {
+	t.Parallel()
+	now, _ := learning.NewTimestamp(time.Date(2026, time.August, 21, 15, 0, 0, 0, time.UTC))
+	conceptID, _ := learning.NewID("concept.tui.b")
+	result := app.Result{
+		Reviews: &learningapp.ReviewQueueView{
+			Items:       []learning.ReviewQueueItem{{Item: learning.ReviewItem{ConceptID: conceptID, EstimatedMinutes: 5}, Status: learning.RetentionDue, Overdue: true}},
+			UsedMinutes: 5, GeneratedAt: now,
+		},
+		History: &learningapp.StudyHistoryView{Timezone: "America/Lima", Events: []learning.StudyEvent{{
+			Type: learning.StudyEventConceptIntroduced, ConceptID: &conceptID, OccurredAt: now,
+		}}},
+	}
+	service := &fakeService{result: result}
+
+	model := readyModel(service)
+	loadingReviews, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if command == nil || !loadingReviews.(Model).reviewsLoading {
+		t.Fatal("reviews did not start loading")
+	}
+	loadedReviews, _ := loadingReviews.(Model).Update(command())
+	if !strings.Contains(loadedReviews.(Model).View(), "Short declarations") || service.executed[0].Action != app.ActionReviews || !service.executed[0].ReviewsDue {
+		t.Fatalf("reviews screen/call =\n%s\n%+v", loadedReviews.(Model).View(), service.executed)
+	}
+
+	model = readyModel(service)
+	loadingHistory, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	if command == nil || !loadingHistory.(Model).historyLoading {
+		t.Fatal("history did not start loading")
+	}
+	loadedHistory, _ := loadingHistory.(Model).Update(command())
+	if !strings.Contains(loadedHistory.(Model).View(), "concept introduced: Short declarations") || service.executed[1].Action != app.ActionHistory {
+		t.Fatalf("history screen/call =\n%s\n%+v", loadedHistory.(Model).View(), service.executed)
+	}
+}
+
+func TestHomeRefreshReplacesDashboardThroughApplicationService(t *testing.T) {
+	t.Parallel()
+	refreshed := tuiDashboard()
+	refreshed.OverallProgress.Completion.Value = 75
+	service := &fakeService{result: app.Result{Dashboard: &refreshed}}
+	model := readyModel(service)
+
+	refreshing, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+	if command == nil || !refreshing.(Model).dashboardLoading {
+		t.Fatal("home refresh did not start")
+	}
+	loaded, _ := refreshing.(Model).Update(command())
+	if loaded.(Model).dashboardLoading || loaded.(Model).dashboard.OverallProgress.Completion.Value != 75 ||
+		len(service.executed) != 1 || service.executed[0].Action != app.ActionDashboard {
+		t.Fatalf("dashboard refresh = model %+v calls %+v", loaded, service.executed)
+	}
+}
+
+func TestCompletedOnboardingLoadsDashboardBeforeReturningHome(t *testing.T) {
+	t.Parallel()
+	dashboard := tuiDashboard()
+	service := &fakeService{result: app.Result{Dashboard: &dashboard}}
+	model := readyModel(service)
+	model.screen = screenOnboarding
+	model.session.LastView = session.ViewOnboarding
+
+	completed, command := model.Update(onboardingLoadedMsg{view: learningapp.LearnerSetupView{
+		Setup: learning.LearnerSetup{Status: learning.SetupCompleted},
+	}})
+	if command == nil || !completed.(Model).dashboardLoading {
+		t.Fatal("completed onboarding did not request the dashboard")
+	}
+	loaded, _ := completed.(Model).Update(command())
+	home, _ := loaded.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if home.(Model).screen != screenHome || !strings.Contains(home.(Model).View(), "Backend Engineering with Go") {
+		t.Fatalf("onboarding -> home =\n%s", home.(Model).View())
+	}
+}
+
+func TestStudentCoreEmptyAndLockedStatesAreExplicit(t *testing.T) {
+	t.Parallel()
+	model := readyModel(&fakeService{})
+	model.dashboard = learningapp.ProgressDashboard{}
+	for current, expected := range map[screen]string{
+		screenHome: "No active learning goal.", screenToday: "No active learning goal.", screenProgress: "No active learning goal.",
+		screenConcept: "No current concept.", screenRoadmap: "No active curriculum.", screenGoal: "No active learning goal.",
+		screenReviews: "No reviews are due.", screenHistory: "No learning activity recorded yet.",
+	} {
+		candidate := model
+		candidate.screen = current
+		if view := candidate.View(); !strings.Contains(view, expected) {
+			t.Errorf("screen %d missing empty state %q:\n%s", current, expected, view)
+		}
+	}
+
+	model.dashboard = tuiDashboard()
+	model.dashboard.Roadmap[len(model.dashboard.Roadmap)-1].Status = learningapp.DashboardRoadmapLocked
+	model.dashboard.Roadmap[len(model.dashboard.Roadmap)-1].LockReasons = []string{"Requires mastery of Variable declarations; current mastery is 40%."}
+	model.screen = screenConcept
+	view := model.View()
+	if !strings.Contains(view, "Status: locked") || !strings.Contains(view, "Why locked: Requires mastery") {
+		t.Fatalf("locked concept detail:\n%s", view)
+	}
+}
+
+func TestStudentCoreDashboardErrorRemainsRetryable(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{executeErr: errors.New("dashboard unavailable")}
+	model := readyModel(service)
+	model.dashboardErr = errors.New("dashboard unavailable")
+	for _, current := range []screen{screenHome, screenToday, screenProgress, screenConcept, screenRoadmap, screenGoal} {
+		candidate := model
+		candidate.screen = current
+		if view := candidate.View(); !strings.Contains(view, "Could not load") {
+			t.Errorf("screen %d missing dashboard error:\n%s", current, view)
+		}
+	}
+
+	model.screen = screenProgress
+	retrying, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if command == nil || !retrying.(Model).dashboardLoading || retrying.(Model).dashboardErr != nil {
+		t.Fatal("dashboard error was not cleared for retry")
+	}
+	failed, _ := retrying.(Model).Update(command())
+	if failed.(Model).dashboardLoading || failed.(Model).dashboardErr == nil {
+		t.Fatal("failed retry did not settle into an error state")
 	}
 }
 
@@ -466,7 +620,8 @@ func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 	for _, width := range []int{24, 40, 80, 120} {
 		model := readyModel(&fakeService{})
 		model.width = width
-		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenProfile, screenStreak, screenOnboarding} {
+		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenToday, screenProgress,
+			screenConcept, screenReviews, screenHistory, screenGoal, screenProfile, screenStreak, screenOnboarding} {
 			model.screen = current
 			for _, line := range strings.Split(model.View(), "\n") {
 				if got := lipgloss.Width(line); got > width {
@@ -516,7 +671,9 @@ func tuiProfileStudent(t *testing.T) learning.Student {
 func readyModel(service Service) Model {
 	model := NewModel(context.Background(), service, app.Command{}, true)
 	updated, _ := model.Update(foundationLoadedMsg{snapshot: healthySnapshot()})
-	return updated.(Model)
+	ready := updated.(Model)
+	ready.dashboard = tuiDashboard()
+	return ready
 }
 
 func healthySnapshot() app.FoundationSnapshot {
@@ -528,7 +685,60 @@ func healthySnapshot() app.FoundationSnapshot {
 			{Name: "Database healthy", OK: true},
 			{Name: "Configuration loaded", OK: true},
 		},
-		Settings: config.Defaults(),
+		Settings:     config.Defaults(),
+		LearningPath: true,
+	}
+}
+
+func dashboardPointer(view learningapp.ProgressDashboard) *learningapp.ProgressDashboard {
+	return &view
+}
+
+func tuiDashboard() learningapp.ProgressDashboard {
+	studentID, _ := learning.NewID("student.primary")
+	goalID, _ := learning.NewID("goal.tui")
+	phaseID, _ := learning.NewID("phase.tui")
+	moduleID, _ := learning.NewID("module.tui")
+	lessonID, _ := learning.NewID("lesson.tui")
+	topicID, _ := learning.NewID("topic.tui")
+	conceptAID, _ := learning.NewID("concept.tui.a")
+	conceptBID, _ := learning.NewID("concept.tui.b")
+	threshold, _ := learning.NewMasteryThreshold(.85)
+	requirement, _ := learning.MasteryRequirementFromThreshold(threshold)
+	masteryA, _ := learning.NewMasteryScore(.9)
+	masteryB, _ := learning.NewMasteryScore(.4)
+	goal := learning.LearningGoal{ID: goalID, StudentID: studentID, Title: "Backend Engineering with Go", Domain: "software engineering",
+		TargetOutcome: "Build reliable backend services", StartingLevel: learning.ExperienceNovice, Status: learning.GoalActive, MasteryThreshold: threshold}
+	current := &learningapp.DashboardLocation{
+		Phase: learningapp.DashboardNode{ID: phaseID, Title: "Foundations"}, Module: learningapp.DashboardNode{ID: moduleID, Title: "Go basics"},
+		Lesson: learningapp.DashboardNode{ID: lessonID, Title: "Variables"}, Topic: learningapp.DashboardNode{ID: topicID, Title: "Initialization"},
+		Concept: learningapp.DashboardNode{ID: conceptBID, Title: "Short declarations"},
+	}
+	plan := &learning.DailyPlan{AvailableMinutes: 30, PlannedMinutes: 25, Status: learning.DailyPlanReady,
+		Items: []learning.DailyPlanItem{{Role: learning.DailyPlanRoleNewLearning, Explanation: "This is the next eligible concept.", ConceptIDs: []learning.ID{conceptBID}, EstimatedMinutes: 25}}}
+	return learningapp.ProgressDashboard{
+		StudentID: studentID, Goal: &goal, Current: current, TodayPlan: plan,
+		MasteryRequirement: learning.ResolvedMasteryThreshold{Requirement: requirement, Source: learning.MasterySourceStudentDefault,
+			PolicyVersion: learning.MasteryThresholdPolicyVersion},
+		Curriculum: &learningapp.DashboardCurriculum{ConceptsTotal: 2},
+		OverallProgress: learningapp.DashboardOverallProgress{
+			ConceptsTotal: learning.AnalyticsCountMetric{Value: 2}, ConceptsIntroduced: learning.AnalyticsCountMetric{Value: 2},
+			ConceptsLearning: learning.AnalyticsCountMetric{Value: 1}, ConceptsMastered: learning.AnalyticsCountMetric{Value: 1},
+			Completion: learning.AnalyticsRateMetric{Value: 50},
+		},
+		Mastery:      learningapp.DashboardMasterySummary{KnownConcepts: learning.AnalyticsCountMetric{Value: 2}, AverageKnown: learning.AnalyticsScoreMetric{Value: &masteryB}},
+		ReviewsDue:   learning.AnalyticsCountMetric{Value: 2},
+		StudyTime:    learning.AnalyticsTime{Today: learning.AnalyticsDurationMetric{Value: 25 * time.Minute}, Week: learning.AnalyticsDurationMetric{Value: 4*time.Hour + 12*time.Minute}},
+		Streak:       learning.AnalyticsActivity{CurrentStreak: learning.AnalyticsCountMetric{Value: 6}},
+		WeakConcepts: []learningapp.DashboardWeakConcept{{ConceptID: conceptBID, Title: "Short declarations", Mastery: masteryB}},
+		Roadmap: []learningapp.DashboardRoadmapNode{
+			{ID: phaseID, Type: learning.CurriculumNodePhase, Title: "Foundations", Depth: 0},
+			{ID: moduleID, ParentID: &phaseID, Type: learning.CurriculumNodeModule, Title: "Go basics", Depth: 1},
+			{ID: lessonID, ParentID: &moduleID, Type: learning.CurriculumNodeLesson, Title: "Variables", Depth: 2},
+			{ID: topicID, ParentID: &lessonID, Type: learning.CurriculumNodeTopic, Title: "Initialization", Depth: 3},
+			{ID: conceptAID, ParentID: &topicID, Type: learning.CurriculumNodeConcept, Title: "Variable declarations", Depth: 4, Status: learningapp.DashboardRoadmapMastered, Mastery: &masteryA},
+			{ID: conceptBID, ParentID: &topicID, Type: learning.CurriculumNodeConcept, Title: "Short declarations", Depth: 4, Status: learningapp.DashboardRoadmapCurrent, Mastery: &masteryB},
+		},
 	}
 }
 

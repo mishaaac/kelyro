@@ -19,6 +19,12 @@ const (
 	screenDoctor
 	screenConfig
 	screenRoadmap
+	screenToday
+	screenProgress
+	screenConcept
+	screenReviews
+	screenHistory
+	screenGoal
 	screenProfile
 	screenStreak
 	screenOnboarding
@@ -37,12 +43,21 @@ type Model struct {
 	loading           bool
 	saving            bool
 	opening           bool
+	dashboard         learningapp.ProgressDashboard
+	dashboardLoading  bool
+	dashboardErr      error
 	profile           learning.Student
 	profileLoading    bool
 	profileErr        error
 	streak            learning.Streak
 	streakLoading     bool
 	streakErr         error
+	reviews           learningapp.ReviewQueueView
+	reviewsLoading    bool
+	reviewsErr        error
+	history           learningapp.StudyHistoryView
+	historyLoading    bool
+	historyErr        error
 	milestones        []learning.Achievement
 	onboarding        learningapp.OnboardingView
 	setup             learningapp.LearnerSetupView
@@ -106,6 +121,11 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.notice = ""
 		model.applyConfiguredColor()
 		model.milestones = append([]learning.Achievement(nil), message.milestones...)
+		model.dashboardLoading = false
+		model.dashboardErr = message.dashboardErr
+		if message.dashboard != nil {
+			model.dashboard = *message.dashboard
+		}
 		if message.sessionErr != nil {
 			model.notice = "Session state unavailable; continuing with defaults: " + message.sessionErr.Error()
 			if message.resume.State.Version == 0 {
@@ -141,6 +161,14 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.streakLoading = true
 			return model, loadStreakCmd(model.ctx, model.service, model.command)
 		}
+		if model.screen == screenReviews {
+			model.reviewsLoading = true
+			return model, loadReviewsCmd(model.ctx, model.service, model.command)
+		}
+		if model.screen == screenHistory {
+			model.historyLoading = true
+			return model, loadHistoryCmd(model.ctx, model.service, model.command)
+		}
 		if !model.snapshot.LearningPath {
 			model.screen = screenOnboarding
 			model.onboardingLoading = true
@@ -157,6 +185,15 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if model.quitting {
 			return model, tea.Quit
 		}
+		return model, nil
+	case dashboardLoadedMsg:
+		model.dashboard = message.dashboard
+		model.dashboardLoading = false
+		model.dashboardErr = nil
+		return model, nil
+	case dashboardLoadFailedMsg:
+		model.dashboardLoading = false
+		model.dashboardErr = message.err
 		return model, nil
 	case configSavedMsg:
 		model.snapshot.Settings = cloneSettings(model.snapshot.Settings)
@@ -217,6 +254,40 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model.queueCheckpoint()
 		}
 		return model, nil
+	case reviewsLoadedMsg:
+		model.reviews = message.reviews
+		model.reviewsLoading = false
+		model.reviewsErr = nil
+		if model.session.LastView != session.ViewReviews {
+			model.session.LastView = session.ViewReviews
+			return model.queueCheckpoint()
+		}
+		return model, nil
+	case reviewsLoadFailedMsg:
+		model.reviewsLoading = false
+		model.reviewsErr = message.err
+		if model.session.LastView != session.ViewReviews {
+			model.session.LastView = session.ViewReviews
+			return model.queueCheckpoint()
+		}
+		return model, nil
+	case historyLoadedMsg:
+		model.history = message.history
+		model.historyLoading = false
+		model.historyErr = nil
+		if model.session.LastView != session.ViewHistory {
+			model.session.LastView = session.ViewHistory
+			return model.queueCheckpoint()
+		}
+		return model, nil
+	case historyLoadFailedMsg:
+		model.historyLoading = false
+		model.historyErr = message.err
+		if model.session.LastView != session.ViewHistory {
+			model.session.LastView = session.ViewHistory
+			return model.queueCheckpoint()
+		}
+		return model, nil
 	case onboardingLoadedMsg:
 		model.setup = message.view
 		if message.view.Onboarding != nil {
@@ -230,10 +301,14 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.prepareOnboardingQuestion()
 		if message.view.Setup.Status == learning.SetupCompleted {
 			model.snapshot.LearningPath = true
+			model.dashboardLoading = true
 		}
 		if model.session.LastView != session.ViewOnboarding {
 			model.session.LastView = session.ViewOnboarding
 			return model.queueCheckpoint()
+		}
+		if message.view.Setup.Status == learning.SetupCompleted {
+			return model, loadDashboardCmd(model.ctx, model.service, model.command)
 		}
 		return model, nil
 	case onboardingFailedMsg:
@@ -268,7 +343,7 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 
-	if model.screen != screenOnboarding && (keyName == "esc" || keyName == "backspace" || keyName == "h") {
+	if model.screen != screenOnboarding && model.screen != screenHome && (keyName == "esc" || keyName == "backspace" || keyName == "h") {
 		changed := model.screen != screenHome
 		model.screen = screenHome
 		model.notice = ""
@@ -283,13 +358,31 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case screenHome:
 		previous := model.screen
 		switch keyName {
-		case "enter", "r":
+		case "enter", "t":
+			model.screen = screenToday
+		case "r":
 			model.screen = screenRoadmap
+		case "p":
+			model.screen = screenProgress
+		case "c":
+			model.screen = screenConcept
+		case "v":
+			model.screen = screenReviews
+			model.reviewsLoading = true
+			model.reviewsErr = nil
+			return model, loadReviewsCmd(model.ctx, model.service, model.command)
+		case "h":
+			model.screen = screenHistory
+			model.historyLoading = true
+			model.historyErr = nil
+			return model, loadHistoryCmd(model.ctx, model.service, model.command)
+		case "g":
+			model.screen = screenGoal
 		case "d":
 			model.screen = screenDoctor
-		case "c":
+		case "C":
 			model.screen = screenConfig
-		case "p":
+		case "o":
 			model.screen = screenProfile
 			model.profileLoading = true
 			model.profileErr = nil
@@ -304,6 +397,12 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.onboardingLoading = true
 			model.onboardingErr = nil
 			return model, onboardingCmd(model.ctx, model.service, model.command, "start")
+		case "f":
+			if model.snapshot.LearningPath && !model.dashboardLoading {
+				model.dashboardLoading = true
+				model.dashboardErr = nil
+				return model, loadDashboardCmd(model.ctx, model.service, model.command)
+			}
 		}
 		if model.screen != previous {
 			model.session.LastView = sessionView(model.screen)
@@ -317,10 +416,33 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case screenConfig:
 		return model.updateConfig(keyName)
 	case screenRoadmap:
+		if keyName == "r" && !model.dashboardLoading {
+			model.dashboardLoading = true
+			model.dashboardErr = nil
+			return model, loadDashboardCmd(model.ctx, model.service, model.command)
+		}
 		if keyName == "o" && !model.opening {
 			model.opening = true
 			model.notice = "Opening roadmap..."
 			return model, openRoadmapCmd(model.ctx, model.service, model.command)
+		}
+	case screenToday, screenProgress, screenConcept, screenGoal:
+		if keyName == "r" && !model.dashboardLoading {
+			model.dashboardLoading = true
+			model.dashboardErr = nil
+			return model, loadDashboardCmd(model.ctx, model.service, model.command)
+		}
+	case screenReviews:
+		if keyName == "r" && !model.reviewsLoading {
+			model.reviewsLoading = true
+			model.reviewsErr = nil
+			return model, loadReviewsCmd(model.ctx, model.service, model.command)
+		}
+	case screenHistory:
+		if keyName == "r" && !model.historyLoading {
+			model.historyLoading = true
+			model.historyErr = nil
+			return model, loadHistoryCmd(model.ctx, model.service, model.command)
 		}
 	case screenProfile:
 		if keyName == "r" && !model.profileLoading {
@@ -396,6 +518,18 @@ func sessionView(current screen) session.View {
 		return session.ViewConfig
 	case screenRoadmap:
 		return session.ViewRoadmap
+	case screenToday:
+		return session.ViewToday
+	case screenProgress:
+		return session.ViewProgress
+	case screenConcept:
+		return session.ViewConcept
+	case screenReviews:
+		return session.ViewReviews
+	case screenHistory:
+		return session.ViewHistory
+	case screenGoal:
+		return session.ViewGoal
 	case screenProfile:
 		return session.ViewProfile
 	case screenStreak:
@@ -415,6 +549,18 @@ func screenFromSession(view session.View) screen {
 		return screenConfig
 	case session.ViewRoadmap:
 		return screenRoadmap
+	case session.ViewToday:
+		return screenToday
+	case session.ViewProgress:
+		return screenProgress
+	case session.ViewConcept:
+		return screenConcept
+	case session.ViewReviews:
+		return screenReviews
+	case session.ViewHistory:
+		return screenHistory
+	case session.ViewGoal:
+		return screenGoal
 	case session.ViewProfile:
 		return screenProfile
 	case session.ViewStreak:

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 26 (pending authorization)
-Last completed step: 25
+Current step: 27 (pending authorization)
+Last completed step: 26
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1135,3 +1135,51 @@ Release: unreleased
 - El Paso 26 es el siguiente paso pendiente y requiere autorización explícita.
 - La TUI debe consumir `ProfileStore.Dashboard().Show` y renderizar sus empty states; no debe consultar SQLite, ensamblar métricas ni recalcular la ubicación.
 - No adelantar CLI Student Core completo, Markdown de progreso, migration/recalculation general, Exercise Engine ni I-03+.
+
+## Step 26 — TUI Student Core
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Home educativo persistente con goal activo, barra de progreso ASCII, reviews vencidas, siguiente concepto del plan diario, mastery efectivo requerido, streak y tiempo semanal.
+- Pantallas Today, Progress, Concept detail, Reviews, History, Goal y Profile integradas junto al onboarding y roadmap, conservando Doctor, Config y Study consistency como utilidades secundarias.
+- Boundary interno `ActionDashboard` que expone `ProfileStore.Dashboard().Show` a adapters de presentación sin añadir todavía un comando CLI público del Student Core.
+- Proyección de roadmap añadida a `progress-dashboard/v1`, ordenada canónicamente como phase/module/lesson/topic/concept y con estados `mastered`, `current`, `available`, `locked` y `review_due`.
+- Motivos de bloqueo resueltos en application a partir de prerequisitos y estado, con mastery desconocido representado por ausencia y score conocido de cero preservado como `0%`.
+- Today renderiza el `daily-plan-v1` persistido y sus razones con títulos humanos, sin generar ejercicios ni recalcular selección en Bubble Tea.
+- Reviews e History reutilizan sus application services existentes con carga, refresh, error y empty states propios; Goal y Profile permanecen read-only en la TUI.
+- Destinos Student Core incorporados al session state resumible; onboarding completado refresca el dashboard antes de volver a Home.
+- Layout sin dependencia semántica de color o Unicode, wrapping/truncation para terminales estrechas y goldens actualizados para 32, 80 y 120 columnas.
+- Documentación de arquitectura, navegación, refresh, estados vacíos, accesibilidad y límites en `docs/architecture/student-core-tui.md`.
+
+### Decisions
+
+- La TUI renderiza un único dashboard coherente y nunca abre SQLite, ensambla métricas, decide prerequisitos ni calcula la ubicación actual.
+- La proyección roadmap usa `Outline` y `PlanningConcepts` en lecturas compactas; application reordena el outline como árbol porque adapters pueden devolver filas en orden de identidad, no de jerarquía.
+- `current` es el frontier de navegación existente; los conceptos posteriores con prerequisitos insatisfechos se muestran `locked` con una explicación, mientras `review_due` conserva un estado visible distinto de `mastered`.
+- Progress explica que completion cuenta conceptos dominados del curriculum y que average mastery incluye solo conceptos conocidos; unknown nunca se presenta como `0%`.
+- El mastery requerido usa la resolución autoritativa de `MasteryPolicyService`, incluida la precedencia de workspace override sobre student default; no se presenta el threshold original del goal como si siempre fuera efectivo.
+- Concept detail muestra el concepto actual y su contexto jerárquico. Navegación arbitraria y ejecución de contenido permanecen fuera de este paso y del Student Core.
+- El refresh explícito reemplaza el read model completo y deja que `AdaptiveDailyPlanService.Today` decida reutilización o regeneración por fingerprint.
+- No se añadió migration, cache de dashboard, comando CLI Student Core, export Markdown, Exercise Engine, Research Engine, Curriculum Compiler, IA, plugin ni actividad de red.
+
+### Verification
+
+- Tests application para orden jerárquico, estados mastered/current/locked, mastery opcional y explicación de prerequisitos.
+- Tests app para dispatch workspace-scoped del dashboard y cierre del store.
+- Tests TUI para navegación, contenido de todas las vistas, carga de Reviews/History, onboarding → Home, refresh, empty/error/locked states, resume y terminales de 24/40/80/120 columnas.
+- Goldens de Home para 32, 80 y 120 columnas.
+- E2E Foundation actualizado para aceptar el Home educativo real después de onboarding.
+- `GOCACHE=/tmp/kelyro-step26-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step26-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step26-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 27 es el siguiente paso pendiente y requiere autorización explícita.
+- La CLI del Student Core debe reutilizar los mismos application services/read models sin lanzar la TUI ni añadir JSON como interfaz principal.
+- No adelantar export Markdown, recalculación/migración general de algoritmos, hardening, E2E Student Core completo, Exercise Engine ni I-03+.

@@ -310,26 +310,52 @@ type DashboardWeakConcept struct {
 	Mastery              learning.MasteryScore
 }
 
+type DashboardRoadmapStatus string
+
+const (
+	DashboardRoadmapMastered  DashboardRoadmapStatus = "mastered"
+	DashboardRoadmapCurrent   DashboardRoadmapStatus = "current"
+	DashboardRoadmapAvailable DashboardRoadmapStatus = "available"
+	DashboardRoadmapLocked    DashboardRoadmapStatus = "locked"
+	DashboardRoadmapReviewDue DashboardRoadmapStatus = "review_due"
+)
+
+// DashboardRoadmapNode is a presentation-ready curriculum outline entry.
+// Container nodes have no Status. Concept status and lock reasons are derived
+// in application so terminal adapters never reproduce progression policy.
+type DashboardRoadmapNode struct {
+	ID          learning.ID
+	ParentID    *learning.ID
+	Type        learning.CurriculumNodeType
+	Title       string
+	Depth       int
+	Status      DashboardRoadmapStatus
+	Mastery     *learning.MasteryScore
+	LockReasons []string
+}
+
 // ProgressDashboard is the single Student Core read model consumed by future
 // CLI and TUI adapters. Pointer fields explicitly represent unavailable data;
 // empty learning metrics remain real zero-value facts for a new student.
 type ProgressDashboard struct {
-	StudentID        learning.ID
-	GeneratedAt      learning.Timestamp
-	Timezone         string
-	Goal             *learning.LearningGoal
-	Curriculum       *DashboardCurriculum
-	OverallProgress  DashboardOverallProgress
-	Current          *DashboardLocation
-	Mastery          DashboardMasterySummary
-	ReviewsDue       learning.AnalyticsCountMetric
-	TodayPlan        *learning.DailyPlan
-	StudyTime        learning.AnalyticsTime
-	Streak           learning.AnalyticsActivity
-	RecentMilestone  *learning.Milestone
-	WeakConcepts     []DashboardWeakConcept
-	AnalyticsVersion string
-	ReadModelVersion string
+	StudentID          learning.ID
+	GeneratedAt        learning.Timestamp
+	Timezone           string
+	Goal               *learning.LearningGoal
+	Curriculum         *DashboardCurriculum
+	OverallProgress    DashboardOverallProgress
+	Current            *DashboardLocation
+	Mastery            DashboardMasterySummary
+	MasteryRequirement learning.ResolvedMasteryThreshold
+	ReviewsDue         learning.AnalyticsCountMetric
+	TodayPlan          *learning.DailyPlan
+	StudyTime          learning.AnalyticsTime
+	Streak             learning.AnalyticsActivity
+	RecentMilestone    *learning.Milestone
+	WeakConcepts       []DashboardWeakConcept
+	Roadmap            []DashboardRoadmapNode
+	AnalyticsVersion   string
+	ReadModelVersion   string
 }
 
 type ProgressDashboardService interface {

@@ -26,15 +26,17 @@ func WithProgressDashboardAnalyticsPolicy(policy learning.LearningAnalyticsPolic
 
 type progressDashboardService struct {
 	profiles        ProfileService
+	mastery         MasteryPolicyService
 	dailyPlan       AdaptiveDailyPlanService
 	unitOfWork      UnitOfWork
 	now             func() time.Time
 	analyticsPolicy learning.LearningAnalyticsPolicy
 }
 
-func NewProgressDashboardService(profiles ProfileService, dailyPlan AdaptiveDailyPlanService, unitOfWork UnitOfWork, options ...ProgressDashboardOption) ProgressDashboardService {
+func NewProgressDashboardService(profiles ProfileService, mastery MasteryPolicyService, dailyPlan AdaptiveDailyPlanService,
+	unitOfWork UnitOfWork, options ...ProgressDashboardOption) ProgressDashboardService {
 	service := &progressDashboardService{
-		profiles: profiles, dailyPlan: dailyPlan, unitOfWork: unitOfWork, now: time.Now,
+		profiles: profiles, mastery: mastery, dailyPlan: dailyPlan, unitOfWork: unitOfWork, now: time.Now,
 		analyticsPolicy: learning.DefaultLearningAnalyticsPolicy(),
 	}
 	for _, option := range options {
@@ -47,6 +49,7 @@ type progressDashboardFacts struct {
 	goal       *learning.LearningGoal
 	instance   *learning.CurriculumInstance
 	outline    []learning.CurriculumOutlineNode
+	planning   []learning.DailyPlanCurriculumConcept
 	states     []learning.InstanceConceptState
 	retention  []learning.RetentionState
 	reviews    []learning.ReviewItem
@@ -57,13 +60,17 @@ type progressDashboardFacts struct {
 
 func (service *progressDashboardService) Show(ctx context.Context) (ProgressDashboard, error) {
 	const operation = "build progress dashboard"
-	if service == nil || service.profiles == nil || service.dailyPlan == nil || service.unitOfWork == nil || service.now == nil {
+	if service == nil || service.profiles == nil || service.mastery == nil || service.dailyPlan == nil || service.unitOfWork == nil || service.now == nil {
 		return ProgressDashboard{}, Classify(ErrorUnavailable, operation, errors.New("progress dashboard dependencies are not configured"))
 	}
 	if err := service.analyticsPolicy.Validate(); err != nil {
 		return ProgressDashboard{}, invalid(operation, err)
 	}
 	student, err := service.profiles.Show(ctx)
+	if err != nil {
+		return ProgressDashboard{}, repositoryError(operation, err)
+	}
+	masteryRequirement, err := service.mastery.Show(ctx, nil)
 	if err != nil {
 		return ProgressDashboard{}, repositoryError(operation, err)
 	}
@@ -118,6 +125,10 @@ func (service *progressDashboardService) Show(ctx context.Context) (ProgressDash
 			if err != nil {
 				return err
 			}
+			facts.planning, err = repositories.Curricula.PlanningConcepts(ctx, facts.instance.Curriculum)
+			if err != nil {
+				return err
+			}
 			facts.states, err = repositories.InstanceConceptStates.ListByInstance(ctx, facts.instance.ID)
 			if err != nil {
 				return err
@@ -156,7 +167,7 @@ func (service *progressDashboardService) Show(ctx context.Context) (ProgressDash
 			return ProgressDashboard{}, Classify(ErrorInvalidState, operation, errors.New("today plan does not match the active learning context"))
 		}
 	}
-	return assembleProgressDashboard(student, generatedAt, facts, analytics, todayPlan)
+	return assembleProgressDashboard(student, generatedAt, facts, analytics, masteryRequirement, todayPlan)
 }
 
 func requireProgressDashboardRepositories(operation string, repositories Repositories) error {
@@ -241,11 +252,12 @@ func progressDashboardRetention(items []learning.RetentionState, concepts map[le
 }
 
 func assembleProgressDashboard(student learning.Student, generatedAt learning.Timestamp, facts progressDashboardFacts,
-	analytics learning.LearningAnalyticsSnapshot, todayPlan *learning.DailyPlan) (ProgressDashboard, error) {
+	analytics learning.LearningAnalyticsSnapshot, masteryRequirement learning.ResolvedMasteryThreshold,
+	todayPlan *learning.DailyPlan) (ProgressDashboard, error) {
 	view := ProgressDashboard{
 		StudentID: student.ID, GeneratedAt: generatedAt, Timezone: student.Profile.Timezone,
 		ReviewsDue: analytics.Progress.ReviewsDue, StudyTime: analytics.Time, Streak: analytics.Activity,
-		TodayPlan: todayPlan, AnalyticsVersion: analytics.PolicyVersion,
+		TodayPlan: todayPlan, MasteryRequirement: masteryRequirement, AnalyticsVersion: analytics.PolicyVersion,
 		ReadModelVersion: ProgressDashboardReadModelVersion, WeakConcepts: []DashboardWeakConcept{},
 	}
 	view.OverallProgress = DashboardOverallProgress{
@@ -281,6 +293,10 @@ func assembleProgressDashboard(student learning.Student, generatedAt learning.Ti
 	if err != nil {
 		return ProgressDashboard{}, Classify(ErrorInvalidState, "build progress dashboard", err)
 	}
+	view.Roadmap, err = progressDashboardRoadmap(facts.outline, facts.planning, facts.states, view.Current)
+	if err != nil {
+		return ProgressDashboard{}, Classify(ErrorInvalidState, "build progress dashboard", err)
+	}
 	for _, weak := range analytics.Mastery.Weakest.Concepts {
 		title, exists := titles[weak.ConceptID]
 		if !exists {
@@ -292,6 +308,186 @@ func assembleProgressDashboard(student learning.Student, generatedAt learning.Ti
 	}
 	view.RecentMilestone = latestProgressDashboardMilestone(facts.milestones)
 	return view, nil
+}
+
+func progressDashboardRoadmap(outline []learning.CurriculumOutlineNode, planning []learning.DailyPlanCurriculumConcept,
+	states []learning.InstanceConceptState, current *DashboardLocation) ([]DashboardRoadmapNode, error) {
+	orderedOutline, err := progressDashboardOrderedOutline(outline)
+	if err != nil {
+		return nil, err
+	}
+	stateByConcept := make(map[learning.ID]learning.InstanceConceptState, len(states))
+	for _, state := range states {
+		if _, exists := stateByConcept[state.ConceptID]; exists {
+			return nil, fmt.Errorf("duplicate curriculum concept state %q", state.ConceptID)
+		}
+		stateByConcept[state.ConceptID] = state
+	}
+	planningByConcept := make(map[learning.ID]learning.DailyPlanCurriculumConcept, len(planning))
+	for _, concept := range planning {
+		if err := concept.Validate(); err != nil {
+			return nil, err
+		}
+		if _, exists := planningByConcept[concept.ConceptID]; exists {
+			return nil, fmt.Errorf("duplicate dashboard planning concept %q", concept.ConceptID)
+		}
+		planningByConcept[concept.ConceptID] = concept
+	}
+	titles := make(map[learning.ID]string, len(outline))
+	for _, node := range outline {
+		titles[node.ID] = node.Title
+	}
+	currentID := learning.ID{}
+	if current != nil {
+		currentID = current.Concept.ID
+	}
+	result := make([]DashboardRoadmapNode, 0, len(orderedOutline))
+	for _, node := range orderedOutline {
+		item := DashboardRoadmapNode{
+			ID: node.ID, Type: node.Type, Title: node.Title,
+			ParentID: cloneDashboardID(node.ParentID), Depth: dashboardRoadmapDepth(node.Type),
+			LockReasons: []string{},
+		}
+		if node.Type == learning.CurriculumNodeConcept {
+			plan, exists := planningByConcept[node.ID]
+			if !exists {
+				return nil, fmt.Errorf("concept %q is absent from curriculum planning projection", node.ID)
+			}
+			state, statePresent := stateByConcept[node.ID]
+			if statePresent && state.Exposure != learning.ExposureNotSeen {
+				mastery := state.Mastery
+				item.Mastery = &mastery
+			}
+			switch {
+			case statePresent && state.Exposure == learning.ExposureReviewDue:
+				item.Status = DashboardRoadmapReviewDue
+			case statePresent && state.Exposure == learning.ExposureMastered:
+				item.Status = DashboardRoadmapMastered
+			default:
+				item.LockReasons = dashboardRoadmapLockReasons(plan.PrerequisiteIDs, stateByConcept, titles)
+				if len(item.LockReasons) > 0 {
+					item.Status = DashboardRoadmapLocked
+				} else if node.ID == currentID {
+					item.Status = DashboardRoadmapCurrent
+				} else {
+					item.Status = DashboardRoadmapAvailable
+				}
+			}
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+func progressDashboardOrderedOutline(outline []learning.CurriculumOutlineNode) ([]learning.CurriculumOutlineNode, error) {
+	children := make(map[learning.ID][]learning.CurriculumOutlineNode)
+	known := make(map[learning.ID]struct{}, len(outline))
+	for _, node := range outline {
+		if err := node.Validate(); err != nil {
+			return nil, err
+		}
+		if _, exists := known[node.ID]; exists {
+			return nil, fmt.Errorf("dashboard curriculum contains duplicate node %q", node.ID)
+		}
+		known[node.ID] = struct{}{}
+		parentID := learning.ID{}
+		if node.ParentID != nil {
+			parentID = *node.ParentID
+		}
+		children[parentID] = append(children[parentID], node)
+	}
+	for _, node := range outline {
+		if node.ParentID != nil {
+			if _, exists := known[*node.ParentID]; !exists {
+				return nil, fmt.Errorf("curriculum node %q has missing parent %q", node.ID, *node.ParentID)
+			}
+		}
+	}
+	for parentID := range children {
+		sort.Slice(children[parentID], func(i, j int) bool {
+			if children[parentID][i].Order != children[parentID][j].Order {
+				return children[parentID][i].Order < children[parentID][j].Order
+			}
+			return children[parentID][i].ID.String() < children[parentID][j].ID.String()
+		})
+	}
+	ordered := make([]learning.CurriculumOutlineNode, 0, len(outline))
+	visiting := make(map[learning.ID]bool, len(outline))
+	visited := make(map[learning.ID]bool, len(outline))
+	var visit func(learning.CurriculumOutlineNode) error
+	visit = func(node learning.CurriculumOutlineNode) error {
+		if visiting[node.ID] {
+			return fmt.Errorf("curriculum outline contains a cycle at %q", node.ID)
+		}
+		if visited[node.ID] {
+			return nil
+		}
+		visiting[node.ID] = true
+		ordered = append(ordered, node)
+		for _, child := range children[node.ID] {
+			if err := visit(child); err != nil {
+				return err
+			}
+		}
+		visiting[node.ID] = false
+		visited[node.ID] = true
+		return nil
+	}
+	for _, root := range children[learning.ID{}] {
+		if err := visit(root); err != nil {
+			return nil, err
+		}
+	}
+	if len(ordered) != len(outline) {
+		return nil, errors.New("curriculum outline is not connected to a root node")
+	}
+	return ordered, nil
+}
+
+func cloneDashboardID(source *learning.ID) *learning.ID {
+	if source == nil {
+		return nil
+	}
+	cloned := *source
+	return &cloned
+}
+
+func dashboardRoadmapDepth(nodeType learning.CurriculumNodeType) int {
+	switch nodeType {
+	case learning.CurriculumNodePhase:
+		return 0
+	case learning.CurriculumNodeModule:
+		return 1
+	case learning.CurriculumNodeLesson:
+		return 2
+	case learning.CurriculumNodeTopic:
+		return 3
+	case learning.CurriculumNodeConcept:
+		return 4
+	default:
+		return 0
+	}
+}
+
+func dashboardRoadmapLockReasons(prerequisiteIDs []learning.ID, states map[learning.ID]learning.InstanceConceptState,
+	titles map[learning.ID]string) []string {
+	reasons := make([]string, 0)
+	for _, prerequisiteID := range prerequisiteIDs {
+		state, exists := states[prerequisiteID]
+		if exists && (state.Exposure == learning.ExposureMastered || state.Exposure == learning.ExposureReviewDue) {
+			continue
+		}
+		title := titles[prerequisiteID]
+		if title == "" {
+			title = prerequisiteID.String()
+		}
+		if !exists || state.Exposure == learning.ExposureNotSeen {
+			reasons = append(reasons, fmt.Sprintf("Requires mastery of %s; current mastery is unknown.", title))
+			continue
+		}
+		reasons = append(reasons, fmt.Sprintf("Requires mastery of %s; current mastery is %.0f%%.", title, state.Mastery.Value()*100))
+	}
+	return reasons
 }
 
 func progressDashboardOutline(outline []learning.CurriculumOutlineNode) ([]learning.ID, map[learning.ID]string, map[learning.ID][]learning.CurriculumOutlineNode, error) {

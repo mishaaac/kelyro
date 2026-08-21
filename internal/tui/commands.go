@@ -8,6 +8,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/learning"
+	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -31,6 +32,8 @@ func initializeFoundationCmd(ctx context.Context, service Service, command app.C
 		}
 		resumed, sessionErr := service.ResumeSession(ctx, command)
 		var milestones []learning.Achievement
+		var dashboard *learningapp.ProgressDashboard
+		var dashboardErr error
 		if snapshot.LearningPath {
 			result, achievementErr := service.Execute(ctx, app.Command{Action: app.ActionAchievements, Workspace: command.Workspace})
 			if achievementErr == nil && result.Achievements != nil {
@@ -40,13 +43,37 @@ func initializeFoundationCmd(ctx context.Context, service Service, command app.C
 					}
 				}
 			}
+			result, dashboardErr = service.Execute(ctx, app.Command{Action: app.ActionDashboard, Workspace: command.Workspace})
+			if dashboardErr == nil {
+				if result.Dashboard == nil {
+					dashboardErr = fmt.Errorf("progress dashboard was not returned")
+				} else {
+					view := *result.Dashboard
+					dashboard = &view
+				}
+			}
 		}
 		return foundationInitializedMsg{
-			snapshot:   snapshot,
-			resume:     resumed,
-			sessionErr: sessionErr,
-			milestones: milestones,
+			snapshot:     snapshot,
+			resume:       resumed,
+			sessionErr:   sessionErr,
+			milestones:   milestones,
+			dashboard:    dashboard,
+			dashboardErr: dashboardErr,
 		}
+	}
+}
+
+func loadDashboardCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionDashboard, Workspace: base.Workspace})
+		if err != nil {
+			return dashboardLoadFailedMsg{err: err}
+		}
+		if result.Dashboard == nil {
+			return dashboardLoadFailedMsg{err: fmt.Errorf("progress dashboard was not returned")}
+		}
+		return dashboardLoadedMsg{dashboard: *result.Dashboard}
 	}
 }
 
@@ -121,6 +148,32 @@ func loadStreakCmd(ctx context.Context, service Service, base app.Command) tea.C
 			return streakLoadFailedMsg{err: fmt.Errorf("study streak was not returned")}
 		}
 		return streakLoadedMsg{streak: *result.Streak}
+	}
+}
+
+func loadReviewsCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionReviews, Workspace: base.Workspace, ReviewsDue: true})
+		if err != nil {
+			return reviewsLoadFailedMsg{err: err}
+		}
+		if result.Reviews == nil {
+			return reviewsLoadFailedMsg{err: fmt.Errorf("review queue was not returned")}
+		}
+		return reviewsLoadedMsg{reviews: *result.Reviews}
+	}
+}
+
+func loadHistoryCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionHistory, Workspace: base.Workspace})
+		if err != nil {
+			return historyLoadFailedMsg{err: err}
+		}
+		if result.History == nil {
+			return historyLoadFailedMsg{err: fmt.Errorf("study history was not returned")}
+		}
+		return historyLoadedMsg{history: *result.History}
 	}
 }
 

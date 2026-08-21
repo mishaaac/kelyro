@@ -99,7 +99,7 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	achievements := application.NewAchievementService(profiles, database, application.WithAchievementClock(now))
 	analytics := application.NewLearningAnalyticsService(profiles, database, application.WithLearningAnalyticsClock(now))
 	dailyPlan := application.NewAdaptiveDailyPlanService(profiles, mastery, database, application.WithAdaptiveDailyPlanClock(now))
-	dashboard := application.NewProgressDashboardService(profiles, dailyPlan, database, application.WithProgressDashboardClock(now))
+	dashboard := application.NewProgressDashboardService(profiles, mastery, dailyPlan, database, application.WithProgressDashboardClock(now))
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,

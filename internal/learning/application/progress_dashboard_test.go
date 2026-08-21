@@ -22,7 +22,7 @@ func TestProgressDashboardNewStudentHasExplicitEmptyState(t *testing.T) {
 		application.WithMasteryPolicyClock(func() time.Time { return now }))
 	plans := application.NewAdaptiveDailyPlanService(profiles, mastery, store,
 		application.WithAdaptiveDailyPlanClock(func() time.Time { return now }))
-	dashboard := application.NewProgressDashboardService(profiles, plans, store,
+	dashboard := application.NewProgressDashboardService(profiles, mastery, plans, store,
 		application.WithProgressDashboardClock(func() time.Time { return now }))
 
 	view, err := dashboard.Show(ctx)
@@ -40,6 +40,10 @@ func TestProgressDashboardNewStudentHasExplicitEmptyState(t *testing.T) {
 	if view.ReadModelVersion != application.ProgressDashboardReadModelVersion ||
 		view.AnalyticsVersion != learning.LearningAnalyticsPolicyVersion || !view.GeneratedAt.Time().Equal(now) {
 		t.Fatalf("new-student metadata = %+v", view)
+	}
+	if view.MasteryRequirement.Requirement.Threshold.Value() != .8 ||
+		view.MasteryRequirement.Source != learning.MasterySourceStudentDefault {
+		t.Fatalf("new-student mastery requirement = %+v", view.MasteryRequirement)
 	}
 }
 
@@ -88,6 +92,21 @@ func TestProgressDashboardShowsPartialActiveCurriculum(t *testing.T) {
 		view.Current.Lesson.Title != "Lesson" || view.Current.Concept.ID != conceptB {
 		t.Fatalf("current location = %+v", view.Current)
 	}
+	concepts := dashboardRoadmapConcepts(view.Roadmap)
+	if len(concepts) != 2 || concepts[0].Status != application.DashboardRoadmapMastered || concepts[0].Mastery == nil ||
+		concepts[1].Status != application.DashboardRoadmapCurrent || concepts[1].Mastery == nil || len(concepts[1].LockReasons) != 0 {
+		t.Fatalf("roadmap concepts = %+v", concepts)
+	}
+	wantTypes := []learning.CurriculumNodeType{learning.CurriculumNodePhase, learning.CurriculumNodeModule,
+		learning.CurriculumNodeLesson, learning.CurriculumNodeTopic, learning.CurriculumNodeConcept, learning.CurriculumNodeConcept}
+	if len(view.Roadmap) != len(wantTypes) {
+		t.Fatalf("roadmap length = %d, want %d", len(view.Roadmap), len(wantTypes))
+	}
+	for index, want := range wantTypes {
+		if view.Roadmap[index].Type != want {
+			t.Fatalf("roadmap[%d] type = %q, want %q: %+v", index, view.Roadmap[index].Type, want, view.Roadmap)
+		}
+	}
 	if len(view.WeakConcepts) != 2 || view.WeakConcepts[0].ConceptID != conceptB || view.WeakConcepts[0].Title != "B" {
 		t.Fatalf("weak concepts = %+v", view.WeakConcepts)
 	}
@@ -96,6 +115,54 @@ func TestProgressDashboardShowsPartialActiveCurriculum(t *testing.T) {
 		view.RecentMilestone == nil || view.RecentMilestone.ID != latest.ID {
 		t.Fatalf("dashboard outcomes = %+v", view)
 	}
+}
+
+func TestProgressDashboardExplainsLockedRoadmapConcept(t *testing.T) {
+	t.Parallel()
+	fixture := newProgressDashboardFixture(t, instanceTestCurriculum(t, "dashboard-locked"))
+	fixture.saveState(t, testID(t, "concept.a"), learning.ExposureLearning, .4, fixture.now.Add(-time.Hour), false)
+
+	view, err := fixture.dashboard.Show(fixture.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	concepts := dashboardRoadmapConcepts(view.Roadmap)
+	if len(concepts) != 2 || concepts[0].Status != application.DashboardRoadmapCurrent ||
+		concepts[1].Status != application.DashboardRoadmapLocked || len(concepts[1].LockReasons) != 1 ||
+		concepts[1].LockReasons[0] != "Requires mastery of A; current mastery is 40%." {
+		t.Fatalf("locked roadmap = %+v", concepts)
+	}
+}
+
+func TestProgressDashboardShowsEffectiveMasteryOverride(t *testing.T) {
+	t.Parallel()
+	fixture := newProgressDashboardFixture(t, instanceTestCurriculum(t, "dashboard-mastery-override"))
+	threshold, err := learning.NewMasteryThreshold(.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.mastery.SetWorkspaceOverride(fixture.ctx, threshold); err != nil {
+		t.Fatal(err)
+	}
+
+	view, err := fixture.dashboard.Show(fixture.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.MasteryRequirement.Requirement.Threshold.Value() != .9 ||
+		view.MasteryRequirement.Source != learning.MasterySourceWorkspaceOverride {
+		t.Fatalf("effective mastery requirement = %+v", view.MasteryRequirement)
+	}
+}
+
+func dashboardRoadmapConcepts(nodes []application.DashboardRoadmapNode) []application.DashboardRoadmapNode {
+	concepts := make([]application.DashboardRoadmapNode, 0)
+	for _, node := range nodes {
+		if node.Type == learning.CurriculumNodeConcept {
+			concepts = append(concepts, node)
+		}
+	}
+	return concepts
 }
 
 func TestProgressDashboardCountsDueReviewsInActiveCurriculum(t *testing.T) {
@@ -196,6 +263,7 @@ type progressDashboardFixture struct {
 	profiles  application.ProfileService
 	goals     application.GoalLifecycleService
 	instances application.CurriculumInstanceService
+	mastery   application.MasteryPolicyService
 	goal      learning.LearningGoal
 	instance  learning.CurriculumInstance
 	dashboard application.ProgressDashboardService
@@ -228,10 +296,10 @@ func newProgressDashboardFixture(t *testing.T, curriculum learning.Curriculum) *
 		application.WithMasteryPolicyClock(func() time.Time { return createdAt.Add(3 * time.Hour) }))
 	plans := application.NewAdaptiveDailyPlanService(profiles, mastery, store,
 		application.WithAdaptiveDailyPlanClock(func() time.Time { return now }))
-	dashboard := application.NewProgressDashboardService(profiles, plans, store,
+	dashboard := application.NewProgressDashboardService(profiles, mastery, plans, store,
 		application.WithProgressDashboardClock(func() time.Time { return now }))
 	return &progressDashboardFixture{
-		ctx: ctx, store: store, profiles: profiles, goals: goals, instances: instances,
+		ctx: ctx, store: store, profiles: profiles, goals: goals, instances: instances, mastery: mastery,
 		goal: goal, instance: instance, dashboard: dashboard, now: now,
 	}
 }

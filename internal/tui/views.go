@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/learning"
@@ -28,6 +29,18 @@ func (model Model) View() string {
 			lines = model.configView(width)
 		case screenRoadmap:
 			lines = model.roadmapView(width)
+		case screenToday:
+			lines = model.todayView(width)
+		case screenProgress:
+			lines = model.progressView(width)
+		case screenConcept:
+			lines = model.conceptView(width)
+		case screenReviews:
+			lines = model.reviewsView(width)
+		case screenHistory:
+			lines = model.historyView(width)
+		case screenGoal:
+			lines = model.goalView(width)
 		case screenProfile:
 			lines = model.profileView(width)
 		case screenStreak:
@@ -45,15 +58,32 @@ func (model Model) homeView(width int) []string {
 	lines := []string{
 		model.styles.title.Render("Kelyro"),
 		truncate("Workspace: "+model.snapshot.WorkspaceName, width),
-		"",
-		model.styles.heading.Render("Status"),
 	}
-	lines = append(lines, statusLines(model.snapshot.Checks, false, model.styles, width)...)
-	lines = append(lines, "")
-	if model.snapshot.LearningPath {
-		lines = append(lines, "Learning path ready.")
+	if !model.snapshot.LearningPath {
+		lines = append(lines, "", model.styles.muted.Render("No learning path yet."), "")
+		lines = append(lines, wrapText("Complete setup to create your learner profile, goal, and curriculum.", width)...)
+	} else if model.dashboardErr != nil {
+		lines = append(lines, "", model.styles.failure.Render("Could not load learning dashboard"))
+		lines = append(lines, wrapText(model.dashboardErr.Error(), width)...)
+	} else if model.dashboard.Goal == nil {
+		lines = append(lines, "", model.styles.muted.Render("No active learning goal."))
 	} else {
-		lines = append(lines, model.styles.muted.Render("No learning path yet."))
+		lines = append(lines, "", model.styles.heading.Render(truncate(model.dashboard.Goal.Title, width)), "")
+		lines = append(lines, "Progress")
+		lines = append(lines, progressBar(model.dashboard.OverallProgress.Completion.Value, width))
+		lines = append(lines, "", model.styles.heading.Render("Today"))
+		lines = append(lines, fmt.Sprintf("Reviews due: %d", model.dashboard.ReviewsDue.Value))
+		next := dashboardNextTitle(model.dashboard)
+		if next == "" {
+			next = "Nothing urgent"
+		}
+		lines = append(lines, truncate("Next: "+next, width))
+		lines = append(lines, "", fmt.Sprintf("Mastery required: %.0f%%", dashboardMasteryThreshold(model.dashboard)*100))
+		lines = append(lines, fmt.Sprintf("Streak: %d %s", model.dashboard.Streak.CurrentStreak.Value, streakDayWord(model.dashboard.Streak.CurrentStreak.Value)))
+		lines = append(lines, "Study this week: "+formatStudyDuration(model.dashboard.StudyTime.Week.Value))
+	}
+	if model.dashboardLoading {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing learning progress..."))
 	}
 	if len(model.milestones) > 0 {
 		lines = append(lines, "", model.styles.success.Render("Milestone unlocked"))
@@ -62,7 +92,7 @@ func (model Model) homeView(width int) []string {
 		}
 	}
 	lines = append(lines, "")
-	lines = append(lines, shortcutLines(width, "[Enter] Continue", "[s] Setup", "[p] Profile", "[k] Streak", "[d] Doctor", "[c] Config", "[r] Roadmap", "[q] Quit")...)
+	lines = append(lines, shortcutLines(width, "[Enter] Today", "[r] Roadmap", "[p] Progress", "[c] Concept", "[v] Reviews", "[h] History", "[g] Goal", "[o] Profile", "[f] Refresh", "[s] Setup", "[d] Doctor", "[C] Config", "[k] Streak", "[q] Quit")...)
 	return lines
 }
 
@@ -345,19 +375,357 @@ func (model Model) configView(width int) []string {
 
 func (model Model) roadmapView(width int) []string {
 	lines := []string{model.styles.title.Render("Roadmap"), ""}
-	if model.snapshot.LearningPath {
-		lines = append(lines, "Your learning roadmap is ready.")
-	} else {
-		lines = append(lines, model.styles.muted.Render("No learning path yet."), "")
-		lines = append(lines, wrapText("The Curriculum Compiler will populate this view in a future implementation.", width)...)
+	switch {
+	case model.dashboardLoading && model.dashboard.Curriculum == nil:
+		lines = append(lines, "Loading roadmap...")
+	case model.dashboardErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load roadmap"))
+		lines = append(lines, wrapText(model.dashboardErr.Error(), width)...)
+	case model.dashboard.Curriculum == nil:
+		lines = append(lines, model.styles.muted.Render("No active curriculum."), "")
+		lines = append(lines, wrapText("Complete setup or activate a learning goal to create a roadmap.", width)...)
+	default:
+		for _, node := range model.dashboard.Roadmap {
+			indent := strings.Repeat("  ", node.Depth)
+			if node.Type != learning.CurriculumNodeConcept {
+				label := strings.ToUpper(string(node.Type)[:1]) + string(node.Type)[1:] + ": " + node.Title
+				lines = append(lines, truncate(indent+label, width))
+				continue
+			}
+			status := roadmapStatusLabel(node.Status)
+			lines = append(lines, truncate(indent+"- "+node.Title+" ["+status+"]", width))
+			for _, reason := range node.LockReasons {
+				lines = append(lines, wrapText(indent+"  Why: "+reason, width)...)
+			}
+		}
+		lines = append(lines, "")
+		for _, line := range wrapText("Legend: mastered, current, available, locked, review due", width) {
+			lines = append(lines, model.styles.muted.Render(line))
+		}
 	}
 	if model.notice != "" {
 		lines = append(lines, "")
 		lines = append(lines, wrapText(model.notice, width)...)
 	}
 	lines = append(lines, "")
-	lines = append(lines, shortcutLines(width, "[o] Open ROADMAP.md", "[Esc/h] Home", "[q] Quit")...)
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[o] Open ROADMAP.md", "[Esc/h] Home", "[q] Quit")...)
 	return lines
+}
+
+func (model Model) todayView(width int) []string {
+	lines := []string{model.styles.title.Render("Today"), ""}
+	switch {
+	case model.dashboardLoading && model.dashboard.Goal == nil:
+		lines = append(lines, "Building today's plan...")
+	case model.dashboardErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load today's plan"))
+		lines = append(lines, wrapText(model.dashboardErr.Error(), width)...)
+	case model.dashboard.Goal == nil:
+		lines = append(lines, model.styles.muted.Render("No active learning goal."))
+	case model.dashboard.TodayPlan == nil:
+		lines = append(lines, model.styles.muted.Render("No daily plan is available yet."))
+	default:
+		plan := model.dashboard.TodayPlan
+		lines = append(lines, truncate(model.dashboard.Goal.Title, width))
+		lines = append(lines, truncate(fmt.Sprintf("Planned: %d of %d minutes", plan.PlannedMinutes, plan.AvailableMinutes), width), "")
+		if len(plan.Items) == 0 {
+			message := "Nothing urgent today. Your current progress has no scheduled work."
+			if plan.Status == learning.DailyPlanTimeLimited {
+				message = "Today's time budget is too small for the next useful study item."
+			}
+			lines = append(lines, wrapText(message, width)...)
+		}
+		for index, item := range plan.Items {
+			title := dashboardConceptTitle(model.dashboard, item.ConceptIDs[0])
+			lines = append(lines, truncate(fmt.Sprintf("%d. %s - %s (%dm)", index+1, dailyPlanRoleLabel(item.Role), title, item.EstimatedMinutes), width))
+			lines = append(lines, wrapText("   "+dailyPlanExplanation(model.dashboard, item), width)...)
+		}
+	}
+	if model.dashboardLoading {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing..."))
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func (model Model) progressView(width int) []string {
+	lines := []string{model.styles.title.Render("Progress"), ""}
+	switch {
+	case model.dashboardErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load progress"))
+		lines = append(lines, wrapText(model.dashboardErr.Error(), width)...)
+	case model.dashboard.Goal == nil:
+		lines = append(lines, model.styles.muted.Render("No active learning goal."))
+	default:
+		progress := model.dashboard.OverallProgress
+		lines = append(lines, truncate(model.dashboard.Goal.Title, width))
+		lines = append(lines, progressBar(progress.Completion.Value, width))
+		lines = append(lines,
+			truncate(fmt.Sprintf("Mastered: %d of %d concepts", progress.ConceptsMastered.Value, progress.ConceptsTotal.Value), width),
+			truncate(fmt.Sprintf("Learning: %d", progress.ConceptsLearning.Value), width),
+			truncate(fmt.Sprintf("Introduced: %d", progress.ConceptsIntroduced.Value), width),
+			"",
+		)
+		average := "unknown"
+		if model.dashboard.Mastery.AverageKnown.Value != nil {
+			average = fmt.Sprintf("%.0f%%", model.dashboard.Mastery.AverageKnown.Value.Value()*100)
+		}
+		lines = append(lines, truncate("Average mastery (known concepts): "+average, width))
+		lines = append(lines, truncate(fmt.Sprintf("Current mastery requirement: %.0f%%", dashboardMasteryThreshold(model.dashboard)*100), width))
+		for _, line := range wrapText("Completion counts mastered curriculum concepts; average mastery excludes unknown concepts.", width) {
+			lines = append(lines, model.styles.muted.Render(line))
+		}
+		lines = append(lines, "", fmt.Sprintf("Reviews due: %d", model.dashboard.ReviewsDue.Value))
+		lines = append(lines, "Study today: "+formatStudyDuration(model.dashboard.StudyTime.Today.Value))
+		lines = append(lines, "Study this week: "+formatStudyDuration(model.dashboard.StudyTime.Week.Value))
+		lines = append(lines, fmt.Sprintf("Current streak: %d %s", model.dashboard.Streak.CurrentStreak.Value, streakDayWord(model.dashboard.Streak.CurrentStreak.Value)))
+		if model.dashboard.RecentMilestone != nil {
+			lines = append(lines, "Recent milestone: "+model.dashboard.RecentMilestone.Name)
+		}
+		if len(model.dashboard.WeakConcepts) > 0 {
+			lines = append(lines, "", model.styles.heading.Render("Needs reinforcement"))
+			for _, concept := range model.dashboard.WeakConcepts {
+				lines = append(lines, truncate(fmt.Sprintf("- %s: %.0f%% mastery", concept.Title, concept.Mastery.Value()*100), width))
+			}
+		}
+	}
+	if model.dashboardLoading {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing..."))
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func (model Model) conceptView(width int) []string {
+	lines := []string{model.styles.title.Render("Concept detail"), ""}
+	switch {
+	case model.dashboardErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load concept detail"))
+		lines = append(lines, wrapText(model.dashboardErr.Error(), width)...)
+	case model.dashboard.Current == nil:
+		lines = append(lines, model.styles.muted.Render("No current concept."), "")
+		lines = append(lines, wrapText("The active curriculum may be complete, or no curriculum is active.", width)...)
+	default:
+		current := model.dashboard.Current
+		lines = append(lines, model.styles.heading.Render(truncate(current.Concept.Title, width)), "")
+		lines = append(lines,
+			truncate("Phase: "+current.Phase.Title, width),
+			truncate("Module: "+current.Module.Title, width),
+			truncate("Lesson: "+current.Lesson.Title, width),
+			truncate("Topic: "+current.Topic.Title, width),
+			"",
+		)
+		if node := dashboardRoadmapConcept(model.dashboard, current.Concept.ID); node != nil {
+			lines = append(lines, "Status: "+roadmapStatusLabel(node.Status))
+			mastery := "unknown"
+			if node.Mastery != nil {
+				mastery = fmt.Sprintf("%.0f%%", node.Mastery.Value()*100)
+			}
+			lines = append(lines, "Mastery: "+mastery)
+			for _, reason := range node.LockReasons {
+				lines = append(lines, wrapText("Why locked: "+reason, width)...)
+			}
+		}
+	}
+	if model.dashboardLoading {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing..."))
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func (model Model) reviewsView(width int) []string {
+	lines := []string{model.styles.title.Render("Reviews"), ""}
+	switch {
+	case model.reviewsLoading && model.reviews.GeneratedAt == (learning.Timestamp{}):
+		lines = append(lines, "Loading due reviews...")
+	case model.reviewsErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load reviews"))
+		lines = append(lines, wrapText(model.reviewsErr.Error(), width)...)
+	case len(model.reviews.Items) == 0:
+		lines = append(lines, model.styles.muted.Render("No reviews are due."))
+	default:
+		lines = append(lines, fmt.Sprintf("Due now: %d (%d minutes)", len(model.reviews.Items), model.reviews.UsedMinutes), "")
+		for _, item := range model.reviews.Items {
+			title := dashboardConceptTitle(model.dashboard, item.Item.ConceptID)
+			flags := []string{string(item.Status)}
+			if item.Overdue {
+				flags = append(flags, "overdue")
+			}
+			if item.Critical {
+				flags = append(flags, "prerequisite")
+			}
+			lines = append(lines, truncate(fmt.Sprintf("- %s (%dm, %s)", title, item.Item.EstimatedMinutes, strings.Join(flags, ", ")), width))
+		}
+		if len(model.reviews.Deferred) > 0 {
+			lines = append(lines, "", fmt.Sprintf("Deferred by today's budget: %d", len(model.reviews.Deferred)))
+		}
+	}
+	if model.reviewsLoading && model.reviews.GeneratedAt != (learning.Timestamp{}) {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing..."))
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func (model Model) historyView(width int) []string {
+	lines := []string{model.styles.title.Render("Study history"), ""}
+	switch {
+	case model.historyLoading && model.history.Timezone == "":
+		lines = append(lines, "Loading study history...")
+	case model.historyErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load study history"))
+		lines = append(lines, wrapText(model.historyErr.Error(), width)...)
+	case len(model.history.Events) == 0:
+		for _, line := range wrapText("No learning activity recorded yet.", width) {
+			lines = append(lines, model.styles.muted.Render(line))
+		}
+	default:
+		start := len(model.history.Events) - 1
+		limit := max(0, start-11)
+		for index := start; index >= limit; index-- {
+			event := model.history.Events[index]
+			label := studyEventLabel(event.Type)
+			if event.ConceptID != nil {
+				label += ": " + dashboardConceptTitle(model.dashboard, *event.ConceptID)
+			}
+			lines = append(lines, truncate(event.OccurredAt.Time().Format("2006-01-02 15:04")+"  "+label, width))
+		}
+		if len(model.history.Events) > 12 {
+			lines = append(lines, model.styles.muted.Render(fmt.Sprintf("Showing 12 of %d events.", len(model.history.Events))))
+		}
+	}
+	if model.historyLoading && model.history.Timezone != "" {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing..."))
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func (model Model) goalView(width int) []string {
+	lines := []string{model.styles.title.Render("Learning goal"), ""}
+	switch {
+	case model.dashboardErr != nil:
+		lines = append(lines, model.styles.failure.Render("Could not load learning goal"))
+		lines = append(lines, wrapText(model.dashboardErr.Error(), width)...)
+	case model.dashboard.Goal == nil:
+		lines = append(lines, model.styles.muted.Render("No active learning goal."))
+	default:
+		goal := model.dashboard.Goal
+		lines = append(lines,
+			model.styles.heading.Render(truncate(goal.Title, width)),
+			truncate("Domain: "+goal.Domain, width),
+			truncate("Target: "+goal.TargetOutcome, width),
+			truncate("Starting level: "+string(goal.StartingLevel), width),
+			truncate("Status: "+string(goal.Status), width),
+			truncate(fmt.Sprintf("Goal default mastery: %.0f%%", goal.MasteryThreshold.Value()*100), width),
+			truncate(fmt.Sprintf("Current mastery requirement: %.0f%% (%s)", dashboardMasteryThreshold(model.dashboard)*100,
+				model.dashboard.MasteryRequirement.Source.DisplayName()), width),
+		)
+		if goal.Description != "" {
+			lines = append(lines, "")
+			lines = append(lines, wrapText(goal.Description, width)...)
+		}
+		lines = append(lines, "")
+		for _, line := range wrapText("Goal changes remain available through `kelyro goal`.", width) {
+			lines = append(lines, model.styles.muted.Render(line))
+		}
+	}
+	if model.dashboardLoading {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing..."))
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func progressBar(percent float64, width int) string {
+	barWidth := 20
+	if width < 30 {
+		barWidth = max(3, width-8)
+	}
+	filled := int(percent * float64(barWidth) / 100)
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > barWidth {
+		filled = barWidth
+	}
+	return truncate("["+strings.Repeat("#", filled)+strings.Repeat("-", barWidth-filled)+fmt.Sprintf("] %.0f%%", percent), width)
+}
+
+func formatStudyDuration(duration time.Duration) string {
+	minutes := int(duration / time.Minute)
+	if minutes < 60 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	return fmt.Sprintf("%dh%02dm", minutes/60, minutes%60)
+}
+
+func dashboardNextTitle(dashboard learningapp.ProgressDashboard) string {
+	if dashboard.TodayPlan != nil && len(dashboard.TodayPlan.Items) > 0 && len(dashboard.TodayPlan.Items[0].ConceptIDs) > 0 {
+		return dashboardConceptTitle(dashboard, dashboard.TodayPlan.Items[0].ConceptIDs[0])
+	}
+	if dashboard.Current != nil {
+		return dashboard.Current.Concept.Title
+	}
+	return ""
+}
+
+func dashboardMasteryThreshold(dashboard learningapp.ProgressDashboard) float64 {
+	if dashboard.MasteryRequirement.PolicyVersion == learning.MasteryThresholdPolicyVersion {
+		return dashboard.MasteryRequirement.Requirement.Threshold.Value()
+	}
+	if dashboard.Goal != nil {
+		return dashboard.Goal.MasteryThreshold.Value()
+	}
+	return 0
+}
+
+func dashboardConceptTitle(dashboard learningapp.ProgressDashboard, conceptID learning.ID) string {
+	for _, node := range dashboard.Roadmap {
+		if node.ID == conceptID {
+			return node.Title
+		}
+	}
+	return conceptID.String()
+}
+
+func dashboardRoadmapConcept(dashboard learningapp.ProgressDashboard, conceptID learning.ID) *learningapp.DashboardRoadmapNode {
+	for index := range dashboard.Roadmap {
+		if dashboard.Roadmap[index].ID == conceptID {
+			return &dashboard.Roadmap[index]
+		}
+	}
+	return nil
+}
+
+func roadmapStatusLabel(status learningapp.DashboardRoadmapStatus) string {
+	if status == learningapp.DashboardRoadmapReviewDue {
+		return "review due"
+	}
+	return strings.ReplaceAll(string(status), "_", " ")
+}
+
+func dailyPlanRoleLabel(role learning.DailyPlanItemRole) string {
+	return strings.ReplaceAll(string(role), "_", " ")
+}
+
+func dailyPlanExplanation(dashboard learningapp.ProgressDashboard, item learning.DailyPlanItem) string {
+	explanation := item.Explanation
+	for _, conceptID := range item.ConceptIDs {
+		explanation = strings.ReplaceAll(explanation, conceptID.String(), dashboardConceptTitle(dashboard, conceptID))
+	}
+	return explanation
+}
+
+func studyEventLabel(eventType learning.StudyEventType) string {
+	return strings.ReplaceAll(string(eventType), ".", " ")
 }
 
 func (model Model) contentWidth() int {

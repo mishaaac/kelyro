@@ -79,7 +79,7 @@ func TestFoundationWorkspaceLifecycle(t *testing.T) {
 		test := newScenario(t, binary)
 		test.mustRun("init")
 		output := completeLearnerSetup(t, test)
-		for _, expected := range []string{"Review your setup before applying it.", "Apply this learner setup?", "Setup complete.", "Learning path ready."} {
+		for _, expected := range []string{"Review your setup before applying it.", "Apply this learner setup?", "Setup complete.", "Study this week: 0m"} {
 			if !strings.Contains(normalizeOutput(output), expected) {
 				t.Fatalf("setup output missing %q:\n%s", expected, output)
 			}
@@ -352,7 +352,7 @@ func completeLearnerSetup(t *testing.T, test scenario) string {
 		interaction{waitFor: "Review your setup before applying it.", send: "\r"},
 		interaction{waitFor: "Apply this learner setup?", send: "\r"},
 		interaction{waitFor: "Setup complete.", send: "\r"},
-		interaction{waitFor: "Learning path ready.", send: "q"},
+		interaction{waitFor: "Study this week: 0m", send: "q"},
 	)
 }
 

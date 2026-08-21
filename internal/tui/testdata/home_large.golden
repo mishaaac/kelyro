@@ -2,12 +2,19 @@
   Kelyro
   Workspace: foundation lab
 
-  Status
-  ✓ Workspace initialized
-  ✓ Database healthy
-  ✓ Configuration loaded
+  Backend Engineering with Go
 
-  No learning path yet.
+  Progress
+  [##########----------] 50%
 
-  [Enter] Continue   [s] Setup   [p] Profile   [k] Streak   [d] Doctor   [c] Config
-  [r] Roadmap   [q] Quit
+  Today
+  Reviews due: 2
+  Next: Short declarations
+
+  Mastery required: 85%
+  Streak: 6 days
+  Study this week: 4h12m
+
+  [Enter] Today   [r] Roadmap   [p] Progress   [c] Concept   [v] Reviews   [h] History
+  [g] Goal   [o] Profile   [f] Refresh   [s] Setup   [d] Doctor   [C] Config   [k] Streak
+  [q] Quit

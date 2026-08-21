@@ -8,7 +8,7 @@ persistence needed to build the product incrementally.
 ## Status
 
 Foundation pre-release `v0.1.0-alpha.2`. I-02 Student & Learning Core is in
-progress through the Progress Dashboard application read model. The current executable
+progress through its persistent terminal experience. The current executable
 provides workspace initialization, global/project configuration, secret management,
 safe opening of Foundation documents, portability and recovery operations, and
 an interactive TUI with resumable onboarding, a learning goal, mastery policy,
@@ -16,8 +16,9 @@ an optional deterministic diagnostic, and fixture-backed initial curriculum
 state, persistent mistake/session lifecycles, and `history`/`time` inspection.
 The core now includes retention, review scheduling, warm-ups, non-punitive
 streaks, achievements, explainable analytics, deterministic adaptive daily
-planning, and a coherent dashboard query; dashboard presentation and exercise
-work remain pending. See the
+planning, and a coherent dashboard presented through Home, Today, Progress,
+Concept, Roadmap, Reviews, History, Goal, and Profile views. Exercise work and
+the complete Student Core CLI remain pending. See the
 [release notes](docs/releases/v0.1.0-alpha.2.md) for scope and limitations.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
@@ -44,9 +45,11 @@ Run the resulting binary with `./kelyro` on Linux or macOS, or
 
 Run `kelyro help` to list the available commands. Invoking `kelyro` without a
 command opens the TUI from a Kelyro workspace. An incomplete learner setup opens
-automatically and resumes its last durable checkpoint. Its Home,
-Doctor, Config, and Roadmap screens use visible keyboard shortcuts; `q` exits and
-`Esc` returns Home. Set `NO_COLOR` or pass `--no-color` to disable color.
+automatically and resumes its last durable checkpoint. After setup, Home shows
+the active goal, completion, today's next work, reviews, mastery requirement,
+streak, and weekly study time. Visible keyboard shortcuts open the Student Core
+views; `q` exits and `Esc` returns Home. Set `NO_COLOR` or pass `--no-color` to
+disable color.
 
 Configuration is available through `kelyro config show`, `path`, `get`, and
 `set`. Use `--global` or `--project` to choose a scope explicitly. Kelyro stores

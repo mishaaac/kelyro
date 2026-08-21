@@ -1,7 +1,7 @@
 # Progress Dashboard read model
 
-`progress-dashboard/v1` is the single application query used by future CLI and
-TUI progress surfaces. It assembles a presentation-neutral view; presentation
+`progress-dashboard/v1` is the single application query used by the TUI and
+future CLI progress surfaces. It assembles a presentation-neutral view; presentation
 code does not open SQLite, traverse curriculum tables, recalculate metrics, or
 coordinate independent Student Core services.
 
@@ -9,9 +9,11 @@ coordinate independent Student Core services.
 
 The read model contains the active goal and curriculum instance, overall
 curriculum progress, the current phase/module/lesson/topic/concept path,
-mastery summary, due-review count, today's adaptive plan, study time, streak,
-latest goal milestone, and titled weak concepts. It records its generation
-instant, profile timezone, analytics policy, and read-model version.
+mastery summary, effective mastery requirement and its precedence source,
+due-review count, today's adaptive plan, study time, streak,
+latest goal milestone, titled weak concepts, and a presentation-ready roadmap.
+It records its generation instant, profile timezone, analytics policy, and
+read-model version.
 
 Curriculum progress, mastery, reviews, location, and weak concepts are scoped to
 the active curriculum instance. Study time and streak remain learner-wide facts
@@ -65,6 +67,19 @@ to completed content.
 This location is a navigation frontier, not a replacement for prerequisite or
 Daily Plan policy. The adaptive planner remains authoritative for what should
 be studied today.
+
+## Roadmap projection
+
+The roadmap preserves the canonical phase/module/lesson/topic/concept order.
+Application assigns each concept one of `mastered`, `current`, `available`,
+`locked`, or `review_due`. A concept with no recorded exposure has absent
+mastery rather than a fabricated zero score. Locked entries include human
+reasons naming unmet prerequisites and whether their current mastery is unknown
+or known. The TUI only renders these results; it does not infer eligibility.
+
+The compact planning projection supplies all prerequisite edges in one read.
+State, title, and prerequisite maps keep status derivation linear after the
+existing hierarchy sort, without one query per concept.
 
 ## Performance
 
