@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 19 (pending authorization)
-Last completed step: 18
+Current step: 20 (pending authorization)
+Last completed step: 19
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -819,3 +819,50 @@ Release: unreleased
 - Spaced Repetition Scheduler v1 deberá consumir `RetentionState.NextDueAt`/`Status`, crear o actualizar review records idempotentes y mantener la fórmula fuera de SQL.
 - No reinterpretar strength como mastery ni tratar due/overdue como fallo observado.
 - No adelantar warm-ups, streaks, achievements, analytics, daily plans o el Exercise Engine completo.
+
+## Step 19 — Spaced Repetition Scheduler v1
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Política pura y versionada `review-scheduler-v1` que consume concept state, `retention-v1`, historial de reviews, criticidad de prerequisitos y un instante UTC explícito.
+- Metadata general de review `quick_recall|standard_review|deep_review`, con estimaciones fijas de 5/10/20 minutos y selección determinista por strength o fallo reciente, sin generar ejercicios de I-05.
+- Cola due estable con prioridad lexicográfica overdue → menor strength → prerequisito crítico → due más antiguo → ID, y selección greedy dentro de `Availability.DailyMinutes` que reporta trabajo diferido.
+- Lifecycle completo para posponer, saltar y completar: postponement explícito se preserva, skip difiere 24 horas sin crear Evidence y success/failure se deriva del threshold de recall `0.70`.
+- Completion transaccional que agrega Evidence inmutable `review_recall`, recalcula mastery/retention, proyecta `review_due`, registra Study History y crea la siguiente review; los fallos producen `deep_review` con el intervalo reducido de Retention v1.
+- Idempotencia mediante IDs deterministas, outcome repetible con el mismo score y unicidad de un solo pendiente por estudiante/concepto; score distinto sobre una review terminada es conflicto.
+- Clock inyectable, almacenamiento/comparaciones UTC y presentación CLI según la timezone IANA del perfil en `kelyro reviews` y `kelyro reviews due`.
+- Migration forward-only v17 con metadata de scheduling/lifecycle, backfill `legacy-review/v0`, deduplicación determinista de pendientes legacy, índice parcial único y triggers de integridad.
+- Puertos y adapters SQLite/in-memory ampliados, wiring workspace-scoped y documentación en `docs/architecture/review-scheduler-v1.md`.
+
+### Decisions
+
+- `RetentionState.NextDueAt` sigue siendo la autoridad del intervalo; el scheduler decide tipo, prioridad, presupuesto y lifecycle, y nunca reinterpreta strength como mastery.
+- Un concepto es prerequisito crítico cuando es requerido por otro concepto del curriculum activo. La criticidad desempata después de overdue y weakness, sin adelantar Knowledge Graph nuevo.
+- Si un elemento prioritario no cabe en el tiempo restante se difiere, pero elementos posteriores más breves pueden aprovechar el presupuesto; el backlog total y sus minutos siguen visibles.
+- Postpone requiere un due estrictamente posterior al actual y al instante de la acción. Skip cierra el item sin outcome y crea una nueva oportunidad explícitamente diferida; no equivale a pass ni a failure.
+- Un solo item pending por concepto es una invariante compartida por dominio, adapters y SQLite. La migración conserva como pending el legacy más antiguo por `(due_at,id)`.
+- `reviews` lista todos los pendientes programados por fecha; `reviews due` aplica prioridad y presupuesto solo a los ya vencidos. Las timezones nunca entran al cálculo educativo.
+- Step 19 no selecciona warm-ups, no mezcla contenido nuevo, no genera ejercicios y no implementa streaks, achievements, analytics ni daily plans.
+
+### Verification
+
+- Tests de dominio para selección de tipo, sorting due, budget limitado, postpone, failure, duplicados e invariantes de lifecycle.
+- Tests application para clock inyectable, idempotencia, prerequisitos críticos, presupuesto, postpone, skip sin Evidence, success y failure con nueva schedule.
+- Tests SQLite para migration v16 → v17, deduplicación legacy, roundtrip de lifecycle, pending único y triggers score/outcome.
+- Tests app/CLI para dispatch, parsing de ambos comandos, errores de uso y timestamp local `America/Lima`.
+- `GOCACHE=/tmp/kelyro-step19-target2-gocache go test ./internal/learning/... ./internal/storage/sqlite ./internal/infra/learningdb ./internal/app ./internal/cli`.
+- `GOCACHE=/tmp/kelyro-step19-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step19-vet-gocache go vet ./...`.
+- `GOCACHE=<workspace>/.step19-gocache GOTMPDIR=<workspace>/.step19-gotmp go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI; caches eliminados tras el gate.
+- Smoke real `init → reviews → reviews due` sobre un workspace temporal nuevo.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 20 es el siguiente paso pendiente y requiere autorización explícita.
+- Warm-up Selector deberá consumir el backlog/schedule ya durable sin cambiar `review-scheduler-v1`, inventar Evidence ni mezclar Exercise Engine.
+- No adelantar streaks, achievements, analytics, daily plans, TUI Student Core completo o generación de ejercicios.

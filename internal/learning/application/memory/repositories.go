@@ -468,6 +468,22 @@ func (repository retentionRepository) Get(ctx context.Context, studentID, concep
 	return cloneRetentionState(state), nil
 }
 
+func (repository retentionRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.RetentionState, error) {
+	if err := contextError("list memory retention states", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	states := make([]learning.RetentionState, 0)
+	for key, state := range repository.store.retention {
+		if key.student == studentID {
+			states = append(states, cloneRetentionState(state))
+		}
+	}
+	sort.Slice(states, func(i, j int) bool { return states[i].ConceptID.String() < states[j].ConceptID.String() })
+	return states, nil
+}
+
 func (repository retentionRepository) Save(ctx context.Context, state learning.RetentionState) error {
 	if err := contextError("save memory retention state", ctx); err != nil {
 		return err

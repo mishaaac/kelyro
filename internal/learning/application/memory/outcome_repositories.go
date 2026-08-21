@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/mishaaac/kelyro/internal/learning"
+	"github.com/mishaaac/kelyro/internal/learning/application"
 )
 
 type reviewRepository struct{ store *Store }
@@ -26,6 +27,9 @@ func (repository reviewRepository) SaveSchedule(ctx context.Context, schedule le
 	if err := contextError("save memory review schedule", ctx); err != nil {
 		return err
 	}
+	if err := schedule.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "save memory review schedule", err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	repository.store.schedules[studentConceptKey{student: schedule.StudentID, concept: schedule.ConceptID}] = cloneSchedule(schedule)
@@ -36,26 +40,89 @@ func (repository reviewRepository) CreateItem(ctx context.Context, item learning
 	if err := contextError("create memory review item", ctx); err != nil {
 		return err
 	}
+	if err := item.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "create memory review item", err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	if _, exists := repository.store.reviewItems[item.ID]; exists {
 		return conflict("create memory review item")
 	}
+	if item.Status == learning.ReviewPending {
+		for _, existing := range repository.store.reviewItems {
+			if existing.StudentID == item.StudentID && existing.ConceptID == item.ConceptID && existing.Status == learning.ReviewPending {
+				return conflict("create memory review item")
+			}
+		}
+	}
 	repository.store.reviewItems[item.ID] = cloneReviewItem(item)
 	return nil
+}
+
+func (repository reviewRepository) GetItem(ctx context.Context, id learning.ID) (learning.ReviewItem, error) {
+	if err := contextError("get memory review item", ctx); err != nil {
+		return learning.ReviewItem{}, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	item, exists := repository.store.reviewItems[id]
+	if !exists {
+		return learning.ReviewItem{}, notFound("get memory review item")
+	}
+	return cloneReviewItem(item), nil
 }
 
 func (repository reviewRepository) UpdateItem(ctx context.Context, item learning.ReviewItem) error {
 	if err := contextError("update memory review item", ctx); err != nil {
 		return err
 	}
+	if err := item.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "update memory review item", err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	if _, exists := repository.store.reviewItems[item.ID]; !exists {
 		return notFound("update memory review item")
 	}
+	if item.Status == learning.ReviewPending {
+		for id, existing := range repository.store.reviewItems {
+			if id != item.ID && existing.StudentID == item.StudentID && existing.ConceptID == item.ConceptID && existing.Status == learning.ReviewPending {
+				return conflict("update memory review item")
+			}
+		}
+	}
 	repository.store.reviewItems[item.ID] = cloneReviewItem(item)
 	return nil
+}
+
+func (repository reviewRepository) PendingByConcept(ctx context.Context, studentID, conceptID learning.ID) (learning.ReviewItem, error) {
+	if err := contextError("get memory pending review", ctx); err != nil {
+		return learning.ReviewItem{}, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	for _, item := range repository.store.reviewItems {
+		if item.StudentID == studentID && item.ConceptID == conceptID && item.Status == learning.ReviewPending {
+			return cloneReviewItem(item), nil
+		}
+	}
+	return learning.ReviewItem{}, notFound("get memory pending review")
+}
+
+func (repository reviewRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.ReviewItem, error) {
+	if err := contextError("list memory review items", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	items := make([]learning.ReviewItem, 0)
+	for _, item := range repository.store.reviewItems {
+		if item.StudentID == studentID {
+			items = append(items, cloneReviewItem(item))
+		}
+	}
+	sortReviewItems(items)
+	return items, nil
 }
 
 func (repository reviewRepository) ListDue(ctx context.Context, studentID learning.ID, asOf learning.Timestamp) ([]learning.ReviewItem, error) {
@@ -71,12 +138,20 @@ func (repository reviewRepository) ListDue(ctx context.Context, studentID learni
 		}
 	}
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].DueAt == items[j].DueAt {
-			return items[i].ID.String() < items[j].ID.String()
-		}
-		return items[i].DueAt.Before(items[j].DueAt)
+		return reviewItemLess(items[i], items[j])
 	})
 	return items, nil
+}
+
+func sortReviewItems(items []learning.ReviewItem) {
+	sort.Slice(items, func(i, j int) bool { return reviewItemLess(items[i], items[j]) })
+}
+
+func reviewItemLess(left, right learning.ReviewItem) bool {
+	if left.DueAt == right.DueAt {
+		return left.ID.String() < right.ID.String()
+	}
+	return left.DueAt.Before(right.DueAt)
 }
 
 type streakRepository struct{ store *Store }

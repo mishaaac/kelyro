@@ -347,6 +347,97 @@ func TestRetentionV1MigrationPreservesLegacySnapshotAndSupportsV1RoundTrip(t *te
 	}
 }
 
+func TestReviewSchedulerV1MigrationDeduplicatesPendingAndSupportsLifecycleRoundTrip(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:16]); err != nil {
+		t.Fatalf("migrate through v16: %v", err)
+	}
+	ctx := context.Background()
+	repositories := database.LearningRepositories()
+	student := testStudent(t)
+	if err := repositories.Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	reference := learning.CurriculumRef{ID: mustID(t, "curriculum.scheduler"), Version: "1.0.0"}
+	concept := learning.Concept{ID: mustID(t, "concept.scheduler"), TopicID: mustID(t, "topic.scheduler"), Title: "Scheduler"}
+	if err := database.SeedCurriculum(ctx, reference, []learning.Concept{concept}, nil); err != nil {
+		t.Fatal(err)
+	}
+	introduced := mustTimestamp(t, fixedTime)
+	firstDue := mustTimestamp(t, fixedTime.Add(24*time.Hour))
+	secondDue := mustTimestamp(t, fixedTime.Add(48*time.Hour))
+	if _, err := handle.Exec(`INSERT INTO review_schedule (student_id,concept_id,introduced_at,due_at,imported) VALUES (?,?,?,?,0)`,
+		student.ID.String(), concept.ID.String(), encodeTimestamp(introduced), encodeTimestamp(firstDue)); err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range []struct {
+		id  string
+		due learning.Timestamp
+	}{{"review.legacy.first", firstDue}, {"review.legacy.second", secondDue}} {
+		if _, err := handle.Exec(`INSERT INTO review_items (id,student_id,concept_id,due_at,status,completed_at) VALUES (?,?,?,?, 'pending',NULL)`,
+			row.id, student.ID.String(), concept.ID.String(), encodeTimestamp(row.due)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Migrate(ctx); err != nil {
+		t.Fatalf("migrate review scheduler: %v", err)
+	}
+	legacySchedule, err := database.LearningRepositories().Reviews.GetSchedule(ctx, student.ID, concept.ID)
+	if err != nil || legacySchedule.AlgorithmVersion != learning.LegacyReviewSchedulerVersion || legacySchedule.UpdatedAt != firstDue {
+		t.Fatalf("legacy schedule = (%+v, %v)", legacySchedule, err)
+	}
+	legacyItems, err := database.LearningRepositories().Reviews.ListByStudent(ctx, student.ID)
+	if err != nil || len(legacyItems) != 2 || legacyItems[0].Status != learning.ReviewPending || legacyItems[1].Status != learning.ReviewSkipped {
+		t.Fatalf("deduplicated legacy items = (%+v, %v)", legacyItems, err)
+	}
+	keeper := legacyItems[0]
+	keeper.Status = learning.ReviewSkipped
+	if err := database.LearningRepositories().Reviews.UpdateItem(ctx, keeper); err != nil {
+		t.Fatal(err)
+	}
+	now := mustTimestamp(t, fixedTime.Add(3*24*time.Hour))
+	dueAt := mustTimestamp(t, fixedTime.Add(4*24*time.Hour))
+	schedule, err := learning.NewReviewScheduleV1(student.ID, concept.ID, introduced, dueAt, learning.ReviewDeep, true, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.LearningRepositories().Reviews.SaveSchedule(ctx, schedule); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := learning.NewReviewItemIDV1(student.ID, concept.ID, dueAt, len(legacyItems))
+	item, _ := learning.NewReviewItemV1(id, schedule, now)
+	postponedDue := mustTimestamp(t, fixedTime.Add(5*24*time.Hour))
+	item, _ = item.Postpone(postponedDue, now)
+	if err := database.LearningRepositories().Reviews.CreateItem(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := database.LearningRepositories().Reviews.GetItem(ctx, item.ID)
+	if err != nil || !reflect.DeepEqual(loaded, item) {
+		t.Fatalf("review item roundtrip = (%+v, %v), want %+v", loaded, err, item)
+	}
+	pending, err := database.LearningRepositories().Reviews.PendingByConcept(ctx, student.ID, concept.ID)
+	if err != nil || pending.ID != item.ID {
+		t.Fatalf("pending review = (%+v, %v)", pending, err)
+	}
+	duplicateID, _ := learning.NewReviewItemIDV1(student.ID, concept.ID, postponedDue, len(legacyItems)+1)
+	duplicate, _ := learning.NewReviewItemV1(duplicateID, schedule, now)
+	if err := database.LearningRepositories().Reviews.CreateItem(ctx, duplicate); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate pending error = %v, want conflict", err)
+	}
+	if _, err := handle.Exec(`UPDATE review_items SET status='completed',outcome='success',score=0.1,completed_at=? WHERE id=?`,
+		encodeTimestamp(now), item.ID.String()); err == nil {
+		t.Fatal("review trigger accepted success with failing score")
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)
@@ -801,7 +892,9 @@ func TestSQLiteLearningRepositoryRoundTrips(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(gotSchedule, schedule) {
 		t.Fatalf("schedule=(%+v,%v)", gotSchedule, err)
 	}
-	review := learning.ReviewItem{ID: mustID(t, "review-1"), StudentID: student.ID, ConceptID: conceptA.ID, DueAt: schedule.DueAt, Status: learning.ReviewPending}
+	review := learning.ReviewItem{ID: mustID(t, "review-1"), StudentID: student.ID, ConceptID: conceptA.ID,
+		DueAt: schedule.DueAt, Type: learning.ReviewStandard, EstimatedMinutes: 10, Status: learning.ReviewPending,
+		CreatedAt: schedule.DueAt, AlgorithmVersion: learning.LegacyReviewSchedulerVersion}
 	if err := repositories.Reviews.CreateItem(ctx, review); err != nil {
 		t.Fatal(err)
 	}

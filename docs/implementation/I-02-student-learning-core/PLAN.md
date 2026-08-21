@@ -1862,7 +1862,7 @@ feat(retention): add versioned retention model v1
 
 ## Paso 19 — Implementar Spaced Repetition Scheduler v1
 
-- [ ] Paso 19 completado
+- [x] Paso 19 completado
 
 ### Objetivo
 

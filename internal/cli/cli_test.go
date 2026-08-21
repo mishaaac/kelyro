@@ -48,6 +48,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "session status", args: []string{"session", "status"}, wantAction: app.ActionSession},
 		{name: "history", args: []string{"history"}, wantAction: app.ActionHistory},
 		{name: "time", args: []string{"time"}, wantAction: app.ActionTime},
+		{name: "reviews", args: []string{"reviews"}, wantAction: app.ActionReviews},
 	}
 
 	for _, test := range tests {
@@ -75,6 +76,43 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerParsesAndFormatsDueReviews(t *testing.T) {
+	studentID := mustCLIid(t, "student.primary")
+	conceptID := mustCLIid(t, "concept.review")
+	itemID := mustCLIid(t, "review.cli")
+	dueAt := mustCLITimestamp(t, time.Date(2026, 8, 21, 14, 0, 0, 0, time.UTC))
+	createdAt := mustCLITimestamp(t, time.Date(2026, 8, 20, 14, 0, 0, 0, time.UTC))
+	strength, _ := learning.NewMasteryScore(.42)
+	item := learning.ReviewItem{ID: itemID, StudentID: studentID, ConceptID: conceptID, DueAt: dueAt,
+		Type: learning.ReviewDeep, EstimatedMinutes: 20, CriticalPrerequisite: true, Status: learning.ReviewPending,
+		CreatedAt: createdAt, AlgorithmVersion: learning.ReviewSchedulerVersion}
+	view := learningapp.ReviewQueueView{Items: []learning.ReviewQueueItem{{Item: item, Strength: strength,
+		Status: learning.RetentionOverdue, Overdue: true, Critical: true}}, Pending: 3, BudgetMinutes: 30,
+		UsedMinutes: 20, TotalDueMinutes: 50, Timezone: "America/Lima", GeneratedAt: dueAt,
+		DueOnly: true, AlgorithmVersion: learning.ReviewSchedulerVersion}
+	service := &fakeService{result: app.Result{Reviews: &view}}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"reviews", "due"}); code != ExitOK {
+		t.Fatalf("reviews due exit=%d stderr=%q", code, stderr.String())
+	}
+	if command := service.commands[0]; command.Action != app.ActionReviews || !command.ReviewsDue {
+		t.Fatalf("reviews command = %+v", command)
+	}
+	for _, want := range []string{"Reviews — due", "Timezone: America/Lima", "Daily budget: 30 minutes", "2026-08-21T09:00:00-05:00",
+		"concept.review", "20 min", "strength 42%", "overdue", "critical-prerequisite", "Policy: review-scheduler-v1"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("reviews output missing %q:\n%s", want, stdout.String())
+		}
+	}
+	for _, args := range [][]string{{"reviews", "later"}, {"reviews", "due", "extra"}} {
+		stdout.Reset()
+		stderr.Reset()
+		if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) exit=%d, want failure", args, code)
+		}
 	}
 }
 

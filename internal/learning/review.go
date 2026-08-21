@@ -338,20 +338,70 @@ func optionalTimestampEqual(left, right *Timestamp) bool {
 	return left.Time().Equal(right.Time())
 }
 
-// ReviewSchedule states when a concept should next be reviewed. Imported
-// schedules may predate Kelyro's own concept introduction record.
+const (
+	ReviewSchedulerVersion       = "review-scheduler-v1"
+	LegacyReviewSchedulerVersion = "legacy-review/v0"
+)
+
+type ReviewType string
+
+const (
+	ReviewQuickRecall ReviewType = "quick_recall"
+	ReviewStandard    ReviewType = "standard_review"
+	ReviewDeep        ReviewType = "deep_review"
+)
+
+func (reviewType ReviewType) Valid() bool {
+	switch reviewType {
+	case ReviewQuickRecall, ReviewStandard, ReviewDeep:
+		return true
+	default:
+		return false
+	}
+}
+
+func (reviewType ReviewType) EstimatedMinutes() int {
+	switch reviewType {
+	case ReviewQuickRecall:
+		return 5
+	case ReviewStandard:
+		return 10
+	case ReviewDeep:
+		return 20
+	default:
+		return 0
+	}
+}
+
+// ReviewSchedule states when and how one concept should next be checked.
+// Imported legacy schedules may predate Kelyro's concept introduction record.
 type ReviewSchedule struct {
-	StudentID    ID
-	ConceptID    ID
-	IntroducedAt *Timestamp
-	DueAt        Timestamp
-	Imported     bool
+	StudentID            ID
+	ConceptID            ID
+	IntroducedAt         *Timestamp
+	DueAt                Timestamp
+	Type                 ReviewType
+	EstimatedMinutes     int
+	CriticalPrerequisite bool
+	UpdatedAt            Timestamp
+	Imported             bool
+	AlgorithmVersion     string
 }
 
 func NewReviewSchedule(studentID, conceptID ID, introducedAt *Timestamp, dueAt Timestamp, imported bool) (ReviewSchedule, error) {
 	schedule := ReviewSchedule{
 		StudentID: studentID, ConceptID: conceptID, IntroducedAt: introducedAt,
-		DueAt: dueAt, Imported: imported,
+		DueAt: dueAt, Type: ReviewStandard, EstimatedMinutes: ReviewStandard.EstimatedMinutes(),
+		UpdatedAt: dueAt, Imported: imported, AlgorithmVersion: LegacyReviewSchedulerVersion,
+	}
+	return schedule, schedule.Validate()
+}
+
+func NewReviewScheduleV1(studentID, conceptID ID, introducedAt Timestamp, dueAt Timestamp, reviewType ReviewType, critical bool, updatedAt Timestamp) (ReviewSchedule, error) {
+	schedule := ReviewSchedule{
+		StudentID: studentID, ConceptID: conceptID, IntroducedAt: &introducedAt, DueAt: dueAt,
+		Type: reviewType, EstimatedMinutes: reviewType.EstimatedMinutes(), CriticalPrerequisite: critical,
+		UpdatedAt: updatedAt, AlgorithmVersion: ReviewSchedulerVersion,
 	}
 	return schedule, schedule.Validate()
 }
@@ -369,11 +419,26 @@ func (schedule ReviewSchedule) Validate() error {
 	if err := schedule.DueAt.Validate(); err != nil {
 		return fmt.Errorf("review due at: %w", err)
 	}
+	if !schedule.Type.Valid() || schedule.EstimatedMinutes != schedule.Type.EstimatedMinutes() {
+		return fmt.Errorf("review type %q and estimated minutes are inconsistent", schedule.Type)
+	}
+	if err := schedule.UpdatedAt.Validate(); err != nil {
+		return fmt.Errorf("review schedule updated at: %w", err)
+	}
+	if schedule.AlgorithmVersion != ReviewSchedulerVersion && schedule.AlgorithmVersion != LegacyReviewSchedulerVersion {
+		return fmt.Errorf("unsupported review scheduler %q", schedule.AlgorithmVersion)
+	}
 	if schedule.IntroducedAt == nil && !schedule.Imported {
 		return fmt.Errorf("review requires concept introduction unless imported")
 	}
 	if schedule.IntroducedAt != nil && schedule.DueAt.Before(*schedule.IntroducedAt) && !schedule.Imported {
 		return fmt.Errorf("review cannot be due before concept introduction unless imported")
+	}
+	if schedule.IntroducedAt != nil && schedule.UpdatedAt.Before(*schedule.IntroducedAt) && !schedule.Imported {
+		return fmt.Errorf("review schedule update cannot precede concept introduction unless imported")
+	}
+	if schedule.AlgorithmVersion == ReviewSchedulerVersion && schedule.Imported {
+		return fmt.Errorf("review-scheduler-v1 cannot produce imported schedules")
 	}
 	return nil
 }
@@ -395,13 +460,45 @@ func (status ReviewStatus) Valid() bool {
 	}
 }
 
+type ReviewOutcome string
+
+const (
+	ReviewOutcomeNone    ReviewOutcome = ""
+	ReviewOutcomeSuccess ReviewOutcome = "success"
+	ReviewOutcomeFailure ReviewOutcome = "failure"
+)
+
+func (outcome ReviewOutcome) Valid() bool {
+	return outcome == ReviewOutcomeNone || outcome == ReviewOutcomeSuccess || outcome == ReviewOutcomeFailure
+}
+
 type ReviewItem struct {
-	ID          ID
-	StudentID   ID
-	ConceptID   ID
-	DueAt       Timestamp
-	Status      ReviewStatus
-	CompletedAt *Timestamp
+	ID                   ID
+	StudentID            ID
+	ConceptID            ID
+	DueAt                Timestamp
+	Type                 ReviewType
+	EstimatedMinutes     int
+	CriticalPrerequisite bool
+	Status               ReviewStatus
+	Outcome              ReviewOutcome
+	Score                *MasteryScore
+	CompletedAt          *Timestamp
+	SkippedAt            *Timestamp
+	PostponedAt          *Timestamp
+	PostponeCount        int
+	CreatedAt            Timestamp
+	AlgorithmVersion     string
+}
+
+func NewReviewItemV1(id ID, schedule ReviewSchedule, createdAt Timestamp) (ReviewItem, error) {
+	item := ReviewItem{
+		ID: id, StudentID: schedule.StudentID, ConceptID: schedule.ConceptID, DueAt: schedule.DueAt,
+		Type: schedule.Type, EstimatedMinutes: schedule.EstimatedMinutes,
+		CriticalPrerequisite: schedule.CriticalPrerequisite, Status: ReviewPending,
+		CreatedAt: createdAt, AlgorithmVersion: ReviewSchedulerVersion,
+	}
+	return item, item.Validate()
 }
 
 func (item ReviewItem) Validate() error {
@@ -417,17 +514,132 @@ func (item ReviewItem) Validate() error {
 	if err := item.DueAt.Validate(); err != nil {
 		return fmt.Errorf("review item due at: %w", err)
 	}
+	if !item.Type.Valid() || item.EstimatedMinutes != item.Type.EstimatedMinutes() {
+		return fmt.Errorf("review item type %q and estimated minutes are inconsistent", item.Type)
+	}
 	if !item.Status.Valid() {
 		return fmt.Errorf("review status %q is invalid", item.Status)
+	}
+	if !item.Outcome.Valid() {
+		return fmt.Errorf("review outcome %q is invalid", item.Outcome)
+	}
+	if item.Score != nil {
+		if err := item.Score.Validate(); err != nil {
+			return fmt.Errorf("review score: %w", err)
+		}
 	}
 	if err := validateOptionalTimestamp("review completed at", item.CompletedAt); err != nil {
 		return err
 	}
-	if item.Status == ReviewCompleted && item.CompletedAt == nil {
-		return fmt.Errorf("completed review is missing completion timestamp")
+	if err := validateOptionalTimestamp("review skipped at", item.SkippedAt); err != nil {
+		return err
 	}
-	if item.Status != ReviewCompleted && item.CompletedAt != nil {
-		return fmt.Errorf("non-completed review cannot have completion timestamp")
+	if err := validateOptionalTimestamp("review postponed at", item.PostponedAt); err != nil {
+		return err
+	}
+	if err := item.CreatedAt.Validate(); err != nil {
+		return fmt.Errorf("review item created at: %w", err)
+	}
+	if item.AlgorithmVersion != ReviewSchedulerVersion && item.AlgorithmVersion != LegacyReviewSchedulerVersion {
+		return fmt.Errorf("unsupported review item scheduler %q", item.AlgorithmVersion)
+	}
+	if item.PostponeCount < 0 || (item.PostponeCount == 0) != (item.PostponedAt == nil) {
+		return fmt.Errorf("review postpone metadata is inconsistent")
+	}
+	if item.PostponedAt != nil && (item.PostponedAt.Before(item.CreatedAt) || !item.DueAt.After(*item.PostponedAt)) {
+		return fmt.Errorf("review postponement is outside the item lifecycle")
+	}
+	if item.AlgorithmVersion == LegacyReviewSchedulerVersion {
+		if item.PostponeCount != 0 || item.Score != nil || item.Outcome != ReviewOutcomeNone || item.SkippedAt != nil {
+			return fmt.Errorf("legacy review contains v1 lifecycle metadata")
+		}
+		if (item.Status == ReviewCompleted) != (item.CompletedAt != nil) {
+			return fmt.Errorf("legacy review completion metadata is inconsistent")
+		}
+		return nil
+	}
+	switch item.Status {
+	case ReviewPending:
+		if item.Outcome != ReviewOutcomeNone || item.Score != nil || item.CompletedAt != nil || item.SkippedAt != nil {
+			return fmt.Errorf("pending review cannot contain a terminal outcome")
+		}
+	case ReviewCompleted:
+		if item.CompletedAt == nil || item.SkippedAt != nil || item.Score == nil || item.Outcome == ReviewOutcomeNone {
+			return fmt.Errorf("completed review requires score, outcome, and completion timestamp")
+		}
+		if (item.Score.Value() >= RetentionRecallSuccessThreshold) != (item.Outcome == ReviewOutcomeSuccess) {
+			return fmt.Errorf("review score and outcome are inconsistent")
+		}
+	case ReviewSkipped:
+		if item.SkippedAt == nil || item.CompletedAt != nil || item.Score != nil || item.Outcome != ReviewOutcomeNone {
+			return fmt.Errorf("skipped review cannot contain a passing or failing outcome")
+		}
+	}
+	for name, timestamp := range map[string]*Timestamp{"completed": item.CompletedAt, "skipped": item.SkippedAt} {
+		if timestamp != nil && timestamp.Before(item.CreatedAt) {
+			return fmt.Errorf("review %s time precedes creation", name)
+		}
 	}
 	return nil
+}
+
+func (item ReviewItem) Postpone(until, at Timestamp) (ReviewItem, error) {
+	if err := item.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	if item.Status != ReviewPending {
+		return ReviewItem{}, fmt.Errorf("only pending reviews can be postponed")
+	}
+	if err := until.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	if err := at.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	if !until.After(item.DueAt) || !until.After(at) || at.Before(item.CreatedAt) {
+		return ReviewItem{}, fmt.Errorf("postponed due time must follow the current due time and postponement")
+	}
+	item.DueAt = until
+	item.PostponedAt = &at
+	item.PostponeCount++
+	return item, item.Validate()
+}
+
+func (item ReviewItem) Skip(at Timestamp) (ReviewItem, error) {
+	if err := item.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	if err := at.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	if item.Status != ReviewPending || at.Before(item.CreatedAt) {
+		return ReviewItem{}, fmt.Errorf("only pending reviews can be skipped at or after creation")
+	}
+	item.Status = ReviewSkipped
+	item.SkippedAt = &at
+	return item, item.Validate()
+}
+
+func (item ReviewItem) Complete(score MasteryScore, at Timestamp) (ReviewItem, error) {
+	if err := item.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	if err := at.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	if item.Status != ReviewPending || at.Before(item.CreatedAt) {
+		return ReviewItem{}, fmt.Errorf("only pending reviews can be completed at or after creation")
+	}
+	if err := score.Validate(); err != nil {
+		return ReviewItem{}, err
+	}
+	item.Status = ReviewCompleted
+	item.Score = &score
+	item.CompletedAt = &at
+	if score.Value() >= RetentionRecallSuccessThreshold {
+		item.Outcome = ReviewOutcomeSuccess
+	} else {
+		item.Outcome = ReviewOutcomeFailure
+	}
+	return item, item.Validate()
 }

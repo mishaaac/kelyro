@@ -684,49 +684,82 @@ func (repository learningRetentionRepository) Get(ctx context.Context, studentID
 	const operation = "get SQLite retention state"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
+	state, err := scanRetentionState(repository.executor.QueryRowContext(operationContext, `SELECT student_id,concept_id,last_successful_recall,last_practice,
+review_count,successful_reviews,failed_reviews,stability_estimate_seconds,strength,retention_status,next_due_at,measured_at,algorithm_version
+FROM retention_state WHERE student_id=? AND concept_id=?`, studentID.String(), conceptID.String()))
+	if err != nil {
+		return learning.RetentionState{}, classifyLearningError(operation, err)
+	}
+	return state, nil
+}
+
+func (repository learningRetentionRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.RetentionState, error) {
+	const operation = "list SQLite retention states"
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT student_id,concept_id,last_successful_recall,last_practice,
+review_count,successful_reviews,failed_reviews,stability_estimate_seconds,strength,retention_status,next_due_at,measured_at,algorithm_version
+FROM retention_state WHERE student_id=? ORDER BY concept_id`, studentID.String())
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer rows.Close()
+	states := make([]learning.RetentionState, 0)
+	for rows.Next() {
+		state, scanErr := scanRetentionState(rows)
+		if scanErr != nil {
+			return nil, corruptLearning(operation, scanErr)
+		}
+		states = append(states, state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	return states, nil
+}
+
+func scanRetentionState(scanner rowScanner) (learning.RetentionState, error) {
 	var studentValue, conceptValue, measuredValue, statusValue, algorithmVersion string
 	var lastSuccessfulValue, lastPracticeValue, nextDueValue sql.NullString
 	var strengthValue float64
 	var reviewCount, successfulReviews, failedReviews int
 	var stabilitySeconds int64
-	err := repository.executor.QueryRowContext(operationContext, `SELECT student_id,concept_id,last_successful_recall,last_practice,
-review_count,successful_reviews,failed_reviews,stability_estimate_seconds,strength,retention_status,next_due_at,measured_at,algorithm_version
-FROM retention_state WHERE student_id=? AND concept_id=?`, studentID.String(), conceptID.String()).Scan(
+	err := scanner.Scan(
 		&studentValue, &conceptValue, &lastSuccessfulValue, &lastPracticeValue, &reviewCount, &successfulReviews,
 		&failedReviews, &stabilitySeconds, &strengthValue, &statusValue, &nextDueValue, &measuredValue, &algorithmVersion)
 	if err != nil {
-		return learning.RetentionState{}, classifyLearningError(operation, err)
+		return learning.RetentionState{}, err
 	}
 	student, err := decodeID(studentValue)
 	if err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	concept, err := decodeID(conceptValue)
 	if err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	strength, err := learning.NewMasteryScore(strengthValue)
 	if err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	measured, err := decodeTimestamp(measuredValue)
 	if err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	lastSuccessful, err := decodeOptionalTimestamp(lastSuccessfulValue)
 	if err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	lastPractice, err := decodeOptionalTimestamp(lastPracticeValue)
 	if err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	nextDue, err := decodeOptionalTimestamp(nextDueValue)
 	if err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	if stabilitySeconds < 0 || stabilitySeconds > int64(90*24*time.Hour/time.Second) {
-		return learning.RetentionState{}, corruptLearning(operation, fmt.Errorf("retention stability seconds are invalid"))
+		return learning.RetentionState{}, fmt.Errorf("retention stability seconds are invalid")
 	}
 	state := learning.RetentionState{
 		StudentID: student, ConceptID: concept, LastSuccessfulRecall: lastSuccessful, LastPractice: lastPractice,
@@ -735,7 +768,7 @@ FROM retention_state WHERE student_id=? AND concept_id=?`, studentID.String(), c
 		Status: learning.RetentionStatus(statusValue), NextDueAt: nextDue, MeasuredAt: measured, AlgorithmVersion: algorithmVersion,
 	}
 	if err := state.Validate(); err != nil {
-		return learning.RetentionState{}, corruptLearning(operation, err)
+		return learning.RetentionState{}, err
 	}
 	return state, nil
 }

@@ -839,6 +839,78 @@ WHEN NEW.review_count <> NEW.successful_reviews + NEW.failed_reviews
 BEGIN SELECT RAISE(ABORT, 'invalid retention-v1 aggregate'); END`,
 		},
 	},
+	{
+		version: 17,
+		name:    "spaced repetition scheduler v1",
+		statements: []string{
+			`ALTER TABLE review_schedule ADD COLUMN review_type TEXT NOT NULL DEFAULT 'standard_review'
+CHECK (review_type IN ('quick_recall','standard_review','deep_review'))`,
+			`ALTER TABLE review_schedule ADD COLUMN estimated_minutes INTEGER NOT NULL DEFAULT 10 CHECK (estimated_minutes IN (5,10,20))`,
+			`ALTER TABLE review_schedule ADD COLUMN critical_prerequisite INTEGER NOT NULL DEFAULT 0 CHECK (critical_prerequisite IN (0,1))`,
+			`ALTER TABLE review_schedule ADD COLUMN updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z' CHECK (updated_at GLOB '*Z')`,
+			`ALTER TABLE review_schedule ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'legacy-review/v0'
+CHECK (algorithm_version IN ('legacy-review/v0','review-scheduler-v1'))`,
+			`UPDATE review_schedule SET updated_at=due_at WHERE updated_at='1970-01-01T00:00:00Z'`,
+			`CREATE TRIGGER review_schedule_v1_insert_guard
+BEFORE INSERT ON review_schedule
+WHEN (NEW.review_type='quick_recall' AND NEW.estimated_minutes<>5)
+  OR (NEW.review_type='standard_review' AND NEW.estimated_minutes<>10)
+  OR (NEW.review_type='deep_review' AND NEW.estimated_minutes<>20)
+  OR (NEW.algorithm_version='review-scheduler-v1' AND (NEW.imported<>0 OR NEW.introduced_at IS NULL))
+BEGIN SELECT RAISE(ABORT, 'invalid review schedule aggregate'); END`,
+			`CREATE TRIGGER review_schedule_v1_update_guard
+BEFORE UPDATE ON review_schedule
+WHEN (NEW.review_type='quick_recall' AND NEW.estimated_minutes<>5)
+  OR (NEW.review_type='standard_review' AND NEW.estimated_minutes<>10)
+  OR (NEW.review_type='deep_review' AND NEW.estimated_minutes<>20)
+  OR (NEW.algorithm_version='review-scheduler-v1' AND (NEW.imported<>0 OR NEW.introduced_at IS NULL))
+BEGIN SELECT RAISE(ABORT, 'invalid review schedule aggregate'); END`,
+			`ALTER TABLE review_items ADD COLUMN review_type TEXT NOT NULL DEFAULT 'standard_review'
+CHECK (review_type IN ('quick_recall','standard_review','deep_review'))`,
+			`ALTER TABLE review_items ADD COLUMN estimated_minutes INTEGER NOT NULL DEFAULT 10 CHECK (estimated_minutes IN (5,10,20))`,
+			`ALTER TABLE review_items ADD COLUMN critical_prerequisite INTEGER NOT NULL DEFAULT 0 CHECK (critical_prerequisite IN (0,1))`,
+			`ALTER TABLE review_items ADD COLUMN outcome TEXT NOT NULL DEFAULT '' CHECK (outcome IN ('','success','failure'))`,
+			`ALTER TABLE review_items ADD COLUMN score REAL CHECK (score IS NULL OR score BETWEEN 0 AND 1)`,
+			`ALTER TABLE review_items ADD COLUMN skipped_at TEXT CHECK (skipped_at IS NULL OR skipped_at GLOB '*Z')`,
+			`ALTER TABLE review_items ADD COLUMN postponed_at TEXT CHECK (postponed_at IS NULL OR postponed_at GLOB '*Z')`,
+			`ALTER TABLE review_items ADD COLUMN postpone_count INTEGER NOT NULL DEFAULT 0 CHECK (postpone_count >= 0)`,
+			`ALTER TABLE review_items ADD COLUMN created_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z' CHECK (created_at GLOB '*Z')`,
+			`ALTER TABLE review_items ADD COLUMN scheduler_version TEXT NOT NULL DEFAULT 'legacy-review/v0'
+CHECK (scheduler_version IN ('legacy-review/v0','review-scheduler-v1'))`,
+			`UPDATE review_items SET created_at=due_at WHERE created_at='1970-01-01T00:00:00Z'`,
+			`UPDATE review_items AS duplicate SET status='skipped'
+WHERE duplicate.status='pending' AND EXISTS (
+  SELECT 1 FROM review_items AS keeper
+  WHERE keeper.student_id=duplicate.student_id AND keeper.concept_id=duplicate.concept_id AND keeper.status='pending'
+    AND (keeper.due_at<duplicate.due_at OR (keeper.due_at=duplicate.due_at AND keeper.id<duplicate.id))
+)`,
+			`CREATE UNIQUE INDEX review_items_one_pending_idx ON review_items (student_id,concept_id) WHERE status='pending'`,
+			`CREATE TRIGGER review_items_v1_insert_guard
+BEFORE INSERT ON review_items
+WHEN (NEW.review_type='quick_recall' AND NEW.estimated_minutes<>5)
+  OR (NEW.review_type='standard_review' AND NEW.estimated_minutes<>10)
+  OR (NEW.review_type='deep_review' AND NEW.estimated_minutes<>20)
+  OR (NEW.postpone_count=0)<>(NEW.postponed_at IS NULL)
+  OR (NEW.scheduler_version='review-scheduler-v1' AND (
+       (NEW.status='pending' AND (NEW.outcome<>'' OR NEW.score IS NOT NULL OR NEW.completed_at IS NOT NULL OR NEW.skipped_at IS NOT NULL))
+    OR (NEW.status='completed' AND (NEW.outcome='' OR NEW.score IS NULL OR NEW.completed_at IS NULL OR NEW.skipped_at IS NOT NULL))
+    OR (NEW.status='skipped' AND (NEW.outcome<>'' OR NEW.score IS NOT NULL OR NEW.completed_at IS NOT NULL OR NEW.skipped_at IS NULL))
+    OR (NEW.outcome='success' AND NEW.score<0.7) OR (NEW.outcome='failure' AND NEW.score>=0.7)))
+BEGIN SELECT RAISE(ABORT, 'invalid review item aggregate'); END`,
+			`CREATE TRIGGER review_items_v1_update_guard
+BEFORE UPDATE ON review_items
+WHEN (NEW.review_type='quick_recall' AND NEW.estimated_minutes<>5)
+  OR (NEW.review_type='standard_review' AND NEW.estimated_minutes<>10)
+  OR (NEW.review_type='deep_review' AND NEW.estimated_minutes<>20)
+  OR (NEW.postpone_count=0)<>(NEW.postponed_at IS NULL)
+  OR (NEW.scheduler_version='review-scheduler-v1' AND (
+       (NEW.status='pending' AND (NEW.outcome<>'' OR NEW.score IS NOT NULL OR NEW.completed_at IS NOT NULL OR NEW.skipped_at IS NOT NULL))
+    OR (NEW.status='completed' AND (NEW.outcome='' OR NEW.score IS NULL OR NEW.completed_at IS NULL OR NEW.skipped_at IS NOT NULL))
+    OR (NEW.status='skipped' AND (NEW.outcome<>'' OR NEW.score IS NOT NULL OR NEW.completed_at IS NOT NULL OR NEW.skipped_at IS NULL))
+    OR (NEW.outcome='success' AND NEW.score<0.7) OR (NEW.outcome='failure' AND NEW.score>=0.7)))
+BEGIN SELECT RAISE(ABORT, 'invalid review item aggregate'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

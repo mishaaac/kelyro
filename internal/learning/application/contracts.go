@@ -123,10 +123,39 @@ type ProgressionService interface {
 
 // RetentionService evaluates and persists retention-v1 using an injected UTC
 // clock. It may project review_due onto existing mastered instance states, but
-// it never creates review items; scheduling belongs to the next policy step.
+// it never creates review items; ReviewSchedulerService owns that policy.
 type RetentionService interface {
 	State(context.Context, learning.ID) (learning.RetentionState, error)
 	Recalculate(context.Context, learning.ID) (learning.RetentionCalculation, error)
+}
+
+type ReviewQueueView struct {
+	Items            []learning.ReviewQueueItem
+	Deferred         []learning.ReviewQueueItem
+	Pending          int
+	BudgetMinutes    int
+	UsedMinutes      int
+	TotalDueMinutes  int
+	Timezone         string
+	GeneratedAt      learning.Timestamp
+	DueOnly          bool
+	AlgorithmVersion string
+}
+
+type ReviewOutcomeUpdate struct {
+	Completed learning.ReviewItem
+	Next      *learning.ReviewItem
+	Retention learning.RetentionState
+}
+
+// ReviewSchedulerService owns review metadata and queue lifecycle. Exercise
+// generation remains outside I-02; RecordOutcome accepts an already observed
+// score and records immutable review_recall evidence.
+type ReviewSchedulerService interface {
+	List(context.Context, bool) (ReviewQueueView, error)
+	Postpone(context.Context, learning.ID, learning.Timestamp) (learning.ReviewItem, error)
+	Skip(context.Context, learning.ID) (learning.ReviewItem, error)
+	RecordOutcome(context.Context, learning.ID, learning.MasteryScore) (ReviewOutcomeUpdate, error)
 }
 
 type RecordMistakeInput struct {
@@ -258,6 +287,7 @@ type ProfileStore interface {
 	StudySessions() StudySessionLifecycleService
 	History() StudyHistoryService
 	Retention() RetentionService
+	Reviews() ReviewSchedulerService
 	Close() error
 }
 
@@ -354,6 +384,7 @@ type MistakeRepository interface {
 
 type RetentionRepository interface {
 	Get(context.Context, learning.ID, learning.ID) (learning.RetentionState, error)
+	ListByStudent(context.Context, learning.ID) ([]learning.RetentionState, error)
 	Save(context.Context, learning.RetentionState) error
 }
 
@@ -382,7 +413,10 @@ type ReviewRepository interface {
 	GetSchedule(context.Context, learning.ID, learning.ID) (learning.ReviewSchedule, error)
 	SaveSchedule(context.Context, learning.ReviewSchedule) error
 	CreateItem(context.Context, learning.ReviewItem) error
+	GetItem(context.Context, learning.ID) (learning.ReviewItem, error)
 	UpdateItem(context.Context, learning.ReviewItem) error
+	PendingByConcept(context.Context, learning.ID, learning.ID) (learning.ReviewItem, error)
+	ListByStudent(context.Context, learning.ID) ([]learning.ReviewItem, error)
 	ListDue(context.Context, learning.ID, learning.Timestamp) ([]learning.ReviewItem, error)
 }
 

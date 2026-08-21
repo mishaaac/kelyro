@@ -34,6 +34,13 @@ The transactional connection between evidence, mastery, instance concept
 state, thresholds, and derived prerequisite unlock decisions is documented in
 [concept-state-progression-v1.md](concept-state-progression-v1.md).
 
+The recall-strength formula, status boundaries, mastery separation, and
+durable due estimate are documented in [retention-v1.md](retention-v1.md).
+
+The versioned review types, due priority, time budget, lifecycle, idempotency,
+and persistence compatibility are documented in
+[review-scheduler-v1.md](review-scheduler-v1.md).
+
 The persistent, deduplicated mistake model, generic classification vocabulary,
 immutable lifecycle history, application write boundary, and legacy migration
 are documented in [mistake-memory.md](mistake-memory.md).

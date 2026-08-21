@@ -98,8 +98,10 @@ The in-memory and SQLite adapters share the same `RetentionRepository` port.
 retention, persists the snapshot, and projects due state inside one unit of
 work. `State` returns the last durable snapshot.
 
-## Boundary with Step 19
+## Scheduling boundary
 
-Step 18 does not create `ReviewSchedule` or `ReviewItem` records and does not
-select a review queue or warm-up. Step 19 will consume the durable due instant
-and status to implement spaced-repetition scheduling.
+Retention still does not create `ReviewSchedule` or `ReviewItem` records.
+`review-scheduler-v1` consumes its durable due instant, strength, and status to
+select review metadata and a bounded queue. Retention remains the sole owner of
+recall decay and the next interval; the scheduler owns review type, priority,
+explicit deferral, and lifecycle.

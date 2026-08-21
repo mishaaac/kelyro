@@ -35,8 +35,11 @@ No computed mastery, scheduling, streak, or daily-plan cache was introduced by
 the initial schema. Current state tables are authoritative values supplied by
 versioned policies. Since Step 18, `retention_state` stores the replaceable,
 version-labelled output of `retention-v1`; immutable evidence remains the
-recalculation source. Analytics snapshots and daily plans are retained because
-they are auditable historical outputs, not transparent caches.
+recalculation source. Since Step 19, review schedules and items carry
+`review-scheduler-v1` type, priority, time-budget, and lifecycle metadata while
+the domain remains the source of scheduling policy. Analytics snapshots and
+daily plans are retained because they are auditable historical outputs, not
+transparent caches.
 
 ## Integrity and access paths
 
@@ -51,6 +54,7 @@ Indexes cover:
 - active goals and student goal lists;
 - concept evidence and mistake timelines;
 - pending and scheduled reviews by due time;
+- one pending review per student and concept through a partial unique index;
 - study history and session ranges;
 - milestone and analytics timelines.
 

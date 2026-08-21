@@ -237,7 +237,8 @@ func TestSessionReviewAnalyticsAndDailyPlanServices(t *testing.T) {
 	reviews := application.NewReviewService(repositories.Reviews)
 	review := learning.ReviewItem{
 		ID: testID(t, "review.1"), StudentID: studentID, ConceptID: conceptID,
-		DueAt: end, Status: learning.ReviewPending,
+		DueAt: end, Type: learning.ReviewStandard, EstimatedMinutes: 10, Status: learning.ReviewPending,
+		CreatedAt: end, AlgorithmVersion: learning.LegacyReviewSchedulerVersion,
 	}
 	if err := reviews.Create(ctx, review); err != nil {
 		t.Fatalf("ReviewService.Create() error = %v", err)

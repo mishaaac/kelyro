@@ -51,13 +51,14 @@ type fakeProfileStoreFactory struct {
 	sessions   learningapp.StudySessionLifecycleService
 	history    learningapp.StudyHistoryService
 	retention  learningapp.RetentionService
+	reviews    learningapp.ReviewSchedulerService
 	openRoot   string
 	closed     int
 }
 
 func (factory *fakeProfileStoreFactory) Open(_ context.Context, root string) (learningapp.ProfileStore, error) {
 	factory.openRoot = root
-	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, close: func() { factory.closed++ }}, nil
+	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, close: func() { factory.closed++ }}, nil
 }
 
 type fakeProfileStore struct {
@@ -70,6 +71,7 @@ type fakeProfileStore struct {
 	sessions   learningapp.StudySessionLifecycleService
 	history    learningapp.StudyHistoryService
 	retention  learningapp.RetentionService
+	reviews    learningapp.ReviewSchedulerService
 	close      func()
 }
 
@@ -86,8 +88,9 @@ func (store *fakeProfileStore) Mistakes() learningapp.MistakeMemoryService { ret
 func (store *fakeProfileStore) StudySessions() learningapp.StudySessionLifecycleService {
 	return store.sessions
 }
-func (store *fakeProfileStore) History() learningapp.StudyHistoryService { return store.history }
-func (store *fakeProfileStore) Retention() learningapp.RetentionService  { return store.retention }
+func (store *fakeProfileStore) History() learningapp.StudyHistoryService    { return store.history }
+func (store *fakeProfileStore) Retention() learningapp.RetentionService     { return store.retention }
+func (store *fakeProfileStore) Reviews() learningapp.ReviewSchedulerService { return store.reviews }
 func (store *fakeProfileStore) Close() error {
 	store.close()
 	return nil

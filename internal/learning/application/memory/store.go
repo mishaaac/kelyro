@@ -452,9 +452,21 @@ func cloneSchedule(value learning.ReviewSchedule) learning.ReviewSchedule {
 }
 
 func cloneReviewItem(value learning.ReviewItem) learning.ReviewItem {
+	if value.Score != nil {
+		copy := *value.Score
+		value.Score = &copy
+	}
 	if value.CompletedAt != nil {
 		copy := *value.CompletedAt
 		value.CompletedAt = &copy
+	}
+	if value.SkippedAt != nil {
+		copy := *value.SkippedAt
+		value.SkippedAt = &copy
+	}
+	if value.PostponedAt != nil {
+		copy := *value.PostponedAt
+		value.PostponedAt = &copy
 	}
 	return value
 }

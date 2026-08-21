@@ -59,6 +59,7 @@ Commands:
   session  Inspect or stop the active study session
   history  Show the learner-facing study timeline
   time     Show intentional active study time
+  reviews  Show scheduled or currently due reviews
 
 Options:
   -h, --help          Show this help message
@@ -154,6 +155,10 @@ Study history commands:
   kelyro history
   kelyro history --today
   kelyro time
+
+Review commands:
+  kelyro reviews
+  kelyro reviews due
 `
 
 var actions = map[string]app.Action{
@@ -178,6 +183,7 @@ var actions = map[string]app.Action{
 	"session":  app.ActionSession,
 	"history":  app.ActionHistory,
 	"time":     app.ActionTime,
+	"reviews":  app.ActionReviews,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -288,6 +294,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		MistakeID:        invocation.mistakeID,
 		SessionOperation: invocation.sessionOperation,
 		HistoryToday:     invocation.historyToday,
+		ReviewsDue:       invocation.reviewsDue,
 		Verbose:          invocation.verbose,
 	}
 	if invocation.noColor {
@@ -398,6 +405,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatStudyHistory(*result.History))
 	} else if result.StudyTime != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatStudyTime(*result.StudyTime))
+	} else if result.Reviews != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatReviews(*result.Reviews))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -529,6 +538,44 @@ func formatStudyTime(summary learningapp.StudyTimeSummary) string {
 		"Policy: " + summary.PolicyVersion,
 		"Meaning: intentional active study time; concept and module totals appear only for unambiguous sessions.",
 	}
+	return strings.Join(lines, "\n")
+}
+
+func formatReviews(view learningapp.ReviewQueueView) string {
+	heading := "Scheduled reviews"
+	if view.DueOnly {
+		heading = "Reviews — due"
+	}
+	lines := []string{heading, "Timezone: " + view.Timezone, fmt.Sprintf("Pending: %d", view.Pending)}
+	if view.DueOnly {
+		lines = append(lines,
+			fmt.Sprintf("Daily budget: %d minutes; selected: %d minutes; total due: %d minutes", view.BudgetMinutes, view.UsedMinutes, view.TotalDueMinutes),
+			fmt.Sprintf("Deferred by budget: %d", len(view.Deferred)))
+	}
+	location, err := time.LoadLocation(view.Timezone)
+	if err != nil {
+		location = time.UTC
+	}
+	for _, queued := range view.Items {
+		labels := []string{string(queued.Item.Type), string(queued.Status)}
+		if queued.Overdue {
+			labels = append(labels, "overdue")
+		}
+		if queued.Critical {
+			labels = append(labels, "critical-prerequisite")
+		}
+		lines = append(lines, fmt.Sprintf("%s  %s  %s  %d min  strength %.0f%%  [%s]",
+			queued.Item.DueAt.Time().In(location).Format(time.RFC3339), queued.Item.ID, queued.Item.ConceptID,
+			queued.Item.EstimatedMinutes, queued.Strength.Value()*100, strings.Join(labels, ", ")))
+	}
+	if len(view.Items) == 0 {
+		if view.DueOnly {
+			lines = append(lines, "No reviews fit the due queue today.")
+		} else {
+			lines = append(lines, "No reviews are scheduled.")
+		}
+	}
+	lines = append(lines, "Policy: "+view.AlgorithmVersion)
 	return strings.Join(lines, "\n")
 }
 
@@ -793,6 +840,7 @@ type invocation struct {
 	mistakeID        learning.ID
 	sessionOperation string
 	historyToday     bool
+	reviewsDue       bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -1124,6 +1172,14 @@ func parse(args []string) (invocation, error) {
 		if len(result.arguments) != 0 {
 			return invocation{}, fmt.Errorf("time does not accept positional arguments")
 		}
+	case "reviews":
+		if len(result.arguments) == 0 {
+			break
+		}
+		if len(result.arguments) != 1 || result.arguments[0] != "due" {
+			return invocation{}, fmt.Errorf("reviews accepts no arguments or due")
+		}
+		result.reviewsDue = true
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])

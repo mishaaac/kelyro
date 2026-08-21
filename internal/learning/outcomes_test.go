@@ -20,7 +20,8 @@ func TestRetentionReviewAndOutcomeValueObjectsValidate(t *testing.T) {
 	completedAt := mustTimestamp(t, 13)
 	review := ReviewItem{
 		ID: mustID(t, "review.001"), StudentID: studentID, ConceptID: conceptID,
-		DueAt: now, Status: ReviewCompleted, CompletedAt: &completedAt,
+		DueAt: now, Type: ReviewStandard, EstimatedMinutes: 10, Status: ReviewCompleted, CompletedAt: &completedAt,
+		CreatedAt: now, AlgorithmVersion: LegacyReviewSchedulerVersion,
 	}
 	if err := review.Validate(); err != nil {
 		t.Fatalf("ReviewItem.Validate() error = %v", err)

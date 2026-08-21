@@ -169,10 +169,13 @@ func (repository learningReviewRepository) GetSchedule(ctx context.Context, stud
 	const operation = "get SQLite review schedule"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	var studentValue, conceptValue, dueValue string
+	var studentValue, conceptValue, dueValue, reviewType, updatedValue, algorithmVersion string
 	var introducedValue sql.NullString
-	var imported int
-	err := repository.executor.QueryRowContext(operationContext, "SELECT student_id,concept_id,introduced_at,due_at,imported FROM review_schedule WHERE student_id=? AND concept_id=?", studentID.String(), conceptID.String()).Scan(&studentValue, &conceptValue, &introducedValue, &dueValue, &imported)
+	var imported, estimatedMinutes, critical int
+	err := repository.executor.QueryRowContext(operationContext, `SELECT student_id,concept_id,introduced_at,due_at,imported,
+review_type,estimated_minutes,critical_prerequisite,updated_at,algorithm_version
+FROM review_schedule WHERE student_id=? AND concept_id=?`, studentID.String(), conceptID.String()).Scan(
+		&studentValue, &conceptValue, &introducedValue, &dueValue, &imported, &reviewType, &estimatedMinutes, &critical, &updatedValue, &algorithmVersion)
 	if err != nil {
 		return learning.ReviewSchedule{}, classifyLearningError(operation, err)
 	}
@@ -192,7 +195,15 @@ func (repository learningReviewRepository) GetSchedule(ctx context.Context, stud
 	if err != nil {
 		return learning.ReviewSchedule{}, corruptLearning(operation, err)
 	}
-	schedule := learning.ReviewSchedule{StudentID: student, ConceptID: concept, IntroducedAt: introduced, DueAt: due, Imported: imported == 1}
+	updatedAt, err := decodeTimestamp(updatedValue)
+	if err != nil {
+		return learning.ReviewSchedule{}, corruptLearning(operation, err)
+	}
+	schedule := learning.ReviewSchedule{
+		StudentID: student, ConceptID: concept, IntroducedAt: introduced, DueAt: due, Imported: imported == 1,
+		Type: learning.ReviewType(reviewType), EstimatedMinutes: estimatedMinutes, CriticalPrerequisite: critical == 1,
+		UpdatedAt: updatedAt, AlgorithmVersion: algorithmVersion,
+	}
 	if err := schedule.Validate(); err != nil {
 		return learning.ReviewSchedule{}, corruptLearning(operation, err)
 	}
@@ -206,7 +217,14 @@ func (repository learningReviewRepository) SaveSchedule(ctx context.Context, sch
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO review_schedule (student_id,concept_id,introduced_at,due_at,imported) VALUES (?,?,?,?,?) ON CONFLICT(student_id,concept_id) DO UPDATE SET introduced_at=excluded.introduced_at,due_at=excluded.due_at,imported=excluded.imported`, schedule.StudentID.String(), schedule.ConceptID.String(), encodeOptionalTimestamp(schedule.IntroducedAt), encodeTimestamp(schedule.DueAt), boolInt(schedule.Imported))
+	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO review_schedule
+(student_id,concept_id,introduced_at,due_at,imported,review_type,estimated_minutes,critical_prerequisite,updated_at,algorithm_version)
+VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(student_id,concept_id) DO UPDATE SET introduced_at=excluded.introduced_at,
+due_at=excluded.due_at,imported=excluded.imported,review_type=excluded.review_type,estimated_minutes=excluded.estimated_minutes,
+critical_prerequisite=excluded.critical_prerequisite,updated_at=excluded.updated_at,algorithm_version=excluded.algorithm_version`,
+		schedule.StudentID.String(), schedule.ConceptID.String(), encodeOptionalTimestamp(schedule.IntroducedAt), encodeTimestamp(schedule.DueAt),
+		boolInt(schedule.Imported), schedule.Type, schedule.EstimatedMinutes, boolInt(schedule.CriticalPrerequisite),
+		encodeTimestamp(schedule.UpdatedAt), schedule.AlgorithmVersion)
 	return classifyLearningError(operation, err)
 }
 
@@ -217,8 +235,25 @@ func (repository learningReviewRepository) CreateItem(ctx context.Context, item 
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO review_items (id,student_id,concept_id,due_at,status,completed_at) VALUES (?,?,?,?,?,?)`, item.ID.String(), item.StudentID.String(), item.ConceptID.String(), encodeTimestamp(item.DueAt), item.Status, encodeOptionalTimestamp(item.CompletedAt))
+	_, err := repository.executor.ExecContext(operationContext, `INSERT INTO review_items
+(id,student_id,concept_id,due_at,status,completed_at,review_type,estimated_minutes,critical_prerequisite,
+ outcome,score,skipped_at,postponed_at,postpone_count,created_at,scheduler_version)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, item.ID.String(), item.StudentID.String(), item.ConceptID.String(),
+		encodeTimestamp(item.DueAt), item.Status, encodeOptionalTimestamp(item.CompletedAt), item.Type, item.EstimatedMinutes,
+		boolInt(item.CriticalPrerequisite), item.Outcome, encodeOptionalScore(item.Score), encodeOptionalTimestamp(item.SkippedAt),
+		encodeOptionalTimestamp(item.PostponedAt), item.PostponeCount, encodeTimestamp(item.CreatedAt), item.AlgorithmVersion)
 	return classifyLearningError(operation, err)
+}
+
+func (repository learningReviewRepository) GetItem(ctx context.Context, id learning.ID) (learning.ReviewItem, error) {
+	const operation = "get SQLite review item"
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	item, err := scanReviewItem(repository.executor.QueryRowContext(operationContext, reviewItemSelect+" WHERE id=?", id.String()))
+	if err != nil {
+		return learning.ReviewItem{}, classifyLearningError(operation, err)
+	}
+	return item, nil
 }
 
 func (repository learningReviewRepository) UpdateItem(ctx context.Context, item learning.ReviewItem) error {
@@ -228,21 +263,58 @@ func (repository learningReviewRepository) UpdateItem(ctx context.Context, item 
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	result, err := repository.executor.ExecContext(operationContext, `UPDATE review_items SET student_id=?,concept_id=?,due_at=?,status=?,completed_at=? WHERE id=?`, item.StudentID.String(), item.ConceptID.String(), encodeTimestamp(item.DueAt), item.Status, encodeOptionalTimestamp(item.CompletedAt), item.ID.String())
+	result, err := repository.executor.ExecContext(operationContext, `UPDATE review_items SET student_id=?,concept_id=?,due_at=?,status=?,completed_at=?,
+review_type=?,estimated_minutes=?,critical_prerequisite=?,outcome=?,score=?,skipped_at=?,postponed_at=?,postpone_count=?,created_at=?,scheduler_version=?
+WHERE id=?`, item.StudentID.String(), item.ConceptID.String(), encodeTimestamp(item.DueAt), item.Status,
+		encodeOptionalTimestamp(item.CompletedAt), item.Type, item.EstimatedMinutes, boolInt(item.CriticalPrerequisite), item.Outcome,
+		encodeOptionalScore(item.Score), encodeOptionalTimestamp(item.SkippedAt), encodeOptionalTimestamp(item.PostponedAt),
+		item.PostponeCount, encodeTimestamp(item.CreatedAt), item.AlgorithmVersion, item.ID.String())
 	if err == nil {
 		err = requireAffected(result)
 	}
 	return classifyLearningError(operation, err)
 }
 
+func (repository learningReviewRepository) PendingByConcept(ctx context.Context, studentID, conceptID learning.ID) (learning.ReviewItem, error) {
+	const operation = "get SQLite pending review"
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	item, err := scanReviewItem(repository.executor.QueryRowContext(operationContext,
+		reviewItemSelect+" WHERE student_id=? AND concept_id=? AND status='pending'", studentID.String(), conceptID.String()))
+	if err != nil {
+		return learning.ReviewItem{}, classifyLearningError(operation, err)
+	}
+	return item, nil
+}
+
+func (repository learningReviewRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.ReviewItem, error) {
+	const operation = "list SQLite review items"
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	rows, err := repository.executor.QueryContext(operationContext,
+		reviewItemSelect+" WHERE student_id=? ORDER BY due_at,id", studentID.String())
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	return scanReviewItems(operation, rows)
+}
+
 func (repository learningReviewRepository) ListDue(ctx context.Context, studentID learning.ID, asOf learning.Timestamp) ([]learning.ReviewItem, error) {
 	const operation = "list SQLite due reviews"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	rows, err := repository.executor.QueryContext(operationContext, `SELECT id,student_id,concept_id,due_at,status,completed_at FROM review_items WHERE student_id=? AND status='pending' AND due_at<=? ORDER BY due_at,id`, studentID.String(), encodeTimestamp(asOf))
+	rows, err := repository.executor.QueryContext(operationContext,
+		reviewItemSelect+" WHERE student_id=? AND status='pending' AND due_at<=? ORDER BY due_at,id", studentID.String(), encodeTimestamp(asOf))
 	if err != nil {
 		return nil, classifyLearningError(operation, err)
 	}
+	return scanReviewItems(operation, rows)
+}
+
+const reviewItemSelect = `SELECT id,student_id,concept_id,due_at,status,completed_at,review_type,estimated_minutes,
+critical_prerequisite,outcome,score,skipped_at,postponed_at,postpone_count,created_at,scheduler_version FROM review_items`
+
+func scanReviewItems(operation string, rows *sql.Rows) ([]learning.ReviewItem, error) {
 	defer rows.Close()
 	items := make([]learning.ReviewItem, 0)
 	for rows.Next() {
@@ -259,9 +331,13 @@ func (repository learningReviewRepository) ListDue(ctx context.Context, studentI
 }
 
 func scanReviewItem(scanner rowScanner) (learning.ReviewItem, error) {
-	var idValue, studentValue, conceptValue, dueValue, status string
-	var completedValue sql.NullString
-	if err := scanner.Scan(&idValue, &studentValue, &conceptValue, &dueValue, &status, &completedValue); err != nil {
+	var idValue, studentValue, conceptValue, dueValue, status, reviewType, outcome, createdValue, algorithmVersion string
+	var completedValue, skippedValue, postponedValue sql.NullString
+	var scoreValue sql.NullFloat64
+	var estimatedMinutes, critical, postponeCount int
+	if err := scanner.Scan(&idValue, &studentValue, &conceptValue, &dueValue, &status, &completedValue,
+		&reviewType, &estimatedMinutes, &critical, &outcome, &scoreValue, &skippedValue, &postponedValue,
+		&postponeCount, &createdValue, &algorithmVersion); err != nil {
 		return learning.ReviewItem{}, err
 	}
 	id, err := decodeID(idValue)
@@ -284,8 +360,48 @@ func scanReviewItem(scanner rowScanner) (learning.ReviewItem, error) {
 	if err != nil {
 		return learning.ReviewItem{}, err
 	}
-	item := learning.ReviewItem{ID: id, StudentID: studentID, ConceptID: conceptID, DueAt: dueAt, Status: learning.ReviewStatus(status), CompletedAt: completedAt}
+	skippedAt, err := decodeOptionalTimestamp(skippedValue)
+	if err != nil {
+		return learning.ReviewItem{}, err
+	}
+	postponedAt, err := decodeOptionalTimestamp(postponedValue)
+	if err != nil {
+		return learning.ReviewItem{}, err
+	}
+	createdAt, err := decodeTimestamp(createdValue)
+	if err != nil {
+		return learning.ReviewItem{}, err
+	}
+	score, err := decodeOptionalScore(scoreValue)
+	if err != nil {
+		return learning.ReviewItem{}, err
+	}
+	item := learning.ReviewItem{
+		ID: id, StudentID: studentID, ConceptID: conceptID, DueAt: dueAt, Status: learning.ReviewStatus(status),
+		CompletedAt: completedAt, Type: learning.ReviewType(reviewType), EstimatedMinutes: estimatedMinutes,
+		CriticalPrerequisite: critical == 1, Outcome: learning.ReviewOutcome(outcome), Score: score,
+		SkippedAt: skippedAt, PostponedAt: postponedAt, PostponeCount: postponeCount,
+		CreatedAt: createdAt, AlgorithmVersion: algorithmVersion,
+	}
 	return item, item.Validate()
+}
+
+func encodeOptionalScore(value *learning.MasteryScore) any {
+	if value == nil {
+		return nil
+	}
+	return value.Value()
+}
+
+func decodeOptionalScore(value sql.NullFloat64) (*learning.MasteryScore, error) {
+	if !value.Valid {
+		return nil, nil
+	}
+	score, err := learning.NewMasteryScore(value.Float64)
+	if err != nil {
+		return nil, err
+	}
+	return &score, nil
 }
 
 func boolInt(value bool) int {
