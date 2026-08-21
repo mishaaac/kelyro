@@ -3,6 +3,8 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 
 	"github.com/mishaaac/kelyro/internal/learning"
 )
@@ -74,7 +76,7 @@ func (repository learningAchievementRepository) Get(ctx context.Context, id lear
 	const operation = "get SQLite achievement"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	item, err := scanAchievement(repository.executor.QueryRowContext(operationContext, `SELECT a.id,a.student_id,a.achievement_key,d.name,a.status,a.unlocked_at FROM student_achievements a JOIN achievement_definitions d ON d.key=a.achievement_key WHERE a.id=?`, id.String()))
+	item, err := scanAchievement(repository.executor.QueryRowContext(operationContext, achievementSelect+` WHERE a.id=?`, id.String()))
 	if err != nil {
 		return learning.Achievement{}, classifyLearningError(operation, err)
 	}
@@ -85,7 +87,7 @@ func (repository learningAchievementRepository) ListByStudent(ctx context.Contex
 	const operation = "list SQLite achievements"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
-	rows, err := repository.executor.QueryContext(operationContext, `SELECT a.id,a.student_id,a.achievement_key,d.name,a.status,a.unlocked_at FROM student_achievements a JOIN achievement_definitions d ON d.key=a.achievement_key WHERE a.student_id=? ORDER BY a.id`, studentID.String())
+	rows, err := repository.executor.QueryContext(operationContext, achievementSelect+` WHERE a.student_id=? ORDER BY a.unlocked_at,a.id`, studentID.String())
 	if err != nil {
 		return nil, classifyLearningError(operation, err)
 	}
@@ -110,18 +112,96 @@ func (repository learningAchievementRepository) Save(ctx context.Context, item l
 		return invalidLearning(operation, err)
 	}
 	return repository.atomic(ctx, operation, func(ctx context.Context, target executor) error {
-		if _, err := target.ExecContext(ctx, `INSERT INTO achievement_definitions (key,name) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET name=excluded.name`, item.Key.String(), item.Name); err != nil {
+		if err := saveAchievementDefinitionSQL(ctx, target, achievementDefinitionFromItem(item)); err != nil {
 			return err
 		}
-		_, err := target.ExecContext(ctx, `INSERT INTO student_achievements (id,student_id,achievement_key,status,unlocked_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET student_id=excluded.student_id,achievement_key=excluded.achievement_key,status=excluded.status,unlocked_at=excluded.unlocked_at`, item.ID.String(), item.StudentID.String(), item.Key.String(), item.Status, encodeOptionalTimestamp(item.UnlockedAt))
+		contextJSON, err := encodeAchievementContext(item.Context)
+		if err != nil {
+			return err
+		}
+		policyVersion := item.PolicyVersion
+		if policyVersion == "" {
+			policyVersion = learning.LegacyAchievementVersion
+		}
+		_, err = target.ExecContext(ctx, `INSERT INTO student_achievements
+(id,student_id,achievement_key,status,unlocked_at,context_json,policy_version) VALUES (?,?,?,?,?,?,?)
+ON CONFLICT(id) DO UPDATE SET student_id=excluded.student_id,achievement_key=excluded.achievement_key,
+status=excluded.status,unlocked_at=excluded.unlocked_at,context_json=excluded.context_json,policy_version=excluded.policy_version`,
+			item.ID.String(), item.StudentID.String(), item.Key.String(), item.Status,
+			encodeOptionalTimestamp(item.UnlockedAt), contextJSON, policyVersion)
 		return err
 	})
 }
 
+func (repository learningAchievementRepository) SaveDefinition(ctx context.Context, definition learning.AchievementDefinition) error {
+	const operation = "save SQLite achievement definition"
+	if err := definition.Validate(); err != nil {
+		return invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	return classifyLearningError(operation, saveAchievementDefinitionSQL(operationContext, repository.executor, definition))
+}
+
+func (repository learningAchievementRepository) ListDefinitions(ctx context.Context) ([]learning.AchievementDefinition, error) {
+	const operation = "list SQLite achievement definitions"
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT key,name,description,criteria_type,criteria_config_json,hidden,definition_version
+FROM achievement_definitions WHERE definition_version=? ORDER BY key`, learning.AchievementDefinitionVersion)
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer rows.Close()
+	items := make([]learning.AchievementDefinition, 0)
+	for rows.Next() {
+		definition, scanErr := scanAchievementDefinition(rows)
+		if scanErr != nil {
+			return nil, corruptLearning(operation, scanErr)
+		}
+		items = append(items, definition)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	return items, nil
+}
+
+func (repository learningAchievementRepository) Unlock(ctx context.Context, item learning.Achievement) (bool, error) {
+	const operation = "unlock SQLite achievement"
+	if err := item.Validate(); err != nil {
+		return false, invalidLearning(operation, err)
+	}
+	contextJSON, err := encodeAchievementContext(item.Context)
+	if err != nil {
+		return false, invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	result, err := repository.executor.ExecContext(operationContext, `INSERT INTO student_achievements
+(id,student_id,achievement_key,status,unlocked_at,context_json,policy_version) VALUES (?,?,?,?,?,?,?)
+ON CONFLICT(student_id,achievement_key) DO NOTHING`, item.ID.String(), item.StudentID.String(), item.Key.String(),
+		item.Status, encodeOptionalTimestamp(item.UnlockedAt), contextJSON, item.PolicyVersion)
+	if err != nil {
+		return false, classifyLearningError(operation, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return false, classifyLearningError(operation, err)
+	}
+	return changed == 1, nil
+}
+
+const achievementSelect = `SELECT a.id,a.student_id,a.achievement_key,d.name,d.description,d.criteria_type,
+d.criteria_config_json,d.hidden,d.definition_version,a.status,a.unlocked_at,a.context_json,a.policy_version
+FROM student_achievements a JOIN achievement_definitions d ON d.key=a.achievement_key`
+
 func scanAchievement(scanner rowScanner) (learning.Achievement, error) {
-	var idValue, studentValue, keyValue, name, status string
+	var idValue, studentValue, keyValue, name, description, criteria, configJSON, definitionVersion, status, contextJSON, policyVersion string
+	var hidden int
 	var unlockedValue sql.NullString
-	if err := scanner.Scan(&idValue, &studentValue, &keyValue, &name, &status, &unlockedValue); err != nil {
+	if err := scanner.Scan(&idValue, &studentValue, &keyValue, &name, &description, &criteria, &configJSON,
+		&hidden, &definitionVersion, &status, &unlockedValue, &contextJSON, &policyVersion); err != nil {
 		return learning.Achievement{}, err
 	}
 	id, err := decodeID(idValue)
@@ -141,7 +221,75 @@ func scanAchievement(scanner rowScanner) (learning.Achievement, error) {
 		return learning.Achievement{}, err
 	}
 	item := learning.Achievement{ID: id, StudentID: studentID, Key: key, Name: name, Status: learning.AchievementStatus(status), UnlockedAt: unlockedAt}
+	if definitionVersion == learning.AchievementDefinitionVersion || policyVersion == learning.AchievementPolicyVersion {
+		if definitionVersion != learning.AchievementDefinitionVersion || policyVersion != learning.AchievementPolicyVersion {
+			return learning.Achievement{}, fmt.Errorf("achievement definition and policy versions disagree")
+		}
+		if err := json.Unmarshal([]byte(configJSON), &item.Config); err != nil {
+			return learning.Achievement{}, err
+		}
+		if err := json.Unmarshal([]byte(contextJSON), &item.Context); err != nil {
+			return learning.Achievement{}, err
+		}
+		item.Description = description
+		item.Criteria = learning.AchievementCriteriaType(criteria)
+		item.Hidden = hidden == 1
+		item.DefinitionVersion = definitionVersion
+		item.PolicyVersion = policyVersion
+	}
 	return item, item.Validate()
+}
+
+func achievementDefinitionFromItem(item learning.Achievement) learning.AchievementDefinition {
+	if item.DefinitionVersion == "" {
+		return learning.AchievementDefinition{ID: item.Key, Title: item.Name}
+	}
+	return learning.AchievementDefinition{ID: item.Key, Title: item.Name, Description: item.Description,
+		Criteria: item.Criteria, Config: item.Config, Hidden: item.Hidden, Version: item.DefinitionVersion}
+}
+
+func saveAchievementDefinitionSQL(ctx context.Context, target executor, definition learning.AchievementDefinition) error {
+	if definition.Version == "" {
+		_, err := target.ExecContext(ctx, `INSERT INTO achievement_definitions (key,name) VALUES (?,?)
+ON CONFLICT(key) DO UPDATE SET name=excluded.name`, definition.ID.String(), definition.Title)
+		return err
+	}
+	configJSON, err := json.Marshal(definition.Config)
+	if err != nil {
+		return err
+	}
+	_, err = target.ExecContext(ctx, `INSERT INTO achievement_definitions
+(key,name,description,criteria_type,criteria_config_json,hidden,definition_version) VALUES (?,?,?,?,?,?,?)
+ON CONFLICT(key) DO UPDATE SET name=excluded.name,description=excluded.description,criteria_type=excluded.criteria_type,
+criteria_config_json=excluded.criteria_config_json,hidden=excluded.hidden,definition_version=excluded.definition_version`,
+		definition.ID.String(), definition.Title, definition.Description, definition.Criteria, string(configJSON), boolInt(definition.Hidden), definition.Version)
+	return err
+}
+
+func scanAchievementDefinition(scanner rowScanner) (learning.AchievementDefinition, error) {
+	var idValue, title, description, criteria, configJSON, version string
+	var hidden int
+	if err := scanner.Scan(&idValue, &title, &description, &criteria, &configJSON, &hidden, &version); err != nil {
+		return learning.AchievementDefinition{}, err
+	}
+	id, err := decodeID(idValue)
+	if err != nil {
+		return learning.AchievementDefinition{}, err
+	}
+	definition := learning.AchievementDefinition{ID: id, Title: title, Description: description,
+		Criteria: learning.AchievementCriteriaType(criteria), Hidden: hidden == 1, Version: version}
+	if err := json.Unmarshal([]byte(configJSON), &definition.Config); err != nil {
+		return learning.AchievementDefinition{}, err
+	}
+	return definition, definition.Validate()
+}
+
+func encodeAchievementContext(context map[string]string) (string, error) {
+	if context == nil {
+		return "{}", nil
+	}
+	encoded, err := json.Marshal(context)
+	return string(encoded), err
 }
 
 func (repository learningAchievementRepository) AppendMilestone(ctx context.Context, item learning.Milestone) error {

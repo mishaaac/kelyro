@@ -96,11 +96,12 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	reviews := application.NewReviewSchedulerService(profiles, database, application.WithReviewSchedulerClock(now))
 	warmUps := application.NewWarmUpSelectorService(profiles, database, application.WithWarmUpSelectorClock(now))
 	streaks := application.NewStreakService(profiles, database, application.WithStreakClock(now))
+	achievements := application.NewAchievementService(profiles, database, application.WithAchievementClock(now))
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
 		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions, history: history,
-		retention: retention, reviews: reviews, warmUps: warmUps, streaks: streaks,
+		retention: retention, reviews: reviews, warmUps: warmUps, streaks: streaks, achievements: achievements,
 	}, nil
 }
 
@@ -120,6 +121,7 @@ type store struct {
 	reviews             application.ReviewSchedulerService
 	warmUps             application.WarmUpSelectorService
 	streaks             application.StreakService
+	achievements        application.AchievementService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -135,11 +137,12 @@ func (store *store) Mistakes() application.MistakeMemoryService { return store.m
 func (store *store) StudySessions() application.StudySessionLifecycleService {
 	return store.studySessions
 }
-func (store *store) History() application.StudyHistoryService    { return store.history }
-func (store *store) Retention() application.RetentionService     { return store.retention }
-func (store *store) Reviews() application.ReviewSchedulerService { return store.reviews }
-func (store *store) WarmUps() application.WarmUpSelectorService  { return store.warmUps }
-func (store *store) Streaks() application.StreakService          { return store.streaks }
+func (store *store) History() application.StudyHistoryService     { return store.history }
+func (store *store) Retention() application.RetentionService      { return store.retention }
+func (store *store) Reviews() application.ReviewSchedulerService  { return store.reviews }
+func (store *store) WarmUps() application.WarmUpSelectorService   { return store.warmUps }
+func (store *store) Streaks() application.StreakService           { return store.streaks }
+func (store *store) Achievements() application.AchievementService { return store.achievements }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

@@ -31,31 +31,32 @@ import (
 type Action string
 
 const (
-	ActionTUI        Action = "tui"
-	ActionInit       Action = "init"
-	ActionDoctor     Action = "doctor"
-	ActionConfig     Action = "config"
-	ActionSecrets    Action = "secrets"
-	ActionStatus     Action = "status"
-	ActionRoadmap    Action = "roadmap"
-	ActionOpen       Action = "open"
-	ActionLogs       Action = "logs"
-	ActionAudit      Action = "audit"
-	ActionBackup     Action = "backup"
-	ActionExport     Action = "export"
-	ActionImport     Action = "import"
-	ActionUpdate     Action = "update"
-	ActionProfile    Action = "profile"
-	ActionGoal       Action = "goal"
-	ActionOnboarding Action = "onboarding"
-	ActionMastery    Action = "mastery"
-	ActionSetup      Action = "setup"
-	ActionMistakes   Action = "mistakes"
-	ActionSession    Action = "session"
-	ActionHistory    Action = "history"
-	ActionTime       Action = "time"
-	ActionReviews    Action = "reviews"
-	ActionStreak     Action = "streak"
+	ActionTUI          Action = "tui"
+	ActionInit         Action = "init"
+	ActionDoctor       Action = "doctor"
+	ActionConfig       Action = "config"
+	ActionSecrets      Action = "secrets"
+	ActionStatus       Action = "status"
+	ActionRoadmap      Action = "roadmap"
+	ActionOpen         Action = "open"
+	ActionLogs         Action = "logs"
+	ActionAudit        Action = "audit"
+	ActionBackup       Action = "backup"
+	ActionExport       Action = "export"
+	ActionImport       Action = "import"
+	ActionUpdate       Action = "update"
+	ActionProfile      Action = "profile"
+	ActionGoal         Action = "goal"
+	ActionOnboarding   Action = "onboarding"
+	ActionMastery      Action = "mastery"
+	ActionSetup        Action = "setup"
+	ActionMistakes     Action = "mistakes"
+	ActionSession      Action = "session"
+	ActionHistory      Action = "history"
+	ActionTime         Action = "time"
+	ActionReviews      Action = "reviews"
+	ActionStreak       Action = "streak"
+	ActionAchievements Action = "achievements"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -125,6 +126,7 @@ type Result struct {
 	StudyTime    *learningapp.StudyTimeSummary
 	Reviews      *learningapp.ReviewQueueView
 	Streak       *learning.Streak
+	Achievements *learningapp.AchievementRefresh
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -302,6 +304,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionStreak {
 		return service.executeStreak(ctx, command)
+	}
+	if command.Action == ActionAchievements {
+		return service.executeAchievements(ctx, command)
 	}
 	if command.Action != ActionInit {
 		return service.bootstrap.Execute(ctx, command)

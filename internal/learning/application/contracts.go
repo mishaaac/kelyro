@@ -243,6 +243,20 @@ type StreakService interface {
 	Show(context.Context) (learning.Streak, error)
 }
 
+type AchievementRefresh struct {
+	Achievements  []learning.Achievement
+	NewlyUnlocked []learning.Achievement
+	EvaluatedAt   learning.Timestamp
+	PolicyVersion string
+}
+
+// AchievementService rebuilds deterministic milestone eligibility from
+// durable learning facts. Persisted achievements only remember recognition;
+// they never replace the underlying history.
+type AchievementService interface {
+	Refresh(context.Context) (AchievementRefresh, error)
+}
+
 // CurriculumInstanceService owns learner-scoped curriculum identity and lazy
 // instance concept state. It never copies evidence into progress state.
 type CurriculumInstanceService interface {
@@ -310,6 +324,7 @@ type ProfileStore interface {
 	Reviews() ReviewSchedulerService
 	WarmUps() WarmUpSelectorService
 	Streaks() StreakService
+	Achievements() AchievementService
 	Close() error
 }
 
@@ -448,9 +463,12 @@ type StreakRepository interface {
 }
 
 type AchievementRepository interface {
+	SaveDefinition(context.Context, learning.AchievementDefinition) error
+	ListDefinitions(context.Context) ([]learning.AchievementDefinition, error)
 	Get(context.Context, learning.ID) (learning.Achievement, error)
 	ListByStudent(context.Context, learning.ID) ([]learning.Achievement, error)
 	Save(context.Context, learning.Achievement) error
+	Unlock(context.Context, learning.Achievement) (bool, error)
 	AppendMilestone(context.Context, learning.Milestone) error
 	ListMilestones(context.Context, learning.ID, learning.ID) ([]learning.Milestone, error)
 }

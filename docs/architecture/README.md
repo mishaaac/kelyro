@@ -50,6 +50,11 @@ recalculation, timezone-change behavior, and non-punitive presentation are
 documented in
 [non-punitive-study-streak-v1.md](non-punitive-study-streak-v1.md).
 
+The deterministic milestone catalog, historical criteria, idempotent unlock
+transaction, persistence compatibility, and restrained TUI message are
+documented in
+[learning-achievements-v1.md](learning-achievements-v1.md).
+
 The persistent, deduplicated mistake model, generic classification vocabulary,
 immutable lifecycle history, application write boundary, and legacy migration
 are documented in [mistake-memory.md](mistake-memory.md).

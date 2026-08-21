@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/learning"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -29,10 +30,22 @@ func initializeFoundationCmd(ctx context.Context, service Service, command app.C
 			return foundationLoadFailedMsg{err: err}
 		}
 		resumed, sessionErr := service.ResumeSession(ctx, command)
+		var milestones []learning.Achievement
+		if snapshot.LearningPath {
+			result, achievementErr := service.Execute(ctx, app.Command{Action: app.ActionAchievements, Workspace: command.Workspace})
+			if achievementErr == nil && result.Achievements != nil {
+				for _, achievement := range result.Achievements.NewlyUnlocked {
+					if !achievement.Hidden {
+						milestones = append(milestones, achievement)
+					}
+				}
+			}
+		}
 		return foundationInitializedMsg{
 			snapshot:   snapshot,
 			resume:     resumed,
 			sessionErr: sessionErr,
+			milestones: milestones,
 		}
 	}
 }

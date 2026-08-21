@@ -2,6 +2,8 @@ package learning
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -85,15 +87,133 @@ func (status AchievementStatus) Valid() bool {
 	return status == AchievementLocked || status == AchievementUnlocked
 }
 
+const (
+	AchievementDefinitionVersion = "achievement-definition/v1"
+	AchievementPolicyVersion     = "achievement-v1"
+	LegacyAchievementVersion     = "legacy-achievement/v0"
+)
+
+type AchievementCriteriaType string
+
+const (
+	AchievementFirstSession         AchievementCriteriaType = "first_session"
+	AchievementFirstConceptMastered AchievementCriteriaType = "first_concept_mastered"
+	AchievementActiveDays           AchievementCriteriaType = "active_days"
+	AchievementStudyMinutes         AchievementCriteriaType = "study_minutes"
+	AchievementFirstReviewCompleted AchievementCriteriaType = "first_review_completed"
+	AchievementModuleMastered       AchievementCriteriaType = "module_mastered"
+)
+
+func (criteriaType AchievementCriteriaType) Valid() bool {
+	switch criteriaType {
+	case AchievementFirstSession, AchievementFirstConceptMastered, AchievementActiveDays,
+		AchievementStudyMinutes, AchievementFirstReviewCompleted, AchievementModuleMastered:
+		return true
+	default:
+		return false
+	}
+}
+
+// AchievementCriteriaConfig contains only the numeric thresholds used by the
+// Foundation catalog. Empty config is valid for first/any criteria.
+type AchievementCriteriaConfig struct {
+	Count   int `json:"count,omitempty"`
+	Minutes int `json:"minutes,omitempty"`
+}
+
+func (config AchievementCriteriaConfig) Validate(criteriaType AchievementCriteriaType) error {
+	switch criteriaType {
+	case AchievementActiveDays:
+		if config.Count < 1 || config.Minutes != 0 {
+			return fmt.Errorf("active-days achievement requires a positive count only")
+		}
+	case AchievementStudyMinutes:
+		if config.Minutes < 1 || config.Count != 0 {
+			return fmt.Errorf("study-minutes achievement requires positive minutes only")
+		}
+	case AchievementFirstSession, AchievementFirstConceptMastered,
+		AchievementFirstReviewCompleted, AchievementModuleMastered:
+		if config.Count != 0 || config.Minutes != 0 {
+			return fmt.Errorf("achievement criterion %q does not accept configuration", criteriaType)
+		}
+	default:
+		return fmt.Errorf("achievement criterion %q is invalid", criteriaType)
+	}
+	return nil
+}
+
+// AchievementDefinition is immutable, versioned data. Criteria are evaluated
+// by the policy named on the resulting student achievement.
+type AchievementDefinition struct {
+	ID          ID
+	Title       string
+	Description string
+	Criteria    AchievementCriteriaType
+	Config      AchievementCriteriaConfig
+	Hidden      bool
+	Version     string
+}
+
+func (definition AchievementDefinition) Validate() error {
+	if err := definition.ID.Validate(); err != nil {
+		return fmt.Errorf("achievement definition: %w", err)
+	}
+	if err := requireText("achievement title", definition.Title); err != nil {
+		return err
+	}
+	if err := requireText("achievement description", definition.Description); err != nil {
+		return err
+	}
+	if !definition.Criteria.Valid() {
+		return fmt.Errorf("achievement criterion %q is invalid", definition.Criteria)
+	}
+	if err := definition.Config.Validate(definition.Criteria); err != nil {
+		return err
+	}
+	if definition.Version != AchievementDefinitionVersion {
+		return fmt.Errorf("achievement definition version %q is unsupported", definition.Version)
+	}
+	return nil
+}
+
+// FoundationAchievementDefinitions returns a defensive copy of the
+// deterministic initial catalog. Titles deliberately avoid game language.
+func FoundationAchievementDefinitions() []AchievementDefinition {
+	definitions := []AchievementDefinition{
+		{ID: mustAchievementDefinitionID("first_session"), Title: "First study session", Description: "Completed a first meaningful study session.", Criteria: AchievementFirstSession, Version: AchievementDefinitionVersion},
+		{ID: mustAchievementDefinitionID("first_concept_mastered"), Title: "First concept mastered", Description: "Reached the mastery requirement for a first concept.", Criteria: AchievementFirstConceptMastered, Version: AchievementDefinitionVersion},
+		{ID: mustAchievementDefinitionID("seven_active_days"), Title: "7 active study days", Description: "Studied meaningfully on seven distinct local calendar days.", Criteria: AchievementActiveDays, Config: AchievementCriteriaConfig{Count: 7}, Version: AchievementDefinitionVersion},
+		{ID: mustAchievementDefinitionID("ten_hours_studied"), Title: "10 hours studied", Description: "Accumulated ten hours of active study time.", Criteria: AchievementStudyMinutes, Config: AchievementCriteriaConfig{Minutes: 600}, Version: AchievementDefinitionVersion},
+		{ID: mustAchievementDefinitionID("first_review_completed"), Title: "First review completed", Description: "Completed a first scheduled review.", Criteria: AchievementFirstReviewCompleted, Version: AchievementDefinitionVersion},
+		{ID: mustAchievementDefinitionID("module_mastered"), Title: "First module mastered", Description: "Mastered every concept in a curriculum module.", Criteria: AchievementModuleMastered, Version: AchievementDefinitionVersion},
+	}
+	return append([]AchievementDefinition(nil), definitions...)
+}
+
+func mustAchievementDefinitionID(value string) ID {
+	id, err := NewID(value)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // Achievement represents recognition defined by a stable key. Name is display
 // text and may change without losing the student's achievement history.
 type Achievement struct {
-	ID         ID
-	StudentID  ID
-	Key        ID
-	Name       string
-	Status     AchievementStatus
-	UnlockedAt *Timestamp
+	ID                ID
+	StudentID         ID
+	Key               ID
+	Name              string
+	Description       string
+	Criteria          AchievementCriteriaType
+	Config            AchievementCriteriaConfig
+	Hidden            bool
+	DefinitionVersion string
+	Status            AchievementStatus
+	UnlockedAt        *Timestamp
+	Context           map[string]string
+	PolicyVersion     string
 }
 
 func (achievement Achievement) Validate() error {
@@ -121,8 +241,46 @@ func (achievement Achievement) Validate() error {
 	if achievement.Status == AchievementLocked && achievement.UnlockedAt != nil {
 		return fmt.Errorf("locked achievement cannot have unlock timestamp")
 	}
+	if achievement.DefinitionVersion == "" && achievement.PolicyVersion == "" {
+		if achievement.Description != "" || achievement.Criteria != "" || achievement.Config != (AchievementCriteriaConfig{}) ||
+			achievement.Hidden || len(achievement.Context) != 0 {
+			return fmt.Errorf("legacy achievement contains versioned metadata")
+		}
+		return nil
+	}
+	definition := AchievementDefinition{
+		ID: achievement.Key, Title: achievement.Name, Description: achievement.Description,
+		Criteria: achievement.Criteria, Config: achievement.Config, Hidden: achievement.Hidden,
+		Version: achievement.DefinitionVersion,
+	}
+	if err := definition.Validate(); err != nil {
+		return err
+	}
+	if achievement.PolicyVersion != AchievementPolicyVersion {
+		return fmt.Errorf("achievement policy version %q is unsupported", achievement.PolicyVersion)
+	}
+	if achievement.Status != AchievementUnlocked {
+		return fmt.Errorf("versioned student achievement must be unlocked")
+	}
+	if err := validateAchievementContext(achievement.Context); err != nil {
+		return err
+	}
 	return nil
 }
+
+func validateAchievementContext(context map[string]string) error {
+	for key, value := range context {
+		if strings.TrimSpace(key) == "" || key != strings.TrimSpace(key) || strings.IndexFunc(key, func(r rune) bool { return r == ' ' || r == '\t' || r == '\n' }) >= 0 {
+			return fmt.Errorf("achievement context key %q is invalid", key)
+		}
+		if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
+			return fmt.Errorf("achievement context %q is empty or padded", key)
+		}
+	}
+	return nil
+}
+
+func achievementNumber(value int) string { return strconv.Itoa(value) }
 
 // Milestone records meaningful progress toward a goal independently from
 // gamified achievements.

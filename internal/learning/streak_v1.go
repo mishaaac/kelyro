@@ -63,102 +63,39 @@ type StreakCalculationInput struct {
 }
 
 type streakDaySignal struct {
-	duration time.Duration
-	latest   Timestamp
-	activity bool
+	duration    time.Duration
+	latest      Timestamp
+	qualifiedAt *Timestamp
+}
+
+// ActiveStudyDay is one qualifying local calendar day under streak-v1. Latest
+// is the historical instant at which that day's currently known qualification
+// was last observed.
+type ActiveStudyDay struct {
+	Date        LocalDate
+	QualifiedAt Timestamp
+	Latest      Timestamp
 }
 
 // CalculateStreakV1 rebuilds consistency from durable educational facts. It
 // never changes mastery, progression, review eligibility, or unlock state.
 func CalculateStreakV1(input StreakCalculationInput) (Streak, error) {
-	if err := input.StudentID.Validate(); err != nil {
-		return Streak{}, fmt.Errorf("streak student: %w", err)
-	}
-	if err := input.AsOf.Validate(); err != nil {
-		return Streak{}, fmt.Errorf("streak as of: %w", err)
-	}
-	if err := input.Policy.Validate(); err != nil {
+	activeDays, err := CalculateActiveStudyDaysV1(input)
+	if err != nil {
 		return Streak{}, err
 	}
-	location, err := time.LoadLocation(input.Timezone)
-	if err != nil {
-		return Streak{}, fmt.Errorf("streak timezone: %w", err)
-	}
-
-	days := make(map[LocalDate]streakDaySignal)
-	eventIDs := make(map[ID]struct{}, len(input.Events))
-	for _, event := range input.Events {
-		if err := event.Validate(); err != nil {
-			return Streak{}, fmt.Errorf("streak study event %q: %w", event.ID, err)
-		}
-		if event.StudentID != input.StudentID {
-			return Streak{}, fmt.Errorf("streak study event %q belongs to another student", event.ID)
-		}
-		if event.OccurredAt.After(input.AsOf) {
-			return Streak{}, fmt.Errorf("streak study event %q occurs after calculation time", event.ID)
-		}
-		if _, exists := eventIDs[event.ID]; exists {
-			return Streak{}, fmt.Errorf("streak contains duplicate study event %q", event.ID)
-		}
-		eventIDs[event.ID] = struct{}{}
-		if !streakActivityEvent(event.Type) {
-			continue
-		}
-		date := LocalDateFromTime(event.OccurredAt.Time(), location)
-		signal := days[date]
-		signal.activity = true
-		if signal.latest.Time().IsZero() || event.OccurredAt.After(signal.latest) {
-			signal.latest = event.OccurredAt
-		}
-		days[date] = signal
-	}
-
-	sessionIDs := make(map[ID]struct{}, len(input.Sessions))
-	for _, session := range input.Sessions {
-		if err := session.Validate(); err != nil {
-			return Streak{}, fmt.Errorf("streak study session %q: %w", session.ID, err)
-		}
-		if session.StudentID != input.StudentID {
-			return Streak{}, fmt.Errorf("streak study session %q belongs to another student", session.ID)
-		}
-		if _, exists := sessionIDs[session.ID]; exists {
-			return Streak{}, fmt.Errorf("streak contains duplicate study session %q", session.ID)
-		}
-		sessionIDs[session.ID] = struct{}{}
-		anchor := session.LastActivityAt
-		if session.EndedAt != nil {
-			anchor = *session.EndedAt
-		}
-		if anchor.After(input.AsOf) {
-			return Streak{}, fmt.Errorf("streak study session %q ends after calculation time", session.ID)
-		}
-		date := LocalDateFromTime(anchor.Time(), location)
-		signal := days[date]
-		signal.duration += session.ActiveDuration
-		if signal.latest.Time().IsZero() || anchor.After(signal.latest) {
-			signal.latest = anchor
-		}
-		days[date] = signal
-	}
-
-	active := make([]LocalDate, 0, len(days))
-	for date, signal := range days {
-		if signal.activity || signal.duration >= input.Policy.MinimumActiveTime {
-			active = append(active, date)
-		}
-	}
-	sort.Slice(active, func(i, j int) bool { return active[i] < active[j] })
+	location, _ := time.LoadLocation(input.Timezone)
 	streak := Streak{
-		StudentID: input.StudentID, TotalActiveDays: len(active), Timezone: input.Timezone,
+		StudentID: input.StudentID, TotalActiveDays: len(activeDays), Timezone: input.Timezone,
 		MinimumActiveMinutes: int(input.Policy.MinimumActiveTime / time.Minute), PolicyVersion: input.Policy.Version,
 	}
-	if len(active) == 0 {
+	if len(activeDays) == 0 {
 		return streak, streak.Validate()
 	}
 
 	longest, run := 1, 1
-	for index := 1; index < len(active); index++ {
-		if consecutiveLocalDates(active[index-1], active[index], location) {
+	for index := 1; index < len(activeDays); index++ {
+		if consecutiveLocalDates(activeDays[index-1].Date, activeDays[index].Date, location) {
 			run++
 		} else {
 			run = 1
@@ -167,16 +104,119 @@ func CalculateStreakV1(input StreakCalculationInput) (Streak, error) {
 			longest = run
 		}
 	}
-	lastDate := active[len(active)-1]
-	latest := days[lastDate].latest
+	last := activeDays[len(activeDays)-1]
 	streak.LongestDays = longest
-	streak.LastActiveLocalDate = &lastDate
-	streak.LastStudyAt = &latest
+	streak.LastActiveLocalDate = &last.Date
+	streak.LastStudyAt = &last.Latest
 	today := LocalDateFromTime(input.AsOf.Time(), location)
-	if lastDate == today || consecutiveLocalDates(lastDate, today, location) {
+	if last.Date == today || consecutiveLocalDates(last.Date, today, location) {
 		streak.CurrentDays = run
 	}
 	return streak, streak.Validate()
+}
+
+// CalculateActiveStudyDaysV1 exposes the same source-of-truth day projection
+// used by streaks so achievements cannot quietly redefine an active day.
+func CalculateActiveStudyDaysV1(input StreakCalculationInput) ([]ActiveStudyDay, error) {
+	if err := input.StudentID.Validate(); err != nil {
+		return nil, fmt.Errorf("streak student: %w", err)
+	}
+	if err := input.AsOf.Validate(); err != nil {
+		return nil, fmt.Errorf("streak as of: %w", err)
+	}
+	if err := input.Policy.Validate(); err != nil {
+		return nil, err
+	}
+	location, err := time.LoadLocation(input.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("streak timezone: %w", err)
+	}
+
+	days := make(map[LocalDate]streakDaySignal)
+	eventIDs := make(map[ID]struct{}, len(input.Events))
+	for _, event := range input.Events {
+		if err := event.Validate(); err != nil {
+			return nil, fmt.Errorf("streak study event %q: %w", event.ID, err)
+		}
+		if event.StudentID != input.StudentID {
+			return nil, fmt.Errorf("streak study event %q belongs to another student", event.ID)
+		}
+		if event.OccurredAt.After(input.AsOf) {
+			return nil, fmt.Errorf("streak study event %q occurs after calculation time", event.ID)
+		}
+		if _, exists := eventIDs[event.ID]; exists {
+			return nil, fmt.Errorf("streak contains duplicate study event %q", event.ID)
+		}
+		eventIDs[event.ID] = struct{}{}
+		if !streakActivityEvent(event.Type) {
+			continue
+		}
+		date := LocalDateFromTime(event.OccurredAt.Time(), location)
+		signal := days[date]
+		if signal.qualifiedAt == nil || event.OccurredAt.Before(*signal.qualifiedAt) {
+			qualifiedAt := event.OccurredAt
+			signal.qualifiedAt = &qualifiedAt
+		}
+		if signal.latest.Time().IsZero() || event.OccurredAt.After(signal.latest) {
+			signal.latest = event.OccurredAt
+		}
+		days[date] = signal
+	}
+
+	sessionIDs := make(map[ID]struct{}, len(input.Sessions))
+	sessions := append([]StudySession(nil), input.Sessions...)
+	sort.Slice(sessions, func(i, j int) bool {
+		left, right := sessions[i].LastActivityAt, sessions[j].LastActivityAt
+		if sessions[i].EndedAt != nil {
+			left = *sessions[i].EndedAt
+		}
+		if sessions[j].EndedAt != nil {
+			right = *sessions[j].EndedAt
+		}
+		if left == right {
+			return sessions[i].ID.String() < sessions[j].ID.String()
+		}
+		return left.Before(right)
+	})
+	for _, session := range sessions {
+		if err := session.Validate(); err != nil {
+			return nil, fmt.Errorf("streak study session %q: %w", session.ID, err)
+		}
+		if session.StudentID != input.StudentID {
+			return nil, fmt.Errorf("streak study session %q belongs to another student", session.ID)
+		}
+		if _, exists := sessionIDs[session.ID]; exists {
+			return nil, fmt.Errorf("streak contains duplicate study session %q", session.ID)
+		}
+		sessionIDs[session.ID] = struct{}{}
+		anchor := session.LastActivityAt
+		if session.EndedAt != nil {
+			anchor = *session.EndedAt
+		}
+		if anchor.After(input.AsOf) {
+			return nil, fmt.Errorf("streak study session %q ends after calculation time", session.ID)
+		}
+		date := LocalDateFromTime(anchor.Time(), location)
+		signal := days[date]
+		signal.duration += session.ActiveDuration
+		if signal.duration >= input.Policy.MinimumActiveTime && (signal.qualifiedAt == nil || anchor.Before(*signal.qualifiedAt)) {
+			qualifiedAt := anchor
+			signal.qualifiedAt = &qualifiedAt
+		}
+		if signal.latest.Time().IsZero() || anchor.After(signal.latest) {
+			signal.latest = anchor
+		}
+		days[date] = signal
+	}
+
+	active := make([]ActiveStudyDay, 0, len(days))
+	for date, signal := range days {
+		if signal.qualifiedAt != nil {
+			active = append(active, ActiveStudyDay{Date: date, QualifiedAt: *signal.qualifiedAt, Latest: signal.latest})
+		}
+	}
+	sort.Slice(active, func(i, j int) bool { return active[i].Date < active[j].Date })
+	return active, nil
 }
 
 func streakActivityEvent(eventType StudyEventType) bool {

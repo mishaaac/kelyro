@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 22 (pending authorization)
-Last completed step: 21
+Current step: 23 (pending authorization)
+Last completed step: 22
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -954,3 +954,50 @@ Release: unreleased
 - El Paso 22 es el siguiente paso pendiente y requiere autorización explícita.
 - Achievement & Milestone Framework deberá reconocer progreso real mediante reglas deterministas sin convertir streaks en moneda, barrera o fuente de culpa.
 - No adelantar analytics, adaptive daily plans, TUI Student Core completo ni Exercise Engine.
+
+## Step 22 — Achievement & Milestone Framework
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Catálogo Foundation determinista y versionado con `first_session`, `first_concept_mastered`, `seven_active_days`, `ten_hours_studied`, `first_review_completed` y `module_mastered`.
+- Definiciones como datos validados con título, descripción, tipo/configuración de criterio, visibilidad y `achievement-definition/v1`, sin IA ni contenido generado.
+- Evaluador puro `achievement-v1` que reconstruye eligibility, timestamp histórico y contexto explicable desde Study Sessions, Study History, reviews y mastery instance-scoped.
+- Proyección pública de días activos compartida con `streak-v1`, preservando exactamente threshold, timezone, calendario local y DST para el hito de siete días.
+- Criterio general de módulo que exige mastery de todos los conceptos de un mismo módulo e instancia curricular, aplicable al fixture Foundation sin acoplar el dominio a una materia.
+- Caso de uso transaccional `AchievementService.Refresh` que instala definiciones, evalúa todos los criterios, inserta solo ausentes y registra `achievement.unlocked` únicamente para unlocks nuevos.
+- IDs deterministas y unicidad por `(student_id, achievement_key)` en adapters SQLite/in-memory, con respuesta separada de achievements totales y recién desbloqueados.
+- Migration forward-only v19 con metadata de definición, configuración JSON, hidden, contexto y versiones; filas v4 preservadas como `legacy-achievement/v0` y guards SQLite para aggregates v1.
+- Integración workspace-scoped y mensaje TUI sutil al iniciar un learning path listo: `Milestone unlocked` más los títulos visibles, sin pantalla/CLI adicional ni economía de puntos.
+- Fórmulas, fuentes de verdad, desempates, atomicidad, compatibilidad y frontera de presentación documentadas en `docs/architecture/learning-achievements-v1.md`.
+
+### Decisions
+
+- Un achievement persistido recuerda reconocimiento pero nunca sustituye Study History, sesiones, reviews o estados curriculares; borrar y recalcular reproduce un unlock si los hechos siguen presentes.
+- `first_session` exige una sesión `completed` con al menos una actividad educativa significativa; detener una sesión vacía no cuenta como progreso real.
+- Los thresholds de tiempo cruzan en el primer anchor durable que alcanza el total; los días activos cruzan en el séptimo día calificado bajo la política compartida `streak-v1`.
+- `module_mastered` significa todos los conceptos del módulo dentro de una misma curriculum instance; review_due conserva el mastery histórico mediante `MasteredAt`.
+- Empates temporales se resuelven con IDs estables, y el contexto almacena solo IDs/thresholds explicativos, sin secretos ni contenido de ejercicios.
+- La inserción condicional y el evento histórico ocurren en una sola transacción. Un retry o refresh concurrente no puede desbloquear ni anunciar dos veces la misma definición.
+- Hidden es metadata de presentación: se persiste y evalúa normalmente, pero el aviso TUI solo muestra recognitions visibles.
+- Step 22 no añade puntos, recompensas, niveles, penalizaciones, notificaciones, gates, Analytics, Daily Plans ni Exercise Engine.
+
+### Verification
+
+- Tests de dominio para las seis condiciones simultáneas, timestamps históricos, contextos, ausencia de falsos unlocks y reutilización de active days v1.
+- Tests application para recálculo desde hechos preexistentes, múltiples unlocks, segunda ejecución idempotente, un solo evento por achievement y persistencia del catálogo.
+- Tests SQLite para upgrade v18 → v19, preservación legacy, roundtrip de definición/contexto v1, insert-if-absent y trigger de configuración.
+- Tests app/TUI para dispatch workspace-scoped, cierre de store, refresh durante inicialización, ocultamiento de definitions hidden y mensaje profesional exacto.
+- `GOCACHE=/tmp/kelyro-step22-gate-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step22-gate-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-step22-quality-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 23 es el siguiente paso pendiente y requiere autorización explícita.
+- Learning Analytics v1 deberá leer estas fuentes durables y no usar achievements como reemplazo de métricas de progreso, tiempo, mastery o reviews.
+- No adelantar adaptive daily plans, Progress Dashboard, TUI Student Core completo ni Exercise Engine.

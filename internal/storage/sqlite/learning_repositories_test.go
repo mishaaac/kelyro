@@ -491,6 +491,72 @@ func TestStreakV1MigrationPreservesLegacyStateAndSupportsRoundTrip(t *testing.T)
 	}
 }
 
+func TestAchievementV1MigrationPreservesLegacyRowsAndEnforcesUniqueUnlocks(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:18]); err != nil {
+		t.Fatalf("migrate through v18: %v", err)
+	}
+	ctx := context.Background()
+	student := testStudent(t)
+	if err := database.LearningRepositories().Students.Create(ctx, student); err != nil {
+		t.Fatal(err)
+	}
+	unlockedAt := mustTimestamp(t, fixedTime)
+	if _, err := handle.Exec(`INSERT INTO achievement_definitions (key,name) VALUES ('legacy.first','Legacy first')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO student_achievements (id,student_id,achievement_key,status,unlocked_at)
+VALUES ('achievement.legacy',?,'legacy.first','unlocked',?)`, student.ID.String(), encodeTimestamp(unlockedAt)); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx); err != nil {
+		t.Fatalf("migrate achievement-v1: %v", err)
+	}
+	legacy, err := database.LearningRepositories().Achievements.Get(ctx, mustID(t, "achievement.legacy"))
+	if err != nil || legacy.Name != "Legacy first" || legacy.DefinitionVersion != "" || legacy.PolicyVersion != "" {
+		t.Fatalf("legacy achievement = (%+v, %v)", legacy, err)
+	}
+
+	definition := learning.FoundationAchievementDefinitions()[0]
+	if err := database.LearningRepositories().Achievements.SaveDefinition(ctx, definition); err != nil {
+		t.Fatal(err)
+	}
+	achievement := learning.Achievement{
+		ID: mustID(t, "achievement.student-1.first_session"), StudentID: student.ID,
+		Key: definition.ID, Name: definition.Title, Description: definition.Description,
+		Criteria: definition.Criteria, Config: definition.Config, Hidden: definition.Hidden,
+		DefinitionVersion: definition.Version, Status: learning.AchievementUnlocked, UnlockedAt: &unlockedAt,
+		Context: map[string]string{"session_id": "session.first"}, PolicyVersion: learning.AchievementPolicyVersion,
+	}
+	created, err := database.LearningRepositories().Achievements.Unlock(ctx, achievement)
+	if err != nil || !created {
+		t.Fatalf("first Unlock() = (%v, %v)", created, err)
+	}
+	created, err = database.LearningRepositories().Achievements.Unlock(ctx, achievement)
+	if err != nil || created {
+		t.Fatalf("duplicate Unlock() = (%v, %v)", created, err)
+	}
+	loaded, err := database.LearningRepositories().Achievements.Get(ctx, achievement.ID)
+	if err != nil || !reflect.DeepEqual(loaded, achievement) {
+		t.Fatalf("achievement-v1 roundtrip = (%+v, %v), want %+v", loaded, err, achievement)
+	}
+	definitions, err := database.LearningRepositories().Achievements.ListDefinitions(ctx)
+	if err != nil || len(definitions) != 1 || !reflect.DeepEqual(definitions[0], definition) {
+		t.Fatalf("definitions = (%+v, %v)", definitions, err)
+	}
+	if _, err := handle.Exec(`UPDATE achievement_definitions SET criteria_type='active_days' WHERE key=?`, definition.ID.String()); err == nil {
+		t.Fatal("achievement trigger accepted active-days criterion without a count")
+	}
+}
+
 func TestStudentCoreV4ProfileMigratesToProfileSettings(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)

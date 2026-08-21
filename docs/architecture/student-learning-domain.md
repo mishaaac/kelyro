@@ -95,7 +95,8 @@ loading and graph policies without changing the identity of concepts.
 | `ReviewItem` | Trackable pending, completed, or skipped review with explicit outcome and postponement metadata. |
 | `WarmUpPlan` | Versioned, bounded selection of contextual concept reviews with explicit reasons and priorities; not an exercise. |
 | `Streak` | Versioned, recalculable current/longest/total active-day projection in the learner timezone; informational only. |
-| `Achievement` | Stable-key recognition with locked/unlocked lifecycle. |
+| `AchievementDefinition` | Versioned data describing one deterministic criterion and professional display text. |
+| `Achievement` | Idempotent student recognition with historical unlock instant, explanatory context, and policy version. |
 | `Milestone` | Meaningful goal progress event distinct from gamification. |
 | `AnalyticsSnapshot` | Auditable point-in-time metrics with explicit names and units. |
 | `DailyPlan` | Dated, ordered study proposal for a student and goal. |
@@ -139,6 +140,8 @@ and a score does not silently change exposure state.
   cannot exceed introduced concepts.
 - Completed reviews and unlocked achievements have corresponding timestamps;
   other states do not.
+- A v1 achievement references a valid v1 definition, is always unlocked, and
+  carries valid explanatory context plus `achievement-v1`.
 - Collections that represent identity or ordering reject duplicate IDs or
   positions where ambiguity would result.
 
@@ -149,10 +152,10 @@ This keeps the domain deterministic and avoids a premature repository interface.
 ## Deferred policy
 
 The base domain did not define educational policies. Mastery, diagnostic,
-retention, progression, spaced-repetition, warm-up, and streak policies are now
-documented in their dedicated versioned architecture records. Achievement
-criteria, analytics aggregation, adaptive daily-plan selection, and exercise
-generation remain deferred to their explicit later steps. The
+retention, progression, spaced-repetition, warm-up, streak, and achievement
+policies are now documented in their dedicated versioned architecture records.
+Analytics aggregation, adaptive daily-plan selection, and exercise generation
+remain deferred to their explicit later steps. The
 base domain also does not define database schemas, migrations, repositories,
 commands, screens, generated curricula,
 exercise engines, research, or AI behavior.

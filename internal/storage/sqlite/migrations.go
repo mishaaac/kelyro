@@ -943,6 +943,50 @@ WHEN (NEW.policy_version='legacy-streak/v0' AND
 BEGIN SELECT RAISE(ABORT, 'invalid streak-v1 aggregate'); END`,
 		},
 	},
+	{
+		version: 19,
+		name:    "learning achievement framework v1",
+		statements: []string{
+			`ALTER TABLE achievement_definitions ADD COLUMN description TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE achievement_definitions ADD COLUMN criteria_type TEXT NOT NULL DEFAULT 'legacy'
+CHECK (criteria_type IN ('legacy','first_session','first_concept_mastered','active_days','study_minutes','first_review_completed','module_mastered'))`,
+			`ALTER TABLE achievement_definitions ADD COLUMN criteria_config_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(criteria_config_json))`,
+			`ALTER TABLE achievement_definitions ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0,1))`,
+			`ALTER TABLE achievement_definitions ADD COLUMN definition_version TEXT NOT NULL DEFAULT 'legacy-achievement/v0'
+CHECK (definition_version IN ('legacy-achievement/v0','achievement-definition/v1'))`,
+			`ALTER TABLE student_achievements ADD COLUMN context_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(context_json) AND json_type(context_json)='object')`,
+			`ALTER TABLE student_achievements ADD COLUMN policy_version TEXT NOT NULL DEFAULT 'legacy-achievement/v0'
+CHECK (policy_version IN ('legacy-achievement/v0','achievement-v1'))`,
+			`CREATE TRIGGER achievement_definitions_v1_insert_guard
+BEFORE INSERT ON achievement_definitions
+WHEN (NEW.definition_version='legacy-achievement/v0' AND
+      (NEW.description<>'' OR NEW.criteria_type<>'legacy' OR NEW.criteria_config_json<>'{}' OR NEW.hidden<>0))
+  OR (NEW.definition_version='achievement-definition/v1' AND (
+       length(trim(NEW.description))=0 OR NEW.criteria_type='legacy'
+    OR (NEW.criteria_type='active_days' AND (COALESCE(json_extract(NEW.criteria_config_json,'$.count'),0)<1 OR COALESCE(json_extract(NEW.criteria_config_json,'$.minutes'),0)<>0))
+    OR (NEW.criteria_type='study_minutes' AND (COALESCE(json_extract(NEW.criteria_config_json,'$.minutes'),0)<1 OR COALESCE(json_extract(NEW.criteria_config_json,'$.count'),0)<>0))
+    OR (NEW.criteria_type NOT IN ('active_days','study_minutes') AND NEW.criteria_config_json<>'{}')))
+BEGIN SELECT RAISE(ABORT, 'invalid achievement definition v1'); END`,
+			`CREATE TRIGGER achievement_definitions_v1_update_guard
+BEFORE UPDATE ON achievement_definitions
+WHEN (NEW.definition_version='legacy-achievement/v0' AND
+      (NEW.description<>'' OR NEW.criteria_type<>'legacy' OR NEW.criteria_config_json<>'{}' OR NEW.hidden<>0))
+  OR (NEW.definition_version='achievement-definition/v1' AND (
+       length(trim(NEW.description))=0 OR NEW.criteria_type='legacy'
+    OR (NEW.criteria_type='active_days' AND (COALESCE(json_extract(NEW.criteria_config_json,'$.count'),0)<1 OR COALESCE(json_extract(NEW.criteria_config_json,'$.minutes'),0)<>0))
+    OR (NEW.criteria_type='study_minutes' AND (COALESCE(json_extract(NEW.criteria_config_json,'$.minutes'),0)<1 OR COALESCE(json_extract(NEW.criteria_config_json,'$.count'),0)<>0))
+    OR (NEW.criteria_type NOT IN ('active_days','study_minutes') AND NEW.criteria_config_json<>'{}')))
+BEGIN SELECT RAISE(ABORT, 'invalid achievement definition v1'); END`,
+			`CREATE TRIGGER student_achievements_v1_insert_guard
+BEFORE INSERT ON student_achievements
+WHEN NEW.policy_version='achievement-v1' AND (NEW.status<>'unlocked' OR NEW.unlocked_at IS NULL)
+BEGIN SELECT RAISE(ABORT, 'invalid student achievement v1'); END`,
+			`CREATE TRIGGER student_achievements_v1_update_guard
+BEFORE UPDATE ON student_achievements
+WHEN NEW.policy_version='achievement-v1' AND (NEW.status<>'unlocked' OR NEW.unlocked_at IS NULL)
+BEGIN SELECT RAISE(ABORT, 'invalid student achievement v1'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

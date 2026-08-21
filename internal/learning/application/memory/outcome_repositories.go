@@ -184,6 +184,33 @@ func (repository streakRepository) Save(ctx context.Context, streak learning.Str
 
 type achievementRepository struct{ store *Store }
 
+func (repository achievementRepository) SaveDefinition(ctx context.Context, definition learning.AchievementDefinition) error {
+	if err := contextError("save memory achievement definition", ctx); err != nil {
+		return err
+	}
+	if err := definition.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "save memory achievement definition", err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	repository.store.achievementDefinitions[definition.ID] = definition
+	return nil
+}
+
+func (repository achievementRepository) ListDefinitions(ctx context.Context) ([]learning.AchievementDefinition, error) {
+	if err := contextError("list memory achievement definitions", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	items := make([]learning.AchievementDefinition, 0, len(repository.store.achievementDefinitions))
+	for _, definition := range repository.store.achievementDefinitions {
+		items = append(items, definition)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID.String() < items[j].ID.String() })
+	return items, nil
+}
+
 func (repository achievementRepository) Get(ctx context.Context, id learning.ID) (learning.Achievement, error) {
 	if err := contextError("get memory achievement", ctx); err != nil {
 		return learning.Achievement{}, err
@@ -217,10 +244,34 @@ func (repository achievementRepository) Save(ctx context.Context, achievement le
 	if err := contextError("save memory achievement", ctx); err != nil {
 		return err
 	}
+	if err := achievement.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, "save memory achievement", err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	repository.store.achievements[achievement.ID] = cloneAchievement(achievement)
 	return nil
+}
+
+func (repository achievementRepository) Unlock(ctx context.Context, achievement learning.Achievement) (bool, error) {
+	if err := contextError("unlock memory achievement", ctx); err != nil {
+		return false, err
+	}
+	if err := achievement.Validate(); err != nil {
+		return false, application.Classify(application.ErrorInvalidState, "unlock memory achievement", err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	for _, existing := range repository.store.achievements {
+		if existing.StudentID == achievement.StudentID && existing.Key == achievement.Key {
+			return false, nil
+		}
+	}
+	if _, exists := repository.store.achievements[achievement.ID]; exists {
+		return false, conflict("unlock memory achievement")
+	}
+	repository.store.achievements[achievement.ID] = cloneAchievement(achievement)
+	return true, nil
 }
 
 func (repository achievementRepository) AppendMilestone(ctx context.Context, milestone learning.Milestone) error {

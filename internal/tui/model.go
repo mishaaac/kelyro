@@ -43,6 +43,7 @@ type Model struct {
 	streak            learning.Streak
 	streakLoading     bool
 	streakErr         error
+	milestones        []learning.Achievement
 	onboarding        learningapp.OnboardingView
 	setup             learningapp.LearnerSetupView
 	onboardingLoading bool
@@ -104,6 +105,7 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.loadErr = nil
 		model.notice = ""
 		model.applyConfiguredColor()
+		model.milestones = append([]learning.Achievement(nil), message.milestones...)
 		if message.sessionErr != nil {
 			model.notice = "Session state unavailable; continuing with defaults: " + message.sessionErr.Error()
 			if message.resume.State.Version == 0 {

@@ -42,39 +42,41 @@ func TestServiceCoordinatesWorkspaceProfileShowAndEdit(t *testing.T) {
 }
 
 type fakeProfileStoreFactory struct {
-	profiles   learningapp.ProfileService
-	goals      learningapp.GoalLifecycleService
-	onboarding learningapp.OnboardingService
-	mastery    learningapp.MasteryPolicyService
-	setup      learningapp.LearnerSetupService
-	mistakes   learningapp.MistakeMemoryService
-	sessions   learningapp.StudySessionLifecycleService
-	history    learningapp.StudyHistoryService
-	retention  learningapp.RetentionService
-	reviews    learningapp.ReviewSchedulerService
-	streaks    learningapp.StreakService
-	openRoot   string
-	closed     int
+	profiles     learningapp.ProfileService
+	goals        learningapp.GoalLifecycleService
+	onboarding   learningapp.OnboardingService
+	mastery      learningapp.MasteryPolicyService
+	setup        learningapp.LearnerSetupService
+	mistakes     learningapp.MistakeMemoryService
+	sessions     learningapp.StudySessionLifecycleService
+	history      learningapp.StudyHistoryService
+	retention    learningapp.RetentionService
+	reviews      learningapp.ReviewSchedulerService
+	streaks      learningapp.StreakService
+	achievements learningapp.AchievementService
+	openRoot     string
+	closed       int
 }
 
 func (factory *fakeProfileStoreFactory) Open(_ context.Context, root string) (learningapp.ProfileStore, error) {
 	factory.openRoot = root
-	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, close: func() { factory.closed++ }}, nil
+	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, achievements: factory.achievements, close: func() { factory.closed++ }}, nil
 }
 
 type fakeProfileStore struct {
-	profiles   learningapp.ProfileService
-	goals      learningapp.GoalLifecycleService
-	onboarding learningapp.OnboardingService
-	mastery    learningapp.MasteryPolicyService
-	setup      learningapp.LearnerSetupService
-	mistakes   learningapp.MistakeMemoryService
-	sessions   learningapp.StudySessionLifecycleService
-	history    learningapp.StudyHistoryService
-	retention  learningapp.RetentionService
-	reviews    learningapp.ReviewSchedulerService
-	streaks    learningapp.StreakService
-	close      func()
+	profiles     learningapp.ProfileService
+	goals        learningapp.GoalLifecycleService
+	onboarding   learningapp.OnboardingService
+	mastery      learningapp.MasteryPolicyService
+	setup        learningapp.LearnerSetupService
+	mistakes     learningapp.MistakeMemoryService
+	sessions     learningapp.StudySessionLifecycleService
+	history      learningapp.StudyHistoryService
+	retention    learningapp.RetentionService
+	reviews      learningapp.ReviewSchedulerService
+	streaks      learningapp.StreakService
+	achievements learningapp.AchievementService
+	close        func()
 }
 
 func (store *fakeProfileStore) Profiles() learningapp.ProfileService      { return store.profiles }
@@ -95,6 +97,9 @@ func (store *fakeProfileStore) Retention() learningapp.RetentionService     { re
 func (store *fakeProfileStore) Reviews() learningapp.ReviewSchedulerService { return store.reviews }
 func (store *fakeProfileStore) WarmUps() learningapp.WarmUpSelectorService  { return nil }
 func (store *fakeProfileStore) Streaks() learningapp.StreakService          { return store.streaks }
+func (store *fakeProfileStore) Achievements() learningapp.AchievementService {
+	return store.achievements
+}
 func (store *fakeProfileStore) Close() error {
 	store.close()
 	return nil

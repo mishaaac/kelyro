@@ -12,6 +12,7 @@ type foundationInitializedMsg struct {
 	snapshot   app.FoundationSnapshot
 	resume     session.Resume
 	sessionErr error
+	milestones []learning.Achievement
 }
 
 type foundationLoadedMsg struct {

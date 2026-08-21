@@ -2078,7 +2078,7 @@ feat(streak): add non-punitive study streak tracking
 
 ## Paso 22 — Implementar Achievement & Milestone Framework
 
-- [ ] Paso 22 completado
+- [x] Paso 22 completado
 
 ### Objetivo
 
@@ -3165,7 +3165,7 @@ Crear annotated tag únicamente si corresponde a release real.
 - [ ] Paso 19 — Spaced Repetition Scheduler v1
 - [ ] Paso 20 — Warm-up Selector
 - [ ] Paso 21 — Streaks
-- [ ] Paso 22 — Achievements
+- [x] Paso 22 — Achievements
 - [ ] Paso 23 — Learning Analytics v1
 - [ ] Paso 24 — Adaptive Daily Plan v1
 - [ ] Paso 25 — Progress Dashboard service

@@ -55,6 +55,12 @@ func (model Model) homeView(width int) []string {
 	} else {
 		lines = append(lines, model.styles.muted.Render("No learning path yet."))
 	}
+	if len(model.milestones) > 0 {
+		lines = append(lines, "", model.styles.success.Render("Milestone unlocked"))
+		for _, achievement := range model.milestones {
+			lines = append(lines, truncate(achievement.Name, width))
+		}
+	}
 	lines = append(lines, "")
 	lines = append(lines, shortcutLines(width, "[Enter] Continue", "[s] Setup", "[p] Profile", "[k] Streak", "[d] Doctor", "[c] Config", "[r] Roadmap", "[q] Quit")...)
 	return lines

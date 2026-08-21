@@ -52,6 +52,13 @@ version. Existing v4 rows remain `legacy-streak/v0`; the application replaces
 them through a complete `streak-v1` recalculation. SQLite guards aggregate
 shape only—the educational and local-calendar policy remains in the domain.
 
+Forward-only migration v19 extends the published v4 achievement tables with
+definition criteria/configuration, description, visibility and version, plus
+student unlock context and evaluator version. Existing rows remain readable as
+`legacy-achievement/v0`. Definition and unlock writes stay separate repository
+operations so the application can install deterministic data and use
+insert-if-absent semantics inside one unit of work.
+
 ## Integrity and access paths
 
 Foreign keys reject student facts for unknown students or concepts and cascade
@@ -73,8 +80,8 @@ Indexes cover:
 
 `Database.LearningRepositories` implements the narrow ports from
 `internal/learning/application`. `Database.WithinTransaction` implements its
-unit-of-work contract. Composite writes such as students, sessions,
-achievements, curriculum fixtures, and daily plans use a transaction even when
+unit-of-work contract. Composite writes such as students, sessions, legacy
+achievement saves, curriculum fixtures, and daily plans use a transaction even when
 called outside an application unit of work.
 
 The adapter validates values before writing and reconstructs and validates

@@ -44,58 +44,60 @@ type curriculumFixture struct {
 type Store struct {
 	mu sync.RWMutex
 
-	students       map[learning.ID]learning.Student
-	goals          map[learning.ID]learning.LearningGoal
-	onboarding     map[learning.ID]learning.OnboardingInterview
-	mastery        map[learning.ID]learning.MasteryThresholdSettings
-	curricula      map[curriculumKey]curriculumFixture
-	instances      map[learning.ID]learning.CurriculumInstance
-	instanceStates map[instanceConceptKey]learning.InstanceConceptState
-	diagnostics    map[learning.ID]learning.DiagnosticAttempt
-	setups         map[learning.ID]learning.LearnerSetup
-	concepts       map[studentConceptKey]learning.ConceptState
-	evidence       map[learning.ID]learning.Evidence
-	mistakes       map[learning.ID]learning.Mistake
-	mistakeEvents  map[learning.ID]learning.MistakeEvent
-	retention      map[studentConceptKey]learning.RetentionState
-	sessions       map[learning.ID]learning.LearningSession
-	studySessions  map[learning.ID]learning.StudySession
-	history        map[learning.ID]learning.StudyEvent
-	schedules      map[studentConceptKey]learning.ReviewSchedule
-	reviewItems    map[learning.ID]learning.ReviewItem
-	streaks        map[learning.ID]learning.Streak
-	achievements   map[learning.ID]learning.Achievement
-	milestones     map[learning.ID]learning.Milestone
-	analytics      map[learning.ID][]learning.AnalyticsSnapshot
-	dailyPlans     map[planKey]learning.DailyPlan
+	students               map[learning.ID]learning.Student
+	goals                  map[learning.ID]learning.LearningGoal
+	onboarding             map[learning.ID]learning.OnboardingInterview
+	mastery                map[learning.ID]learning.MasteryThresholdSettings
+	curricula              map[curriculumKey]curriculumFixture
+	instances              map[learning.ID]learning.CurriculumInstance
+	instanceStates         map[instanceConceptKey]learning.InstanceConceptState
+	diagnostics            map[learning.ID]learning.DiagnosticAttempt
+	setups                 map[learning.ID]learning.LearnerSetup
+	concepts               map[studentConceptKey]learning.ConceptState
+	evidence               map[learning.ID]learning.Evidence
+	mistakes               map[learning.ID]learning.Mistake
+	mistakeEvents          map[learning.ID]learning.MistakeEvent
+	retention              map[studentConceptKey]learning.RetentionState
+	sessions               map[learning.ID]learning.LearningSession
+	studySessions          map[learning.ID]learning.StudySession
+	history                map[learning.ID]learning.StudyEvent
+	schedules              map[studentConceptKey]learning.ReviewSchedule
+	reviewItems            map[learning.ID]learning.ReviewItem
+	streaks                map[learning.ID]learning.Streak
+	achievementDefinitions map[learning.ID]learning.AchievementDefinition
+	achievements           map[learning.ID]learning.Achievement
+	milestones             map[learning.ID]learning.Milestone
+	analytics              map[learning.ID][]learning.AnalyticsSnapshot
+	dailyPlans             map[planKey]learning.DailyPlan
 }
 
 func New() *Store {
 	return &Store{
-		students:       make(map[learning.ID]learning.Student),
-		goals:          make(map[learning.ID]learning.LearningGoal),
-		onboarding:     make(map[learning.ID]learning.OnboardingInterview),
-		mastery:        make(map[learning.ID]learning.MasteryThresholdSettings),
-		curricula:      make(map[curriculumKey]curriculumFixture),
-		instances:      make(map[learning.ID]learning.CurriculumInstance),
-		instanceStates: make(map[instanceConceptKey]learning.InstanceConceptState),
-		diagnostics:    make(map[learning.ID]learning.DiagnosticAttempt),
-		setups:         make(map[learning.ID]learning.LearnerSetup),
-		concepts:       make(map[studentConceptKey]learning.ConceptState),
-		evidence:       make(map[learning.ID]learning.Evidence),
-		mistakes:       make(map[learning.ID]learning.Mistake),
-		mistakeEvents:  make(map[learning.ID]learning.MistakeEvent),
-		retention:      make(map[studentConceptKey]learning.RetentionState),
-		sessions:       make(map[learning.ID]learning.LearningSession),
-		studySessions:  make(map[learning.ID]learning.StudySession),
-		history:        make(map[learning.ID]learning.StudyEvent),
-		schedules:      make(map[studentConceptKey]learning.ReviewSchedule),
-		reviewItems:    make(map[learning.ID]learning.ReviewItem),
-		streaks:        make(map[learning.ID]learning.Streak),
-		achievements:   make(map[learning.ID]learning.Achievement),
-		milestones:     make(map[learning.ID]learning.Milestone),
-		analytics:      make(map[learning.ID][]learning.AnalyticsSnapshot),
-		dailyPlans:     make(map[planKey]learning.DailyPlan),
+		students:               make(map[learning.ID]learning.Student),
+		goals:                  make(map[learning.ID]learning.LearningGoal),
+		onboarding:             make(map[learning.ID]learning.OnboardingInterview),
+		mastery:                make(map[learning.ID]learning.MasteryThresholdSettings),
+		curricula:              make(map[curriculumKey]curriculumFixture),
+		instances:              make(map[learning.ID]learning.CurriculumInstance),
+		instanceStates:         make(map[instanceConceptKey]learning.InstanceConceptState),
+		diagnostics:            make(map[learning.ID]learning.DiagnosticAttempt),
+		setups:                 make(map[learning.ID]learning.LearnerSetup),
+		concepts:               make(map[studentConceptKey]learning.ConceptState),
+		evidence:               make(map[learning.ID]learning.Evidence),
+		mistakes:               make(map[learning.ID]learning.Mistake),
+		mistakeEvents:          make(map[learning.ID]learning.MistakeEvent),
+		retention:              make(map[studentConceptKey]learning.RetentionState),
+		sessions:               make(map[learning.ID]learning.LearningSession),
+		studySessions:          make(map[learning.ID]learning.StudySession),
+		history:                make(map[learning.ID]learning.StudyEvent),
+		schedules:              make(map[studentConceptKey]learning.ReviewSchedule),
+		reviewItems:            make(map[learning.ID]learning.ReviewItem),
+		streaks:                make(map[learning.ID]learning.Streak),
+		achievementDefinitions: make(map[learning.ID]learning.AchievementDefinition),
+		achievements:           make(map[learning.ID]learning.Achievement),
+		milestones:             make(map[learning.ID]learning.Milestone),
+		analytics:              make(map[learning.ID][]learning.AnalyticsSnapshot),
+		dailyPlans:             make(map[planKey]learning.DailyPlan),
 	}
 }
 
@@ -254,6 +256,9 @@ func (store *Store) cloneLocked() *Store {
 	for key, value := range store.streaks {
 		clone.streaks[key] = cloneStreak(value)
 	}
+	for key, value := range store.achievementDefinitions {
+		clone.achievementDefinitions[key] = value
+	}
 	for key, value := range store.achievements {
 		clone.achievements[key] = cloneAchievement(value)
 	}
@@ -290,6 +295,7 @@ func (store *Store) replaceLocked(replacement *Store) {
 	store.schedules = replacement.schedules
 	store.reviewItems = replacement.reviewItems
 	store.streaks = replacement.streaks
+	store.achievementDefinitions = replacement.achievementDefinitions
 	store.achievements = replacement.achievements
 	store.milestones = replacement.milestones
 	store.analytics = replacement.analytics
@@ -488,7 +494,19 @@ func cloneAchievement(value learning.Achievement) learning.Achievement {
 		copy := *value.UnlockedAt
 		value.UnlockedAt = &copy
 	}
+	value.Context = cloneStringMap(value.Context)
 	return value
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	cloned := make(map[string]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func cloneDailyPlan(value learning.DailyPlan) learning.DailyPlan {

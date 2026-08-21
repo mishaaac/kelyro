@@ -37,6 +37,27 @@ func TestModelLoadsFoundationStateThroughCommand(t *testing.T) {
 	}
 }
 
+func TestModelShowsSubtleNewMilestoneMessage(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{
+		snapshot: healthySnapshot(),
+		result: app.Result{Achievements: &learningapp.AchievementRefresh{NewlyUnlocked: []learning.Achievement{
+			{Name: "7 active study days"},
+			{Name: "Hidden fixture milestone", Hidden: true},
+		}}},
+	}
+	model := NewModel(context.Background(), service, app.Command{Workspace: "/requested"}, true)
+	message := model.Init()()
+	updated, _ := model.Update(message)
+	view := updated.(Model).View()
+	if !strings.Contains(view, "Milestone unlocked") || !strings.Contains(view, "7 active study days") || strings.Contains(view, "Hidden fixture milestone") {
+		t.Fatalf("milestone view:\n%s", view)
+	}
+	if len(service.executed) != 1 || service.executed[0].Action != app.ActionAchievements {
+		t.Fatalf("initial actions = %+v", service.executed)
+	}
+}
+
 func TestModelNavigatesFoundationScreens(t *testing.T) {
 	t.Parallel()
 
