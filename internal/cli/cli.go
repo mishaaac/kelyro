@@ -63,6 +63,7 @@ Commands:
   time     Show intentional active study time
   reviews  Show scheduled or currently due reviews
   streak   Show study consistency without affecting progress
+  maintenance  Run advanced local maintenance operations
 
 Options:
   -h, --help          Show this help message
@@ -75,7 +76,7 @@ Options:
       --yes           Confirm backup restore or development setup reset
       --full          Include allowlisted machine state in an export
       --output FILE   Set the export archive path
-      --dry-run       Validate and preview an import without writing
+      --dry-run       Preview import or maintenance without writing
       --conflict MODE Resolve import conflicts with fail, keep, or overwrite
       --global        Use global configuration scope
       --project       Use project configuration scope
@@ -168,34 +169,38 @@ Review commands:
 
 Streak command:
   kelyro streak
+
+Advanced maintenance command:
+  kelyro maintenance recalculate [--dry-run]
 `
 
 var actions = map[string]app.Action{
-	"init":     app.ActionInit,
-	"doctor":   app.ActionDoctor,
-	"config":   app.ActionConfig,
-	"secrets":  app.ActionSecrets,
-	"status":   app.ActionStatus,
-	"progress": app.ActionProgress,
-	"roadmap":  app.ActionRoadmap,
-	"today":    app.ActionToday,
-	"open":     app.ActionOpen,
-	"logs":     app.ActionLogs,
-	"audit":    app.ActionAudit,
-	"backup":   app.ActionBackup,
-	"export":   app.ActionExport,
-	"import":   app.ActionImport,
-	"update":   app.ActionUpdate,
-	"profile":  app.ActionProfile,
-	"goal":     app.ActionGoal,
-	"mastery":  app.ActionMastery,
-	"setup":    app.ActionSetup,
-	"mistakes": app.ActionMistakes,
-	"session":  app.ActionSession,
-	"history":  app.ActionHistory,
-	"time":     app.ActionTime,
-	"reviews":  app.ActionReviews,
-	"streak":   app.ActionStreak,
+	"init":        app.ActionInit,
+	"doctor":      app.ActionDoctor,
+	"config":      app.ActionConfig,
+	"secrets":     app.ActionSecrets,
+	"status":      app.ActionStatus,
+	"progress":    app.ActionProgress,
+	"roadmap":     app.ActionRoadmap,
+	"today":       app.ActionToday,
+	"open":        app.ActionOpen,
+	"logs":        app.ActionLogs,
+	"audit":       app.ActionAudit,
+	"backup":      app.ActionBackup,
+	"export":      app.ActionExport,
+	"import":      app.ActionImport,
+	"update":      app.ActionUpdate,
+	"profile":     app.ActionProfile,
+	"goal":        app.ActionGoal,
+	"mastery":     app.ActionMastery,
+	"setup":       app.ActionSetup,
+	"mistakes":    app.ActionMistakes,
+	"session":     app.ActionSession,
+	"history":     app.ActionHistory,
+	"time":        app.ActionTime,
+	"reviews":     app.ActionReviews,
+	"streak":      app.ActionStreak,
+	"maintenance": app.ActionMaintenance,
 }
 
 // Runner owns CLI parsing and rendering while delegating operations to an
@@ -280,35 +285,37 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	command := app.Command{
-		Action:            action,
-		Workspace:         invocation.workspace,
-		AllowNested:       invocation.allowNested,
-		ConfigScope:       invocation.configScope,
-		OpenTarget:        invocation.openTarget,
-		DoctorExplain:     invocation.doctorExplain,
-		LogOperation:      invocation.logOperation,
-		BackupOperation:   invocation.backupOperation,
-		BackupID:          invocation.backupID,
-		ExportMode:        invocation.exportMode,
-		ExportOutput:      invocation.exportOutput,
-		ImportArchive:     invocation.importArchive,
-		ImportDryRun:      invocation.importDryRun,
-		ImportConflicts:   invocation.importConflicts,
-		UpdateOperation:   invocation.updateOperation,
-		ProfileOperation:  invocation.profileOperation,
-		ProfileChanges:    invocation.profileChanges,
-		GoalOperation:     invocation.goalOperation,
-		GoalInput:         invocation.goalInput,
-		MasteryOperation:  invocation.masteryOperation,
-		MasteryThreshold:  invocation.masteryThreshold,
-		SetupOperation:    invocation.setupOperation,
-		MistakeOperation:  invocation.mistakeOperation,
-		MistakeID:         invocation.mistakeID,
-		SessionOperation:  invocation.sessionOperation,
-		HistoryToday:      invocation.historyToday,
-		ProgressOperation: invocation.progressOperation,
-		ReviewsDue:        invocation.reviewsDue,
-		Verbose:           invocation.verbose,
+		Action:               action,
+		Workspace:            invocation.workspace,
+		AllowNested:          invocation.allowNested,
+		ConfigScope:          invocation.configScope,
+		OpenTarget:           invocation.openTarget,
+		DoctorExplain:        invocation.doctorExplain,
+		LogOperation:         invocation.logOperation,
+		BackupOperation:      invocation.backupOperation,
+		BackupID:             invocation.backupID,
+		ExportMode:           invocation.exportMode,
+		ExportOutput:         invocation.exportOutput,
+		ImportArchive:        invocation.importArchive,
+		ImportDryRun:         invocation.importDryRun,
+		ImportConflicts:      invocation.importConflicts,
+		UpdateOperation:      invocation.updateOperation,
+		ProfileOperation:     invocation.profileOperation,
+		ProfileChanges:       invocation.profileChanges,
+		GoalOperation:        invocation.goalOperation,
+		GoalInput:            invocation.goalInput,
+		MasteryOperation:     invocation.masteryOperation,
+		MasteryThreshold:     invocation.masteryThreshold,
+		SetupOperation:       invocation.setupOperation,
+		MistakeOperation:     invocation.mistakeOperation,
+		MistakeID:            invocation.mistakeID,
+		SessionOperation:     invocation.sessionOperation,
+		HistoryToday:         invocation.historyToday,
+		ProgressOperation:    invocation.progressOperation,
+		MaintenanceOperation: invocation.maintenanceOperation,
+		MaintenanceDryRun:    invocation.maintenanceDryRun,
+		ReviewsDue:           invocation.reviewsDue,
+		Verbose:              invocation.verbose,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -400,6 +407,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatUpdate(*result.Update))
 	} else if result.Dashboard != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatDashboard(commandName, *result.Dashboard))
+	} else if result.Maintenance != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatMaintenance(*result.Maintenance))
 	} else if result.Profile != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatProfile(*result.Profile))
 	} else if result.Goal != nil && !invocation.quiet {
@@ -461,6 +470,45 @@ func formatDashboard(command string, dashboard learningapp.ProgressDashboard) st
 	default:
 		return formatStatusDashboard(dashboard)
 	}
+}
+
+func formatMaintenance(impact learningapp.RecalculationImpact) string {
+	heading := "Learning-state recalculation"
+	verb := "Changed"
+	if impact.DryRun {
+		heading += " — dry run"
+		verb = "Would change"
+	}
+	lines := []string{
+		heading,
+		"Previous mastery: " + formatAlgorithmVersions(impact.Previous.Mastery),
+		"Target mastery: " + formatAlgorithmVersions(impact.Target.Mastery),
+		"Previous retention: " + formatAlgorithmVersions(impact.Previous.Retention),
+		"Target retention: " + formatAlgorithmVersions(impact.Target.Retention),
+		"Previous daily plan: " + formatAlgorithmVersions(impact.Previous.DailyPlan),
+		"Target daily plan: " + formatAlgorithmVersions(impact.Target.DailyPlan),
+		fmt.Sprintf("Evidence records read: %d (unchanged)", impact.EvidenceRecords),
+		fmt.Sprintf("Concepts scanned: %d", impact.ConceptsScanned),
+		fmt.Sprintf("%s concept states: %d", verb, impact.ConceptStatesChanged),
+		fmt.Sprintf("%s retention states: %d", verb, impact.RetentionStatesChanged),
+		fmt.Sprintf("%s review schedules: %d", verb, impact.ReviewSchedulesChanged),
+		fmt.Sprintf("%s review items: %d", verb, impact.ReviewItemsChanged),
+		fmt.Sprintf("%s daily plans: %d", verb, impact.DailyPlansChanged),
+	}
+	if impact.BackupID != "" {
+		lines = append(lines, "Backup: "+impact.BackupID)
+	}
+	if impact.DryRun {
+		lines = append(lines, "No learning state was written and no backup was created.")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatAlgorithmVersions(versions []string) string {
+	if len(versions) == 0 {
+		return "none"
+	}
+	return strings.Join(versions, ", ")
 }
 
 func formatStatusDashboard(dashboard learningapp.ProgressDashboard) string {
@@ -1018,49 +1066,51 @@ func formatDiagnostics(report doctor.Report) string {
 }
 
 type invocation struct {
-	command           string
-	workspace         string
-	help              bool
-	version           bool
-	noColor           bool
-	verbose           bool
-	quiet             bool
-	allowNested       bool
-	arguments         []string
-	configScope       config.Scope
-	configOperation   string
-	configKey         string
-	configValue       string
-	secretOperation   string
-	secretName        string
-	openTarget        string
-	doctorExplain     string
-	logOperation      string
-	backupOperation   string
-	backupID          string
-	yes               bool
-	exportMode        portability.Mode
-	exportOutput      string
-	importArchive     string
-	importDryRun      bool
-	importConflicts   portability.ConflictStrategy
-	conflictSet       bool
-	updateOperation   string
-	profileOperation  string
-	profileChanges    learningapp.ProfileChanges
-	profileFlagsSet   bool
-	goalOperation     string
-	goalInput         learningapp.SetGoalInput
-	goalFlagsSet      bool
-	masteryOperation  string
-	masteryThreshold  learning.MasteryThreshold
-	setupOperation    string
-	mistakeOperation  string
-	mistakeID         learning.ID
-	sessionOperation  string
-	historyToday      bool
-	progressOperation string
-	reviewsDue        bool
+	command              string
+	workspace            string
+	help                 bool
+	version              bool
+	noColor              bool
+	verbose              bool
+	quiet                bool
+	allowNested          bool
+	arguments            []string
+	configScope          config.Scope
+	configOperation      string
+	configKey            string
+	configValue          string
+	secretOperation      string
+	secretName           string
+	openTarget           string
+	doctorExplain        string
+	logOperation         string
+	backupOperation      string
+	backupID             string
+	yes                  bool
+	exportMode           portability.Mode
+	exportOutput         string
+	importArchive        string
+	importDryRun         bool
+	importConflicts      portability.ConflictStrategy
+	conflictSet          bool
+	updateOperation      string
+	profileOperation     string
+	profileChanges       learningapp.ProfileChanges
+	profileFlagsSet      bool
+	goalOperation        string
+	goalInput            learningapp.SetGoalInput
+	goalFlagsSet         bool
+	masteryOperation     string
+	masteryThreshold     learning.MasteryThreshold
+	setupOperation       string
+	mistakeOperation     string
+	mistakeID            learning.ID
+	sessionOperation     string
+	historyToday         bool
+	progressOperation    string
+	maintenanceOperation string
+	maintenanceDryRun    bool
+	reviewsDue           bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -1091,6 +1141,7 @@ func parse(args []string) (invocation, error) {
 			result.exportMode = portability.ModeFull
 		case argument == "--dry-run":
 			result.importDryRun = true
+			result.maintenanceDryRun = true
 		case argument == "--today":
 			result.historyToday = true
 		case argument == "--display-name":
@@ -1416,6 +1467,11 @@ func parse(args []string) (invocation, error) {
 		if len(result.arguments) != 0 {
 			return invocation{}, fmt.Errorf("streak does not accept positional arguments")
 		}
+	case "maintenance":
+		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
+			return invocation{}, fmt.Errorf("maintenance requires recalculate")
+		}
+		result.maintenanceOperation = "recalculate"
 	default:
 		if len(result.arguments) > 0 {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
@@ -1430,8 +1486,8 @@ func parse(args []string) (invocation, error) {
 	if result.exportOutput != "" && result.command != "export" {
 		return invocation{}, fmt.Errorf("option --output requires the export command")
 	}
-	if result.importDryRun && result.command != "import" {
-		return invocation{}, fmt.Errorf("option --dry-run requires the import command")
+	if result.importDryRun && result.command != "import" && result.command != "maintenance" {
+		return invocation{}, fmt.Errorf("option --dry-run requires the import command or maintenance recalculate")
 	}
 	if result.conflictSet && result.command != "import" {
 		return invocation{}, fmt.Errorf("option --conflict requires the import command")

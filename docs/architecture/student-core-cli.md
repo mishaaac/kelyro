@@ -25,6 +25,7 @@ The minimum read surface is:
 | `mistakes` | `MistakeMemoryService` | persistent mistake memory |
 | `today` | `ProgressDashboardService` | persisted `daily-plan-v1` selection and explanations |
 | `mastery` | `MasteryPolicyService` | effective progression threshold |
+| `maintenance recalculate` | `MaintenanceRecalculationService` | advanced dry-run or backup-protected derived-state recalculation |
 
 `profile`, `goal`, and `mastery` use their read operation when no nested
 operation is supplied. Their existing explicit forms (`profile show`, `goal
@@ -71,4 +72,6 @@ recalculation command, Exercise Engine, Research Engine, Curriculum Compiler,
 AI provider, plugin, generated learning content, or network activity. Step 28
 later added only the explicit Markdown progress export documented in
 `student-learning-markdown-artifacts.md`; the remaining boundaries are
-unchanged.
+unchanged. Step 29 adds the advanced local maintenance command documented in
+`versioned-learning-state-recalculation.md`; it is not part of the ordinary
+learner workflow.

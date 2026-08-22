@@ -76,8 +76,8 @@ func (state RetentionState) Validate() error {
 	if !state.Status.Valid() {
 		return fmt.Errorf("retention status %q is invalid", state.Status)
 	}
-	if state.AlgorithmVersion != RetentionAlgorithmVersion && state.AlgorithmVersion != LegacyRetentionAlgorithmVersion {
-		return fmt.Errorf("unsupported retention algorithm %q", state.AlgorithmVersion)
+	if err := requireText("retention algorithm version", state.AlgorithmVersion); err != nil {
+		return err
 	}
 	if state.ReviewCount < 0 || state.SuccessfulReviews < 0 || state.FailedReviews < 0 ||
 		state.ReviewCount != state.SuccessfulReviews+state.FailedReviews {
@@ -166,7 +166,7 @@ func ApplyRetentionV1(state InstanceConceptState, retention RetentionState) (Ret
 		return RetentionProgression{}, fmt.Errorf("retention progression owner or concept mismatch")
 	}
 	result := RetentionProgression{State: state}
-	if retention.AlgorithmVersion != RetentionAlgorithmVersion || retention.Status == RetentionUnknown ||
+	if retention.AlgorithmVersion == LegacyRetentionAlgorithmVersion || retention.Status == RetentionUnknown ||
 		(state.Exposure != ExposureMastered && state.Exposure != ExposureReviewDue) {
 		return result, nil
 	}

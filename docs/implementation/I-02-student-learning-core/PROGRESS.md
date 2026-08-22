@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 29 (pending authorization)
-Last completed step: 28
+Current step: 30 (pending authorization)
+Last completed step: 29
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1273,3 +1273,46 @@ Release: unreleased
 - El Paso 29 es el siguiente paso pendiente y requiere autorización explícita.
 - Compatibilidad, migración y recalculación general de Student Algorithms permanecen reservadas para el Paso 29.
 - No adelantar hardening de pasos 30–31, Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+.
+
+## Step 29 — Compatibilidad, recalculación y migración de Student Algorithms
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Suite interna configurable `LearningAlgorithmSuite` para mastery, retention y daily plan, con wrappers de las políticas v1 publicadas e inyección controlada de implementaciones compatibles.
+- Servicio transaccional de recalculación que vuelve a derivar concept states, retention, schedules/reviews pendientes y el plan del día, con dry-run e impacto desglosado por agregado.
+- Migration forward-only v21 que registra `mastery_algorithm_version` y `progression_policy_version` en concept state y backfillea estado publicado como `mastery-v1`/`progression-v1`.
+- Lectura determinista `EvidenceRepository.ListByStudent` sin añadir operaciones de update/delete; recalculación v1 y v2 simulada comprueban que la secuencia completa de evidence no cambia.
+- Comando avanzado `kelyro maintenance recalculate [--dry-run]` con salida de versiones previa/objetivo, registros leídos, conceptos inspeccionados y cambios reales o proyectados.
+- Apply protegido por backup Foundation previo con razón `learning-algorithm-recalculation`; un fallo de backup impide abrir la transacción educativa.
+- Auditoría segura `learning.recalculation.completed` con backup, versiones objetivo y contadores agregados, sin contenido educativo ni payloads de evidence.
+- Wiring workspace-scoped en `ProfileStore`/`learningdb`, pruebas memory/SQLite/app/CLI y documentación en `docs/architecture/versioned-learning-state-recalculation.md`.
+
+### Decisions
+
+- Las implementaciones actuales continúan siendo las funciones puras v1 existentes; la suite solo define el punto de reemplazo y valida que cada resultado declare la versión configurada.
+- `unversioned/v0` representa estado sparse creado antes de un cálculo, evitando atribuir falsamente una versión; las filas ya publicadas reciben v1 mediante migration v21.
+- Todos los writes de apply comparten un `UnitOfWork`; un error tardío revierte concept state, retention, reviews y daily plan como una sola unidad.
+- Completed/skipped reviews y daily plans históricos no se reescriben. Solo se alinea el review pendiente aplicable, preservando postergaciones explícitas, y se reemplaza el plan de hoy cuando cambia versión o fingerprint.
+- Un estado derivado semánticamente idéntico conserva su timestamp, haciendo idempotente una recalculación v1 con el mismo reloj.
+- La v2 fake cubre el contrato de evolución de mastery/retention sin publicar prematuramente fórmulas v2 ni flexibilizar schemas para versiones de producción inexistentes.
+- El backup se crea fuera de la transacción SQLite y su ID es obligatorio para apply; dry-run ejecuta la misma proyección pero no crea backup, audit de apply ni escritura.
+- No se adelantaron corrección explícita de evidence, hardening, nuevos algoritmos, Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+.
+
+### Verification
+
+- Tests dirigidos para v1, v2 fake, dry-run, apply, idempotencia, rollback, backup fallido, evidence inmutable, migration v20 → v21, wiring y CLI.
+- `GOCACHE=/tmp/kelyro-i02-step29-final-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step29-final-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i02-step29-final-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- Smoke real `init → maintenance recalculate --dry-run → maintenance recalculate` sobre workspace temporal; se verificaron ausencia de backup en preview, backup schema 21 con razón dedicada y ambos eventos de audit en apply.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 30 es el siguiente paso pendiente y requiere autorización explícita.
+- El hardening de integridad, privacidad y rendimiento debe reutilizar este boundary y añadir migraciones forward-only si requiere nuevo estado persistido.
+- No implementar corrección de evidence, algoritmos v2 reales, Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+ sin su paso y autorización.

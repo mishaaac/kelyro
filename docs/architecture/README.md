@@ -74,3 +74,8 @@ empty-state behavior, and exit-code contract are documented in
 The explicit human-readable learning snapshot, document contents, template
 versions, privacy boundary, and safe regeneration policy are documented in
 [student-learning-markdown-artifacts.md](student-learning-markdown-artifacts.md).
+
+The internal algorithm suite, derived-state version metadata, dry-run impact,
+transactional recalculation, backup, audit, and immutable-evidence guarantees
+are documented in
+[versioned-learning-state-recalculation.md](versioned-learning-state-recalculation.md).

@@ -40,7 +40,8 @@ func TestProgressionServiceAtomicallyMastersAndDerivesDependentUnlocks(t *testin
 		t.Fatalf("persisted evidence = (%+v, %v)", items, err)
 	}
 	state, err := fixture.repositories.InstanceConceptStates.Get(ctx, fixture.instance.ID, evidence.ConceptID)
-	if err != nil || state.Exposure != learning.ExposureMastered || state.Mastery.Value() != .8 {
+	if err != nil || state.Exposure != learning.ExposureMastered || state.Mastery.Value() != .8 ||
+		state.MasteryAlgorithmVersion != learning.MasteryAlgorithmVersion || state.ProgressionPolicyVersion != learning.ProgressionPolicyVersion {
 		t.Fatalf("persisted state = (%+v, %v)", state, err)
 	}
 	states, err := fixture.repositories.InstanceConceptStates.ListByInstance(ctx, fixture.instance.ID)

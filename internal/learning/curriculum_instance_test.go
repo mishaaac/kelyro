@@ -40,7 +40,8 @@ func TestInstanceConceptStateModelsLazyProgressAndTemporalPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, err := NewInstanceConceptState(instance, mustID(t, "concept.ratio"), mustTimestamp(t, 10))
-	if err != nil || state.Exposure != ExposureNotSeen || state.Mastery.Value() != 0 || state.FirstSeenAt != nil {
+	if err != nil || state.Exposure != ExposureNotSeen || state.Mastery.Value() != 0 || state.FirstSeenAt != nil ||
+		state.MasteryAlgorithmVersion != UnversionedDerivedStateVersion || state.ProgressionPolicyVersion != UnversionedDerivedStateVersion {
 		t.Fatalf("NewInstanceConceptState() = (%+v, %v)", state, err)
 	}
 	seen := mustTimestamp(t, 11)

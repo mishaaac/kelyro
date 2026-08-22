@@ -57,13 +57,14 @@ type fakeProfileStoreFactory struct {
 	analytics    learningapp.LearningAnalyticsService
 	dailyPlan    learningapp.AdaptiveDailyPlanService
 	dashboard    learningapp.ProgressDashboardService
+	maintenance  learningapp.MaintenanceRecalculationService
 	openRoot     string
 	closed       int
 }
 
 func (factory *fakeProfileStoreFactory) Open(_ context.Context, root string) (learningapp.ProfileStore, error) {
 	factory.openRoot = root
-	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, achievements: factory.achievements, analytics: factory.analytics, dailyPlan: factory.dailyPlan, dashboard: factory.dashboard, close: func() { factory.closed++ }}, nil
+	return &fakeProfileStore{profiles: factory.profiles, goals: factory.goals, onboarding: factory.onboarding, mastery: factory.mastery, setup: factory.setup, mistakes: factory.mistakes, sessions: factory.sessions, history: factory.history, retention: factory.retention, reviews: factory.reviews, streaks: factory.streaks, achievements: factory.achievements, analytics: factory.analytics, dailyPlan: factory.dailyPlan, dashboard: factory.dashboard, maintenance: factory.maintenance, close: func() { factory.closed++ }}, nil
 }
 
 type fakeProfileStore struct {
@@ -82,6 +83,7 @@ type fakeProfileStore struct {
 	analytics    learningapp.LearningAnalyticsService
 	dailyPlan    learningapp.AdaptiveDailyPlanService
 	dashboard    learningapp.ProgressDashboardService
+	maintenance  learningapp.MaintenanceRecalculationService
 	close        func()
 }
 
@@ -114,6 +116,9 @@ func (store *fakeProfileStore) DailyPlan() learningapp.AdaptiveDailyPlanService 
 }
 func (store *fakeProfileStore) Dashboard() learningapp.ProgressDashboardService {
 	return store.dashboard
+}
+func (store *fakeProfileStore) Maintenance() learningapp.MaintenanceRecalculationService {
+	return store.maintenance
 }
 func (store *fakeProfileStore) Close() error {
 	store.close()

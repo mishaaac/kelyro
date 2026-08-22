@@ -71,6 +71,8 @@ func ApplyProgressionV1(state InstanceConceptState, calculation MasteryCalculati
 
 	updated := state
 	updated.Mastery = calculation.Score
+	updated.MasteryAlgorithmVersion = calculation.PolicyVersion
+	updated.ProgressionPolicyVersion = ProgressionPolicyVersion
 	updated.FirstSeenAt = &firstSeen
 	updated.LastSeenAt = &lastSeen
 	updated.UpdatedAt = updatedAt

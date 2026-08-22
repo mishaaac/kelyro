@@ -147,6 +147,8 @@ func (service *Service) logEntry(command Command, root string, level logging.Lev
 		suboperation = command.LogOperation
 	case ActionBackup:
 		suboperation = command.BackupOperation
+	case ActionMaintenance:
+		suboperation = command.MaintenanceOperation
 	case ActionUpdate:
 		suboperation = command.UpdateOperation
 	}

@@ -569,6 +569,30 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, evidence.ID.String(), evidence.Stu
 	return classifyLearningError(operation, err)
 }
 
+func (repository learningEvidenceRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.Evidence, error) {
+	const operation = "list SQLite student evidence"
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	rows, err := repository.executor.QueryContext(operationContext, `SELECT id, student_id, concept_id, mastery_evidence_type, source, score, observed_at, confidence, independence, difficulty, algorithm_version FROM learning_evidence
+WHERE student_id = ? ORDER BY concept_id, observed_at, id`, studentID.String())
+	if err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	defer rows.Close()
+	items := make([]learning.Evidence, 0)
+	for rows.Next() {
+		item, scanErr := scanEvidence(rows)
+		if scanErr != nil {
+			return nil, corruptLearning(operation, scanErr)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, classifyLearningError(operation, err)
+	}
+	return items, nil
+}
+
 func (repository learningEvidenceRepository) ListByConcept(ctx context.Context, studentID, conceptID learning.ID) ([]learning.Evidence, error) {
 	const operation = "list SQLite evidence"
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)

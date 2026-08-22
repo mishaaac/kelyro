@@ -1052,6 +1052,16 @@ WHEN EXISTS (SELECT 1 FROM daily_plans p WHERE p.id=NEW.plan_id AND p.policy_ver
 BEGIN SELECT RAISE(ABORT, 'invalid daily-plan-v1 item'); END`,
 		},
 	},
+	{
+		version: 21,
+		name:    "learning derived-state algorithm versions",
+		statements: []string{
+			`ALTER TABLE learner_curriculum_concept_states ADD COLUMN mastery_algorithm_version TEXT NOT NULL DEFAULT 'mastery-v1'
+CHECK (length(trim(mastery_algorithm_version)) > 0)`,
+			`ALTER TABLE learner_curriculum_concept_states ADD COLUMN progression_policy_version TEXT NOT NULL DEFAULT 'progression-v1'
+CHECK (length(trim(progression_policy_version)) > 0)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

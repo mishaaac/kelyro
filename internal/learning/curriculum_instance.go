@@ -8,6 +8,8 @@ import (
 	"hash"
 )
 
+const UnversionedDerivedStateVersion = "unversioned/v0"
+
 type CurriculumSourceKind string
 
 const (
@@ -98,26 +100,30 @@ func (instance CurriculumInstance) Validate() error {
 // InstanceConceptState is learner progress scoped to one curriculum instance.
 // Evidence remains in its own append-only aggregate and is never copied here.
 type InstanceConceptState struct {
-	CurriculumInstanceID ID
-	StudentID            ID
-	ConceptID            ID
-	Exposure             ExposureState
-	Mastery              MasteryScore
-	FirstSeenAt          *Timestamp
-	LastSeenAt           *Timestamp
-	MasteredAt           *Timestamp
-	ReviewDueAt          *Timestamp
-	ManualFlags          []string
-	UpdatedAt            Timestamp
+	CurriculumInstanceID     ID
+	StudentID                ID
+	ConceptID                ID
+	Exposure                 ExposureState
+	Mastery                  MasteryScore
+	MasteryAlgorithmVersion  string
+	ProgressionPolicyVersion string
+	FirstSeenAt              *Timestamp
+	LastSeenAt               *Timestamp
+	MasteredAt               *Timestamp
+	ReviewDueAt              *Timestamp
+	ManualFlags              []string
+	UpdatedAt                Timestamp
 }
 
 func NewInstanceConceptState(instance CurriculumInstance, conceptID ID, createdAt Timestamp) (InstanceConceptState, error) {
 	state := InstanceConceptState{
-		CurriculumInstanceID: instance.ID,
-		StudentID:            instance.StudentID,
-		ConceptID:            conceptID,
-		Exposure:             ExposureNotSeen,
-		UpdatedAt:            createdAt,
+		CurriculumInstanceID:     instance.ID,
+		StudentID:                instance.StudentID,
+		ConceptID:                conceptID,
+		Exposure:                 ExposureNotSeen,
+		MasteryAlgorithmVersion:  UnversionedDerivedStateVersion,
+		ProgressionPolicyVersion: UnversionedDerivedStateVersion,
+		UpdatedAt:                createdAt,
 	}
 	return state, state.Validate()
 }
@@ -137,6 +143,9 @@ func (state InstanceConceptState) Validate() error {
 	}
 	if err := state.Mastery.Validate(); err != nil {
 		return err
+	}
+	if (state.MasteryAlgorithmVersion == "") != (state.ProgressionPolicyVersion == "") {
+		return fmt.Errorf("instance concept derived-state versions must both be present or absent")
 	}
 	for _, candidate := range []struct {
 		name      string

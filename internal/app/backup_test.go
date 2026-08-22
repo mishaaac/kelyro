@@ -54,11 +54,12 @@ type recordingBackupService struct {
 	listed     []backup.Info
 	restored   backup.Info
 	restoreID  string
+	createErr  error
 }
 
 func (service *recordingBackupService) Create(_ context.Context, root string, options backup.CreateOptions) (backup.Info, error) {
 	service.createRoot, service.options = root, options
-	return service.created, nil
+	return service.created, service.createErr
 }
 
 func (service *recordingBackupService) List(context.Context, string) ([]backup.Info, error) {

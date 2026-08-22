@@ -45,8 +45,8 @@ func (calculation MasteryCalculation) Validate() error {
 	if err := calculation.ConceptID.Validate(); err != nil {
 		return fmt.Errorf("mastery calculation concept: %w", err)
 	}
-	if calculation.PolicyVersion != MasteryAlgorithmVersion {
-		return fmt.Errorf("unsupported mastery calculation policy %q", calculation.PolicyVersion)
+	if err := requireText("mastery calculation policy version", calculation.PolicyVersion); err != nil {
+		return err
 	}
 	if err := calculation.Score.Validate(); err != nil {
 		return fmt.Errorf("mastery calculation: %w", err)

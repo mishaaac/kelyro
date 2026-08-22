@@ -60,51 +60,54 @@ const (
 	ActionStreak       Action = "streak"
 	ActionAchievements Action = "achievements"
 	ActionDashboard    Action = "dashboard"
+	ActionMaintenance  Action = "maintenance"
 )
 
 // Command contains presentation-independent input for a Foundation action.
 type Command struct {
-	Action              Action
-	Workspace           string
-	AllowNested         bool
-	ConfigOperation     string
-	ConfigScope         config.Scope
-	ConfigKey           string
-	ConfigValue         string
-	ConfigOverrides     config.Settings
-	SecretOperation     string
-	SecretName          string
-	SecretValue         string
-	OpenTarget          string
-	DoctorContext       doctor.Context
-	DoctorExplain       string
-	LogOperation        string
-	BackupOperation     string
-	BackupID            string
-	BackupConfirmed     bool
-	ExportMode          portability.Mode
-	ExportOutput        string
-	ImportArchive       string
-	ImportDryRun        bool
-	ImportConflicts     portability.ConflictStrategy
-	UpdateOperation     string
-	ProfileOperation    string
-	ProfileChanges      learningapp.ProfileChanges
-	GoalOperation       string
-	GoalInput           learningapp.SetGoalInput
-	OnboardingOperation string
-	OnboardingAnswer    string
-	MasteryOperation    string
-	MasteryThreshold    learning.MasteryThreshold
-	SetupOperation      string
-	SetupAnswers        []string
-	MistakeOperation    string
-	MistakeID           learning.ID
-	SessionOperation    string
-	HistoryToday        bool
-	ProgressOperation   string
-	ReviewsDue          bool
-	Verbose             bool
+	Action               Action
+	Workspace            string
+	AllowNested          bool
+	ConfigOperation      string
+	ConfigScope          config.Scope
+	ConfigKey            string
+	ConfigValue          string
+	ConfigOverrides      config.Settings
+	SecretOperation      string
+	SecretName           string
+	SecretValue          string
+	OpenTarget           string
+	DoctorContext        doctor.Context
+	DoctorExplain        string
+	LogOperation         string
+	BackupOperation      string
+	BackupID             string
+	BackupConfirmed      bool
+	ExportMode           portability.Mode
+	ExportOutput         string
+	ImportArchive        string
+	ImportDryRun         bool
+	ImportConflicts      portability.ConflictStrategy
+	UpdateOperation      string
+	ProfileOperation     string
+	ProfileChanges       learningapp.ProfileChanges
+	GoalOperation        string
+	GoalInput            learningapp.SetGoalInput
+	OnboardingOperation  string
+	OnboardingAnswer     string
+	MasteryOperation     string
+	MasteryThreshold     learning.MasteryThreshold
+	SetupOperation       string
+	SetupAnswers         []string
+	MistakeOperation     string
+	MistakeID            learning.ID
+	SessionOperation     string
+	HistoryToday         bool
+	ProgressOperation    string
+	MaintenanceOperation string
+	MaintenanceDryRun    bool
+	ReviewsDue           bool
+	Verbose              bool
 }
 
 // Result contains presentation-independent output from a Foundation action.
@@ -132,6 +135,7 @@ type Result struct {
 	Streak       *learning.Streak
 	Achievements *learningapp.AchievementRefresh
 	Dashboard    *learningapp.ProgressDashboard
+	Maintenance  *learningapp.RecalculationImpact
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -261,6 +265,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionProgress && command.ProgressOperation == "export" {
 		return service.executeProgressExport(ctx, command)
+	}
+	if command.Action == ActionMaintenance {
+		return service.executeMaintenance(ctx, command)
 	}
 	if command.Action == ActionStatus || command.Action == ActionProgress || command.Action == ActionRoadmap || command.Action == ActionToday {
 		return service.executeDashboard(ctx, command)

@@ -200,7 +200,7 @@ func (repository learningInstanceConceptStateRepository) Get(ctx context.Context
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
 	state, err := scanInstanceConceptState(repository.executor.QueryRowContext(operationContext, `SELECT curriculum_instance_id,
-student_id, concept_id, exposure, mastery, first_seen_at, last_seen_at, mastered_at, review_due_at, manual_flags_json, updated_at
+student_id, concept_id, exposure, mastery, mastery_algorithm_version, progression_policy_version, first_seen_at, last_seen_at, mastered_at, review_due_at, manual_flags_json, updated_at
 FROM learner_curriculum_concept_states WHERE curriculum_instance_id = ? AND concept_id = ?`, instanceID.String(), conceptID.String()))
 	if err != nil {
 		return learning.InstanceConceptState{}, classifyLearningError(operation, err)
@@ -213,7 +213,7 @@ func (repository learningInstanceConceptStateRepository) ListByInstance(ctx cont
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
 	rows, err := repository.executor.QueryContext(operationContext, `SELECT curriculum_instance_id,
-student_id, concept_id, exposure, mastery, first_seen_at, last_seen_at, mastered_at, review_due_at, manual_flags_json, updated_at
+student_id, concept_id, exposure, mastery, mastery_algorithm_version, progression_policy_version, first_seen_at, last_seen_at, mastered_at, review_due_at, manual_flags_json, updated_at
 FROM learner_curriculum_concept_states WHERE curriculum_instance_id = ? ORDER BY concept_id`, instanceID.String())
 	if err != nil {
 		return nil, classifyLearningError(operation, err)
@@ -248,24 +248,30 @@ func (repository learningInstanceConceptStateRepository) Save(ctx context.Contex
 	}
 	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
 	defer cancel()
+	masteryVersion, progressionVersion := state.MasteryAlgorithmVersion, state.ProgressionPolicyVersion
+	if masteryVersion == "" && progressionVersion == "" {
+		masteryVersion, progressionVersion = learning.UnversionedDerivedStateVersion, learning.UnversionedDerivedStateVersion
+	}
 	_, err = repository.executor.ExecContext(operationContext, `INSERT INTO learner_curriculum_concept_states
-(curriculum_instance_id, student_id, concept_id, exposure, mastery, first_seen_at, last_seen_at, mastered_at, review_due_at, manual_flags_json, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+(curriculum_instance_id, student_id, concept_id, exposure, mastery, mastery_algorithm_version, progression_policy_version, first_seen_at, last_seen_at, mastered_at, review_due_at, manual_flags_json, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(curriculum_instance_id, concept_id) DO UPDATE SET
 student_id = excluded.student_id, exposure = excluded.exposure, mastery = excluded.mastery,
+mastery_algorithm_version = excluded.mastery_algorithm_version, progression_policy_version = excluded.progression_policy_version,
 first_seen_at = excluded.first_seen_at, last_seen_at = excluded.last_seen_at, mastered_at = excluded.mastered_at,
 review_due_at = excluded.review_due_at, manual_flags_json = excluded.manual_flags_json, updated_at = excluded.updated_at`,
 		state.CurriculumInstanceID.String(), state.StudentID.String(), state.ConceptID.String(), string(state.Exposure), state.Mastery.Value(),
+		masteryVersion, progressionVersion,
 		encodeOptionalTimestamp(state.FirstSeenAt), encodeOptionalTimestamp(state.LastSeenAt), encodeOptionalTimestamp(state.MasteredAt),
 		encodeOptionalTimestamp(state.ReviewDueAt), string(flags), encodeTimestamp(state.UpdatedAt))
 	return classifyLearningError(operation, err)
 }
 
 func scanInstanceConceptState(row rowScanner) (learning.InstanceConceptState, error) {
-	var instanceID, studentID, conceptID, exposure, flagsJSON, updatedAt string
+	var instanceID, studentID, conceptID, exposure, masteryVersion, progressionVersion, flagsJSON, updatedAt string
 	var mastery float64
 	var firstSeenAt, lastSeenAt, masteredAt, reviewDueAt sql.NullString
-	if err := row.Scan(&instanceID, &studentID, &conceptID, &exposure, &mastery, &firstSeenAt, &lastSeenAt,
+	if err := row.Scan(&instanceID, &studentID, &conceptID, &exposure, &mastery, &masteryVersion, &progressionVersion, &firstSeenAt, &lastSeenAt,
 		&masteredAt, &reviewDueAt, &flagsJSON, &updatedAt); err != nil {
 		return learning.InstanceConceptState{}, err
 	}
@@ -315,6 +321,7 @@ func scanInstanceConceptState(row rowScanner) (learning.InstanceConceptState, er
 	state := learning.InstanceConceptState{
 		CurriculumInstanceID: decodedInstanceID, StudentID: decodedStudentID, ConceptID: decodedConceptID,
 		Exposure: learning.ExposureState(exposure), Mastery: decodedMastery,
+		MasteryAlgorithmVersion: masteryVersion, ProgressionPolicyVersion: progressionVersion,
 		FirstSeenAt: firstSeen, LastSeenAt: lastSeen, MasteredAt: mastered, ReviewDueAt: reviewDue,
 		ManualFlags: flags, UpdatedAt: updated,
 	}

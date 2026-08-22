@@ -306,6 +306,30 @@ func (repository evidenceRepository) Append(ctx context.Context, evidence learni
 	return nil
 }
 
+func (repository evidenceRepository) ListByStudent(ctx context.Context, studentID learning.ID) ([]learning.Evidence, error) {
+	if err := contextError("list memory student evidence", ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	items := make([]learning.Evidence, 0)
+	for _, evidence := range repository.store.evidence {
+		if evidence.StudentID == studentID {
+			items = append(items, evidence)
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].ConceptID != items[j].ConceptID {
+			return items[i].ConceptID.String() < items[j].ConceptID.String()
+		}
+		if items[i].ObservedAt == items[j].ObservedAt {
+			return items[i].ID.String() < items[j].ID.String()
+		}
+		return items[i].ObservedAt.Before(items[j].ObservedAt)
+	})
+	return items, nil
+}
+
 func (repository evidenceRepository) ListByConcept(ctx context.Context, studentID, conceptID learning.ID) ([]learning.Evidence, error) {
 	if err := contextError("list memory evidence", ctx); err != nil {
 		return nil, err

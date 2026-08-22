@@ -433,6 +433,7 @@ type ProfileStore interface {
 	Analytics() LearningAnalyticsService
 	DailyPlan() AdaptiveDailyPlanService
 	Dashboard() ProgressDashboardService
+	Maintenance() MaintenanceRecalculationService
 	Close() error
 }
 
@@ -515,6 +516,7 @@ type ConceptStateRepository interface {
 
 type EvidenceRepository interface {
 	Append(context.Context, learning.Evidence) error
+	ListByStudent(context.Context, learning.ID) ([]learning.Evidence, error)
 	ListByConcept(context.Context, learning.ID, learning.ID) ([]learning.Evidence, error)
 }
 

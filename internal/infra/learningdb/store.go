@@ -23,6 +23,14 @@ type Factory struct {
 	curriculumInstanceID func() (learning.ID, error)
 	studySessionID       func() (learning.ID, error)
 	studySessionIdle     time.Duration
+	algorithmSuite       *application.LearningAlgorithmSuite
+}
+
+// WithLearningAlgorithmSuite selects the internally supported derived-state
+// algorithms used by maintenance recalculation.
+func (factory *Factory) WithLearningAlgorithmSuite(suite application.LearningAlgorithmSuite) *Factory {
+	factory.algorithmSuite = &suite
+	return factory
 }
 
 func NewFactory(appVersion ...string) *Factory {
@@ -100,12 +108,17 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	analytics := application.NewLearningAnalyticsService(profiles, database, application.WithLearningAnalyticsClock(now))
 	dailyPlan := application.NewAdaptiveDailyPlanService(profiles, mastery, database, application.WithAdaptiveDailyPlanClock(now))
 	dashboard := application.NewProgressDashboardService(profiles, mastery, dailyPlan, database, application.WithProgressDashboardClock(now))
+	maintenanceOptions := []application.MaintenanceRecalculationOption{application.WithMaintenanceRecalculationClock(now)}
+	if factory.algorithmSuite != nil {
+		maintenanceOptions = append(maintenanceOptions, application.WithLearningAlgorithmSuite(*factory.algorithmSuite))
+	}
+	maintenance := application.NewMaintenanceRecalculationService(profiles, mastery, database, maintenanceOptions...)
 	return &store{
 		database: database, profiles: profiles,
 		goals: goals, mastery: mastery, curriculumInstances: curriculumInstances, diagnostics: diagnostics,
 		onboarding: onboarding, setup: setup, mistakes: mistakes, studySessions: studySessions, history: history,
 		retention: retention, reviews: reviews, warmUps: warmUps, streaks: streaks, achievements: achievements,
-		analytics: analytics, dailyPlan: dailyPlan, dashboard: dashboard,
+		analytics: analytics, dailyPlan: dailyPlan, dashboard: dashboard, maintenance: maintenance,
 	}, nil
 }
 
@@ -129,6 +142,7 @@ type store struct {
 	analytics           application.LearningAnalyticsService
 	dailyPlan           application.AdaptiveDailyPlanService
 	dashboard           application.ProgressDashboardService
+	maintenance         application.MaintenanceRecalculationService
 }
 
 func (store *store) Profiles() application.ProfileService      { return store.profiles }
@@ -153,6 +167,9 @@ func (store *store) Achievements() application.AchievementService    { return st
 func (store *store) Analytics() application.LearningAnalyticsService { return store.analytics }
 func (store *store) DailyPlan() application.AdaptiveDailyPlanService { return store.dailyPlan }
 func (store *store) Dashboard() application.ProgressDashboardService { return store.dashboard }
+func (store *store) Maintenance() application.MaintenanceRecalculationService {
+	return store.maintenance
+}
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

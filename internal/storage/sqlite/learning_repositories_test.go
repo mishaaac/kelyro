@@ -828,6 +828,40 @@ func TestCurriculumInstanceMigrationPreservesLegacyConceptStateWithoutInferringI
 	}
 }
 
+func TestDerivedStateVersionMigrationBackfillsPublishedV1State(t *testing.T) {
+	root := newWorkspaceRoot(t)
+	path, _ := platform.WorkspaceDBPath(root)
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle.SetMaxOpenConns(1)
+	database := &Database{sql: handle, path: path, timeout: defaultOperationTimeout, now: func() time.Time { return fixedTime }, version: "test"}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.migrate(context.Background(), foundationMigrations[:20]); err != nil {
+		t.Fatalf("migrate through v20: %v", err)
+	}
+	if _, err := handle.Exec("PRAGMA foreign_keys=OFF"); err != nil {
+		t.Fatal(err)
+	}
+	timestamp := fixedTime.Format(timestampFormat)
+	if _, err := handle.Exec(`INSERT INTO learner_curriculum_concept_states
+(curriculum_instance_id,student_id,concept_id,exposure,mastery,first_seen_at,last_seen_at,mastered_at,review_due_at,manual_flags_json,updated_at)
+VALUES ('instance.versioned','student.versioned','concept.versioned','mastered',0.9,?,?,?,?,?,?)`,
+		timestamp, timestamp, timestamp, nil, "[]", timestamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate derived-state versions: %v", err)
+	}
+	state, err := database.LearningRepositories().InstanceConceptStates.Get(context.Background(),
+		mustID(t, "instance.versioned"), mustID(t, "concept.versioned"))
+	if err != nil || state.MasteryAlgorithmVersion != learning.MasteryAlgorithmVersion ||
+		state.ProgressionPolicyVersion != learning.ProgressionPolicyVersion || state.Mastery.Value() != .9 {
+		t.Fatalf("backfilled state = (%+v, %v)", state, err)
+	}
+}
+
 func TestDiagnosticMigrationFromV9IsAdditive(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, _ := platform.WorkspaceDBPath(root)

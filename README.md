@@ -20,7 +20,9 @@ planning, and a coherent dashboard presented through Home, Today, Progress,
 Concept, Roadmap, Reviews, History, Goal, and Profile views. Exercise work and
 generated exercise content remain pending. The same read model powers the
 human-readable Student Core CLI and explicit `kelyro progress export` Markdown
-snapshot. See the
+snapshot. Advanced maintenance can preview or apply a backup-protected rebuild
+of derived learning state with `kelyro maintenance recalculate --dry-run` or
+`kelyro maintenance recalculate`. See the
 [release notes](docs/releases/v0.1.0-alpha.2.md) for scope and limitations.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.

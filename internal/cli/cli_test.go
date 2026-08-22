@@ -52,6 +52,7 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "time", args: []string{"time"}, wantAction: app.ActionTime},
 		{name: "reviews", args: []string{"reviews"}, wantAction: app.ActionReviews},
 		{name: "streak", args: []string{"streak"}, wantAction: app.ActionStreak},
+		{name: "maintenance", args: []string{"maintenance", "recalculate", "--dry-run"}, wantAction: app.ActionMaintenance},
 	}
 
 	for _, test := range tests {
@@ -79,6 +80,47 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerDispatchesAndRendersMaintenanceRecalculation(t *testing.T) {
+	t.Parallel()
+	impact := learningapp.RecalculationImpact{
+		DryRun: true,
+		Target: learningapp.AlgorithmVersionSummary{
+			Mastery: []string{"mastery-v1"}, Retention: []string{"retention-v1"}, DailyPlan: []string{"daily-plan-v1"},
+		},
+		EvidenceRecords: 4, ConceptsScanned: 2, ConceptStatesChanged: 2, RetentionStatesChanged: 2,
+		ReviewSchedulesChanged: 1, ReviewItemsChanged: 1, DailyPlansChanged: 1,
+	}
+	service := &fakeService{result: app.Result{Maintenance: &impact}}
+	var stdout, stderr bytes.Buffer
+	code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"--workspace", "project", "maintenance", "recalculate", "--dry-run"})
+	if code != ExitOK || stderr.Len() != 0 {
+		t.Fatalf("maintenance dry-run exit=%d stderr=%q", code, stderr.String())
+	}
+	if len(service.commands) != 1 || service.commands[0].Action != app.ActionMaintenance ||
+		service.commands[0].MaintenanceOperation != "recalculate" || !service.commands[0].MaintenanceDryRun || service.commands[0].Workspace != "project" {
+		t.Fatalf("maintenance command=%+v", service.commands)
+	}
+	for _, want := range []string{
+		"Learning-state recalculation — dry run", "Target mastery: mastery-v1", "Evidence records read: 4 (unchanged)",
+		"Would change concept states: 2", "Would change retention states: 2", "Would change review schedules: 1",
+		"Would change review items: 1", "Would change daily plans: 1", "No learning state was written and no backup was created.",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("maintenance output lacks %q:\n%s", want, stdout.String())
+		}
+	}
+
+	service = &fakeService{}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"maintenance", "unknown"}); code != ExitUsage {
+		t.Fatalf("invalid maintenance exit=%d, want %d", code, ExitUsage)
+	}
+	if len(service.commands) != 0 || !strings.Contains(stderr.String(), "maintenance requires recalculate") {
+		t.Fatalf("invalid maintenance commands=%+v stderr=%q", service.commands, stderr.String())
 	}
 }
 
