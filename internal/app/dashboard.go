@@ -6,8 +6,8 @@ import (
 	"fmt"
 )
 
-// executeDashboard exposes the Student Core read model to presentation
-// adapters without making it a public CLI command in this implementation step.
+// executeDashboard exposes the shared Student Core read model to CLI and TUI
+// adapters. Presentation decides which subset to render for each action.
 func (service *Service) executeDashboard(ctx context.Context, command Command) (result Result, err error) {
 	if service.profiles == nil {
 		return Result{}, errors.New("student core store is unavailable")

@@ -66,3 +66,7 @@ are documented in [study-session-lifecycle.md](study-session-lifecycle.md).
 The resumable orchestration from onboarding through optional diagnostic and
 transactional initial learner state is documented in
 [integrated-learner-setup.md](integrated-learner-setup.md).
+
+The human-readable Student Core command surface, shared dashboard routing,
+empty-state behavior, and exit-code contract are documented in
+[student-core-cli.md](student-core-cli.md).

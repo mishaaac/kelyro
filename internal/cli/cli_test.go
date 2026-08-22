@@ -33,7 +33,9 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 		{name: "config", args: []string{"config"}, wantAction: app.ActionConfig},
 		{name: "secrets", args: []string{"secrets", "status"}, wantAction: app.ActionSecrets},
 		{name: "status", args: []string{"status"}, wantAction: app.ActionStatus},
+		{name: "progress", args: []string{"progress"}, wantAction: app.ActionProgress},
 		{name: "roadmap", args: []string{"roadmap"}, wantAction: app.ActionRoadmap},
+		{name: "today", args: []string{"today"}, wantAction: app.ActionToday},
 		{name: "open", args: []string{"open"}, wantAction: app.ActionOpen},
 		{name: "logs path", args: []string{"logs", "path"}, wantAction: app.ActionLogs},
 		{name: "audit", args: []string{"audit"}, wantAction: app.ActionAudit},
@@ -77,6 +79,187 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerRendersStudentCoreDashboardCommands(t *testing.T) {
+	t.Parallel()
+	dashboard := testCLIDashboard(t)
+	tests := []struct {
+		command string
+		wants   []string
+	}{
+		{command: "status", wants: []string{"Learning status", "Goal: Backend Engineer with Go", "Current: Foundations / Go basics / Variables / Initialization / Short declarations", "Mastery threshold: 85%", "Mastered: 1", "Learning: 1", "Review due: 2"}},
+		{command: "progress", wants: []string{"Progress", "Completion: 50%", "Mastered: 1 of 2 concepts", "Average mastery (known concepts): 65%", "Study today: 25m", "Study this week: 4h12m", "Current streak: 6 days", "Needs reinforcement", "Short declarations: 40% mastery"}},
+		{command: "roadmap", wants: []string{"Roadmap", "Phase: Foundations", "Short declarations [current] 40% mastery", "Functions [locked]", "Why: Master Short declarations first.", "Legend: mastered, current, available, locked, review due"}},
+		{command: "today", wants: []string{"Today", "Goal: Backend Engineer with Go", "Planned: 25 of 30 minutes", "1. new learning — Short declarations (25 min)", "Short declarations is the next eligible concept."}},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.command, func(t *testing.T) {
+			t.Parallel()
+			service := &fakeService{result: app.Result{Dashboard: &dashboard}}
+			var stdout, stderr bytes.Buffer
+			if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{test.command}); code != ExitOK {
+				t.Fatalf("%s exit=%d stderr=%q", test.command, code, stderr.String())
+			}
+			for _, want := range test.wants {
+				if !strings.Contains(stdout.String(), want) {
+					t.Errorf("%s output missing %q:\n%s", test.command, want, stdout.String())
+				}
+			}
+		})
+	}
+}
+
+func TestRunnerStudentCoreAliasesAndWorkspaceOverride(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		command   string
+		operation string
+	}{
+		{command: "profile", operation: "show"},
+		{command: "goal", operation: "show"},
+		{command: "mastery", operation: "show"},
+	} {
+		service := &fakeService{result: app.Result{Message: "ok"}}
+		if code := NewRunner(service, &bytes.Buffer{}, &bytes.Buffer{}).Run(context.Background(), []string{test.command}); code != ExitOK {
+			t.Fatalf("%s exit=%d", test.command, code)
+		}
+		command := service.commands[0]
+		var operation string
+		switch test.command {
+		case "profile":
+			operation = command.ProfileOperation
+		case "goal":
+			operation = command.GoalOperation
+		case "mastery":
+			operation = command.MasteryOperation
+		}
+		if operation != test.operation {
+			t.Errorf("%s operation=%q, want %q", test.command, operation, test.operation)
+		}
+	}
+
+	service := &fakeService{result: app.Result{Message: "ok"}}
+	interactive := &fakeInteractiveRunner{}
+	workspacePath := filepath.Join("projects", "student core")
+	runner := NewRunner(service, &bytes.Buffer{}, &bytes.Buffer{}).WithInteractive(interactive)
+	if code := runner.Run(context.Background(), []string{"--workspace", workspacePath, "progress"}); code != ExitOK {
+		t.Fatalf("progress exit=%d", code)
+	}
+	if len(service.commands) != 1 || service.commands[0].Workspace != workspacePath || service.commands[0].Action != app.ActionProgress {
+		t.Fatalf("progress command=%+v", service.commands)
+	}
+	if len(interactive.commands) != 0 {
+		t.Fatalf("explicit subcommand launched TUI: %+v", interactive.commands)
+	}
+}
+
+func TestRunnerHandlesIncompleteStudentCoreAndMissingWorkspace(t *testing.T) {
+	t.Parallel()
+	for _, command := range []string{"status", "progress", "roadmap", "today"} {
+		service := &fakeService{result: app.Result{Dashboard: &learningapp.ProgressDashboard{}}}
+		var stdout, stderr bytes.Buffer
+		if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{command}); code != ExitOK {
+			t.Fatalf("%s incomplete exit=%d stderr=%q", command, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), "kelyro setup status") {
+			t.Errorf("%s incomplete output lacks guidance:\n%s", command, stdout.String())
+		}
+	}
+
+	service := &fakeService{err: errors.New("workspace not initialized")}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"status"}); code != ExitFailure {
+		t.Fatalf("missing workspace exit=%d, want %d", code, ExitFailure)
+	}
+	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "kelyro status: workspace not initialized") {
+		t.Fatalf("missing workspace stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestRunnerDashboardDistinguishesUnknownFromKnownZeroMastery(t *testing.T) {
+	t.Parallel()
+	dashboard := testCLIDashboard(t)
+	dashboard.Mastery.AverageKnown.Value = nil
+	zero, err := learning.NewMasteryScore(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dashboard.Roadmap[1].Mastery = &zero
+
+	service := &fakeService{result: app.Result{Dashboard: &dashboard}}
+	var stdout, stderr bytes.Buffer
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"progress"}); code != ExitOK {
+		t.Fatalf("progress exit=%d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Average mastery (known concepts): unknown") {
+		t.Fatalf("unknown mastery output:\n%s", stdout.String())
+	}
+
+	service = &fakeService{result: app.Result{Dashboard: &dashboard}}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"roadmap"}); code != ExitOK {
+		t.Fatalf("roadmap exit=%d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Short declarations [current] 0% mastery") {
+		t.Fatalf("known zero mastery output:\n%s", stdout.String())
+	}
+}
+
+func testCLIDashboard(t *testing.T) learningapp.ProgressDashboard {
+	t.Helper()
+	goal := testLearningGoal(t)
+	requirement, err := learning.MasteryRequirementFromThreshold(goal.MasteryThreshold)
+	if err != nil {
+		t.Fatal(err)
+	}
+	phaseID := mustCLIid(t, "phase.cli")
+	moduleID := mustCLIid(t, "module.cli")
+	lessonID := mustCLIid(t, "lesson.cli")
+	topicID := mustCLIid(t, "topic.cli")
+	currentID := mustCLIid(t, "concept.short-declarations")
+	lockedID := mustCLIid(t, "concept.functions")
+	currentMastery, _ := learning.NewMasteryScore(.4)
+	averageMastery, _ := learning.NewMasteryScore(.65)
+	plan := &learning.DailyPlan{
+		AvailableMinutes: 30,
+		PlannedMinutes:   25,
+		Status:           learning.DailyPlanReady,
+		Items: []learning.DailyPlanItem{{
+			Role: learning.DailyPlanRoleNewLearning, ConceptIDs: []learning.ID{currentID}, EstimatedMinutes: 25,
+			Explanation: "concept.short-declarations is the next eligible concept.",
+		}},
+	}
+	return learningapp.ProgressDashboard{
+		Goal:       &goal,
+		Curriculum: &learningapp.DashboardCurriculum{ConceptsTotal: 2},
+		Current: &learningapp.DashboardLocation{
+			Phase: learningapp.DashboardNode{ID: phaseID, Title: "Foundations"}, Module: learningapp.DashboardNode{ID: moduleID, Title: "Go basics"},
+			Lesson: learningapp.DashboardNode{ID: lessonID, Title: "Variables"}, Topic: learningapp.DashboardNode{ID: topicID, Title: "Initialization"},
+			Concept: learningapp.DashboardNode{ID: currentID, Title: "Short declarations"},
+		},
+		OverallProgress: learningapp.DashboardOverallProgress{
+			ConceptsTotal: learning.AnalyticsCountMetric{Value: 2}, ConceptsIntroduced: learning.AnalyticsCountMetric{Value: 2},
+			ConceptsLearning: learning.AnalyticsCountMetric{Value: 1}, ConceptsMastered: learning.AnalyticsCountMetric{Value: 1},
+			Completion: learning.AnalyticsRateMetric{Value: 50},
+		},
+		Mastery:            learningapp.DashboardMasterySummary{KnownConcepts: learning.AnalyticsCountMetric{Value: 2}, AverageKnown: learning.AnalyticsScoreMetric{Value: &averageMastery}},
+		MasteryRequirement: learning.ResolvedMasteryThreshold{Requirement: requirement, Source: learning.MasterySourceStudentDefault, PolicyVersion: learning.MasteryThresholdPolicyVersion},
+		ReviewsDue:         learning.AnalyticsCountMetric{Value: 2},
+		TodayPlan:          plan,
+		StudyTime: learning.AnalyticsTime{
+			Today: learning.AnalyticsDurationMetric{Value: 25 * time.Minute}, Week: learning.AnalyticsDurationMetric{Value: 4*time.Hour + 12*time.Minute},
+		},
+		Streak:       learning.AnalyticsActivity{CurrentStreak: learning.AnalyticsCountMetric{Value: 6}},
+		WeakConcepts: []learningapp.DashboardWeakConcept{{ConceptID: currentID, Title: "Short declarations", Mastery: currentMastery}},
+		Roadmap: []learningapp.DashboardRoadmapNode{
+			{ID: phaseID, Type: learning.CurriculumNodePhase, Title: "Foundations", Depth: 0},
+			{ID: currentID, ParentID: &phaseID, Type: learning.CurriculumNodeConcept, Title: "Short declarations", Depth: 1, Status: learningapp.DashboardRoadmapCurrent, Mastery: &currentMastery},
+			{ID: lockedID, ParentID: &phaseID, Type: learning.CurriculumNodeConcept, Title: "Functions", Depth: 1, Status: learningapp.DashboardRoadmapLocked, LockReasons: []string{"Master Short declarations first."}},
+		},
 	}
 }
 
@@ -382,7 +565,7 @@ func TestRunnerParsesAndRendersMasteryThreshold(t *testing.T) {
 func TestRunnerRejectsInvalidMasteryThresholdCommands(t *testing.T) {
 	t.Parallel()
 	for _, args := range [][]string{
-		{"mastery"}, {"mastery", "threshold", "set"}, {"mastery", "threshold", "set", "49"},
+		{"mastery", "threshold", "set"}, {"mastery", "threshold", "set", "49"},
 		{"mastery", "threshold", "set", "100"}, {"mastery", "threshold", "set", "85.5"},
 		{"mastery", "threshold", "unknown"},
 	} {
@@ -433,7 +616,6 @@ func TestRunnerParsesLearningGoalLifecycleAndRendersGoal(t *testing.T) {
 func TestRunnerRejectsIncompleteLearningGoalCommands(t *testing.T) {
 	t.Parallel()
 	for _, args := range [][]string{
-		{"goal"},
 		{"goal", "set", "--title", "Missing fields"},
 		{"goal", "show", "--domain", "Invalid here"},
 		{"goal", "set", "--title", "X", "--domain", "Y", "--target-outcome", "Z", "--mastery-threshold", "1.1"},
@@ -495,7 +677,7 @@ func TestRunnerParsesProfileEditAndRendersHumanReadableProfile(t *testing.T) {
 
 func TestRunnerRejectsIncompleteProfileCommands(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"profile"}, {"profile", "edit"}, {"profile", "show", "--timezone", "UTC"}} {
+	for _, args := range [][]string{{"profile", "edit"}, {"profile", "show", "--timezone", "UTC"}} {
 		var stderr bytes.Buffer
 		if exitCode := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); exitCode != ExitUsage {
 			t.Fatalf("Run(%v) exit=%d stderr=%q", args, exitCode, stderr.String())
@@ -890,7 +1072,7 @@ func TestRunnerHelp(t *testing.T) {
 		if exitCode := runner.Run(context.Background(), args); exitCode != ExitOK {
 			t.Fatalf("Run(%q) exit code = %d, want %d", args, exitCode, ExitOK)
 		}
-		for _, expected := range []string{"Usage:", "Commands:", "init", "doctor", "--no-color", "--workspace PATH"} {
+		for _, expected := range []string{"Usage:", "Commands:", "init", "doctor", "status", "progress", "roadmap", "today", "--no-color", "--workspace PATH"} {
 			if !strings.Contains(stdout.String(), expected) {
 				t.Errorf("Run(%q) output does not contain %q", args, expected)
 			}
@@ -940,7 +1122,7 @@ func TestRunnerRejectsInvalidArguments(t *testing.T) {
 		{name: "unknown option", args: []string{"--json"}, message: `unknown option "--json"`},
 		{name: "missing workspace", args: []string{"--workspace"}, message: "option --workspace requires a path"},
 		{name: "empty workspace", args: []string{"--workspace="}, message: "option --workspace requires a path"},
-		{name: "extra argument", args: []string{"status", "extra"}, message: `unexpected argument "extra"`},
+		{name: "extra argument", args: []string{"status", "extra"}, message: "status does not accept positional arguments"},
 		{name: "conflicting output modes", args: []string{"--verbose", "--quiet"}, message: "options --verbose and --quiet cannot be combined"},
 		{name: "version with command", args: []string{"init", "--version"}, message: "option --version cannot be combined with a command"},
 		{name: "nested without init", args: []string{"status", "--allow-nested"}, message: "option --allow-nested requires the init command"},

@@ -2508,7 +2508,7 @@ feat(tui): integrate Student and Learning Core
 
 ## Paso 27 — Añadir CLI del Student & Learning Core
 
-- [ ] Paso 27 completado
+- [x] Paso 27 completado
 
 ### Objetivo
 

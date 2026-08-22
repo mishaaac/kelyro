@@ -18,10 +18,7 @@ import (
 func TestBootstrapServiceSupportsFoundationActions(t *testing.T) {
 	t.Parallel()
 
-	for _, action := range []Action{
-		ActionTUI,
-		ActionStatus,
-	} {
+	for _, action := range []Action{ActionTUI} {
 		t.Run(string(action), func(t *testing.T) {
 			t.Parallel()
 
@@ -77,24 +74,6 @@ func TestServiceOpensFoundationArtifactsWithResolvedEditor(t *testing.T) {
 	}
 	if configs.projectRoot != root {
 		t.Errorf("LoadProject() root = %q, want %q", configs.projectRoot, root)
-	}
-}
-
-func TestServiceReportsLocalRoadmapPath(t *testing.T) {
-	t.Parallel()
-	root := filepath.Join(t.TempDir(), "workspace with spaces")
-	service := NewService(
-		&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}},
-		func() (string, error) { return filepath.Join(root, "lesson"), nil },
-	)
-
-	result, err := service.Execute(context.Background(), Command{Action: ActionRoadmap})
-	if err != nil {
-		t.Fatalf("Execute(roadmap) error = %v", err)
-	}
-	want := filepath.Join(root, "00-roadmap", "ROADMAP.md")
-	if result.Message != want {
-		t.Errorf("Execute(roadmap) = %q, want %q", result.Message, want)
 	}
 }
 

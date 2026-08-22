@@ -1,5 +1,5 @@
-// Package cli parses command-line input and dispatches Foundation operations to
-// application services.
+// Package cli parses command-line input and dispatches Foundation and Student
+// Core operations to application services.
 package cli
 
 import (
@@ -42,8 +42,10 @@ Commands:
   doctor   Run Foundation diagnostics
   config   Show or update layered configuration
   secrets  Manage secure credential references
-  status   Show workspace status (placeholder)
-  roadmap  Show the local roadmap file location
+  status   Show the active goal and current learning status
+  progress Show mastery, completion, study time, and consistency
+  roadmap  Show the resolved curriculum roadmap and lock reasons
+  today    Show today's explainable learning plan
   open     Open LEARNING.md or the roadmap in an editor
   logs     Inspect workspace diagnostic log location
   audit    Show persistent workspace audit events
@@ -115,7 +117,7 @@ Update commands:
   kelyro update
 
 Profile commands:
-  kelyro profile show
+  kelyro profile [show]
   kelyro profile edit [--display-name NAME] [--experience LEVEL]
     [--language TAG] [--daily-minutes N] [--weekly-days N]
     [--learning-styles LIST] [--timezone IANA_ZONE]
@@ -124,7 +126,7 @@ Profile commands:
   Use --display-name= or --learning-styles= to clear optional values.
 
 Goal commands:
-  kelyro goal show
+  kelyro goal [show]
   kelyro goal set --title TITLE --domain DOMAIN --target-outcome OUTCOME
     [--description TEXT] [--starting-level LEVEL] [--mastery-threshold SCORE]
   kelyro goal pause
@@ -133,7 +135,7 @@ Goal commands:
   SCORE: number from 0.50 to 0.99 (default: 0.80)
 
 Mastery commands:
-  kelyro mastery threshold
+  kelyro mastery [threshold]
   kelyro mastery threshold set PERCENT
   kelyro mastery threshold set-default PERCENT
   kelyro mastery threshold reset
@@ -171,7 +173,9 @@ var actions = map[string]app.Action{
 	"config":   app.ActionConfig,
 	"secrets":  app.ActionSecrets,
 	"status":   app.ActionStatus,
+	"progress": app.ActionProgress,
 	"roadmap":  app.ActionRoadmap,
+	"today":    app.ActionToday,
 	"open":     app.ActionOpen,
 	"logs":     app.ActionLogs,
 	"audit":    app.ActionAudit,
@@ -238,7 +242,7 @@ func (r Runner) WithConfirmer(confirmer Confirmer) Runner {
 	return r
 }
 
-// Run parses args, renders immediate CLI output, or dispatches one Foundation
+// Run parses args, renders immediate CLI output, or dispatches one application
 // action. It returns a process exit code and does not construct native process
 // commands itself.
 func (r Runner) Run(ctx context.Context, args []string) int {
@@ -390,6 +394,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatPortability(*result.Portability))
 	} else if result.Update != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatUpdate(*result.Update))
+	} else if result.Dashboard != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatDashboard(commandName, *result.Dashboard))
 	} else if result.Profile != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatProfile(*result.Profile))
 	} else if result.Goal != nil && !invocation.quiet {
@@ -438,6 +444,185 @@ func formatLearnerSetup(view learningapp.LearnerSetupView) string {
 		lines = append(lines, "Diagnostic: not selected")
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatDashboard(command string, dashboard learningapp.ProgressDashboard) string {
+	switch command {
+	case "progress":
+		return formatProgressDashboard(dashboard)
+	case "roadmap":
+		return formatRoadmapDashboard(dashboard)
+	case "today":
+		return formatTodayDashboard(dashboard)
+	default:
+		return formatStatusDashboard(dashboard)
+	}
+}
+
+func formatStatusDashboard(dashboard learningapp.ProgressDashboard) string {
+	if dashboard.Goal == nil {
+		return strings.Join([]string{
+			"Learning status",
+			"Goal: no active learning goal",
+			"Current: unavailable",
+			"Run `kelyro setup status` to inspect setup, or `kelyro goal` to inspect learning goals.",
+		}, "\n")
+	}
+	current := "no active curriculum"
+	if dashboard.Current != nil {
+		current = strings.Join([]string{
+			dashboard.Current.Phase.Title,
+			dashboard.Current.Module.Title,
+			dashboard.Current.Lesson.Title,
+			dashboard.Current.Topic.Title,
+			dashboard.Current.Concept.Title,
+		}, " / ")
+	}
+	progress := dashboard.OverallProgress
+	return strings.Join([]string{
+		"Learning status",
+		"Goal: " + dashboard.Goal.Title,
+		"Current: " + current,
+		fmt.Sprintf("Mastery threshold: %.0f%%", dashboardMasteryThreshold(dashboard)*100),
+		"",
+		"Concepts",
+		fmt.Sprintf("Mastered: %d", progress.ConceptsMastered.Value),
+		fmt.Sprintf("Learning: %d", progress.ConceptsLearning.Value),
+		fmt.Sprintf("Review due: %d", dashboard.ReviewsDue.Value),
+	}, "\n")
+}
+
+func formatProgressDashboard(dashboard learningapp.ProgressDashboard) string {
+	if dashboard.Goal == nil {
+		return "Progress\nNo active learning goal. Run `kelyro setup status` to inspect setup, or `kelyro goal` to inspect learning goals."
+	}
+	progress := dashboard.OverallProgress
+	average := "unknown"
+	if dashboard.Mastery.AverageKnown.Value != nil {
+		average = fmt.Sprintf("%.0f%%", dashboard.Mastery.AverageKnown.Value.Value()*100)
+	}
+	lines := []string{
+		"Progress",
+		"Goal: " + dashboard.Goal.Title,
+		fmt.Sprintf("Completion: %.0f%%", progress.Completion.Value),
+		fmt.Sprintf("Mastered: %d of %d concepts", progress.ConceptsMastered.Value, progress.ConceptsTotal.Value),
+		fmt.Sprintf("Learning: %d", progress.ConceptsLearning.Value),
+		fmt.Sprintf("Introduced: %d", progress.ConceptsIntroduced.Value),
+		"Average mastery (known concepts): " + average,
+		fmt.Sprintf("Mastery threshold: %.0f%%", dashboardMasteryThreshold(dashboard)*100),
+		fmt.Sprintf("Reviews due: %d", dashboard.ReviewsDue.Value),
+		"Study today: " + formatDashboardDuration(dashboard.StudyTime.Today.Value),
+		"Study this week: " + formatDashboardDuration(dashboard.StudyTime.Week.Value),
+		fmt.Sprintf("Current streak: %d %s", dashboard.Streak.CurrentStreak.Value, pluralDays(dashboard.Streak.CurrentStreak.Value)),
+		"Meaning: completion counts mastered curriculum concepts; average mastery excludes unknown concepts.",
+	}
+	if dashboard.RecentMilestone != nil {
+		lines = append(lines, "Recent milestone: "+dashboard.RecentMilestone.Name)
+	}
+	if len(dashboard.WeakConcepts) > 0 {
+		lines = append(lines, "", "Needs reinforcement")
+		for _, concept := range dashboard.WeakConcepts {
+			lines = append(lines, fmt.Sprintf("- %s: %.0f%% mastery", concept.Title, concept.Mastery.Value()*100))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatRoadmapDashboard(dashboard learningapp.ProgressDashboard) string {
+	if dashboard.Curriculum == nil {
+		return "Roadmap\nNo active curriculum. Run `kelyro setup status` to inspect setup, or activate a learning goal to create one."
+	}
+	lines := []string{"Roadmap"}
+	for _, node := range dashboard.Roadmap {
+		indent := strings.Repeat("  ", node.Depth)
+		if node.Type != learning.CurriculumNodeConcept {
+			label := string(node.Type)
+			if label != "" {
+				label = strings.ToUpper(label[:1]) + label[1:]
+			}
+			lines = append(lines, indent+label+": "+node.Title)
+			continue
+		}
+		status := strings.ReplaceAll(string(node.Status), "_", " ")
+		line := indent + "- " + node.Title + " [" + status + "]"
+		if node.Mastery != nil {
+			line += fmt.Sprintf(" %.0f%% mastery", node.Mastery.Value()*100)
+		}
+		lines = append(lines, line)
+		for _, reason := range node.LockReasons {
+			lines = append(lines, indent+"  Why: "+reason)
+		}
+	}
+	if len(dashboard.Roadmap) == 0 {
+		lines = append(lines, "No curriculum nodes are available.")
+	}
+	lines = append(lines, "", "Legend: mastered, current, available, locked, review due")
+	return strings.Join(lines, "\n")
+}
+
+func formatTodayDashboard(dashboard learningapp.ProgressDashboard) string {
+	if dashboard.Goal == nil {
+		return "Today\nNo active learning goal. Run `kelyro setup status` to inspect setup, or `kelyro goal` to inspect learning goals."
+	}
+	if dashboard.TodayPlan == nil {
+		return "Today\nGoal: " + dashboard.Goal.Title + "\nNo daily plan is available yet."
+	}
+	plan := dashboard.TodayPlan
+	lines := []string{
+		"Today",
+		"Goal: " + dashboard.Goal.Title,
+		fmt.Sprintf("Planned: %d of %d minutes", plan.PlannedMinutes, plan.AvailableMinutes),
+	}
+	if len(plan.Items) == 0 {
+		message := "Nothing urgent today. Your current progress has no scheduled work."
+		if plan.Status == learning.DailyPlanTimeLimited {
+			message = "Today's time budget is too small for the next useful study item."
+		}
+		return strings.Join(append(lines, message), "\n")
+	}
+	for index, item := range plan.Items {
+		title := "general learning activity"
+		if len(item.ConceptIDs) > 0 {
+			title = dashboardConceptTitle(dashboard, item.ConceptIDs[0])
+		}
+		role := strings.ReplaceAll(string(item.Role), "_", " ")
+		lines = append(lines, fmt.Sprintf("%d. %s — %s (%d min)", index+1, role, title, item.EstimatedMinutes))
+		explanation := item.Explanation
+		for _, conceptID := range item.ConceptIDs {
+			explanation = strings.ReplaceAll(explanation, conceptID.String(), dashboardConceptTitle(dashboard, conceptID))
+		}
+		if explanation != "" {
+			lines = append(lines, "   "+explanation)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func dashboardMasteryThreshold(dashboard learningapp.ProgressDashboard) float64 {
+	if dashboard.MasteryRequirement.PolicyVersion == learning.MasteryThresholdPolicyVersion {
+		return dashboard.MasteryRequirement.Requirement.Threshold.Value()
+	}
+	if dashboard.Goal != nil {
+		return dashboard.Goal.MasteryThreshold.Value()
+	}
+	return 0
+}
+
+func dashboardConceptTitle(dashboard learningapp.ProgressDashboard, conceptID learning.ID) string {
+	for _, node := range dashboard.Roadmap {
+		if node.ID == conceptID {
+			return node.Title
+		}
+	}
+	return conceptID.String()
+}
+
+func formatDashboardDuration(duration time.Duration) string {
+	minutes := int(duration / time.Minute)
+	if minutes < 60 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	return fmt.Sprintf("%dh%02dm", minutes/60, minutes%60)
 }
 
 func formatMistakes(mistakes []learning.Mistake) string {
@@ -1170,6 +1355,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseUpdateArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "status", "progress", "roadmap", "today":
+		if len(result.arguments) != 0 {
+			return invocation{}, fmt.Errorf("%s does not accept positional arguments", result.command)
+		}
 	case "profile":
 		if err := parseProfileArguments(&result); err != nil {
 			return invocation{}, err
@@ -1284,6 +1473,10 @@ func parseSetupArguments(result *invocation) error {
 }
 
 func parseMasteryArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		result.masteryOperation = "show"
+		return nil
+	}
 	if len(result.arguments) == 1 && result.arguments[0] == "threshold" {
 		result.masteryOperation = "show"
 		return nil
@@ -1309,6 +1502,10 @@ func parseMasteryArguments(result *invocation) error {
 }
 
 func parseGoalArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		result.goalOperation = "show"
+		return nil
+	}
 	if len(result.arguments) != 1 {
 		return fmt.Errorf("goal requires show, set, pause, or resume")
 	}
@@ -1330,6 +1527,10 @@ func parseGoalArguments(result *invocation) error {
 }
 
 func parseProfileArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		result.profileOperation = "show"
+		return nil
+	}
 	if len(result.arguments) != 1 || (result.arguments[0] != "show" && result.arguments[0] != "edit") {
 		return fmt.Errorf("profile requires show or edit")
 	}

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 27 (pending authorization)
-Last completed step: 26
+Current step: 28 (pending authorization)
+Last completed step: 27
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1183,3 +1183,48 @@ Release: unreleased
 - El Paso 27 es el siguiente paso pendiente y requiere autorización explícita.
 - La CLI del Student Core debe reutilizar los mismos application services/read models sin lanzar la TUI ni añadir JSON como interfaz principal.
 - No adelantar export Markdown, recalculación/migración general de algoritmos, hardening, E2E Student Core completo, Exercise Engine ni I-03+.
+
+## Step 27 — CLI Student Core
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Comandos human-readable `status`, `progress`, `roadmap` y `today` sobre el mismo `progress-dashboard/v1` consumido por la TUI.
+- Superficie mínima completa con `profile`, `goal`, `history`, `time`, `reviews`, `mistakes` y `mastery`; `profile`, `goal` y `mastery` ahora usan su lectura por defecto sin exigir un subcomando redundante.
+- `status` presenta goal, ubicación curricular actual, mastery efectivo y conteos de mastered/learning/review due.
+- `progress` separa completion de average mastery conocido y añade reviews, tiempo intencional, streak, milestone reciente y conceptos que necesitan refuerzo.
+- `roadmap` presenta la jerarquía curricular resuelta, estados textuales, mastery conocido y razones de bloqueo; el documento Foundation permanece accesible como `kelyro open roadmap`.
+- `today` presenta el `daily-plan-v1` persistido, su presupuesto, orden, roles y explicaciones con títulos humanos sin generar ejercicios.
+- Empty states accionables para onboarding/goal incompleto, curriculum ausente y plan diario ausente, sin convertir una lectura válida en error.
+- Routing explícito que nunca lanza la TUI desde subcommands, conserva `--workspace`, mantiene output exitoso en stdout y errores en stderr, y usa exit codes 0/1/2 para éxito, fallo operacional y uso inválido.
+- Ayuda actualizada sin introducir JSON ni otra interfaz machine-readable primaria.
+- Documentación del contrato, routing, salida, empty states, exit codes y límites en `docs/architecture/student-core-cli.md`.
+
+### Decisions
+
+- `ActionStatus`, `ActionProgress`, `ActionRoadmap` y `ActionToday` convergen en `executeDashboard`; los adapters seleccionan qué parte renderizar, pero no ensamblan hechos educativos ni recalculan políticas.
+- El antiguo `kelyro roadmap` que imprimía una ruta Foundation se reemplaza por el roadmap educativo requerido; `kelyro open roadmap` conserva el acceso explícito al artefacto.
+- Una configuración educativa incompleta es un estado consultable exitoso y muestra la acción siguiente; un workspace inexistente o una dependencia de Student Core no disponible conserva exit code operacional `1`.
+- Average mastery ausente se muestra como `unknown`; un score conocido de cero conserva `0%`.
+- No se añadió migration, JSON, export Markdown, recalculación general, Exercise Engine, Research Engine, Curriculum Compiler, IA, plugin ni actividad de red.
+
+### Verification
+
+- Tests CLI de routing para toda la superficie, aliases de lectura, `--workspace`, bypass de TUI, ayuda, argumentos inválidos y exit codes.
+- Tests de salida determinista para status, progress, roadmap y today, incluidos títulos humanos, unknown semantics y explicaciones de lock/plan.
+- Tests de onboarding incompleto y workspace no inicializado en las fronteras CLI y app.
+- Tests app para las cinco acciones consumidoras del dashboard, propagación de workspace override y cierre del store.
+- Smoke del binario real sobre un workspace recién inicializado, verificando `--workspace status` y su guía de setup incompleto.
+- `GOCACHE=/tmp/kelyro-i02-step27-final-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step27-final-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i02-step27-final-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 28 es el siguiente paso pendiente y requiere autorización explícita.
+- El export Markdown deberá reutilizar read models existentes, escribir solo rutas system-owned y no convertir Markdown en source of truth.
+- No adelantar recalculación/migración general, hardening, E2E Student Core completo, Exercise Engine ni I-03+.
