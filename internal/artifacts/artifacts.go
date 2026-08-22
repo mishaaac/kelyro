@@ -76,6 +76,10 @@ func Classify(path string) Ownership {
 		return MachineOwned
 	}
 
+	if cleaned == filepath.Join("00-roadmap", "PROGRESS.md") {
+		return SystemGeneratedHumanReadable
+	}
+
 	switch filepath.Base(cleaned) {
 	case "LEARNING.md", "ROADMAP.md", "LESSON.md":
 		return SystemGeneratedHumanReadable

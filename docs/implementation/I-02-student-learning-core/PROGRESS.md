@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 28 (pending authorization)
-Last completed step: 27
+Current step: 29 (pending authorization)
+Last completed step: 28
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1228,3 +1228,48 @@ Release: unreleased
 - El Paso 28 es el siguiente paso pendiente y requiere autorización explícita.
 - El export Markdown deberá reutilizar read models existentes, escribir solo rutas system-owned y no convertir Markdown en source of truth.
 - No adelantar recalculación/migración general, hardening, E2E Student Core completo, Exercise Engine ni I-03+.
+
+## Step 28 — Artefactos Markdown humanos de progreso
+
+Status: completed
+Date: 2026-08-21
+Release: unreleased
+
+### Delivered
+
+- Export explícito `kelyro progress export` que construye una sola snapshot `progress-dashboard/v1` y regenera las tres vistas humanas del workspace.
+- `LEARNING.md` con goal activo, ubicación curricular actual, plan de hoy, requisito efectivo de mastery, progreso conocido y reviews vencidas.
+- `00-roadmap/ROADMAP.md` como jerarquía legible del Curriculum Instance activo, con estados, mastery conocido y razones humanas de bloqueo.
+- `00-roadmap/PROGRESS.md` con tiempo intencional, conceptos, completion, reviews due, streak y milestone reciente.
+- Empty states accionables y deterministas para setup incompleto, sin fabricar goal, curriculum, plan ni métricas.
+- Templates versionados independientes y renderer puro sin acceso a SQLite o filesystem.
+- Integración con Artifact Ownership de Foundation: rutas system-generated, hashes persistidos, writes atómicos por archivo y conflictos para artifacts no rastreados o editados.
+- Clasificación exacta de `00-roadmap/PROGRESS.md`; otros archivos `PROGRESS.md`, incluidos logs de implementación, permanecen student-owned.
+- Normalización/escape de texto y omisión deliberada de IDs internos, perfil, descripciones, errores, evidence, respuestas diagnósticas, secretos y metadata machine-owned.
+- Golden tests para los tres documentos, más tests de privacidad, canonical UTF-8/LF, estado incompleto, versión de read model, routing CLI, coordinación application y propagación de conflictos.
+- Contrato, contenido, versiones, privacidad, ownership, regeneración y límites documentados en `docs/architecture/student-learning-markdown-artifacts.md`.
+
+### Decisions
+
+- SQLite continúa como source of truth; Markdown es únicamente una proyección descartable y nunca se lee para reconstruir estado educativo.
+- Los tres documentos consumen una única snapshot coherente del dashboard; templates y adapters no recalculan mastery, retention, streaks, analytics o daily plans.
+- La regeneración ocurre solo por el comando explícito, no en keypresses de TUI ni como side effect de lecturas.
+- Los placeholders Foundation de `LEARNING.md` y `ROADMAP.md` se reemplazan solo si su hash sigue intacto; la nueva vista `PROGRESS.md` usa la misma política desde su primera creación.
+- La escritura conserva el contrato publicado de atomicidad por archivo de Foundation. Un conflicto detiene el resto de la regeneración y nunca sobrescribe el artifact en conflicto.
+- El Markdown prioriza títulos y métricas humanas y no publica identidades técnicas aunque formen parte del read model.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-i02-step28-gocache go test ./internal/artifacts/... ./internal/infra/artifactfs ./internal/app ./internal/cli`.
+- `GOCACHE=/tmp/kelyro-i02-step28-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i02-step28-vet-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i02-step28-quality-gocache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- Smoke real `init → progress export` sobre workspace temporal, verificando las tres rutas, empty states y salida CLI.
+- Smoke de conflicto tras editar manualmente `00-roadmap/PROGRESS.md`, verificando exit code de fallo, error `generated artifact was modified externally` y preservación del contenido humano.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 29 es el siguiente paso pendiente y requiere autorización explícita.
+- Compatibilidad, migración y recalculación general de Student Algorithms permanecen reservadas para el Paso 29.
+- No adelantar hardening de pasos 30–31, Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+.

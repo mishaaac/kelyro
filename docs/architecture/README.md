@@ -70,3 +70,7 @@ transactional initial learner state is documented in
 The human-readable Student Core command surface, shared dashboard routing,
 empty-state behavior, and exit-code contract are documented in
 [student-core-cli.md](student-core-cli.md).
+
+The explicit human-readable learning snapshot, document contents, template
+versions, privacy boundary, and safe regeneration policy are documented in
+[student-learning-markdown-artifacts.md](student-learning-markdown-artifacts.md).

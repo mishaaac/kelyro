@@ -102,6 +102,7 @@ type Command struct {
 	MistakeID           learning.ID
 	SessionOperation    string
 	HistoryToday        bool
+	ProgressOperation   string
 	ReviewsDue          bool
 	Verbose             bool
 }
@@ -257,6 +258,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionOpen {
 		return service.executeOpen(ctx, command)
+	}
+	if command.Action == ActionProgress && command.ProgressOperation == "export" {
+		return service.executeProgressExport(ctx, command)
 	}
 	if command.Action == ActionStatus || command.Action == ActionProgress || command.Action == ActionRoadmap || command.Action == ActionToday {
 		return service.executeDashboard(ctx, command)

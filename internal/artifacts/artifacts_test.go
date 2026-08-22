@@ -15,6 +15,8 @@ func TestClassify(t *testing.T) {
 		{path: filepath.Join(".kelyro", "state", "session"), want: MachineOwned},
 		{path: "LEARNING.md", want: SystemGeneratedHumanReadable},
 		{path: filepath.Join("00-roadmap", "ROADMAP.md"), want: SystemGeneratedHumanReadable},
+		{path: filepath.Join("00-roadmap", "PROGRESS.md"), want: SystemGeneratedHumanReadable},
+		{path: filepath.Join("docs", "implementation", "PROGRESS.md"), want: StudentOwned},
 		{path: filepath.Join("lesson-01", "LESSON.md"), want: SystemGeneratedHumanReadable},
 		{path: "main.go", want: StudentOwned},
 		{path: filepath.Join("projects", "demo", "notes.md"), want: StudentOwned},

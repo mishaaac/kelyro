@@ -18,7 +18,9 @@ The core now includes retention, review scheduling, warm-ups, non-punitive
 streaks, achievements, explainable analytics, deterministic adaptive daily
 planning, and a coherent dashboard presented through Home, Today, Progress,
 Concept, Roadmap, Reviews, History, Goal, and Profile views. Exercise work and
-the complete Student Core CLI remain pending. See the
+generated exercise content remain pending. The same read model powers the
+human-readable Student Core CLI and explicit `kelyro progress export` Markdown
+snapshot. See the
 [release notes](docs/releases/v0.1.0-alpha.2.md) for scope and limitations.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
@@ -77,10 +79,12 @@ silently. `kelyro update` remains intentionally unsupported until release
 artifacts can be verified by checksum/signature and installed with explicit
 consent.
 
-The TUI and the `status`, `roadmap`, `doctor`, `config`, `backup`, and `export`
-commands remain local. `kelyro roadmap` prints the location of the generated
-local `ROADMAP.md`; documentation links shown by Doctor are never fetched or
-opened automatically. Privacy denials are written to the workspace-local
+The TUI and the `status`, `progress`, `roadmap`, `today`, `doctor`, `config`,
+`backup`, and `export` commands remain local. `kelyro roadmap` renders the
+active curriculum, while `kelyro progress export` safely regenerates
+`LEARNING.md`, `00-roadmap/ROADMAP.md`, and `00-roadmap/PROGRESS.md` from local
+state. Documentation links shown by Doctor are never fetched or opened
+automatically. Privacy denials are written to the workspace-local
 diagnostic log; their authorization metadata contains no URL, user path,
 student content, prompt, or secret.
 

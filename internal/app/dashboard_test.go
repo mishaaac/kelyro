@@ -3,8 +3,12 @@ package app
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/mishaaac/kelyro/internal/artifacts"
+	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
@@ -29,6 +33,59 @@ func TestServiceCoordinatesProgressDashboard(t *testing.T) {
 				t.Fatalf("factory root=%q closed=%d", factory.openRoot, factory.closed)
 			}
 		})
+	}
+}
+
+func TestServiceExportsProgressDashboardArtifacts(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("workspaces", "dashboard-lab")
+	dashboard := &fakeDashboardService{view: learningapp.ProgressDashboard{ReadModelVersion: learningapp.ProgressDashboardReadModelVersion}}
+	profiles := &fakeProfileStoreFactory{dashboard: dashboard}
+	artifactStore := &recordingArtifactStore{}
+	artifactsFactory := &recordingArtifactStoreFactory{store: artifactStore}
+	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
+		WithProfiles(profiles).WithArtifactStores(artifactsFactory)
+
+	result, err := service.Execute(context.Background(), Command{Action: ActionProgress, ProgressOperation: "export", Workspace: root})
+	if err != nil {
+		t.Fatalf("Execute(progress export) error = %v", err)
+	}
+	if dashboard.calls != 1 || profiles.closed != 1 || !artifactStore.closed {
+		t.Fatalf("dashboard calls=%d profile closes=%d artifact closed=%v", dashboard.calls, profiles.closed, artifactStore.closed)
+	}
+	if artifactsFactory.openRoot != root || len(artifactStore.requests) != 3 {
+		t.Fatalf("artifact root=%q requests=%d", artifactsFactory.openRoot, len(artifactStore.requests))
+	}
+	wants := []struct{ path, version string }{
+		{"LEARNING.md", artifactmarkdown.LearningProgressTemplateVersion},
+		{filepath.Join("00-roadmap", "ROADMAP.md"), artifactmarkdown.RoadmapProgressTemplateVersion},
+		{filepath.Join("00-roadmap", "PROGRESS.md"), artifactmarkdown.ProgressTemplateVersion},
+	}
+	for index, want := range wants {
+		request := artifactStore.requests[index]
+		if request.Path != want.path || request.ExpectedVersion != want.version || request.CreatedBy != artifactmarkdown.ProgressCreator || request.Ownership != artifacts.SystemGeneratedHumanReadable {
+			t.Errorf("request[%d] = %+v, want path=%q version=%q", index, request, want.path, want.version)
+		}
+		if !strings.Contains(result.Message, filepath.ToSlash(want.path)) {
+			t.Errorf("result message lacks %q: %q", filepath.ToSlash(want.path), result.Message)
+		}
+	}
+}
+
+func TestServiceProgressExportPreservesArtifactWriteConflict(t *testing.T) {
+	t.Parallel()
+	wantErr := errors.New("generated artifact was modified externally")
+	artifactStore := &recordingArtifactStore{writeErr: wantErr}
+	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: "/workspace"}}, nil).
+		WithProfiles(&fakeProfileStoreFactory{dashboard: &fakeDashboardService{view: learningapp.ProgressDashboard{ReadModelVersion: learningapp.ProgressDashboardReadModelVersion}}}).
+		WithArtifactStores(&recordingArtifactStoreFactory{store: artifactStore})
+
+	_, err := service.Execute(context.Background(), Command{Action: ActionProgress, ProgressOperation: "export", Workspace: "/workspace"})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Execute(progress export) error = %v, want %v", err, wantErr)
+	}
+	if !artifactStore.closed {
+		t.Fatal("artifact store was not closed after write conflict")
 	}
 }
 

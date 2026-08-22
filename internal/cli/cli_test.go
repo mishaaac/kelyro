@@ -156,6 +156,32 @@ func TestRunnerStudentCoreAliasesAndWorkspaceOverride(t *testing.T) {
 	}
 }
 
+func TestRunnerDispatchesProgressArtifactExport(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{result: app.Result{Message: "Updated learning progress artifacts:\n- LEARNING.md"}}
+	var stdout, stderr bytes.Buffer
+	code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"progress", "export"})
+	if code != ExitOK || stderr.Len() != 0 {
+		t.Fatalf("progress export exit=%d stderr=%q", code, stderr.String())
+	}
+	if len(service.commands) != 1 || service.commands[0].Action != app.ActionProgress || service.commands[0].ProgressOperation != "export" {
+		t.Fatalf("progress export command=%+v", service.commands)
+	}
+	if !strings.Contains(stdout.String(), "LEARNING.md") {
+		t.Fatalf("progress export output=%q", stdout.String())
+	}
+
+	service = &fakeService{}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"progress", "unexpected"}); code != ExitUsage {
+		t.Fatalf("invalid progress subcommand exit=%d, want %d", code, ExitUsage)
+	}
+	if len(service.commands) != 0 || !strings.Contains(stderr.String(), "progress accepts no arguments or export") {
+		t.Fatalf("invalid progress commands=%+v stderr=%q", service.commands, stderr.String())
+	}
+}
+
 func TestRunnerHandlesIncompleteStudentCoreAndMissingWorkspace(t *testing.T) {
 	t.Parallel()
 	for _, command := range []string{"status", "progress", "roadmap", "today"} {

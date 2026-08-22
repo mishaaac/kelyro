@@ -251,7 +251,7 @@ Ownership rules are intentionally narrow:
   schema. `.kelyro/config.toml` is the explicit exception intended for advanced
   manual editing; Kelyro validates it strictly and preserves comments during
   single-key CLI updates.
-- `LEARNING.md` and `00-roadmap/ROADMAP.md` are system-generated,
+- `LEARNING.md`, `00-roadmap/ROADMAP.md`, and `00-roadmap/PROGRESS.md` are system-generated,
   human-readable artifacts. They are indexed on creation and may be regenerated
   only while their current hashes match the last generated content.
 - Every other visible file is student-owned by default. Kelyro requires an

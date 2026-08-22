@@ -17,6 +17,7 @@ The minimum read surface is:
 | `goal` | `GoalLifecycleService` | active and historical goals |
 | `status` | `ProgressDashboardService` | goal, current location, effective mastery requirement, and concept counts |
 | `progress` | `ProgressDashboardService` | completion, known mastery, reviews, study time, streak, and weak concepts |
+| `progress export` | `ProgressDashboardService` plus the ownership-aware artifact store | explicitly regenerated human-readable learning documents |
 | `roadmap` | `ProgressDashboardService` | resolved hierarchy, concept status, mastery when known, and lock reasons |
 | `history` | `StudyHistoryService` | learner-facing durable study events |
 | `time` | `StudyHistoryService` | intentional active study time |
@@ -65,7 +66,9 @@ workspace discovery semantics as existing commands. Global and command-scoped
 
 ## Boundaries
 
-Step 27 adds no JSON primary interface, Markdown progress export, schema
-migration, algorithm recalculation command, Exercise Engine, Research Engine,
-Curriculum Compiler, AI provider, plugin, generated learning content, or
-network activity.
+Step 27 added no JSON primary interface, schema migration, algorithm
+recalculation command, Exercise Engine, Research Engine, Curriculum Compiler,
+AI provider, plugin, generated learning content, or network activity. Step 28
+later added only the explicit Markdown progress export documented in
+`student-learning-markdown-artifacts.md`; the remaining boundaries are
+unchanged.

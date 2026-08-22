@@ -2577,7 +2577,7 @@ feat(cli): expose Student Core commands
 
 ## Paso 28 — Generar artefactos Markdown humanos de progreso
 
-- [ ] Paso 28 completado
+- [x] Paso 28 completado
 
 ### Objetivo
 

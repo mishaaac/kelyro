@@ -159,6 +159,9 @@ Study history commands:
   kelyro history --today
   kelyro time
 
+Progress artifact command:
+  kelyro progress export
+
 Review commands:
   kelyro reviews
   kelyro reviews due
@@ -277,34 +280,35 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	command := app.Command{
-		Action:           action,
-		Workspace:        invocation.workspace,
-		AllowNested:      invocation.allowNested,
-		ConfigScope:      invocation.configScope,
-		OpenTarget:       invocation.openTarget,
-		DoctorExplain:    invocation.doctorExplain,
-		LogOperation:     invocation.logOperation,
-		BackupOperation:  invocation.backupOperation,
-		BackupID:         invocation.backupID,
-		ExportMode:       invocation.exportMode,
-		ExportOutput:     invocation.exportOutput,
-		ImportArchive:    invocation.importArchive,
-		ImportDryRun:     invocation.importDryRun,
-		ImportConflicts:  invocation.importConflicts,
-		UpdateOperation:  invocation.updateOperation,
-		ProfileOperation: invocation.profileOperation,
-		ProfileChanges:   invocation.profileChanges,
-		GoalOperation:    invocation.goalOperation,
-		GoalInput:        invocation.goalInput,
-		MasteryOperation: invocation.masteryOperation,
-		MasteryThreshold: invocation.masteryThreshold,
-		SetupOperation:   invocation.setupOperation,
-		MistakeOperation: invocation.mistakeOperation,
-		MistakeID:        invocation.mistakeID,
-		SessionOperation: invocation.sessionOperation,
-		HistoryToday:     invocation.historyToday,
-		ReviewsDue:       invocation.reviewsDue,
-		Verbose:          invocation.verbose,
+		Action:            action,
+		Workspace:         invocation.workspace,
+		AllowNested:       invocation.allowNested,
+		ConfigScope:       invocation.configScope,
+		OpenTarget:        invocation.openTarget,
+		DoctorExplain:     invocation.doctorExplain,
+		LogOperation:      invocation.logOperation,
+		BackupOperation:   invocation.backupOperation,
+		BackupID:          invocation.backupID,
+		ExportMode:        invocation.exportMode,
+		ExportOutput:      invocation.exportOutput,
+		ImportArchive:     invocation.importArchive,
+		ImportDryRun:      invocation.importDryRun,
+		ImportConflicts:   invocation.importConflicts,
+		UpdateOperation:   invocation.updateOperation,
+		ProfileOperation:  invocation.profileOperation,
+		ProfileChanges:    invocation.profileChanges,
+		GoalOperation:     invocation.goalOperation,
+		GoalInput:         invocation.goalInput,
+		MasteryOperation:  invocation.masteryOperation,
+		MasteryThreshold:  invocation.masteryThreshold,
+		SetupOperation:    invocation.setupOperation,
+		MistakeOperation:  invocation.mistakeOperation,
+		MistakeID:         invocation.mistakeID,
+		SessionOperation:  invocation.sessionOperation,
+		HistoryToday:      invocation.historyToday,
+		ProgressOperation: invocation.progressOperation,
+		ReviewsDue:        invocation.reviewsDue,
+		Verbose:           invocation.verbose,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -1014,48 +1018,49 @@ func formatDiagnostics(report doctor.Report) string {
 }
 
 type invocation struct {
-	command          string
-	workspace        string
-	help             bool
-	version          bool
-	noColor          bool
-	verbose          bool
-	quiet            bool
-	allowNested      bool
-	arguments        []string
-	configScope      config.Scope
-	configOperation  string
-	configKey        string
-	configValue      string
-	secretOperation  string
-	secretName       string
-	openTarget       string
-	doctorExplain    string
-	logOperation     string
-	backupOperation  string
-	backupID         string
-	yes              bool
-	exportMode       portability.Mode
-	exportOutput     string
-	importArchive    string
-	importDryRun     bool
-	importConflicts  portability.ConflictStrategy
-	conflictSet      bool
-	updateOperation  string
-	profileOperation string
-	profileChanges   learningapp.ProfileChanges
-	profileFlagsSet  bool
-	goalOperation    string
-	goalInput        learningapp.SetGoalInput
-	goalFlagsSet     bool
-	masteryOperation string
-	masteryThreshold learning.MasteryThreshold
-	setupOperation   string
-	mistakeOperation string
-	mistakeID        learning.ID
-	sessionOperation string
-	historyToday     bool
-	reviewsDue       bool
+	command           string
+	workspace         string
+	help              bool
+	version           bool
+	noColor           bool
+	verbose           bool
+	quiet             bool
+	allowNested       bool
+	arguments         []string
+	configScope       config.Scope
+	configOperation   string
+	configKey         string
+	configValue       string
+	secretOperation   string
+	secretName        string
+	openTarget        string
+	doctorExplain     string
+	logOperation      string
+	backupOperation   string
+	backupID          string
+	yes               bool
+	exportMode        portability.Mode
+	exportOutput      string
+	importArchive     string
+	importDryRun      bool
+	importConflicts   portability.ConflictStrategy
+	conflictSet       bool
+	updateOperation   string
+	profileOperation  string
+	profileChanges    learningapp.ProfileChanges
+	profileFlagsSet   bool
+	goalOperation     string
+	goalInput         learningapp.SetGoalInput
+	goalFlagsSet      bool
+	masteryOperation  string
+	masteryThreshold  learning.MasteryThreshold
+	setupOperation    string
+	mistakeOperation  string
+	mistakeID         learning.ID
+	sessionOperation  string
+	historyToday      bool
+	progressOperation string
+	reviewsDue        bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -1355,7 +1360,15 @@ func parse(args []string) (invocation, error) {
 		if err := parseUpdateArguments(&result); err != nil {
 			return invocation{}, err
 		}
-	case "status", "progress", "roadmap", "today":
+	case "progress":
+		if len(result.arguments) == 0 {
+			result.progressOperation = "show"
+		} else if len(result.arguments) == 1 && result.arguments[0] == "export" {
+			result.progressOperation = "export"
+		} else {
+			return invocation{}, fmt.Errorf("progress accepts no arguments or export")
+		}
+	case "status", "roadmap", "today":
 		if len(result.arguments) != 0 {
 			return invocation{}, fmt.Errorf("%s does not accept positional arguments", result.command)
 		}
