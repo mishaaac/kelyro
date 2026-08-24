@@ -380,7 +380,7 @@ func encodeOptionalTimestamp(value *learning.Timestamp) any {
 }
 
 func decodeTimestamp(value string) (learning.Timestamp, error) {
-	parsed, err := time.Parse(timestampFormat, value)
+	parsed, err := parseTimestamp(value)
 	if err != nil {
 		return learning.Timestamp{}, err
 	}

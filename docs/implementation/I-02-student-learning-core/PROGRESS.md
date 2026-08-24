@@ -1480,9 +1480,17 @@ Release: unreleased (latest published: v0.1.0-alpha.2)
 - The final checklist is evidence-backed rather than a second implementation tracker: each checked capability maps to a completed step, regression suite, architecture record, or controlled dogfooding result.
 - I-03 is ready to begin as a separately specified implementation; no Research Engine, production Learning Pack, full Exercise/Assessment Engine, AI runtime, provider, or plugin was added during closure.
 
+### Hosted CI finding and fix
+
+- The first post-merge matrix exposed an intermittent macOS onboarding failure: two chronologically ordered `RFC3339Nano` values did not always preserve that order when SQLite compared their variable-width TEXT encodings.
+- SQLite timestamp writes now use a fixed-width nine-digit fractional representation, while reads remain compatible with previously persisted RFC3339 timestamps.
+- `TestTimestampEncodingPreservesTextOrderAndReadsLegacyPrecision` covers the failing fractional-second boundary and legacy decoding; the complete onboarding E2E passes with the corrected codec.
+- This is a persistence portability correction only. It does not change domain time semantics, published migrations, educational algorithms, or the I-02 scope.
+
 ### Verification
 
-- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step33-quality-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go run ./tools/quality all`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step33-final-quality-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go run ./tools/quality all`.
+- Targeted SQLite timestamp regression, learning application tests, and Foundation/Student Core E2E after the hosted macOS finding.
 - `go mod verify` and `gofmt -l` over all tracked Go files.
 - Direct-import audit of `./internal/learning` and repository search for forbidden Student Core dependencies or premature I-03+ packages.
 - Versioned-secret signature scan over tracked files, with no findings.

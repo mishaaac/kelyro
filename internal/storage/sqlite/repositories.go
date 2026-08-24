@@ -14,7 +14,16 @@ import (
 	"github.com/mishaaac/kelyro/internal/storage"
 )
 
-const timestampFormat = time.RFC3339Nano
+// timestampFormat always emits all nine fractional digits. Several schema
+// invariants and indexes compare UTC timestamps as TEXT, so the persisted
+// representation must preserve chronological order lexicographically.
+const timestampFormat = "2006-01-02T15:04:05.000000000Z07:00"
+
+// parseTimestamp remains permissive for databases written before timestamps
+// used fixed-width fractional seconds.
+func parseTimestamp(value string) (time.Time, error) {
+	return time.Parse(time.RFC3339Nano, value)
+}
 
 type executor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
@@ -286,7 +295,7 @@ func parseArtifactTime(path, field, encoded string) (time.Time, error) {
 	if encoded == "" {
 		return time.Time{}, nil // Records created before schema version 2 are legacy metadata.
 	}
-	parsed, err := time.Parse(timestampFormat, encoded)
+	parsed, err := parseTimestamp(encoded)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("artifact %s has invalid %s time: %w", path, field, err)
 	}
@@ -369,7 +378,7 @@ ORDER BY occurred_at, id`)
 		); err != nil {
 			return nil, fmt.Errorf("scan audit event: %w", err)
 		}
-		entry.Timestamp, err = time.Parse(timestampFormat, encodedTimestamp)
+		entry.Timestamp, err = parseTimestamp(encodedTimestamp)
 		if err != nil {
 			return nil, fmt.Errorf("parse audit event timestamp: %w", err)
 		}

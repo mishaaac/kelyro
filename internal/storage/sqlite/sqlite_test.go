@@ -20,6 +20,25 @@ import (
 
 var fixedTime = time.Date(2026, time.August, 12, 15, 30, 0, 123, time.UTC)
 
+func TestTimestampEncodingPreservesTextOrderAndReadsLegacyPrecision(t *testing.T) {
+	earlier := time.Date(2026, time.August, 24, 0, 0, 0, 100_000_000, time.UTC)
+	later := earlier.Add(time.Nanosecond)
+	encodedEarlier := earlier.Format(timestampFormat)
+	encodedLater := later.Format(timestampFormat)
+	if encodedEarlier >= encodedLater {
+		t.Fatalf("encoded timestamps are not ordered: %q >= %q", encodedEarlier, encodedLater)
+	}
+
+	legacy := earlier.Format(time.RFC3339Nano)
+	parsed, err := parseTimestamp(legacy)
+	if err != nil {
+		t.Fatalf("parse legacy timestamp %q: %v", legacy, err)
+	}
+	if !parsed.Equal(earlier) {
+		t.Fatalf("parsed legacy timestamp = %s, want %s", parsed, earlier)
+	}
+}
+
 func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 	database, root := openTestDatabase(t)
 
