@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -629,6 +630,45 @@ func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestLongRoadmapUsesHeightBoundedScrollableViewport(t *testing.T) {
+	t.Parallel()
+
+	model := readyModel(&fakeService{})
+	model.screen = screenRoadmap
+	model.width = 80
+	model.height = 12
+	model.dashboard.Roadmap = make([]learningapp.DashboardRoadmapNode, 40)
+	for index := range model.dashboard.Roadmap {
+		id, err := learning.NewID(fmt.Sprintf("concept.viewport.%02d", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+		model.dashboard.Roadmap[index] = learningapp.DashboardRoadmapNode{
+			ID: id, Type: learning.CurriculumNodeConcept, Title: fmt.Sprintf("Viewport concept %02d", index),
+			Status: learningapp.DashboardRoadmapAvailable,
+		}
+	}
+
+	first := model.View()
+	if strings.Count(first, "\n") > model.height || !strings.Contains(first, "Roadmap") ||
+		!strings.Contains(first, "Viewport concept 00") || strings.Contains(first, "Viewport concept 39") ||
+		!strings.Contains(first, "[up/down]") {
+		t.Fatalf("initial roadmap viewport:\n%s", first)
+	}
+
+	ended, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	last := ended.(Model).View()
+	if strings.Count(last, "\n") > model.height || strings.Contains(last, "Viewport concept 00") ||
+		!strings.Contains(last, "Viewport concept 39") {
+		t.Fatalf("roadmap viewport after End:\n%s", last)
+	}
+
+	restarted, _ := ended.(Model).Update(tea.KeyMsg{Type: tea.KeyHome})
+	if view := restarted.(Model).View(); !strings.Contains(view, "Viewport concept 00") {
+		t.Fatalf("roadmap viewport after Home:\n%s", view)
 	}
 }
 

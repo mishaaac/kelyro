@@ -13,6 +13,10 @@ import (
 
 func (model Model) View() string {
 	width := model.contentWidth()
+	return model.frame(model.viewLines(width), width)
+}
+
+func (model Model) viewLines(width int) []string {
 	var lines []string
 	switch {
 	case model.loading:
@@ -51,7 +55,7 @@ func (model Model) View() string {
 			lines = model.homeView(width)
 		}
 	}
-	return model.frame(lines, width)
+	return lines
 }
 
 func (model Model) homeView(width int) []string {
@@ -748,6 +752,21 @@ func (model Model) contentWidth() int {
 }
 
 func (model Model) frame(lines []string, width int) string {
+	lines = append([]string(nil), lines...)
+	if pageHeight, overflow := model.viewportHeight(len(lines)); overflow {
+		start := model.scrollOffset
+		maximum := len(lines) - pageHeight
+		if start < 0 {
+			start = 0
+		}
+		if start > maximum {
+			start = maximum
+		}
+		end := min(len(lines), start+pageHeight)
+		visible := append([]string(nil), lines[start:end]...)
+		visible = append(visible, truncate(fmt.Sprintf("%d-%d/%d [up/down]", start+1, end, len(lines)), width))
+		lines = visible
+	}
 	padding := 2
 	if model.width > 0 && model.width <= 32 {
 		padding = 1
@@ -759,4 +778,64 @@ func (model Model) frame(lines []string, width int) string {
 		}
 	}
 	return "\n" + strings.Join(lines, "\n") + "\n"
+}
+
+func (model Model) viewportHeight(lineCount int) (int, bool) {
+	height := model.height
+	if height <= 0 {
+		height = 24
+	}
+	fullHeight := max(1, height-1)
+	if lineCount <= fullHeight {
+		return fullHeight, false
+	}
+	return max(1, height-2), true
+}
+
+func (model Model) clampedScrollOffset() int {
+	lineCount := len(model.viewLines(model.contentWidth()))
+	pageHeight, overflow := model.viewportHeight(lineCount)
+	if !overflow {
+		return 0
+	}
+	return min(max(0, model.scrollOffset), lineCount-pageHeight)
+}
+
+func (model Model) updateScroll(keyName string) (Model, bool) {
+	lineCount := len(model.viewLines(model.contentWidth()))
+	pageHeight, overflow := model.viewportHeight(lineCount)
+	maximum := 0
+	if overflow {
+		maximum = lineCount - pageHeight
+	}
+	model.scrollOffset = min(max(0, model.scrollOffset), maximum)
+	page := max(1, pageHeight-1)
+	switch keyName {
+	case "up":
+		model.scrollOffset--
+	case "down":
+		model.scrollOffset++
+	case "k":
+		if model.screen == screenHome {
+			return model, false
+		}
+		model.scrollOffset--
+	case "j":
+		if model.screen == screenHome {
+			return model, false
+		}
+		model.scrollOffset++
+	case "pgup", "ctrl+u":
+		model.scrollOffset -= page
+	case "pgdown", "ctrl+d":
+		model.scrollOffset += page
+	case "home":
+		model.scrollOffset = 0
+	case "end":
+		model.scrollOffset = maximum
+	default:
+		return model, false
+	}
+	model.scrollOffset = min(max(0, model.scrollOffset), maximum)
+	return model, true
 }

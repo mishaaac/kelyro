@@ -56,9 +56,14 @@ Failures remain local to the screen and do not make the terminal unusable.
 
 Student Core destinations are valid resumable session views. Only meaningful
 navigation is checkpointed; terminal width, loading flags, cached projections,
-and text buffers remain ephemeral. Every view wraps or truncates content to the
-available display width, shortcuts wrap onto additional lines, and the UI does
-not depend on Unicode symbols or color for semantics.
+text buffers, viewport height, and scroll position remain ephemeral. Every view
+wraps or truncates content to the available display width. When a read-only view
+is taller than the terminal, an internal height-bounded viewport keeps the first
+page visible and reports the visible line range; arrow keys scroll one line,
+`j`/`k` provide the same navigation outside Home, and Page Up/Page Down,
+Ctrl+U/Ctrl+D, Home, and End move by page or boundary. Config and onboarding
+retain those keys for selection and input. Shortcuts wrap onto additional lines,
+and the UI does not depend on Unicode symbols or color for semantics.
 
 ## Boundaries
 

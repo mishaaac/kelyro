@@ -40,6 +40,7 @@ type Model struct {
 	screen            screen
 	width             int
 	height            int
+	scrollOffset      int
 	loading           bool
 	saving            bool
 	opening           bool
@@ -106,6 +107,7 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		model.width = message.Width
 		model.height = message.Height
+		model.scrollOffset = model.clampedScrollOffset()
 		return model, nil
 	case foundationLoadedMsg:
 		model.snapshot = message.snapshot
@@ -346,6 +348,7 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if model.screen != screenOnboarding && model.screen != screenHome && (keyName == "esc" || keyName == "backspace" || keyName == "h") {
 		changed := model.screen != screenHome
 		model.screen = screenHome
+		model.scrollOffset = 0
 		model.notice = ""
 		if changed {
 			model.session.LastView = session.ViewHome
@@ -368,11 +371,13 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.screen = screenConcept
 		case "v":
 			model.screen = screenReviews
+			model.scrollOffset = 0
 			model.reviewsLoading = true
 			model.reviewsErr = nil
 			return model, loadReviewsCmd(model.ctx, model.service, model.command)
 		case "h":
 			model.screen = screenHistory
+			model.scrollOffset = 0
 			model.historyLoading = true
 			model.historyErr = nil
 			return model, loadHistoryCmd(model.ctx, model.service, model.command)
@@ -384,16 +389,19 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.screen = screenConfig
 		case "o":
 			model.screen = screenProfile
+			model.scrollOffset = 0
 			model.profileLoading = true
 			model.profileErr = nil
 			return model, loadProfileCmd(model.ctx, model.service, model.command)
 		case "k":
 			model.screen = screenStreak
+			model.scrollOffset = 0
 			model.streakLoading = true
 			model.streakErr = nil
 			return model, loadStreakCmd(model.ctx, model.service, model.command)
 		case "s":
 			model.screen = screenOnboarding
+			model.scrollOffset = 0
 			model.onboardingLoading = true
 			model.onboardingErr = nil
 			return model, onboardingCmd(model.ctx, model.service, model.command, "start")
@@ -405,9 +413,24 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if model.screen != previous {
+			model.scrollOffset = 0
 			model.session.LastView = sessionView(model.screen)
 			return model.queueCheckpoint()
 		}
+		if updated, handled := model.updateScroll(keyName); handled {
+			return updated, nil
+		}
+	case screenConfig, screenOnboarding:
+		// These screens reserve navigation keys for selection and text input.
+	default:
+		if updated, handled := model.updateScroll(keyName); handled {
+			return updated, nil
+		}
+	}
+
+	switch model.screen {
+	case screenHome:
+		// Home navigation was handled above.
 	case screenDoctor:
 		if keyName == "r" {
 			model.loading = true
