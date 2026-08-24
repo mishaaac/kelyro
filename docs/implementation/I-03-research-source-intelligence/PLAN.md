@@ -926,7 +926,7 @@ feat(research): add hardened source HTTP client
 
 ## Paso 9 — Implementar Source Fetcher y Source Snapshot
 
-- [ ] Paso 9 completado
+- [x] Paso 9 completado
 
 ### Objetivo
 

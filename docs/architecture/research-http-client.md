@@ -30,7 +30,8 @@ before an adapter invokes this package.
 Configuration validation also places hard ceilings on response size,
 redirects, attempts, timeouts, connection pools, backoff, User-Agent length,
 and content-type patterns. The User-Agent must be a bounded `Kelyro/...`
-identifier.
+identifier. An individual request may lower `MaxResponseBytes`, but cannot
+raise the configured decoded-body ceiling.
 
 The reusable `http.Transport`:
 
@@ -100,8 +101,11 @@ authentication or cookie headers. Classified error strings contain only a
 stable category and optional status code, so URLs, queries, credentials, and
 provider error text are not emitted when errors are logged normally.
 
-## Deferred work
+## Step 09 consumer
 
-Step 08 does not implement `SourceFetcher`, snapshot hashing/persistence,
-conditional-fetch semantics, cache writes, HTML/PDF parsing, discovery, or
-release ingestion. Those remain assigned to later I-03 steps.
+Step 09's `internal/infra/researchfetch` adapter now consumes this transport,
+including the request-specific response limit. Conditional headers, snapshot
+hashing/persistence, and body disposition are documented in
+[source-fetch-snapshots-v1.md](source-fetch-snapshots-v1.md). Cache writes,
+HTML/PDF parsing, discovery, and release ingestion remain assigned to later
+I-03 steps.

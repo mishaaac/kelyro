@@ -72,7 +72,8 @@ from entering domain or services:
 - `SearchProvider` accepts a validated `SearchQuery` and returns candidate
   `SearchResult` values. Results remain candidates, never evidence.
 - `SourceFetcher` accepts a bounded `FetchRequest` and returns `FetchedSource`
-  bytes plus transport-neutral `FetchMetadata`.
+  bytes plus transport-neutral `FetchMetadata`; the privacy-gated service marks
+  the result origin as `live` or `cache`.
 - `ReleaseLookupProvider` accepts a validated technology/channel query and
   returns release candidates for later evidence and verification work.
 - `SearchCache`, `SourceFetchCache`, and `ReleaseLookupCache` expose explicitly
@@ -82,12 +83,12 @@ from entering domain or services:
 - `MetadataExtractor` derives `SourceMetadata` from normalized data.
 - `Clock` supplies a validated research timestamp to time-dependent use cases.
 
-These are contracts only. Step 07 protects every live call with Foundation's
-privacy gate, but does not implement search, HTTP, retry, cache encoding,
-release discovery, normalization, metadata extraction, or a system clock
-adapter. `MaximumBytes` makes the fetch boundary explicitly bounded, but
-enforcement and security hardening remain adapter responsibilities in their
-dedicated steps.
+Step 07 protects every live call with Foundation's privacy gate. Steps 08–09
+implement the hardened HTTP transport and `SourceFetcher`; search, cache
+encoding, release discovery, normalization, and metadata extraction remain
+unimplemented. `MaximumBytes` is enforced by the fetch adapter as a
+request-specific limit below the transport's configured global ceiling. A
+safe redirect may change the returned locator without changing `SourceID`.
 
 ## Initial application services
 
@@ -97,6 +98,9 @@ The initial services are deliberately thin:
 - `DiscoveryService` validates queries, enforces research mode/privacy, and
   delegates to either the live provider or explicit offline cache;
 - `FetchService` applies the same boundary to live/cached source retrieval;
+- `SnapshotCaptureService` resolves the latest source snapshot, sends its
+  conditional validators through `FetchService`, verifies canonical content
+  metadata, and appends a new immutable observation;
 - `ReleaseLookupService` applies it to live/cached release lookups without
   persisting candidates automatically;
 - `SourceService` registers sources and records snapshots for known sources;
@@ -108,9 +112,11 @@ The initial services are deliberately thin:
 - `ImpactService` records and reads impact reports.
 
 They validate input, enforce immediate identity relationships, require their
-dependencies, delegate one bounded operation, and translate errors. They do not
-implement Trust Policy, authority matching, discovery planning, fetching,
-evidence extraction, verification rules, freshness formulas, release discovery,
+dependencies, delegate bounded operations, and translate errors. Snapshot
+capture is the first orchestration that reads prior immutable metadata before
+one append; it does not update history or persist raw bodies. They do not
+implement Trust Policy, authority matching, discovery planning, evidence
+extraction, verification rules, freshness formulas, release discovery,
 conflict resolution, drift detection, or impact analysis. Those remain future
 versioned policies and orchestration steps.
 
@@ -157,7 +163,7 @@ in Step 03.
 
 ## Deferred boundaries
 
-The current boundary does not add network adapters, credentials, background
-work, algorithms, evidence extraction, source bundles, public research
-commands, curriculum compilation, or student-state mutations. The Student Core
-remains offline and unchanged.
+The current boundary does not add search/release providers, credentials,
+background work, evidence extraction, source bundles, public research commands,
+curriculum compilation, or student-state mutations. The Student Core remains
+offline and unchanged.

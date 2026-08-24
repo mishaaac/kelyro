@@ -277,6 +277,23 @@ type FetchedSource struct {
 	FetchedAt research.Timestamp
 	Metadata  research.FetchMetadata
 	Body      []byte
+	Origin    FetchOrigin
+}
+
+type FetchOrigin string
+
+const (
+	FetchOriginLive  FetchOrigin = "live"
+	FetchOriginCache FetchOrigin = "cache"
+)
+
+func (origin FetchOrigin) Validate() error {
+	switch origin {
+	case FetchOriginLive, FetchOriginCache:
+		return nil
+	default:
+		return fmt.Errorf("invalid fetch origin %q", origin)
+	}
 }
 
 func (source FetchedSource) Validate() error {
@@ -290,6 +307,9 @@ func (source FetchedSource) Validate() error {
 		return fmt.Errorf("fetched source timestamp: %w", err)
 	}
 	if err := source.Metadata.Validate(); err != nil {
+		return err
+	}
+	if err := source.Origin.Validate(); err != nil {
 		return err
 	}
 	if source.Metadata.StatusCode != 204 && source.Metadata.StatusCode != 304 && len(source.Body) == 0 {
@@ -383,6 +403,61 @@ type DiscoveryService interface {
 
 type FetchService interface {
 	Fetch(context.Context, ResearchMode, FetchRequest) (FetchedSource, error)
+}
+
+type SnapshotBodyPolicy string
+
+const (
+	SnapshotMetadataOnly      SnapshotBodyPolicy = "metadata_only"
+	SnapshotNormalizedExcerpt SnapshotBodyPolicy = "normalized_excerpt"
+	SnapshotBoundedCachedBody SnapshotBodyPolicy = "bounded_cached_body"
+)
+
+func (policy SnapshotBodyPolicy) Validate() error {
+	switch policy {
+	case SnapshotMetadataOnly, SnapshotNormalizedExcerpt, SnapshotBoundedCachedBody:
+		return nil
+	default:
+		return fmt.Errorf("invalid snapshot body policy %q", policy)
+	}
+}
+
+const MaximumCachedSourceBodyBytes = 1 << 20
+
+type SnapshotCaptureRequest struct {
+	SourceID     research.SourceID
+	MaximumBytes int64
+	BodyPolicy   SnapshotBodyPolicy
+}
+
+func (request SnapshotCaptureRequest) Validate() error {
+	if err := request.SourceID.Validate(); err != nil {
+		return err
+	}
+	if request.MaximumBytes <= 0 {
+		return fmt.Errorf("snapshot maximum bytes must be positive")
+	}
+	if err := request.BodyPolicy.Validate(); err != nil {
+		return err
+	}
+	if request.BodyPolicy == SnapshotBoundedCachedBody && request.MaximumBytes > MaximumCachedSourceBodyBytes {
+		return fmt.Errorf("cached source body maximum exceeds %d bytes", MaximumCachedSourceBodyBytes)
+	}
+	return nil
+}
+
+// SnapshotCapture keeps raw content outside SourceSnapshot. NormalizationInput
+// is transient input for Step 10; CacheCandidate is bounded input for the
+// future cache layer. Neither is evidence or persisted snapshot history.
+type SnapshotCapture struct {
+	Snapshot              research.SourceSnapshot
+	RevalidatedSnapshotID *research.ID
+	NormalizationInput    []byte
+	CacheCandidate        []byte
+}
+
+type SnapshotCaptureService interface {
+	Capture(context.Context, ResearchMode, SnapshotCaptureRequest) (SnapshotCapture, error)
 }
 
 type ReleaseLookupService interface {

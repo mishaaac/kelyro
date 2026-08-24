@@ -144,6 +144,27 @@ func TestClientRejectsOversizeAndUnexpectedContent(t *testing.T) {
 	}
 }
 
+func TestClientEnforcesPerRequestResponseLimit(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/plain")
+		_, _ = writer.Write([]byte("five!"))
+	}))
+	defer server.Close()
+
+	config := testConfig()
+	config.MaxResponseBytes = 64
+	client := newTestClient(t, config, nil, nil, nil)
+	_, err := client.Do(context.Background(), Request{URL: server.URL, MaxResponseBytes: 4})
+	if !errors.Is(err, ErrResponseTooLarge) {
+		t.Fatalf("Do() error = %v, want ErrResponseTooLarge", err)
+	}
+	_, err = client.Do(context.Background(), Request{URL: server.URL, MaxResponseBytes: 65})
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("Do() oversized request limit error = %v, want ErrInvalidRequest", err)
+	}
+}
+
 func TestClientRetriesOnlyTransientStatusesWithBoundedBackoff(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -80,6 +80,12 @@ body. Evidence stores the excerpt separately from metadata and limits it to
 both adapters and SQLite constraints, preventing this initial persistence layer
 from becoming an unbounded raw-content archive.
 
+Step 09 uses this schema without a new migration. Each live `2xx` or `304`
+observation appends a new row; the service never updates an earlier row. A
+`304` row carries forward the canonical content identity and bounded metadata
+of the snapshot it revalidated, while its status, fetch time, and fetch version
+record the new observation.
+
 No credential or secret columns exist. Source aliases, release/deprecation
 records, claims, citations, bundles, and conflicts have schema representation
 but no new application services in this step; later authorized steps may add

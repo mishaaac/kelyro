@@ -14,6 +14,7 @@ The first domain step uses one cohesive Go package split into files by area:
 ```text
 internal/research/
 ├── value.go         identities, timestamps, locators, topics, scores
+├── content.go       canonical fetched-content hashing v1
 ├── source.go        sources, metadata, fetch metadata, snapshots
 ├── research.go      requests, runs, authority, trust, discovery candidates
 ├── evidence.go      evidence, claims, provenance, citations, bundles
@@ -78,6 +79,11 @@ evaluated in context by a later, versioned trust policy.
 used, `fetched_at`, and transport-neutral `FetchMetadata`. It contains metadata
 only; it neither requires nor authorizes retaining an unbounded response body.
 Snapshots preserve changes over time instead of overwriting prior observations.
+
+`CanonicalContentHashV1` defines `sha256:<lowercase hex>` over the exact bounded,
+decoded fetch bytes. It is deterministic domain logic with no HTTP dependency;
+the Step 09 adapter and capture service share it so snapshot content identity
+cannot drift between layers.
 
 ## Research, authority, trust, and discovery
 

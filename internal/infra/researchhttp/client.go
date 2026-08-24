@@ -47,11 +47,13 @@ type Observer interface {
 	Observe(context.Context, Event)
 }
 
-// Request is a bounded GET request. Sensitive request headers are rejected and
-// the User-Agent and compression behavior remain owned by Client.
+// Request is a bounded GET request. MaxResponseBytes may lower, but never
+// raise, the configured response limit. Sensitive request headers are rejected
+// and the User-Agent and compression behavior remain owned by Client.
 type Request struct {
-	URL    string
-	Header http.Header
+	URL              string
+	Header           http.Header
+	MaxResponseBytes int64
 }
 
 // Response exposes only headers needed by future source snapshot adapters.
@@ -146,7 +148,7 @@ func (client *Client) Do(ctx context.Context, input Request) (Response, error) {
 	if err := ctx.Err(); err != nil {
 		return Response{}, err
 	}
-	parsed, header, err := client.validateRequest(ctx, input)
+	parsed, header, responseLimit, err := client.validateRequest(ctx, input)
 	if err != nil {
 		return Response{}, err
 	}
@@ -165,7 +167,7 @@ func (client *Client) Do(ctx context.Context, input Request) (Response, error) {
 			}
 		}
 
-		response, requestErr := client.attempt(ctx, parsed, header)
+		response, requestErr := client.attempt(ctx, parsed, header, responseLimit)
 		if requestErr == nil {
 			client.observe(ctx, Event{Attempt: attempt, StatusCode: response.StatusCode, Outcome: OutcomeSucceeded})
 			return response, nil
@@ -184,13 +186,20 @@ func (client *Client) Do(ctx context.Context, input Request) (Response, error) {
 	return Response{}, classified(ErrorTransport, errors.New("retry loop ended unexpectedly"))
 }
 
-func (client *Client) validateRequest(ctx context.Context, input Request) (*url.URL, http.Header, error) {
+func (client *Client) validateRequest(ctx context.Context, input Request) (*url.URL, http.Header, int64, error) {
 	parsed, err := url.Parse(input.URL)
 	if err != nil {
-		return nil, nil, classified(ErrorInvalidRequest, errors.New("target URL is invalid"))
+		return nil, nil, 0, classified(ErrorInvalidRequest, errors.New("target URL is invalid"))
 	}
 	if err := validateTarget(ctx, parsed, client.network.resolver, client.network.addressPolicy); err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
+	}
+	responseLimit := input.MaxResponseBytes
+	if responseLimit == 0 {
+		responseLimit = client.config.MaxResponseBytes
+	}
+	if responseLimit < 0 || responseLimit > client.config.MaxResponseBytes {
+		return nil, nil, 0, classified(ErrorInvalidRequest, errors.New("request response limit is outside the configured bound"))
 	}
 	header := input.Header.Clone()
 	if header == nil {
@@ -200,24 +209,24 @@ func (client *Client) validateRequest(ctx context.Context, input Request) (*url.
 	for name, values := range header {
 		canonical := http.CanonicalHeaderKey(name)
 		if isSensitiveHeader(canonical) || strings.EqualFold(canonical, "Accept-Encoding") || strings.EqualFold(canonical, "User-Agent") {
-			return nil, nil, classified(ErrorInvalidRequest, errors.New("request contains a client-owned or sensitive header"))
+			return nil, nil, 0, classified(ErrorInvalidRequest, errors.New("request contains a client-owned or sensitive header"))
 		}
 		headerBytes += len(canonical)
 		for _, value := range values {
 			if strings.ContainsAny(value, "\r\n\x00") {
-				return nil, nil, classified(ErrorInvalidRequest, errors.New("request header contains control characters"))
+				return nil, nil, 0, classified(ErrorInvalidRequest, errors.New("request header contains control characters"))
 			}
 			headerBytes += len(value)
 		}
 	}
 	if headerBytes > maximumRequestHeaderBytes {
-		return nil, nil, classified(ErrorInvalidRequest, errors.New("request headers exceed the bounded limit"))
+		return nil, nil, 0, classified(ErrorInvalidRequest, errors.New("request headers exceed the bounded limit"))
 	}
 	header.Set("User-Agent", client.config.UserAgent)
-	return parsed, header, nil
+	return parsed, header, responseLimit, nil
 }
 
-func (client *Client) attempt(ctx context.Context, parsed *url.URL, header http.Header) (Response, error) {
+func (client *Client) attempt(ctx context.Context, parsed *url.URL, header http.Header, responseLimit int64) (Response, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return Response{}, classified(ErrorInvalidRequest, errors.New("create request"))
@@ -246,10 +255,10 @@ func (client *Client) attempt(ctx context.Context, parsed *url.URL, header http.
 		drainAndClose(response.Body)
 		return Response{}, statusError(response.StatusCode)
 	}
-	return client.readResponse(response)
+	return client.readResponse(response, responseLimit)
 }
 
-func (client *Client) readResponse(response *http.Response) (Response, error) {
+func (client *Client) readResponse(response *http.Response, responseLimit int64) (Response, error) {
 	defer response.Body.Close()
 	if encoding := strings.TrimSpace(response.Header.Get("Content-Encoding")); encoding != "" && !strings.EqualFold(encoding, "identity") {
 		return Response{}, classified(ErrorUnsupportedEncoding, errors.New("unsupported content encoding"))
@@ -262,14 +271,14 @@ func (client *Client) readResponse(response *http.Response) (Response, error) {
 		}
 		contentType = strings.ToLower(mediaType)
 	}
-	if response.ContentLength > client.config.MaxResponseBytes {
+	if response.ContentLength > responseLimit {
 		return Response{}, classified(ErrorResponseTooLarge, errors.New("declared response size exceeds limit"))
 	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, client.config.MaxResponseBytes+1))
+	body, err := io.ReadAll(io.LimitReader(response.Body, responseLimit+1))
 	if err != nil {
 		return Response{}, classifyTransportError(err)
 	}
-	if int64(len(body)) > client.config.MaxResponseBytes {
+	if int64(len(body)) > responseLimit {
 		return Response{}, classified(ErrorResponseTooLarge, errors.New("response body exceeds limit"))
 	}
 	return Response{

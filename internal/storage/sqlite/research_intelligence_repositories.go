@@ -411,7 +411,7 @@ type researchCacheRepository struct {
 	timeout  time.Duration
 }
 
-const maximumResearchCachePayloadBytes = 1 << 20
+const maximumResearchCachePayloadBytes = application.MaximumCachedSourceBodyBytes
 
 func (repository *researchCacheRepository) Put(ctx context.Context, entry application.CacheEntry) error {
 	const operation = "put SQLite research cache entry"

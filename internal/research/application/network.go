@@ -146,9 +146,14 @@ func (service *fetchService) Fetch(ctx context.Context, mode ResearchMode, reque
 }
 
 func validateFetchedSource(operation string, request FetchRequest, fetched FetchedSource, cached bool) (FetchedSource, error) {
+	if cached {
+		fetched.Origin = FetchOriginCache
+	} else {
+		fetched.Origin = FetchOriginLive
+	}
 	err := fetched.Validate()
-	if err == nil && (fetched.SourceID != request.SourceID || fetched.Locator != request.Locator) {
-		err = errors.New("fetched source does not match request")
+	if err == nil && fetched.SourceID != request.SourceID {
+		err = errors.New("fetched source identity does not match request")
 	}
 	if err == nil {
 		return fetched, nil

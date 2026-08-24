@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 9
-Last completed step: 8
+Current step: 10
+Last completed step: 9
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -647,3 +647,85 @@ Release: unreleased
   timeouts, redirects, retries, SSRF ni content limits.
 - No implementar normalización/parsing, discovery, evidence extraction ni
   pasos posteriores durante el Paso 9.
+
+## Step 09 — Source Fetcher y Source Snapshot
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Adapter `internal/infra/researchfetch` para el puerto `SourceFetcher`, con
+  versión explícita `source-fetch-v1`, timestamps UTC, locator final y metadata
+  transport-neutral.
+- Requests condicionales `If-None-Match`/`If-Modified-Since`, preservación
+  acotada de ETag/Last-Modified y representación válida de `304 Not Modified`.
+- Hash de contenido canónico versionado como SHA-256 lowercase sobre los bytes
+  decodificados exactos, compartido por adapter y application service.
+- Límite de response por request que solo puede estrechar el límite global del
+  Research HTTP Client, manteniendo sus controles de SSRF, content type,
+  compresión, timeout, redirect y retry.
+- `SnapshotCaptureService` que resuelve fuente/último snapshot, envía
+  validators por el `FetchService` protegido por privacy, verifica hash/length
+  y añade una nueva observación inmutable.
+- Origen explícito `live`/`cache`: redirects seguros conservan el locator final
+  sin cambiar `SourceID`, mientras resultados offline nunca se registran como
+  un fetch nuevo ni falsean `fetched_at`.
+- Revalidación `304` que exige snapshot previo canónico y validator, registra
+  un nuevo evento de fetch y referencia el snapshot revalidado sin duplicar ni
+  inventar body.
+- Políticas explícitas `metadata_only`, `normalized_excerpt` y
+  `bounded_cached_body`; snapshots nunca persisten raw body, y las dos últimas
+  solo producen copias defensivas acotadas para los pasos 10/32.
+- Tests de body cambiado, ETag sin cambio con respuesta `200`, requests
+  condicionales, `304`, content type inválido, límites global/per-request,
+  historial append-only, body disposition y relaciones inválidas.
+- Contrato y límites documentados en
+  `docs/architecture/source-fetch-snapshots-v1.md` y sincronizados con la
+  documentación de domain, application, HTTP y persistence.
+
+### Decisions
+
+- Un ETag es validator, no identidad de contenido. Toda respuesta body-bearing
+  calcula SHA-256 aunque el provider conserve el mismo ETag.
+- El hash cubre bytes después de la decodificación HTTP segura y antes de la
+  normalización; Step 10 tendrá su propia representación derivada.
+- Cada `2xx` y cada `304` válido añade un snapshot. Un `304` conserva su status,
+  fetch time/version y copia content type/hash/length del snapshot previo; el
+  resultado expone `RevalidatedSnapshotID`.
+- No se añadió migration: el schema v23 ya contiene todos los campos requeridos
+  y su repository es append-only. La referencia durable de un `304` se
+  reconstruye por source, orden histórico y hash canónico.
+- `metadata_only` descarta el body tras verificarlo.
+  `normalized_excerpt` entrega input transitorio sin parsearlo ni persistirlo.
+  `bounded_cached_body` entrega un candidato defensivo de máximo 1 MiB, pero
+  cache encoding/write/expiry/eviction permanecen reservados al Paso 32.
+- Privacy authorization permanece en `FetchService`; el adapter HTTP no se
+  autoautoriza y el capture service no acepta un `SourceFetcher` live directo.
+- No se implementaron normalization/parsing, discovery, evidence/claims,
+  Research Cache, release ingestion, CLI Research, Curriculum Compiler ni
+  cambios de Student Core.
+
+### Verification
+
+- Documentación actual de Go standard library consultada mediante Context7
+  para requests/headers condicionales, respuestas `304` y SHA-256.
+- Tests dirigidos de Research domain/application, Source Fetcher, HTTP client y
+  persistence SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go vet ./...`.
+- `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOCACHE=/tmp/kelyro-i03-step8-cross-gocache go test -exec=/bin/true ./internal/infra/researchfetch ./internal/research/application`.
+- `GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GOCACHE=/tmp/kelyro-i03-step8-cross-gocache go test -exec=/bin/true ./internal/infra/researchfetch ./internal/research/application`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step8-full-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go test -race ./...`, build y smokes
+  de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 10 es el siguiente paso pendiente y requiere autorización explícita.
+- Source Normalization podrá consumir `SnapshotCapture.NormalizationInput` y
+  producir excerpts/estructura derivados sin alterar snapshots históricos.
+- No implementar discovery, evidence extraction, cache persistence ni pasos
+  posteriores durante el Paso 10.

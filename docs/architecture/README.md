@@ -48,6 +48,10 @@ The reusable Research HTTP transport, bounded retry policy, response limits,
 safe hooks, compression behavior, redaction boundary, and SSRF defenses are
 documented in [research-http-client.md](research-http-client.md).
 
+The `SourceFetcher` adapter, canonical content hash, conditional revalidation,
+append-only snapshot capture, and raw-body disposition contract are documented
+in [source-fetch-snapshots-v1.md](source-fetch-snapshots-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

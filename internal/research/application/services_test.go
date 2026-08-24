@@ -248,7 +248,7 @@ func TestExternalAdapterDTOsValidateBoundedTransportNeutralData(t *testing.T) {
 			StatusCode: 200, ContentType: "text/html", ContentHash: "sha256:abc",
 			ContentLength: 10, FetchVersion: fixtureVersion,
 		},
-		Body: []byte("fixture"),
+		Body: []byte("fixture"), Origin: application.FetchOriginLive,
 	}
 	if err := fetched.Validate(); err != nil {
 		t.Fatalf("FetchedSource.Validate() error = %v", err)

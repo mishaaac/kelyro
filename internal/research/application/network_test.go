@@ -80,6 +80,9 @@ func TestNetworkResearchAutoUsesOfflineCacheWhenPrivacyBlocks(t *testing.T) {
 	if err != nil || fetched.SourceID != fixture.fetchRequest.SourceID {
 		t.Fatalf("cached Fetch() = (%+v, %v)", fetched, err)
 	}
+	if fetched.Origin != application.FetchOriginCache {
+		t.Fatalf("cached Fetch() origin = %q", fetched.Origin)
+	}
 	records, err := application.NewReleaseLookupService(releases, releaseCache, access).
 		Lookup(context.Background(), application.ResearchModeAuto, fixture.releaseQuery)
 	if err != nil || len(records) != 1 {
@@ -91,6 +94,25 @@ func TestNetworkResearchAutoUsesOfflineCacheWhenPrivacyBlocks(t *testing.T) {
 	}
 	if searchCache.calls != 1 || fetchCache.calls != 1 || releaseCache.calls != 1 {
 		t.Fatalf("cache calls = search:%d fetch:%d release:%d, want one each", searchCache.calls, fetchCache.calls, releaseCache.calls)
+	}
+}
+
+func TestFetchServiceAcceptsHardenedRedirectLocatorAndMarksLiveOrigin(t *testing.T) {
+	t.Parallel()
+	fixture := networkFixture(t)
+	redirected := fixture.fetched
+	redirected.Locator = testLocator(t, "redirected")
+	service := application.NewFetchService(
+		&recordingSourceFetcher{fetched: redirected}, nil,
+		application.NetworkResearchAccess{Gate: &recordingNetworkGate{}},
+	)
+
+	result, err := service.Fetch(context.Background(), application.ResearchModeOnline, fixture.fetchRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Locator != redirected.Locator || result.Origin != application.FetchOriginLive {
+		t.Fatalf("redirected live result = %+v", result)
 	}
 }
 
