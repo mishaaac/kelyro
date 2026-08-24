@@ -28,6 +28,21 @@ func TestDiagnosticEvaluatorsAreDeterministic(t *testing.T) {
 	}
 }
 
+func TestDiagnosticEvaluatorErrorsDoNotEchoRejectedAnswers(t *testing.T) {
+	t.Parallel()
+	const privateAnswer = "private-free-form-answer-7d91"
+	item := diagnosticFixture(t).Items()[0]
+	for _, answers := range [][]string{{privateAnswer}, {privateAnswer, privateAnswer}} {
+		_, err := item.Evaluate(answers)
+		if err == nil {
+			t.Fatalf("Evaluate(%v) error = nil", answers)
+		}
+		if strings.Contains(err.Error(), privateAnswer) {
+			t.Fatalf("Evaluate(%v) leaked rejected answer in %q", answers, err)
+		}
+	}
+}
+
 func TestDiagnosticResultSeparatesEstimateConfidenceAndUnknown(t *testing.T) {
 	t.Parallel()
 	diagnostic := diagnosticFixture(t)

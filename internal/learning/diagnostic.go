@@ -158,7 +158,7 @@ func (item DiagnosticItem) Evaluate(answers []string) (MasteryScore, error) {
 			return MasteryScore{}, fmt.Errorf("diagnostic answer contains an empty value")
 		}
 		if _, exists := seen[answer]; exists {
-			return MasteryScore{}, fmt.Errorf("diagnostic answer contains duplicate value %q", answer)
+			return MasteryScore{}, fmt.Errorf("diagnostic answer contains a duplicate value")
 		}
 		seen[answer] = struct{}{}
 	}
@@ -169,7 +169,7 @@ func (item DiagnosticItem) Evaluate(answers []string) (MasteryScore, error) {
 		}
 		for _, answer := range answers {
 			if _, exists := allowed[answer]; !exists {
-				return MasteryScore{}, fmt.Errorf("diagnostic answer %q is not an item option", answer)
+				return MasteryScore{}, fmt.Errorf("diagnostic answer is not an item option")
 			}
 		}
 		if item.Kind != DiagnosticMultipleChoice && len(answers) != 1 {

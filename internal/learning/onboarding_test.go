@@ -1,6 +1,7 @@
 package learning_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,26 @@ func TestOnboardingInterviewRejectsInvalidInputAndRequiresFinalConfirmation(t *t
 	}
 	if _, err := completed.Start(flow, onboardingTime(t, 31)); err == nil {
 		t.Fatal("completed interview restarted")
+	}
+}
+
+func TestOnboardingErrorsDoNotEchoRejectedAnswers(t *testing.T) {
+	t.Parallel()
+	const privateAnswer = "private-selection-4e2c"
+	flow := application.DefaultOnboardingFlow()
+	studentID, _ := learning.NewID("student.private-answer")
+	interview, _ := learning.NewOnboardingInterview(studentID, flow, onboardingTime(t, 0))
+	interview, _ = interview.Start(flow, onboardingTime(t, 1))
+	interview, _ = interview.Submit(flow, "", onboardingTime(t, 2))
+	interview, _ = interview.Submit(flow, "Goal", onboardingTime(t, 3))
+	interview, _ = interview.Submit(flow, "Domain", onboardingTime(t, 4))
+	interview, _ = interview.Submit(flow, "Outcome", onboardingTime(t, 5))
+	_, err := interview.Submit(flow, privateAnswer, onboardingTime(t, 6))
+	if err == nil {
+		t.Fatal("invalid onboarding selection was accepted")
+	}
+	if strings.Contains(err.Error(), privateAnswer) {
+		t.Fatalf("onboarding error leaked rejected answer in %q", err)
 	}
 }
 

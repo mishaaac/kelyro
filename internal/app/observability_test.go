@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,22 @@ import (
 	"github.com/mishaaac/kelyro/internal/logging"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
+
+func TestStudentAuthoredAnswersAreRedactedBeforeLogSerialization(t *testing.T) {
+	t.Parallel()
+	const privateAnswer = "my private diagnostic explanation"
+	service := &Service{}
+	entry := service.logEntry(Command{
+		Action: ActionSetup, SetupOperation: "diagnostic-submit", SetupAnswers: []string{privateAnswer},
+	}, "/workspace", logging.Error, "diagnostic answer "+privateAnswer+" is invalid", errors.New("invalid answer"))
+	sanitized := logging.Sanitize(entry)
+	if strings.Contains(sanitized.Message, privateAnswer) || !strings.Contains(sanitized.Message, logging.Redacted) {
+		t.Fatalf("sanitized diagnostic log message = %q", sanitized.Message)
+	}
+	if len(sanitized.Sensitive) != 0 {
+		t.Fatalf("sanitized diagnostic log retained sensitive values: %#v", sanitized.Sensitive)
+	}
+}
 
 func TestServiceExposesLogPathAndPersistentAuditEntries(t *testing.T) {
 	t.Parallel()

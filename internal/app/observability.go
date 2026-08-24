@@ -157,7 +157,7 @@ func (service *Service) logEntry(command Command, root string, level logging.Lev
 	}
 	entry := logging.Entry{
 		Level: level, Message: message, Operation: operation, Workspace: root,
-		Component: "application", Sensitive: []string{command.SecretValue},
+		Component: "application", Sensitive: commandSensitiveValues(command),
 	}
 	if command.Verbose {
 		entry.Fields = map[string]string{"action": string(command.Action)}
@@ -166,6 +166,23 @@ func (service *Service) logEntry(command Command, root string, level logging.Lev
 		entry.ErrorCategory = errorCategory(operationErr)
 	}
 	return entry
+}
+
+func commandSensitiveValues(command Command) []string {
+	values := []string{command.SecretValue, command.OnboardingAnswer}
+	values = append(values, command.SetupAnswers...)
+	for _, candidate := range []*string{
+		command.ProfileChanges.DisplayName,
+		command.ProfileChanges.PreferredLanguage,
+		command.ProfileChanges.Timezone,
+	} {
+		if candidate != nil {
+			values = append(values, *candidate)
+		}
+	}
+	values = append(values, command.GoalInput.Title, command.GoalInput.Description,
+		command.GoalInput.Domain, command.GoalInput.TargetOutcome)
+	return values
 }
 
 func errorCategory(err error) string {

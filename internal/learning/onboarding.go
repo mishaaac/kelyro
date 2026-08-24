@@ -396,7 +396,7 @@ func (question OnboardingQuestion) validateAnswer(value string) (string, error) 
 				return value, nil
 			}
 		}
-		return "", fmt.Errorf("answer %q is invalid for %q", value, question.ID)
+		return "", fmt.Errorf("answer is invalid for onboarding question %q", question.ID)
 	}
 	return value, nil
 }
