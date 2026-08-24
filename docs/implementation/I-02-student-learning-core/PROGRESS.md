@@ -2,9 +2,9 @@
 
 ## Estado general
 
-Current step: 33 (pending authorization)
-Last completed step: 32
-Current release: v0.1.0-alpha.2
+Current step: complete
+Last completed step: 33
+Current release: unreleased (latest published: v0.1.0-alpha.2)
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
 ## Registro
@@ -1454,3 +1454,68 @@ Release: unreleased
 - El Paso 33 es el siguiente paso pendiente y requiere autorización explícita.
 - El cierre formal debe usar este gate de dogfooding como evidencia y no reabrir features de I-02 sin un bug reproducible.
 - No comenzar I-03 ni implementar Research Engine, Curriculum Compiler, Exercise Engine, IA o plugins sin su implementación y autorización propias.
+
+## Step 33 — Formal I-02 Student & Learning Core closure
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased (latest published: v0.1.0-alpha.2)
+
+### Delivered
+
+- Formal audit of all 34 implementation steps against their per-step completion records and Conventional Commits.
+- Final execution, capability, and Definition of Done checklists synchronized with the delivered and verified repository state.
+- Public status updated to distinguish completed source from the latest published Foundation prerelease.
+- I-02 compatibility boundaries retained in `AGENTS.md`, with later implementations requiring their own specification and authorization.
+- Stable domain, curriculum, mastery, retention, daily-plan, dashboard, TUI, and adapter boundaries reviewed and indexed as completed v1 contracts.
+- Dependency audit confirming that `internal/learning` remains standard-library-only and does not know Bubble Tea, SQLite, GitHub, AI providers, research, curriculum generation, or the operating system.
+- Full quality and cross-platform GitHub Actions gates for Foundation and Student Core, including Linux race coverage and Linux/macOS/Windows test, E2E, vet, build, and smoke checks.
+- No release or tag created: I-02 is complete in source, while `v0.1.0-alpha.2` remains the latest real SemVer release and contains Foundation only.
+
+### Decisions
+
+- Completion of an implementation and publication of a release remain separate events. A future release must choose its version from the then-current SemVer history and use an annotated tag; Step 33 does not guess that version.
+- The conditional annotated-tag Definition of Done item is satisfied by explicitly recording that no release was published, so no tag is required or permitted for this closure.
+- Hosted CI on `main` is the authoritative platform signal. Local cross-compilation and the full quality runner provide pre-push evidence but do not masquerade as hosted Windows/macOS execution.
+- The final checklist is evidence-backed rather than a second implementation tracker: each checked capability maps to a completed step, regression suite, architecture record, or controlled dogfooding result.
+- I-03 is ready to begin as a separately specified implementation; no Research Engine, production Learning Pack, full Exercise/Assessment Engine, AI runtime, provider, or plugin was added during closure.
+
+### Verification
+
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step33-quality-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go run ./tools/quality all`.
+- `go mod verify` and `gofmt -l` over all tracked Go files.
+- Direct-import audit of `./internal/learning` and repository search for forbidden Student Core dependencies or premature I-03+ packages.
+- Versioned-secret signature scan over tracked files, with no findings.
+- Cross-platform GitHub Actions `CI` matrix on merged `main`: Ubuntu, macOS, and Windows all green.
+- `git diff --check` and clean working tree after the closure commit.
+
+### Notes for next implementation
+
+- I-02 Student & Learning Core is closed. Reopen it only for a reproducible regression or an explicitly scoped compatibility change.
+- I-03 Research & Source Intelligence may now define its own PLAN, PROGRESS, source-verification policies, and authorization boundary.
+- Production Learning Packs, generated exercises, assessment execution, AI runtime/providers, and plugins remain outside I-02.
+
+## I-02 Student & Learning Core Completion
+
+Status: completed
+Release: unreleased (latest published: v0.1.0-alpha.2)
+Completed steps: 0-33
+
+Algorithms and versioned contracts:
+- `curriculum-consumption/v1`
+- `diagnostic/v1` and `diagnostic-scoring/v1`
+- `threshold-v1`, `mastery-v1`, `prerequisite-v1`, and `progression-v1`
+- `study-session-v1`, `study-history-v1`, and `time-tracking-v1`
+- `retention-v1`, `review-scheduler-v1`, and `warm-up-selector-v1`
+- `streak-v1`, `achievement-v1`, and `learning-analytics-v1`
+- `daily-plan-v1` and `progress-dashboard/v1`
+
+Known limitations:
+- No Research Engine or source-intelligence pipeline yet.
+- No researched production Learning Packs or Curriculum Compiler yet.
+- No full Exercise/Assessment Engine or generated learning content yet.
+- No AI runtime, AI provider, plugin runtime, or automatic network dependency.
+- I-02 is not included in the latest published `v0.1.0-alpha.2` artifacts; release publication remains a separate authorized workflow.
+
+Ready for:
+I-03 Research & Source Intelligence

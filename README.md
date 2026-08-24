@@ -7,25 +7,28 @@ persistence needed to build the product incrementally.
 
 ## Status
 
-Foundation pre-release `v0.1.0-alpha.2`. I-02 Student & Learning Core is in
-progress through its persistent terminal experience. The current executable
-provides workspace initialization, global/project configuration, secret management,
-safe opening of Foundation documents, portability and recovery operations, and
-an interactive TUI with resumable onboarding, a learning goal, mastery policy,
-an optional deterministic diagnostic, and fixture-backed initial curriculum
+The latest published prerelease is Foundation `v0.1.0-alpha.2`. I-02 Student &
+Learning Core is complete and verified in source, but has not yet been assigned
+or published as a new SemVer release. The executable provides workspace
+initialization, global/project configuration, secret management, safe opening
+of Foundation documents, portability and recovery operations, and an
+interactive TUI with resumable onboarding, a learning goal, mastery policy, an
+optional deterministic diagnostic, and fixture-backed initial curriculum
 state, persistent mistake/session lifecycles, and `history`/`time` inspection.
-The core now includes retention, review scheduling, warm-ups, non-punitive
-streaks, achievements, explainable analytics, deterministic adaptive daily
-planning, and a coherent dashboard presented through Home, Today, Progress,
+The core includes retention, review scheduling, warm-ups, non-punitive streaks,
+achievements, explainable analytics, deterministic adaptive daily planning, and
+a coherent height-aware dashboard presented through Home, Today, Progress,
 Concept, Roadmap, Reviews, History, Goal, and Profile views. Exercise work and
 generated exercise content remain pending. The same read model powers the
 human-readable Student Core CLI and explicit `kelyro progress export` Markdown
 snapshot. Advanced maintenance can preview or apply a backup-protected rebuild
 of derived learning state with `kelyro maintenance recalculate --dry-run` or
-`kelyro maintenance recalculate`. Student Core persistence now also performs
+`kelyro maintenance recalculate`. Student Core persistence performs
 cross-aggregate integrity checks and is regression-tested with a 2,000-concept,
-6,000-evidence deterministic fixture. See the
-[release notes](docs/releases/v0.1.0-alpha.2.md) for scope and limitations.
+6,000-evidence deterministic fixture. The completion record and known
+limitations live in
+[I-02 PROGRESS](docs/implementation/I-02-student-learning-core/PROGRESS.md);
+the published `v0.1.0-alpha.2` release notes still describe Foundation only.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
 

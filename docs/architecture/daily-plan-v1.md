@@ -5,6 +5,10 @@ student should work on today. It selects concepts and kinds of work; it does
 not generate lessons, exercises, assessments, feedback, or educational
 content. Those remain owned by I-05.
 
+This contract is delivered as part of the completed I-02 Student & Learning
+Core. Its persisted snapshot and explainable selection are consumed by the
+shared dashboard, CLI, TUI, and Markdown projections.
+
 ## Boundary and inputs
 
 The pure policy lives in `internal/learning`. The application service resolves

@@ -4,6 +4,11 @@ Kelyro is being built as a local-first, cross-platform system whose core stays
 independent from presentation frameworks, storage engines, external services,
 AI providers, and operating-system details.
 
+I-02 Student & Learning Core is complete in source. The records below are the
+stable v1 contracts and adapter boundaries that later implementations consume;
+they do not imply that Research, production Learning Packs, generated
+exercises, or AI runtime behavior already exist.
+
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
 
@@ -21,6 +26,12 @@ repository adapter are documented in
 The separation between immutable curriculum definitions, learner curriculum
 instances, and sparse instance-scoped concept state is documented in
 [learner-curriculum-instances.md](learner-curriculum-instances.md).
+
+The deterministic curriculum hierarchy, stable identities, validation, and
+fixture-loading boundary are documented in
+[curriculum-consumption-contract.md](curriculum-consumption-contract.md), while
+prerequisite evaluation lives in
+[knowledge-graph-prerequisite-engine.md](knowledge-graph-prerequisite-engine.md).
 
 The deterministic initial diagnostic contract, scoring/confidence policy,
 adaptive branching, evidence linkage, and resumable persistence are documented
@@ -55,6 +66,18 @@ transaction, persistence compatibility, and restrained TUI message are
 documented in
 [learning-achievements-v1.md](learning-achievements-v1.md).
 
+The explainable mastery, retention, pace, time, and activity projections are
+documented in
+[explainable-learning-analytics-v1.md](explainable-learning-analytics-v1.md).
+
+The deterministic priority, prerequisite, time-budget, snapshot, and
+regeneration policy for today's work is documented in
+[daily-plan-v1.md](daily-plan-v1.md).
+
+The shared read model that keeps CLI and TUI metrics semantically aligned is
+documented in
+[progress-dashboard-read-model.md](progress-dashboard-read-model.md).
+
 The persistent, deduplicated mistake model, generic classification vocabulary,
 immutable lifecycle history, application write boundary, and legacy migration
 are documented in [mistake-memory.md](mistake-memory.md).
@@ -70,6 +93,10 @@ transactional initial learner state is documented in
 The human-readable Student Core command surface, shared dashboard routing,
 empty-state behavior, and exit-code contract are documented in
 [student-core-cli.md](student-core-cli.md).
+
+The persistent terminal navigation, refresh, accessibility, and height-bounded
+viewport behavior are documented in
+[student-core-tui.md](student-core-tui.md).
 
 The explicit human-readable learning snapshot, document contents, template
 versions, privacy boundary, and safe regeneration policy are documented in

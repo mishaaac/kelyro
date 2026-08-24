@@ -1,6 +1,6 @@
 # Evidence model and mastery-v1
 
-Step 13 calculates concept mastery from immutable evidence. The calculation is
+`mastery-v1` calculates concept mastery from immutable evidence. The calculation is
 domain logic: it has no SQLite, curriculum traversal, presentation, retention,
 or progression dependency. It never changes concept state.
 
@@ -68,10 +68,9 @@ Before summing, evidence is ordered by `occurred_at` and then stable evidence
 ID. Equal timestamps and repository/map ordering therefore produce the same
 floating-point operation sequence and breakdown.
 
-`mastery-v1` does not decay old evidence or privilege recent evidence. Step 18
-owns retention and may later supply an explicit versioned policy. A future
-mastery algorithm can recalculate from the append-only history without
-rewriting that history.
+`mastery-v1` does not decay old evidence or privilege recent evidence.
+`retention-v1` separately models recall over time. A future mastery algorithm
+can recalculate from the append-only history without rewriting that history.
 
 ## Explainability
 
@@ -80,7 +79,7 @@ returns both a calculation and a human summary. The structured contribution
 for every item contains its score, type weight, metadata modifiers, effective
 and normalized weights, weighted score, timestamp, and source reference.
 
-The calculation service only reads evidence. Step 14's `ProgressionService`
+The calculation service only reads evidence. `ProgressionService`
 uses it inside a transaction to persist calculated mastery, change exposure,
 and derive unlock decisions; the formula remains defined only here.
 

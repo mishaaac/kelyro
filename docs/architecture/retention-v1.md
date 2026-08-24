@@ -1,6 +1,6 @@
 # Retention Model v1
 
-Step 18 distinguishes evidence-derived proficiency from the current estimate
+`retention-v1` distinguishes evidence-derived proficiency from the current estimate
 that the learner can recall a concept. `retention-v1` is deterministic domain
 logic. It does not query SQLite, read a timezone, create exercises, or schedule
 review items.

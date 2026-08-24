@@ -3016,7 +3016,7 @@ si corresponde.
 
 ## Paso 33 — Cerrar formalmente I-02 Student & Learning Core
 
-- [ ] Paso 33 completado
+- [x] Paso 33 completado
 
 ### Objetivo
 
@@ -3143,40 +3143,40 @@ Crear annotated tag únicamente si corresponde a release real.
 
 ## Ejecución
 
-- [ ] Paso 0 — Apertura formal de I-02
-- [ ] Paso 1 — Modelo de dominio educativo
-- [ ] Paso 2 — Repositories y application services
-- [ ] Paso 3 — SQLite schema y migrations
-- [ ] Paso 4 — Student Profile
-- [ ] Paso 5 — Learning Goals
-- [ ] Paso 6 — Onboarding resumible
-- [ ] Paso 7 — Mastery Threshold
-- [ ] Paso 8 — Curriculum consumption model
-- [ ] Paso 9 — Knowledge Graph y prerequisites
-- [ ] Paso 10 — Curriculum Instance
-- [ ] Paso 11 — Diagnostic framework
-- [ ] Paso 12 — Integración onboarding + diagnóstico
-- [ ] Paso 13 — Evidence + Mastery Engine v1
-- [ ] Paso 14 — Progression Policy
-- [ ] Paso 15 — Mistake Memory
-- [ ] Paso 16 — Study Sessions
-- [ ] Paso 17 — Study History + Time Tracking
-- [ ] Paso 18 — Retention Model v1
-- [ ] Paso 19 — Spaced Repetition Scheduler v1
-- [ ] Paso 20 — Warm-up Selector
-- [ ] Paso 21 — Streaks
+- [x] Paso 0 — Apertura formal de I-02
+- [x] Paso 1 — Modelo de dominio educativo
+- [x] Paso 2 — Repositories y application services
+- [x] Paso 3 — SQLite schema y migrations
+- [x] Paso 4 — Student Profile
+- [x] Paso 5 — Learning Goals
+- [x] Paso 6 — Onboarding resumible
+- [x] Paso 7 — Mastery Threshold
+- [x] Paso 8 — Curriculum consumption model
+- [x] Paso 9 — Knowledge Graph y prerequisites
+- [x] Paso 10 — Curriculum Instance
+- [x] Paso 11 — Diagnostic framework
+- [x] Paso 12 — Integración onboarding + diagnóstico
+- [x] Paso 13 — Evidence + Mastery Engine v1
+- [x] Paso 14 — Progression Policy
+- [x] Paso 15 — Mistake Memory
+- [x] Paso 16 — Study Sessions
+- [x] Paso 17 — Study History + Time Tracking
+- [x] Paso 18 — Retention Model v1
+- [x] Paso 19 — Spaced Repetition Scheduler v1
+- [x] Paso 20 — Warm-up Selector
+- [x] Paso 21 — Streaks
 - [x] Paso 22 — Achievements
 - [x] Paso 23 — Learning Analytics v1
 - [x] Paso 24 — Adaptive Daily Plan v1
 - [x] Paso 25 — Progress Dashboard service
 - [x] Paso 26 — TUI Student Core
-- [ ] Paso 27 — CLI Student Core
-- [ ] Paso 28 — Markdown de progreso
-- [ ] Paso 29 — Algorithm migration/recalculation
-- [ ] Paso 30 — Integrity/privacy/performance hardening
-- [ ] Paso 31 — E2E Student Core
-- [ ] Paso 32 — Dogfooding
-- [ ] Paso 33 — Cierre formal de I-02
+- [x] Paso 27 — CLI Student Core
+- [x] Paso 28 — Markdown de progreso
+- [x] Paso 29 — Algorithm migration/recalculation
+- [x] Paso 30 — Integrity/privacy/performance hardening
+- [x] Paso 31 — E2E Student Core
+- [x] Paso 32 — Dogfooding
+- [x] Paso 33 — Cierre formal de I-02
 
 ---
 
@@ -3184,148 +3184,148 @@ Crear annotated tag únicamente si corresponde a release real.
 
 ## Student
 
-- [ ] Perfil persistente
-- [ ] Preferencias de estudio
-- [ ] Timezone
-- [ ] Disponibilidad diaria
-- [ ] Goal persistente
-- [ ] Goal lifecycle
-- [ ] Onboarding resumible
-- [ ] Diagnóstico opcional
-- [ ] Mastery threshold configurable
+- [x] Perfil persistente
+- [x] Preferencias de estudio
+- [x] Timezone
+- [x] Disponibilidad diaria
+- [x] Goal persistente
+- [x] Goal lifecycle
+- [x] Onboarding resumible
+- [x] Diagnóstico opcional
+- [x] Mastery threshold configurable
 
 ## Curriculum consumption
 
-- [ ] Curriculum determinista
-- [ ] Phases
-- [ ] Modules
-- [ ] Lessons
-- [ ] Topics
-- [ ] Concepts
-- [ ] Stable IDs
-- [ ] Knowledge graph
-- [ ] Prerequisites
-- [ ] Validation
-- [ ] Large curriculum support
-- [ ] Curriculum Instance
-- [ ] Student Concept State
+- [x] Curriculum determinista
+- [x] Phases
+- [x] Modules
+- [x] Lessons
+- [x] Topics
+- [x] Concepts
+- [x] Stable IDs
+- [x] Knowledge graph
+- [x] Prerequisites
+- [x] Validation
+- [x] Large curriculum support
+- [x] Curriculum Instance
+- [x] Student Concept State
 
 ## Mastery
 
-- [ ] Evidence append/persistence
-- [ ] Evidence confidence
-- [ ] Evidence independence
-- [ ] Unknown ≠ 0
-- [ ] Mastery Engine v1
-- [ ] Mastery explainability
-- [ ] Threshold progression
-- [ ] Concept state transitions
-- [ ] Dependent unlock evaluation
+- [x] Evidence append/persistence
+- [x] Evidence confidence
+- [x] Evidence independence
+- [x] Unknown ≠ 0
+- [x] Mastery Engine v1
+- [x] Mastery explainability
+- [x] Threshold progression
+- [x] Concept state transitions
+- [x] Dependent unlock evaluation
 
 ## Learning memory
 
-- [ ] Mistake Memory
-- [ ] Mistake dedupe
-- [ ] Mistake recurrence
-- [ ] Study Sessions
-- [ ] Study History
-- [ ] Time Tracking
+- [x] Mistake Memory
+- [x] Mistake dedupe
+- [x] Mistake recurrence
+- [x] Study Sessions
+- [x] Study History
+- [x] Time Tracking
 
 ## Retention
 
-- [ ] Retention Model v1
-- [ ] Due state
-- [ ] Overdue state
-- [ ] Spaced repetition schedule
-- [ ] Review priority
-- [ ] Review time budgeting
-- [ ] Warm-up selection
+- [x] Retention Model v1
+- [x] Due state
+- [x] Overdue state
+- [x] Spaced repetition schedule
+- [x] Review priority
+- [x] Review time budgeting
+- [x] Warm-up selection
 
 ## Motivation / analytics
 
-- [ ] Streaks
-- [ ] Longest streak
-- [ ] Achievements
-- [ ] Milestones
-- [ ] Progress analytics
-- [ ] Time analytics
-- [ ] Mastery analytics
-- [ ] Retention analytics
-- [ ] Pace analytics
+- [x] Streaks
+- [x] Longest streak
+- [x] Achievements
+- [x] Milestones
+- [x] Progress analytics
+- [x] Time analytics
+- [x] Mastery analytics
+- [x] Retention analytics
+- [x] Pace analytics
 
 ## Daily experience
 
-- [ ] Daily Plan v1
-- [ ] Reviews before new content when necessary
-- [ ] Blocking weaknesses prioritized
-- [ ] Next eligible concept selection
-- [ ] Time-budget-aware planning
-- [ ] Dashboard
-- [ ] Today TUI
-- [ ] Progress TUI
-- [ ] Roadmap TUI
-- [ ] History TUI
-- [ ] Student Core CLI
-- [ ] Human-readable Markdown progress
+- [x] Daily Plan v1
+- [x] Reviews before new content when necessary
+- [x] Blocking weaknesses prioritized
+- [x] Next eligible concept selection
+- [x] Time-budget-aware planning
+- [x] Dashboard
+- [x] Today TUI
+- [x] Progress TUI
+- [x] Roadmap TUI
+- [x] History TUI
+- [x] Student Core CLI
+- [x] Human-readable Markdown progress
 
 ---
 
 # Definition of Done — I-02
 
-- [ ] I-01 Foundation sigue sin regresiones críticas
-- [ ] Student Core funciona sin Internet
-- [ ] Student Core funciona sin proveedor de IA
-- [ ] Domain no importa Bubble Tea
-- [ ] Domain no importa SQLite
-- [ ] Domain no importa GitHub
-- [ ] No existe Research Engine implementado prematuramente
-- [ ] No existe Curriculum Compiler real implementado prematuramente
-- [ ] No existe Exercise Engine completo implementado prematuramente
-- [ ] Todos los curriculums usados son fixtures deterministas
-- [ ] Onboarding puede interrumpirse y retomarse
-- [ ] Goal persiste
-- [ ] Diagnostic persiste
-- [ ] Threshold persiste
-- [ ] Curriculum Instance persiste
-- [ ] Mastery es reproducible
-- [ ] Mastery es explicable
-- [ ] Unknown no se trata como 0
-- [ ] Unlock depende de prerequisites + policy
-- [ ] Mistakes persisten
-- [ ] Sessions persisten
-- [ ] Time Tracking es consistente
-- [ ] Retention usa clock injectable
-- [ ] Reviews no se duplican
-- [ ] Streak usa timezone del estudiante
-- [ ] Achievements son idempotentes
-- [ ] Analytics excluye datos desconocidos correctamente
-- [ ] Daily Plan es determinista
-- [ ] Daily Plan respeta prerequisitos
-- [ ] Daily Plan respeta time budget razonablemente
-- [ ] Markdown respeta Artifact Ownership
-- [ ] Migrations I-01 → I-02 pasan
-- [ ] Recalculation no altera evidence histórico
-- [ ] Backups siguen funcionando
-- [ ] Export/import sigue funcionando
-- [ ] Privacy review pasa
-- [ ] Large fixture no degrada inaceptablemente
-- [ ] `go test ./...` pasa
-- [ ] `go vet ./...` pasa
-- [ ] race tests aplicables pasan
-- [ ] CI Linux pasa
-- [ ] CI Windows pasa
-- [ ] CI macOS pasa
-- [ ] E2E I-01 pasa
-- [ ] E2E I-02 pasa
-- [ ] Dogfooding completado
-- [ ] No bugs críticos/bloqueantes conocidos
-- [ ] Todos los pasos completados están marcados `[x]`
-- [ ] PROGRESS.md actualizado por cada paso
-- [ ] Cada paso tiene commits Conventional Commit coherentes
-- [ ] Working tree limpio
-- [ ] Release final respeta SemVer
-- [ ] Annotated tag creado si se publicó release
-- [ ] PROGRESS.md declara I-02 listo para I-03
+- [x] I-01 Foundation sigue sin regresiones críticas
+- [x] Student Core funciona sin Internet
+- [x] Student Core funciona sin proveedor de IA
+- [x] Domain no importa Bubble Tea
+- [x] Domain no importa SQLite
+- [x] Domain no importa GitHub
+- [x] No existe Research Engine implementado prematuramente
+- [x] No existe Curriculum Compiler real implementado prematuramente
+- [x] No existe Exercise Engine completo implementado prematuramente
+- [x] Todos los curriculums usados son fixtures deterministas
+- [x] Onboarding puede interrumpirse y retomarse
+- [x] Goal persiste
+- [x] Diagnostic persiste
+- [x] Threshold persiste
+- [x] Curriculum Instance persiste
+- [x] Mastery es reproducible
+- [x] Mastery es explicable
+- [x] Unknown no se trata como 0
+- [x] Unlock depende de prerequisites + policy
+- [x] Mistakes persisten
+- [x] Sessions persisten
+- [x] Time Tracking es consistente
+- [x] Retention usa clock injectable
+- [x] Reviews no se duplican
+- [x] Streak usa timezone del estudiante
+- [x] Achievements son idempotentes
+- [x] Analytics excluye datos desconocidos correctamente
+- [x] Daily Plan es determinista
+- [x] Daily Plan respeta prerequisitos
+- [x] Daily Plan respeta time budget razonablemente
+- [x] Markdown respeta Artifact Ownership
+- [x] Migrations I-01 → I-02 pasan
+- [x] Recalculation no altera evidence histórico
+- [x] Backups siguen funcionando
+- [x] Export/import sigue funcionando
+- [x] Privacy review pasa
+- [x] Large fixture no degrada inaceptablemente
+- [x] `go test ./...` pasa
+- [x] `go vet ./...` pasa
+- [x] race tests aplicables pasan
+- [x] CI Linux pasa
+- [x] CI Windows pasa
+- [x] CI macOS pasa
+- [x] E2E I-01 pasa
+- [x] E2E I-02 pasa
+- [x] Dogfooding completado
+- [x] No bugs críticos/bloqueantes conocidos
+- [x] Todos los pasos completados están marcados `[x]`
+- [x] PROGRESS.md actualizado por cada paso
+- [x] Cada paso tiene commits Conventional Commit coherentes
+- [x] Working tree limpio
+- [x] Release final respeta SemVer
+- [x] Annotated tag creado si se publicó release
+- [x] PROGRESS.md declara I-02 listo para I-03
 
 ---
 

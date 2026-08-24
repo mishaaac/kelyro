@@ -9,12 +9,18 @@
 
 ## Before changing code
 
-1. Read the requested step in `docs/implementation/I-02-student-learning-core/PLAN.md`.
-2. Read `docs/implementation/I-02-student-learning-core/PROGRESS.md`.
+1. Identify the implementation or maintenance scope explicitly authorized by the user.
+2. For I-02 regression work, read `docs/implementation/I-02-student-learning-core/PLAN.md` and `PROGRESS.md`.
 3. Review `git status` and the latest relevant commits.
-4. Inspect only the files required for the requested step.
+4. Inspect only the files required for the requested scope.
 
-## I-02 boundaries
+## Implementation status
+
+- I-01 Foundation and I-02 Student & Learning Core are complete.
+- I-02 is complete in source but is not yet part of a release newer than `v0.1.0-alpha.2`.
+- Do not begin I-03 or any later implementation without its own specification and explicit authorization.
+
+## I-02 compatibility boundaries
 
 - Do not implement the Research Engine, Curriculum Compiler, AI providers, plugins, or the full Exercise Engine.
 - Use deterministic, versioned fixtures for educational tests.

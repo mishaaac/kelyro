@@ -2,8 +2,9 @@
 
 The Student & Learning domain is Kelyro's persistence- and presentation-neutral
 language for describing a learner, their intent, the curriculum they consume,
-and auditable learning progress. Step 1 defines vocabulary and invariants only.
-It does not select educational algorithms or implement use cases.
+and auditable learning progress. The base vocabulary and invariants originated
+in Step 1; the completed I-02 implementation layers versioned educational
+policies and application use cases around this dependency-free domain.
 
 ## Package boundary
 
@@ -67,8 +68,8 @@ Student ---- LearningGoal ---- CurriculumRef
 ```
 
 The curriculum hierarchy uses ordered ID references rather than embedding an
-artificial depth limit. Later curriculum-consumption steps may add aggregate
-loading and graph policies without changing the identity of concepts.
+artificial depth limit. I-02's consumption, instance, graph, and progression
+layers use those same identities without changing the base concept contract.
 
 ## Glossary
 

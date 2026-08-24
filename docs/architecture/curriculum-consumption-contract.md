@@ -14,10 +14,11 @@ I-02 Student Core         validates and consumes the resulting contract
 The `foundation-demo` data under `testdata/curricula` is a development fixture,
 not a researched pack and not a claim about an official learning path.
 
-Step 8 does not persist a learner-specific curriculum instance. That lifecycle,
-including source kind and goal ownership, belongs to Step 10. It also does not
-calculate mastery, traverse prerequisites, decide unlocks, or expose graph
-queries; those policies belong to later authorized steps.
+The consumption contract itself does not persist a learner-specific curriculum
+instance, calculate mastery, traverse prerequisites, or decide unlocks. The
+completed I-02 implementation supplies those responsibilities through the
+separate Curriculum Instance, mastery, graph, and progression boundaries, so
+the reusable curriculum definition remains learner-neutral.
 
 ## Contract version and identity
 
@@ -53,8 +54,8 @@ another concept and records one of two requirements:
 - `introduced`: exposure is sufficient;
 - `mastered`: the configured mastery policy must be satisfied.
 
-Step 8 validates these declarations only. The versioned behavior is implemented
-separately by the Step 9 prerequisite engine described in
+This contract validates these declarations only. The versioned behavior is
+implemented separately by the prerequisite engine described in
 `knowledge-graph-prerequisite-engine.md`.
 
 ## Node contract
