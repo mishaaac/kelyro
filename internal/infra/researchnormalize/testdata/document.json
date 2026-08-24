@@ -1,0 +1,12 @@
+{
+  "title": "Widget API",
+  "language": "en-US",
+  "canonical_url": "/api/widget",
+  "published_at": "2026-03-04T10:00:00Z",
+  "updated_at": "2026-08-24T12:00:00Z",
+  "version": "3.7.1",
+  "documentation_url": "../docs/widget#usage",
+  "stable": true,
+  "features": ["read", "write"],
+  "code": "widget.Open()\nwidget.Close()"
+}

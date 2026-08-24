@@ -84,11 +84,12 @@ from entering domain or services:
 - `Clock` supplies a validated research timestamp to time-dependent use cases.
 
 Step 07 protects every live call with Foundation's privacy gate. Steps 08–09
-implement the hardened HTTP transport and `SourceFetcher`; search, cache
-encoding, release discovery, normalization, and metadata extraction remain
-unimplemented. `MaximumBytes` is enforced by the fetch adapter as a
-request-specific limit below the transport's configured global ceiling. A
-safe redirect may change the returned locator without changing `SourceID`.
+implement the hardened HTTP transport and `SourceFetcher`, and Step 10
+implements the deterministic `SourceNormalizer`; search, cache encoding,
+release discovery, and separate metadata extraction remain unimplemented.
+`MaximumBytes` is enforced by the fetch adapter as a request-specific limit
+below the transport's configured global ceiling. A safe redirect may change
+the returned locator without changing `SourceID`.
 
 ## Initial application services
 

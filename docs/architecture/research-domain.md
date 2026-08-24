@@ -193,7 +193,7 @@ The following remain intentionally absent from this step:
 
 - repositories, units of work, application services, and SQLite schema;
 - network privacy orchestration and HTTP clients;
-- discovery providers, query planning, fetching, and normalization;
+- discovery providers and query planning;
 - authority-profile matching, quality, freshness, conflict, verification,
   drift, impact, trigger, or cost algorithms;
 - raw-body retention, caches, audit adapters, CLI, and TUI;

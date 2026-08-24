@@ -1,0 +1,20 @@
+normalization_version: source-normalization-v1
+source_id: source.normalization-fixture
+locator: https://docs.example.dev/reference/page.html
+content_type: text/html
+title: "Go API Guide v1.24.2"
+canonical: https://docs.example.dev/guides/api/
+language: en-us
+published_at: 2026-01-10T17:00:00Z
+updated_at: 2026-08-24T17:00:00Z
+version_hints: 1.24.2
+headings:
+- h1 "Using the API" path="Using the API"
+- h2 "Example" path="Using the API > Example"
+segments:
+- "Call the Client method with normalized whitespace."
+- "Current guidance targets version 1.24.2."
+code_blocks:
+- language=go content="func main() {\n\tfmt.Println(\"safe\")\n}"
+links:
+- "Client method" -> https://docs.example.dev/reference?view=full#client

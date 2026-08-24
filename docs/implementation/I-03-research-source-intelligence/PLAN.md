@@ -991,7 +991,7 @@ feat(fetch): add immutable source snapshots
 
 ## Paso 10 — Implementar Source Normalization pipeline
 
-- [ ] Paso 10 completado
+- [x] Paso 10 completado
 
 ### Objetivo
 
@@ -3189,7 +3189,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 7 — Privacy/network gate
 - [ ] Paso 8 — HTTP client
 - [ ] Paso 9 — Fetcher/Snapshots
-- [ ] Paso 10 — Normalization
+- [x] Paso 10 — Normalization
 - [ ] Paso 11 — Discovery abstraction
 - [ ] Paso 12 — Query Planner
 - [ ] Paso 13 — Evidence/Claims

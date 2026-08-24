@@ -70,7 +70,7 @@ declares one disposition:
 | Policy | Step 09 behavior |
 | --- | --- |
 | `metadata_only` | Discard the body after hash/length verification. |
-| `normalized_excerpt` | Return a defensive transient `NormalizationInput` for the Step 10 pipeline; Step 09 does not parse or persist it. |
+| `normalized_excerpt` | Return a defensive transient `FetchedSource` as `NormalizationInput` for the Step 10 pipeline; snapshot capture does not parse or persist it. |
 | `bounded_cached_body` | Return a defensive `CacheCandidate`, limited to 1 MiB, for the future Step 32 cache; Step 09 does not write cache entries. |
 
 The metadata-only path is the default storage shape, not an unbounded archive.
@@ -85,6 +85,8 @@ failures retain the application persistence taxonomy; network/client failures
 retain the Step 07 external/unavailable/network-blocked classifications. An ID
 generation failure is `unavailable`.
 
-Fetched content remains untrusted data. This step performs no parsing,
-normalization, evidence extraction, claim generation, trust decision, release
-ingestion, or curriculum compilation.
+Fetched content remains untrusted data. Step 10 now consumes the transient
+normalization input through the separate adapter documented in
+[source-normalization-v1.md](source-normalization-v1.md). Snapshot capture still
+performs no parsing, evidence extraction, claim generation, trust decision,
+release ingestion, or curriculum compilation.

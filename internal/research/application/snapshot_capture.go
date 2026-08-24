@@ -108,7 +108,11 @@ func (service *snapshotCaptureService) Capture(ctx context.Context, mode Researc
 	}
 	switch request.BodyPolicy {
 	case SnapshotNormalizedExcerpt:
-		result.NormalizationInput = append([]byte(nil), fetched.Body...)
+		if len(fetched.Body) > 0 {
+			normalizationInput := fetched
+			normalizationInput.Body = append([]byte(nil), fetched.Body...)
+			result.NormalizationInput = &normalizationInput
+		}
 	case SnapshotBoundedCachedBody:
 		result.CacheCandidate = append([]byte(nil), fetched.Body...)
 	}

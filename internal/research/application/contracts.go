@@ -351,13 +351,47 @@ type ReleaseLookupCache interface {
 }
 
 type NormalizedSource struct {
-	SourceID     research.SourceID
-	Locator      research.SourceLocator
-	Title        string
-	Language     string
-	TextSegments []string
-	VersionHints []string
+	SourceID             research.SourceID
+	Locator              research.SourceLocator
+	ContentType          string
+	Title                string
+	CanonicalLocator     *research.SourceLocator
+	Language             string
+	Headings             []NormalizedHeading
+	TextSegments         []string
+	CodeBlocks           []NormalizedCodeBlock
+	Links                []NormalizedLink
+	PublishedAt          *research.Timestamp
+	UpdatedAt            *research.Timestamp
+	VersionHints         []string
+	NormalizationVersion string
 }
+
+type NormalizedHeading struct {
+	Level int
+	Text  string
+	Path  []string
+}
+
+type NormalizedCodeBlock struct {
+	Language string
+	Content  string
+}
+
+type NormalizedLink struct {
+	Label   string
+	Locator research.SourceLocator
+}
+
+const (
+	MaximumNormalizedHeadings     = 512
+	MaximumNormalizedSegments     = 4096
+	MaximumNormalizedCodeBlocks   = 256
+	MaximumNormalizedLinks        = 2048
+	MaximumNormalizedVersionHints = 64
+	MaximumNormalizedTextBytes    = 16 * 1024
+	MaximumNormalizedCodeBytes    = 128 * 1024
+)
 
 func (source NormalizedSource) Validate() error {
 	if err := source.SourceID.Validate(); err != nil {
@@ -366,16 +400,125 @@ func (source NormalizedSource) Validate() error {
 	if err := source.Locator.Validate(); err != nil {
 		return err
 	}
+	if err := requireText("normalized source content type", source.ContentType); err != nil {
+		return err
+	}
 	if err := validateOptionalText("normalized source title", source.Title); err != nil {
 		return err
+	}
+	if source.CanonicalLocator != nil {
+		if err := source.CanonicalLocator.Validate(); err != nil {
+			return fmt.Errorf("normalized canonical locator: %w", err)
+		}
 	}
 	if err := validateOptionalText("normalized source language", source.Language); err != nil {
 		return err
 	}
+	if len(source.Headings) > MaximumNormalizedHeadings {
+		return fmt.Errorf("normalized headings exceed %d", MaximumNormalizedHeadings)
+	}
+	for index, heading := range source.Headings {
+		if heading.Level < 1 || heading.Level > 6 {
+			return fmt.Errorf("normalized heading %d has invalid level", index)
+		}
+		if err := boundedNormalizedText("normalized heading", heading.Text, MaximumNormalizedTextBytes, true); err != nil {
+			return fmt.Errorf("normalized heading %d: %w", index, err)
+		}
+		if err := validateTexts("normalized heading path", heading.Path, true); err != nil {
+			return fmt.Errorf("normalized heading %d: %w", index, err)
+		}
+		if heading.Path[len(heading.Path)-1] != heading.Text {
+			return fmt.Errorf("normalized heading %d path does not end with heading text", index)
+		}
+	}
+	if len(source.TextSegments) > MaximumNormalizedSegments {
+		return fmt.Errorf("normalized text segments exceed %d", MaximumNormalizedSegments)
+	}
 	if err := validateTexts("normalized source segments", source.TextSegments, true); err != nil {
 		return err
 	}
-	return validateTexts("normalized source version hints", source.VersionHints, false)
+	for index, segment := range source.TextSegments {
+		if err := boundedNormalizedText("normalized text segment", segment, MaximumNormalizedTextBytes, true); err != nil {
+			return fmt.Errorf("normalized text segment %d: %w", index, err)
+		}
+	}
+	if len(source.CodeBlocks) > MaximumNormalizedCodeBlocks {
+		return fmt.Errorf("normalized code blocks exceed %d", MaximumNormalizedCodeBlocks)
+	}
+	for index, block := range source.CodeBlocks {
+		if err := validateOptionalText("normalized code language", block.Language); err != nil {
+			return fmt.Errorf("normalized code block %d: %w", index, err)
+		}
+		if err := boundedNormalizedCode(block.Content); err != nil {
+			return fmt.Errorf("normalized code block %d: %w", index, err)
+		}
+	}
+	if len(source.Links) > MaximumNormalizedLinks {
+		return fmt.Errorf("normalized links exceed %d", MaximumNormalizedLinks)
+	}
+	for index, link := range source.Links {
+		if err := validateOptionalText("normalized link label", link.Label); err != nil {
+			return fmt.Errorf("normalized link %d: %w", index, err)
+		}
+		if err := link.Locator.Validate(); err != nil {
+			return fmt.Errorf("normalized link %d: %w", index, err)
+		}
+	}
+	if err := validateOptionalNormalizedTimestamp("normalized published at", source.PublishedAt); err != nil {
+		return err
+	}
+	if err := validateOptionalNormalizedTimestamp("normalized updated at", source.UpdatedAt); err != nil {
+		return err
+	}
+	if source.PublishedAt != nil && source.UpdatedAt != nil && source.UpdatedAt.Before(*source.PublishedAt) {
+		return fmt.Errorf("normalized updated at precedes published at")
+	}
+	if len(source.VersionHints) > MaximumNormalizedVersionHints {
+		return fmt.Errorf("normalized version hints exceed %d", MaximumNormalizedVersionHints)
+	}
+	if err := validateTexts("normalized source version hints", source.VersionHints, false); err != nil {
+		return err
+	}
+	if len(source.Headings) == 0 && len(source.TextSegments) == 0 && len(source.CodeBlocks) == 0 {
+		return fmt.Errorf("normalized source has no researchable content")
+	}
+	return requireText("normalization version", source.NormalizationVersion)
+}
+
+func boundedNormalizedText(name, value string, maximum int, required bool) error {
+	var err error
+	if required {
+		err = requireText(name, value)
+	} else {
+		err = validateOptionalText(name, value)
+	}
+	if err != nil {
+		return err
+	}
+	if len(value) > maximum {
+		return fmt.Errorf("%s exceeds %d bytes", name, maximum)
+	}
+	return nil
+}
+
+func boundedNormalizedCode(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("normalized code content is empty")
+	}
+	if len(value) > MaximumNormalizedCodeBytes {
+		return fmt.Errorf("normalized code content exceeds %d bytes", MaximumNormalizedCodeBytes)
+	}
+	return nil
+}
+
+func validateOptionalNormalizedTimestamp(name string, value *research.Timestamp) error {
+	if value == nil {
+		return nil
+	}
+	if err := value.Validate(); err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	return nil
 }
 
 type SourceNormalizer interface {
@@ -452,7 +595,7 @@ func (request SnapshotCaptureRequest) Validate() error {
 type SnapshotCapture struct {
 	Snapshot              research.SourceSnapshot
 	RevalidatedSnapshotID *research.ID
-	NormalizationInput    []byte
+	NormalizationInput    *FetchedSource
 	CacheCandidate        []byte
 }
 

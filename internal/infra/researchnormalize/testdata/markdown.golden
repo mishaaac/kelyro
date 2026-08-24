@@ -1,0 +1,20 @@
+normalization_version: source-normalization-v1
+source_id: source.normalization-fixture
+locator: https://docs.example.dev/reference/page.html
+content_type: text/markdown
+title: "Kelyro SDK Guide"
+canonical: https://docs.example.dev/sdk/guide
+language: es-pe
+published_at: 2026-02-01T00:00:00Z
+updated_at: 2026-08-24T18:30:00Z
+version_hints: 2.5.0
+headings:
+- h1 "Inicio rápido" path="Inicio rápido"
+- h2 "Ejemplo" path="Inicio rápido > Ejemplo"
+segments:
+- "Instala la versión v2.5.0 desde la referencia."
+- "Consulta solo la documentación vigente."
+code_blocks:
+- language=go content="client := New()\nclient.Run()"
+links:
+- "referencia" -> https://docs.example.dev/reference#install

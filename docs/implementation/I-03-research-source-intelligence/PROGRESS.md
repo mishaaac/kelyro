@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 10
-Last completed step: 9
+Current step: 11
+Last completed step: 10
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -729,3 +729,87 @@ Release: unreleased
   producir excerpts/estructura derivados sin alterar snapshots históricos.
 - No implementar discovery, evidence extraction, cache persistence ni pasos
   posteriores durante el Paso 10.
+
+## Step 10 — Source Normalization pipeline
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Contrato `NormalizedSource` enriquecido y validado para título, locator
+  canónico, idioma, headings con ruta jerárquica, segmentos de texto, bloques
+  de código, enlaces, fechas, version hints y versión de algoritmo.
+- Adapter determinista `internal/infra/researchnormalize` con versión inmutable
+  `source-normalization-v1` para HTML/XHTML, plain text, JSON y Markdown directo.
+- Extracción HTML no renderizante que decodifica entidades, respeta atributos
+  quoted, preserva estructura útil y descarta subárboles de script, style,
+  template, SVG, navegación, formularios y otros elementos ruidosos mediante
+  cierres de tag exactos.
+- Normalización de texto y Markdown con whitespace estable, jerarquía de
+  headings, fenced code y links; JSON con `json.Number`, claves ordenadas,
+  arrays en orden de fuente y segmentos con ubicación tipo JSON Pointer.
+- Resolución y canonicalización de enlaces HTTP(S) contra el locator final;
+  esquemas inseguros, credenciales, locators malformados y fragmentos
+  canónicos se rechazan o eliminan según corresponda.
+- Extracción conservadora de language, fechas published/updated y version
+  hints, sin inferir trust, release status ni significado semántico adicional.
+- Límites explícitos para colecciones, segmentos y código; errores tipados para
+  content type no soportado, documento inválido y output limit, preservando
+  cancellation del context.
+- `SnapshotCapture.NormalizationInput` ahora entrega una copia defensiva del
+  `FetchedSource` validado para conservar body, locator final, media type y
+  metadata de integridad necesarios por el normalizer.
+- Golden fixtures para los cuatro formatos y tests adversariales de
+  sanitización, jerarquía, links, UTF-8, JSON, respuestas bodyless,
+  cancellation, límites y orden determinista.
+- Contrato, seguridad y límites documentados en
+  `docs/architecture/source-normalization-v1.md` y sincronizados con la
+  documentación de snapshots, application y domain.
+
+### Decisions
+
+- La normalización es representación derivada: el snapshot inmutable del Paso
+  9 y su hash SHA-256 sobre los bytes fetched continúan siendo la fuente
+  histórica de verdad.
+- No se añadió `golang.org/x/net/html`. La línea actual revisada requiere Go
+  1.25 y Kelyro conserva compatibilidad con Go 1.24; el extractor lexical
+  acotado usa únicamente standard library y no pretende ser browser, renderer
+  HTML5 ni sanitizer reutilizable de HTML.
+- El parser JSON ordena claves para producir output determinista y conserva el
+  orden de arrays. El parser Markdown soporta deliberadamente un subconjunto
+  directo y rechaza fences sin cierre en vez de adivinar estructura.
+- Solo sobreviven locators HTTP(S) validados. El contenido externo siempre se
+  trata como datos no confiables y nunca se ejecuta ni interpreta como
+  instrucciones.
+- No se añadió migration ni persistencia: los outputs normalizados no escriben
+  raw web content ni alteran snapshots.
+- No se implementaron PDF, discovery, evidence/claims, metadata persistence,
+  Research Cache, release ingestion, Curriculum Compiler ni cambios de Student
+  Core.
+
+### Verification
+
+- Context7 se consultó primero para el parser HTML; al no indexar el paquete,
+  se revisó la documentación oficial de `golang.org/x/net/html` y su requisito
+  de módulo antes de conservar una implementación sin dependencia nueva.
+- Golden tests y tests adversariales de `internal/infra/researchnormalize`.
+- Tests y vet dirigidos de normalizer, Research domain/application, Source
+  Fetcher y persistence SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de normalizer y
+  application con `CGO_ENABLED=0`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step8-full-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 11 es el siguiente paso pendiente y requiere autorización explícita.
+- Source Discovery deberá producir candidatos detrás de `SearchProvider`; sus
+  resultados no serán evidencia y deberán respetar el privacy gate antes de
+  cualquier operación live.
+- No implementar discovery, evidence extraction, cache persistence, PDF ni
+  pasos posteriores sin su autorización correspondiente.

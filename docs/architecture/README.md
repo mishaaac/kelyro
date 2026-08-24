@@ -52,6 +52,11 @@ The `SourceFetcher` adapter, canonical content hash, conditional revalidation,
 append-only snapshot capture, and raw-body disposition contract are documented
 in [source-fetch-snapshots-v1.md](source-fetch-snapshots-v1.md).
 
+The deterministic HTML/text/JSON/Markdown normalization pipeline, enriched
+derived-source contract, sanitization boundary, canonical links, output limits,
+and golden fixtures are documented in
+[source-normalization-v1.md](source-normalization-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

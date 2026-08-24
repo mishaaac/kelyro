@@ -53,10 +53,10 @@ func TestSnapshotCapturePersistsImmutableChangedAnd304History(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(first.NormalizationInput) != 0 || len(first.CacheCandidate) != 0 {
+	if first.NormalizationInput != nil || len(first.CacheCandidate) != 0 {
 		t.Fatalf("metadata-only capture retained body: %+v", first)
 	}
-	if string(second.NormalizationInput) != string(secondBody) || len(second.CacheCandidate) != 0 {
+	if second.NormalizationInput == nil || string(second.NormalizationInput.Body) != string(secondBody) || len(second.CacheCandidate) != 0 {
 		t.Fatalf("normalized-excerpt capture body disposition = %+v", second)
 	}
 	if second.Snapshot.Fetch.ContentHash == first.Snapshot.Fetch.ContentHash {
@@ -107,7 +107,7 @@ func TestSnapshotCaptureProducesBoundedCacheCandidateWithoutPersistingBody(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(result.CacheCandidate) != string(body) || len(result.NormalizationInput) != 0 {
+	if string(result.CacheCandidate) != string(body) || result.NormalizationInput != nil {
 		t.Fatalf("cache candidate disposition = %+v", result)
 	}
 	result.CacheCandidate[0] = 'X'

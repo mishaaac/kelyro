@@ -255,7 +255,8 @@ func TestExternalAdapterDTOsValidateBoundedTransportNeutralData(t *testing.T) {
 	}
 	normalized := application.NormalizedSource{
 		SourceID: source.ID, Locator: source.Locator, Title: "Documentation",
-		Language: "en", TextSegments: []string{"A bounded normalized segment."},
+		ContentType: "text/html", Language: "en",
+		TextSegments: []string{"A bounded normalized segment."}, NormalizationVersion: fixtureVersion,
 	}
 	if err := normalized.Validate(); err != nil {
 		t.Fatalf("NormalizedSource.Validate() error = %v", err)
