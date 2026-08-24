@@ -2931,7 +2931,7 @@ test(e2e): cover Student and Learning Core lifecycle
 
 ## Paso 32 — Dogfooding controlado de I-02
 
-- [ ] Paso 32 completado
+- [x] Paso 32 completado
 
 ### Objetivo
 

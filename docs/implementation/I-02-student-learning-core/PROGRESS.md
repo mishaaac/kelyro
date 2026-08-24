@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 32 (pending authorization)
-Last completed step: 31
+Current step: 33 (pending authorization)
+Last completed step: 32
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1397,3 +1397,60 @@ Release: unreleased
 - El Paso 32 es el siguiente paso pendiente y requiere autorización explícita.
 - El dogfooding debe usar estos recorridos como baseline, registrar fricción real y evitar convertir observaciones en cambios fuera del alcance autorizado.
 - No implementar Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+ sin su paso y autorización.
+
+## Step 32 — Controlled I-02 dogfooding
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Multiple real binary/TUI sessions on clean temporary workspaces covering onboarding start, durable abandon/resume, deterministic diagnostic, reopen/resume, threshold changes, Roadmap/Concept/Today/Progress/Reviews/History/Streak navigation, locked explanations, and 24-column rendering.
+- Backup/restore roundtrip that restored the effective 85% workspace mastery override after an intentional reset, followed by a healthy integrity scan.
+- Full portable export dry-run/import roundtrip into a second workspace, preserving the profile, active goal, curriculum, diagnostic-derived history, mastery policy, session view and database integrity.
+- Explicit Markdown ownership check in which a learner edit to `00-roadmap/PROGRESS.md` produced an actionable conflict and remained byte-for-byte intact.
+- Offline command pass with `privacy.allow_network=false`; the E2E network adapter remained unreachable for all Student Core read commands.
+- Application/E2E dogfooding for evidence-driven mastery and dependent unlock, repeated-mistake deduplication and warm-up selection, fake-clock retention/review rescheduling, explainable Daily Plan ordering, multi-day History/time/streak and analytics.
+- Ephemeral `step32-dogfood/v1` UX fixture with 2 phases, 6 modules, 18 lessons, 18 topics and 72 concepts (116 nodes total); the helper was removed after seeding and no dogfooding-only product surface remains.
+- Height-bounded scrolling for long read-only TUI views after the large fixture exposed that Roadmap previously rendered only its final terminal page. The fix keeps the first/current concept visible and supports line, page, Home and End navigation.
+
+### Finding and fix
+
+- Reproduction: reopen Roadmap for the 116-node fixture in an 80x20 terminal. Before the fix, Bubble Tea emitted all 178 rendered lines and the terminal displayed only the final concepts and footer; the current concept and beginning of the hierarchy were unreachable.
+- Regression: `TestLongRoadmapUsesHeightBoundedScrollableViewport` asserts terminal-height bounds, initial/current content, range guidance, End and Home behavior.
+- Fix: commit `1e64e1b` (`fix(tui): add height-bounded view scrolling`) adds an internal viewport without a new dependency, leaves Config/onboarding input keys untouched, resets ephemeral scroll on navigation and clamps it on resize.
+- Manual confirmation: the same 80x20 workspace opened at `1-18/178`, Page Down advanced to `18-35/178`, End reached `161-178/178`, and Home returned to `1-18/178`. The 24-column TUI remained navigable.
+- No patch release is required: I-02 remains unreleased and the published Foundation release does not contain this TUI.
+
+### Decisions
+
+- Public CLI mutation commands were not added for dogfooding. Evidence, mistakes, clock advancement and review outcomes continue to use the test/application harness so the Exercise Engine boundary is not weakened.
+- Scroll position and terminal height remain presentation-only ephemeral state; neither is checkpointed or persisted with educational state.
+- Linux received the real interactive/manual pass available in this environment. macOS and Windows received cross-platform compilation of the TUI and complete E2E package; platform CI remains the authoritative real-host execution gate.
+- The small researched-content substitute remains explicitly fixture-sourced. No claim is made that the fixture teaches a production subject, and no Research Engine, Curriculum Compiler, generated exercise, AI provider, plugin or network behavior was introduced.
+
+### Exit gate
+
+- No observed progress loss or database corruption.
+- Mastery recalculation and prerequisite unlock remained deterministic.
+- No duplicate pending review or onboarding resume failure was observed.
+- Backup/restore, full export/import, offline operation and Markdown protection preserved managed state.
+- No frequent crash or known cross-platform compilation blocker remains.
+
+### Verification
+
+- Manual tagged-E2E binary sessions on Linux at 80x20 and 24x20 over clean, restored, imported and large-fixture workspaces.
+- `GOCACHE=/tmp/kelyro-step32-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go test ./internal/tui`.
+- `GOCACHE=/tmp/kelyro-step32-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go test -tags=e2e -run '^TestStudentLearningCoreEndToEnd$' ./tests/e2e` before and after the fix.
+- `GOCACHE=/tmp/kelyro-step32-analytics-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go test -run 'Analytics|ProgressDashboardHandlesThousands' ./internal/learning ./internal/learning/application`.
+- `GOCACHE=/tmp/kelyro-step32-scale-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go test -run '^TestVersionedLargeStudentCoreFixtureUsesBoundedIndexedProjections$' ./internal/storage/sqlite`.
+- Cross-platform compile checks with `GOOS=windows` and `GOOS=darwin`, `CGO_ENABLED=0`, `-tags=e2e` and `-exec=/bin/true` for `./internal/tui ./tests/e2e`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step32-quality-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go run ./tools/quality all`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 33 es el siguiente paso pendiente y requiere autorización explícita.
+- El cierre formal debe usar este gate de dogfooding como evidencia y no reabrir features de I-02 sin un bug reproducible.
+- No comenzar I-03 ni implementar Research Engine, Curriculum Compiler, Exercise Engine, IA o plugins sin su implementación y autorización propias.
