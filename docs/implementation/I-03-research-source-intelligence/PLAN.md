@@ -751,7 +751,7 @@ feat(authority): add topic-aware authority profiles
 
 ## Paso 6 — Construir Trusted Source Registry
 
-- [ ] Paso 6 completado
+- [x] Paso 6 completado
 
 ### Objetivo
 

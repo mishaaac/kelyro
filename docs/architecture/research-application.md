@@ -39,6 +39,7 @@ Persistence is divided by aggregate or durable output:
 | `EvidenceRepository` | Immutable evidence tied to a source and snapshot. |
 | `ResearchRunRepository` | Research requests and one or more runs for each request. |
 | `TrustRegistryRepository` | Authority profiles and versioned trust decisions. |
+| `SourceRegistryRepository` | Reviewed source-family entries with deterministic list/show access. |
 | `ReleaseRepository` | Evidence-backed technology release records. |
 | `FreshnessRepository` | Versioned freshness outputs and due-state queries. |
 | `VerificationRepository` | Immutable verification results by claim. |
@@ -88,6 +89,7 @@ The initial services are deliberately thin:
 - `DiscoveryService` validates queries, delegates to one `SearchProvider`, and
   rejects invalid provider output;
 - `SourceService` registers sources and records snapshots for known sources;
+- `SourceRegistryService` saves and queries reviewed registry entries;
 - `VerificationService` records and retrieves verification results;
 - `FreshnessService` stores already-computed, versioned freshness outputs;
 - `ReleaseIntelligenceService` records and reads release facts;

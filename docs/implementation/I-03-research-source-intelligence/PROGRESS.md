@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 6
-Last completed step: 5
+Current step: 7
+Last completed step: 6
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -412,3 +412,75 @@ Release: unreleased
   booleano global de confianza.
 - No implementar discovery live, network access ni pasos posteriores durante
   el Paso 6.
+
+## Step 06 — Trusted Source Registry
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Modelo de dominio `SourceRegistryEntry` con organización, dominios canónicos,
+  source kinds, authority hints, ámbitos de dominio/tópico, notas, estado y
+  timestamps de alta/revisión; todos los invariantes se validan al construir.
+- Estados explícitos `trusted`, `conditional`, `historical`, `deprecated` y
+  `blocked`, conservados por catálogo, application services y persistence.
+- Canonicalización DNS case-insensitive con eliminación de trailing dot,
+  soporte exacto y wildcard inicial `*.`, y reglas de subdominio sin incluir el
+  apex para wildcards.
+- Catálogo puro con rechazo de IDs/domains duplicados, matching determinista y
+  precedencia exacta sobre wildcard; el contexto se evalúa con research domain,
+  topic key y source kind.
+- Integración conservadora con Trust Policy v1: el registry aporta contexto y
+  restricciones, pero nunca convierte una candidata en evidencia ni promueve
+  el tier base; `blocked` rechaza y los estados no plenamente vigentes exigen
+  verificación según el use case.
+- Repository port, service y adapters memory/SQLite con migration forward-only
+  v25, persistencia JSON acotada y protección transaccional contra dominios
+  canónicos duplicados.
+- Factory de research store por workspace y wiring de aplicación/CLI para
+  `kelyro sources registry list` y `kelyro sources registry show <id>`.
+- Tests de normalización, reglas de subdominio, blocked/historical, precedencia,
+  duplicados, copias defensivas, roundtrip/upsert SQLite, reapertura del store,
+  aplicación, CLI e integración con Trust Policy.
+- Contrato, matching, persistence, límites y semántica documentados en
+  `docs/architecture/trusted-source-registry.md` y documentos Research
+  relacionados.
+
+### Decisions
+
+- Un dominio canónico es un host DNS, no una URL; solo admite coincidencia
+  exacta o wildcard inicial `*.` para mantener reglas auditables.
+- Una entrada puede declarar varios source kinds, pero cada authority hint debe
+  referirse a uno de ellos y solo puede volver más conservadora la evaluación
+  base de Trust Policy v1.
+- El registry no es verdad absoluta: además del match de host, su aplicabilidad
+  depende de tópico, source kind, frescura y corroboración evaluados por Trust
+  Policy.
+- `historical` es utilizable para investigación histórica; fuera de ese use
+  case requiere verificación. `conditional` y `deprecated` también requieren
+  verificación, mientras `blocked` fuerza rechazo.
+- SQLite impide que dos entries posean el mismo dominio canónico, incluido el
+  wildcard normalizado; el upsert del mismo ID permanece permitido.
+- La CLI de este paso es de inspección y no añade comandos de mutación,
+  discovery live, fetch ni acceso de red.
+- No se implementaron privacy/network gate, HTTP client, discovery, freshness,
+  verification scheduling, Curriculum Compiler ni cambios de Student Core.
+
+### Verification
+
+- Tests dirigidos de research, persistence, application, CLI y research store.
+- `GOCACHE=/tmp/kelyro-i03-step6-fulltest-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step6-fullvet-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step6-quality-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go vet ./...`,
+  `go test -race ./...`, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 7 es el siguiente paso pendiente y requiere autorización explícita.
+- El privacy/network gate deberá cubrir toda operación live sin inutilizar
+  evidencia persistida ni caché offline.
+- No implementar HTTP client, discovery ni pasos posteriores durante el Paso 7.

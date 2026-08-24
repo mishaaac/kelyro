@@ -16,6 +16,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
+	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/update"
 )
 
@@ -1333,6 +1334,53 @@ func TestRunnerQuietSuppressesSuccessfulOutput(t *testing.T) {
 	}
 	if len(service.commands) != 1 || service.commands[0].Action != app.ActionStatus {
 		t.Errorf("commands = %#v, want one status command", service.commands)
+	}
+}
+
+func TestRunnerParsesAndRendersSourceRegistryCommands(t *testing.T) {
+	t.Parallel()
+	entry := cliRegistryEntry(t)
+	t.Run("list", func(t *testing.T) {
+		service := &fakeService{result: app.Result{SourceRegistryEntries: []research.SourceRegistryEntry{entry}}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "registry", "list"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "registry.blocked-example [blocked]") {
+			t.Fatalf("list = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].Action != app.ActionSources || service.commands[0].SourceRegistryOperation != "list" {
+			t.Fatalf("list command = %+v", service.commands)
+		}
+	})
+	t.Run("show", func(t *testing.T) {
+		service := &fakeService{result: app.Result{SourceRegistryEntry: &entry}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "registry", "show", entry.ID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Status: blocked") || !strings.Contains(stdout.String(), "not evidence") {
+			t.Fatalf("show = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].SourceRegistryID != entry.ID || service.commands[0].SourceRegistryOperation != "show" {
+			t.Fatalf("show command = %+v", service.commands)
+		}
+	})
+	for _, args := range [][]string{{"sources"}, {"sources", "registry"}, {"sources", "registry", "show"}, {"sources", "registry", "delete", "id"}} {
+		var stderr bytes.Buffer
+		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) code = %d, want usage; stderr=%q", args, code, stderr.String())
+		}
+	}
+}
+
+func cliRegistryEntry(t *testing.T) research.SourceRegistryEntry {
+	t.Helper()
+	id, _ := research.NewID("registry.blocked-example")
+	domain, _ := research.NewCanonicalDomain("blocked.example")
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+	return research.SourceRegistryEntry{
+		ID: id, Organization: "Blocked Example", CanonicalDomains: []research.CanonicalDomain{domain},
+		SourceKinds:     []research.SourceKind{research.SourceOther},
+		AuthorityHints:  []research.RegistryAuthorityHint{{SourceKind: research.SourceOther, Tier: research.AuthorityTierE, Reason: "Explicitly blocked fixture."}},
+		ResearchDomains: []string{"*"}, TopicPatterns: []string{"*"}, Notes: "Do not use.",
+		Status: research.RegistryBlocked, AddedAt: at, LastReviewedAt: at,
 	}
 }
 

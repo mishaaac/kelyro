@@ -108,6 +108,7 @@ func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 		"source_bundle_items",
 		"source_bundles",
 		"source_conflicts",
+		"source_registry_entries",
 		"source_snapshots",
 		"sources",
 		"streak_state",

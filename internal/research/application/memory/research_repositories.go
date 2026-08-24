@@ -184,6 +184,66 @@ func (repository trustRegistryRepository) LatestDecision(ctx context.Context, so
 	return cloneDecision(latest), nil
 }
 
+type sourceRegistryRepository struct{ store *Store }
+
+func (repository sourceRegistryRepository) Save(ctx context.Context, entry research.SourceRegistryEntry) error {
+	const operation = "save memory source registry entry"
+	if err := contextError(operation, ctx); err != nil {
+		return err
+	}
+	if err := entry.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	for existingID, existing := range repository.store.registryEntries {
+		if existingID == entry.ID {
+			continue
+		}
+		for _, existingDomain := range existing.CanonicalDomains {
+			for _, domain := range entry.CanonicalDomains {
+				if existingDomain.String() == domain.String() {
+					return conflict(operation)
+				}
+			}
+		}
+	}
+	repository.store.registryEntries[entry.ID] = cloneRegistryEntry(entry)
+	return nil
+}
+
+func (repository sourceRegistryRepository) Get(ctx context.Context, id research.ID) (research.SourceRegistryEntry, error) {
+	const operation = "get memory source registry entry"
+	if err := contextError(operation, ctx); err != nil {
+		return research.SourceRegistryEntry{}, err
+	}
+	if err := id.Validate(); err != nil {
+		return research.SourceRegistryEntry{}, invalid(operation, err)
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	entry, exists := repository.store.registryEntries[id]
+	if !exists {
+		return research.SourceRegistryEntry{}, notFound(operation)
+	}
+	return cloneRegistryEntry(entry), nil
+}
+
+func (repository sourceRegistryRepository) List(ctx context.Context) ([]research.SourceRegistryEntry, error) {
+	const operation = "list memory source registry entries"
+	if err := contextError(operation, ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	ids := sortedIDs(repository.store.registryEntries)
+	result := make([]research.SourceRegistryEntry, 0, len(ids))
+	for _, id := range ids {
+		result = append(result, cloneRegistryEntry(repository.store.registryEntries[id]))
+	}
+	return result, nil
+}
+
 type releaseRepository struct{ store *Store }
 
 func (repository releaseRepository) Create(ctx context.Context, record research.ReleaseRecord) error {

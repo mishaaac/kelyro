@@ -99,6 +99,13 @@ not a trust decision.
 It is not evidence. Conversion into evidence requires later classification,
 fetch, normalization, and extraction steps.
 
+`SourceRegistryEntry`, `CanonicalDomain`, `RegistryAuthorityHint`, and
+`RegistryStatus` model reviewed source-family metadata. The pure registry
+catalog matches exact and wildcard DNS rules and preserves `trusted`,
+`conditional`, `historical`, `deprecated`, and `blocked` status. Registry
+metadata remains contextual input; it is never evidence or an automatic trust
+decision.
+
 ## Evidence, claims, and provenance
 
 The central relationship is:

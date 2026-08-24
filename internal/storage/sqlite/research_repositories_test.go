@@ -49,8 +49,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 24 {
-		t.Fatalf("schema=(%d,%v), want 24", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 25 {
+		t.Fatalf("schema=(%d,%v), want 25", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -177,6 +177,24 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if got, err := repositories.TrustRegistry.GetProfile(ctx, profile.ID); err != nil || !reflect.DeepEqual(got, profile) {
 		t.Fatalf("profile roundtrip=(%+v,%v)", got, err)
 	}
+	registryEntry := researchTestRegistryEntry(t, "registry.docs", "Docs.Example.COM.", research.RegistryTrusted, at)
+	if err := repositories.SourceRegistry.Save(ctx, registryEntry); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.SourceRegistry.Get(ctx, registryEntry.ID); err != nil || !reflect.DeepEqual(got, registryEntry) {
+		t.Fatalf("source registry roundtrip=(%+v,%v), want %+v", got, err, registryEntry)
+	}
+	registryEntry.Status = research.RegistryHistorical
+	if err := repositories.SourceRegistry.Save(ctx, registryEntry); err != nil {
+		t.Fatalf("source registry update: %v", err)
+	}
+	if listed, err := repositories.SourceRegistry.List(ctx); err != nil || len(listed) != 1 || listed[0].Status != research.RegistryHistorical {
+		t.Fatalf("source registry list=(%+v,%v)", listed, err)
+	}
+	duplicateDomain := researchTestRegistryEntry(t, "registry.other", "docs.example.com", research.RegistryConditional, at)
+	if err := repositories.SourceRegistry.Save(ctx, duplicateDomain); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate registry domain error=%v, want conflict", err)
+	}
 	decision := research.TrustDecision{SourceID: source.ID, State: research.TrustAccepted, Tier: research.AuthorityTierA, Reasons: []research.TrustReason{{Code: "primary", Detail: "Normative source"}}, Policy: "trust/v1", EvaluatedAt: at}
 	if err := repositories.TrustRegistry.SaveDecision(ctx, decision); err != nil {
 		t.Fatal(err)
@@ -244,6 +262,24 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	entry.Payload = make([]byte, maximumResearchCachePayloadBytes+1)
 	if err := repositories.Cache.Put(ctx, entry); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("oversized cache error=%v", err)
+	}
+}
+
+func researchTestRegistryEntry(t *testing.T, idValue, domainValue string, status research.RegistryStatus, at research.Timestamp) research.SourceRegistryEntry {
+	t.Helper()
+	domain, err := research.NewCanonicalDomain(domainValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return research.SourceRegistryEntry{
+		ID: researchTestID(t, idValue), Organization: "Example Docs", CanonicalDomains: []research.CanonicalDomain{domain},
+		SourceKinds: []research.SourceKind{research.SourceOfficialDocumentation, research.SourceReleaseNotes},
+		AuthorityHints: []research.RegistryAuthorityHint{
+			{SourceKind: research.SourceOfficialDocumentation, Tier: research.AuthorityTierB, Reason: "Official supporting documentation."},
+			{SourceKind: research.SourceReleaseNotes, Tier: research.AuthorityTierA, Reason: "Primary release history."},
+		},
+		ResearchDomains: []string{"software"}, TopicPatterns: []string{"*"}, Notes: "Registry fixture.",
+		Status: status, AddedAt: at, LastReviewedAt: at,
 	}
 }
 

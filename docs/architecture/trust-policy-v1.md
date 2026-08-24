@@ -5,7 +5,7 @@ policy for whether one registered source is appropriate to sustain knowledge in
 a stated context. Its immutable version identifier is `trust-policy-v1`.
 
 The policy is pure domain logic. It performs no discovery, network access,
-fetching, persistence, authority-profile matching, organization/domain lookup,
+fetching, persistence, authority-profile selection, external lookup,
 verification, or conflict resolution. Callers supply validated facts; the
 policy returns a validated `research.TrustDecision` with a state, contextual
 authority tier, ordered reason codes, policy version, and evaluation time.
@@ -25,7 +25,8 @@ dimensions are explicit input and are never collapsed into a numeric score:
 | corroboration | independent, single_source, none, conflicted, unknown | Independent support or explicit disagreement. |
 
 The input also includes the validated `Source`, research topic and purpose, one
-use case, and the UTC evaluation timestamp. Supported use cases are `general`,
+use case, an optional already-matched `SourceRegistryEntry`, and the UTC
+evaluation timestamp. Supported use cases are `general`,
 `language_specification`, `security_advisory`, `package_api`, and
 `historical_behavior`.
 
@@ -53,9 +54,11 @@ Use cases refine that order:
   documentation and source code at B; strong historical secondary material may
   be C.
 
-These rules classify kinds, not organizations or locator domains. Data-driven
-topic matching, preferred organizations, fallback, and custom domain profiles
-belong to Step 05. Trusted registry entries belong to Step 06.
+These rules classify kinds before optional registry context. A registry hint
+may make the resulting tier more conservative but never elevate the baseline.
+`blocked` rejects; `conditional` and `deprecated` require verification; and
+`historical` requires verification outside the historical use case. Registry
+matching itself lives in `internal/research/registry`.
 
 ## Metadata requirement
 
@@ -68,17 +71,18 @@ the decision becomes `requires_verification`.
 
 Policy v1 applies this explicit order:
 
-1. Reject unrelated or tier-E sources.
-2. Reject community sources when partial/unknown relevance, indirect/unknown
+1. Reject a matched registry entry with `blocked` status.
+2. Reject unrelated or tier-E sources.
+3. Reject community sources when partial/unknown relevance, indirect/unknown
    directness, and absent/unknown corroboration combine into low quality.
-3. Require verification for incomplete metadata; stale/unknown freshness;
+4. Require verification for incomplete metadata; stale/unknown freshness;
    partial/unknown relevance; unknown directness; preview, experimental, or
    unknown stability; non-historical legacy material; absent, unknown, or
    conflicted corroboration; and uncorroborated community-only evidence.
-4. Security guidance additionally requires tier A/B, primary/supporting
+5. Security guidance additionally requires tier A/B, primary/supporting
    directness, and independent corroboration.
-5. Otherwise, tier C/D or non-primary sources are accepted only as supplements.
-6. Remaining tier A/B primary evidence is accepted.
+6. Otherwise, tier C/D or non-primary sources are accepted only as supplements.
+7. Remaining tier A/B primary evidence is accepted.
 
 An `aging` source is not automatically stale. A `single_source` normative
 source may be accepted outside security guidance. A conflict always produces
@@ -100,10 +104,13 @@ corroboration.<value>
 metadata.complete | metadata.incomplete
 authority.historical_primary
 security.independent_corroboration_required
+registry.<status>
+registry.authority_hint
 decision.accepted
 decision.accepted_as_supplement
 decision.requires_verification
 decision.rejected_low_quality
+decision.rejected_registry_blocked
 ```
 
 Reason ordering is deterministic, and each reason includes a concise detail for

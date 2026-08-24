@@ -15,54 +15,57 @@ import (
 type Store struct {
 	mu sync.RWMutex
 
-	sources        map[research.SourceID]research.Source
-	sourceLocators map[string]research.SourceID
-	snapshots      map[research.ID]research.SourceSnapshot
-	evidence       map[research.ID]research.Evidence
-	requests       map[research.ID]research.ResearchRequest
-	runs           map[research.ID]research.ResearchRun
-	profiles       map[research.ID]research.AuthorityProfile
-	decisions      map[research.SourceID][]research.TrustDecision
-	releases       map[research.ID]research.ReleaseRecord
-	freshness      map[research.ID]application.FreshnessRecord
-	verification   map[research.ID]research.VerificationResult
-	drift          map[research.ID]research.DriftReport
-	impact         map[research.ID]research.ImpactReport
-	cache          map[string]application.CacheEntry
+	sources         map[research.SourceID]research.Source
+	sourceLocators  map[string]research.SourceID
+	snapshots       map[research.ID]research.SourceSnapshot
+	evidence        map[research.ID]research.Evidence
+	requests        map[research.ID]research.ResearchRequest
+	runs            map[research.ID]research.ResearchRun
+	profiles        map[research.ID]research.AuthorityProfile
+	registryEntries map[research.ID]research.SourceRegistryEntry
+	decisions       map[research.SourceID][]research.TrustDecision
+	releases        map[research.ID]research.ReleaseRecord
+	freshness       map[research.ID]application.FreshnessRecord
+	verification    map[research.ID]research.VerificationResult
+	drift           map[research.ID]research.DriftReport
+	impact          map[research.ID]research.ImpactReport
+	cache           map[string]application.CacheEntry
 }
 
 func New() *Store {
 	return &Store{
-		sources:        make(map[research.SourceID]research.Source),
-		sourceLocators: make(map[string]research.SourceID),
-		snapshots:      make(map[research.ID]research.SourceSnapshot),
-		evidence:       make(map[research.ID]research.Evidence),
-		requests:       make(map[research.ID]research.ResearchRequest),
-		runs:           make(map[research.ID]research.ResearchRun),
-		profiles:       make(map[research.ID]research.AuthorityProfile),
-		decisions:      make(map[research.SourceID][]research.TrustDecision),
-		releases:       make(map[research.ID]research.ReleaseRecord),
-		freshness:      make(map[research.ID]application.FreshnessRecord),
-		verification:   make(map[research.ID]research.VerificationResult),
-		drift:          make(map[research.ID]research.DriftReport),
-		impact:         make(map[research.ID]research.ImpactReport),
-		cache:          make(map[string]application.CacheEntry),
+		sources:         make(map[research.SourceID]research.Source),
+		sourceLocators:  make(map[string]research.SourceID),
+		snapshots:       make(map[research.ID]research.SourceSnapshot),
+		evidence:        make(map[research.ID]research.Evidence),
+		requests:        make(map[research.ID]research.ResearchRequest),
+		runs:            make(map[research.ID]research.ResearchRun),
+		profiles:        make(map[research.ID]research.AuthorityProfile),
+		registryEntries: make(map[research.ID]research.SourceRegistryEntry),
+		decisions:       make(map[research.SourceID][]research.TrustDecision),
+		releases:        make(map[research.ID]research.ReleaseRecord),
+		freshness:       make(map[research.ID]application.FreshnessRecord),
+		verification:    make(map[research.ID]research.VerificationResult),
+		drift:           make(map[research.ID]research.DriftReport),
+		impact:          make(map[research.ID]research.ImpactReport),
+		cache:           make(map[string]application.CacheEntry),
 	}
 }
 
 func (store *Store) Repositories() application.Repositories {
 	return application.Repositories{
-		Sources:       sourceRepository{store},
-		Snapshots:     snapshotRepository{store},
-		Evidence:      evidenceRepository{store},
-		Runs:          researchRunRepository{store},
-		TrustRegistry: trustRegistryRepository{store},
-		Releases:      releaseRepository{store},
-		Freshness:     freshnessRepository{store},
-		Verification:  verificationRepository{store},
-		Drift:         driftRepository{store},
-		Impact:        impactRepository{store},
-		Cache:         cacheRepository{store},
+		Sources:        sourceRepository{store},
+		Snapshots:      snapshotRepository{store},
+		Evidence:       evidenceRepository{store},
+		Runs:           researchRunRepository{store},
+		TrustRegistry:  trustRegistryRepository{store},
+		SourceRegistry: sourceRegistryRepository{store},
+		Releases:       releaseRepository{store},
+		Freshness:      freshnessRepository{store},
+		Verification:   verificationRepository{store},
+		Drift:          driftRepository{store},
+		Impact:         impactRepository{store},
+		Cache:          cacheRepository{store},
 	}
 }
 
@@ -141,6 +144,16 @@ func cloneProfile(profile research.AuthorityProfile) research.AuthorityProfile {
 func cloneDecision(decision research.TrustDecision) research.TrustDecision {
 	clone := decision
 	clone.Reasons = append([]research.TrustReason(nil), decision.Reasons...)
+	return clone
+}
+
+func cloneRegistryEntry(entry research.SourceRegistryEntry) research.SourceRegistryEntry {
+	clone := entry
+	clone.CanonicalDomains = append([]research.CanonicalDomain(nil), entry.CanonicalDomains...)
+	clone.SourceKinds = append([]research.SourceKind(nil), entry.SourceKinds...)
+	clone.AuthorityHints = append([]research.RegistryAuthorityHint(nil), entry.AuthorityHints...)
+	clone.ResearchDomains = append([]string(nil), entry.ResearchDomains...)
+	clone.TopicPatterns = append([]string(nil), entry.TopicPatterns...)
 	return clone
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/learningdb"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
+	"github.com/mishaaac/kelyro/internal/infra/researchdb"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/updatecache"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
@@ -72,6 +73,7 @@ func main() {
 		WithBackups(backups).
 		WithPortability(portable).
 		WithUpdates(updates).
+		WithResearchStores(researchdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).

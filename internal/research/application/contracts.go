@@ -47,6 +47,12 @@ type TrustRegistryRepository interface {
 	LatestDecision(context.Context, research.SourceID) (research.TrustDecision, error)
 }
 
+type SourceRegistryRepository interface {
+	Save(context.Context, research.SourceRegistryEntry) error
+	Get(context.Context, research.ID) (research.SourceRegistryEntry, error)
+	List(context.Context) ([]research.SourceRegistryEntry, error)
+}
+
 type ReleaseRepository interface {
 	Create(context.Context, research.ReleaseRecord) error
 	Get(context.Context, research.ID) (research.ReleaseRecord, error)
@@ -153,17 +159,18 @@ type ResearchCacheRepository interface {
 // Repositories is a wiring bundle, not a repository and not a transaction.
 // Consumers continue to depend on the narrow ports relevant to each use case.
 type Repositories struct {
-	Sources       SourceRepository
-	Snapshots     SnapshotRepository
-	Evidence      EvidenceRepository
-	Runs          ResearchRunRepository
-	TrustRegistry TrustRegistryRepository
-	Releases      ReleaseRepository
-	Freshness     FreshnessRepository
-	Verification  VerificationRepository
-	Drift         DriftRepository
-	Impact        ImpactRepository
-	Cache         ResearchCacheRepository
+	Sources        SourceRepository
+	Snapshots      SnapshotRepository
+	Evidence       EvidenceRepository
+	Runs           ResearchRunRepository
+	TrustRegistry  TrustRegistryRepository
+	SourceRegistry SourceRegistryRepository
+	Releases       ReleaseRepository
+	Freshness      FreshnessRepository
+	Verification   VerificationRepository
+	Drift          DriftRepository
+	Impact         ImpactRepository
+	Cache          ResearchCacheRepository
 }
 
 // SearchQuery and SearchResult keep provider-specific request/response types
@@ -345,6 +352,23 @@ type SourceService interface {
 	List(context.Context) ([]research.Source, error)
 	RecordSnapshot(context.Context, research.SourceSnapshot) error
 	LatestSnapshot(context.Context, research.SourceID) (research.SourceSnapshot, error)
+}
+
+type SourceRegistryService interface {
+	Save(context.Context, research.SourceRegistryEntry) error
+	Get(context.Context, research.ID) (research.SourceRegistryEntry, error)
+	List(context.Context) ([]research.SourceRegistryEntry, error)
+}
+
+// SourceRegistryStore scopes registry queries and the underlying workspace
+// database lifetime without exposing SQLite to application or presentation.
+type SourceRegistryStore interface {
+	Registry() SourceRegistryService
+	Close() error
+}
+
+type SourceRegistryStoreFactory interface {
+	Open(context.Context, string) (SourceRegistryStore, error)
 }
 
 type VerificationService interface {

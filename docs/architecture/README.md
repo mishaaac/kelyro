@@ -35,6 +35,10 @@ The data-driven authority-profile contract, strict fixture loader, topic-key
 matching, precedence, fallback, and persistence compatibility are documented in
 [authority-profiles-v1.md](authority-profiles-v1.md).
 
+The reviewed source-family registry, canonical domain rules, contextual Trust
+Policy signal, SQLite uniqueness contract, and initial read-only CLI are
+documented in [trusted-source-registry.md](trusted-source-registry.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

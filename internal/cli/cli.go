@@ -18,6 +18,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
+	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/version"
 )
@@ -63,6 +64,7 @@ Commands:
   time     Show intentional active study time
   reviews  Show scheduled or currently due reviews
   streak   Show study consistency without affecting progress
+  sources  Inspect the trusted source registry
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -170,6 +172,10 @@ Review commands:
 Streak command:
   kelyro streak
 
+Source registry commands:
+  kelyro sources registry list
+  kelyro sources registry show <id>
+
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
 `
@@ -200,6 +206,7 @@ var actions = map[string]app.Action{
 	"time":        app.ActionTime,
 	"reviews":     app.ActionReviews,
 	"streak":      app.ActionStreak,
+	"sources":     app.ActionSources,
 	"maintenance": app.ActionMaintenance,
 }
 
@@ -285,37 +292,39 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	command := app.Command{
-		Action:               action,
-		Workspace:            invocation.workspace,
-		AllowNested:          invocation.allowNested,
-		ConfigScope:          invocation.configScope,
-		OpenTarget:           invocation.openTarget,
-		DoctorExplain:        invocation.doctorExplain,
-		LogOperation:         invocation.logOperation,
-		BackupOperation:      invocation.backupOperation,
-		BackupID:             invocation.backupID,
-		ExportMode:           invocation.exportMode,
-		ExportOutput:         invocation.exportOutput,
-		ImportArchive:        invocation.importArchive,
-		ImportDryRun:         invocation.importDryRun,
-		ImportConflicts:      invocation.importConflicts,
-		UpdateOperation:      invocation.updateOperation,
-		ProfileOperation:     invocation.profileOperation,
-		ProfileChanges:       invocation.profileChanges,
-		GoalOperation:        invocation.goalOperation,
-		GoalInput:            invocation.goalInput,
-		MasteryOperation:     invocation.masteryOperation,
-		MasteryThreshold:     invocation.masteryThreshold,
-		SetupOperation:       invocation.setupOperation,
-		MistakeOperation:     invocation.mistakeOperation,
-		MistakeID:            invocation.mistakeID,
-		SessionOperation:     invocation.sessionOperation,
-		HistoryToday:         invocation.historyToday,
-		ProgressOperation:    invocation.progressOperation,
-		MaintenanceOperation: invocation.maintenanceOperation,
-		MaintenanceDryRun:    invocation.maintenanceDryRun,
-		ReviewsDue:           invocation.reviewsDue,
-		Verbose:              invocation.verbose,
+		Action:                  action,
+		Workspace:               invocation.workspace,
+		AllowNested:             invocation.allowNested,
+		ConfigScope:             invocation.configScope,
+		OpenTarget:              invocation.openTarget,
+		DoctorExplain:           invocation.doctorExplain,
+		LogOperation:            invocation.logOperation,
+		BackupOperation:         invocation.backupOperation,
+		BackupID:                invocation.backupID,
+		ExportMode:              invocation.exportMode,
+		ExportOutput:            invocation.exportOutput,
+		ImportArchive:           invocation.importArchive,
+		ImportDryRun:            invocation.importDryRun,
+		ImportConflicts:         invocation.importConflicts,
+		UpdateOperation:         invocation.updateOperation,
+		ProfileOperation:        invocation.profileOperation,
+		ProfileChanges:          invocation.profileChanges,
+		GoalOperation:           invocation.goalOperation,
+		GoalInput:               invocation.goalInput,
+		MasteryOperation:        invocation.masteryOperation,
+		MasteryThreshold:        invocation.masteryThreshold,
+		SetupOperation:          invocation.setupOperation,
+		MistakeOperation:        invocation.mistakeOperation,
+		MistakeID:               invocation.mistakeID,
+		SessionOperation:        invocation.sessionOperation,
+		HistoryToday:            invocation.historyToday,
+		ProgressOperation:       invocation.progressOperation,
+		MaintenanceOperation:    invocation.maintenanceOperation,
+		MaintenanceDryRun:       invocation.maintenanceDryRun,
+		ReviewsDue:              invocation.reviewsDue,
+		SourceRegistryOperation: invocation.sourceRegistryOperation,
+		SourceRegistryID:        invocation.sourceRegistryID,
+		Verbose:                 invocation.verbose,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -433,6 +442,10 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatReviews(*result.Reviews))
 	} else if result.Streak != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatStreak(*result.Streak))
+	} else if result.SourceRegistryEntry != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSourceRegistryEntry(*result.SourceRegistryEntry))
+	} else if result.SourceRegistryEntries != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSourceRegistryEntries(result.SourceRegistryEntries))
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -1066,51 +1079,53 @@ func formatDiagnostics(report doctor.Report) string {
 }
 
 type invocation struct {
-	command              string
-	workspace            string
-	help                 bool
-	version              bool
-	noColor              bool
-	verbose              bool
-	quiet                bool
-	allowNested          bool
-	arguments            []string
-	configScope          config.Scope
-	configOperation      string
-	configKey            string
-	configValue          string
-	secretOperation      string
-	secretName           string
-	openTarget           string
-	doctorExplain        string
-	logOperation         string
-	backupOperation      string
-	backupID             string
-	yes                  bool
-	exportMode           portability.Mode
-	exportOutput         string
-	importArchive        string
-	importDryRun         bool
-	importConflicts      portability.ConflictStrategy
-	conflictSet          bool
-	updateOperation      string
-	profileOperation     string
-	profileChanges       learningapp.ProfileChanges
-	profileFlagsSet      bool
-	goalOperation        string
-	goalInput            learningapp.SetGoalInput
-	goalFlagsSet         bool
-	masteryOperation     string
-	masteryThreshold     learning.MasteryThreshold
-	setupOperation       string
-	mistakeOperation     string
-	mistakeID            learning.ID
-	sessionOperation     string
-	historyToday         bool
-	progressOperation    string
-	maintenanceOperation string
-	maintenanceDryRun    bool
-	reviewsDue           bool
+	command                 string
+	workspace               string
+	help                    bool
+	version                 bool
+	noColor                 bool
+	verbose                 bool
+	quiet                   bool
+	allowNested             bool
+	arguments               []string
+	configScope             config.Scope
+	configOperation         string
+	configKey               string
+	configValue             string
+	secretOperation         string
+	secretName              string
+	openTarget              string
+	doctorExplain           string
+	logOperation            string
+	backupOperation         string
+	backupID                string
+	yes                     bool
+	exportMode              portability.Mode
+	exportOutput            string
+	importArchive           string
+	importDryRun            bool
+	importConflicts         portability.ConflictStrategy
+	conflictSet             bool
+	updateOperation         string
+	profileOperation        string
+	profileChanges          learningapp.ProfileChanges
+	profileFlagsSet         bool
+	goalOperation           string
+	goalInput               learningapp.SetGoalInput
+	goalFlagsSet            bool
+	masteryOperation        string
+	masteryThreshold        learning.MasteryThreshold
+	setupOperation          string
+	mistakeOperation        string
+	mistakeID               learning.ID
+	sessionOperation        string
+	historyToday            bool
+	progressOperation       string
+	maintenanceOperation    string
+	maintenanceDryRun       bool
+	reviewsDue              bool
+	sourceRegistryOperation string
+	sourceRegistryID        research.ID
 }
 
 func parse(args []string) (invocation, error) {
@@ -1467,6 +1482,10 @@ func parse(args []string) (invocation, error) {
 		if len(result.arguments) != 0 {
 			return invocation{}, fmt.Errorf("streak does not accept positional arguments")
 		}
+	case "sources":
+		if err := parseSourcesArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	case "maintenance":
 		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
 			return invocation{}, fmt.Errorf("maintenance requires recalculate")
@@ -1506,6 +1525,69 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseSourcesArguments(result *invocation) error {
+	if len(result.arguments) == 2 && result.arguments[0] == "registry" && result.arguments[1] == "list" {
+		result.sourceRegistryOperation = "list"
+		return nil
+	}
+	if len(result.arguments) == 3 && result.arguments[0] == "registry" && result.arguments[1] == "show" {
+		id, err := research.NewID(result.arguments[2])
+		if err != nil {
+			return fmt.Errorf("sources registry show: invalid id: %w", err)
+		}
+		result.sourceRegistryOperation = "show"
+		result.sourceRegistryID = id
+		return nil
+	}
+	return fmt.Errorf("sources requires registry list or registry show <id>")
+}
+
+func formatSourceRegistryEntries(entries []research.SourceRegistryEntry) string {
+	lines := []string{"Trusted source registry"}
+	if len(entries) == 0 {
+		return strings.Join(append(lines, "No registry entries."), "\n")
+	}
+	for _, entry := range entries {
+		domains := make([]string, len(entry.CanonicalDomains))
+		for index, domain := range entry.CanonicalDomains {
+			domains[index] = domain.String()
+		}
+		lines = append(lines, fmt.Sprintf("- %s [%s] — %s — %s", entry.ID, entry.Status, entry.Organization, strings.Join(domains, ", ")))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSourceRegistryEntry(entry research.SourceRegistryEntry) string {
+	domains := make([]string, len(entry.CanonicalDomains))
+	for index, domain := range entry.CanonicalDomains {
+		domains[index] = domain.String()
+	}
+	kinds := make([]string, len(entry.SourceKinds))
+	for index, kind := range entry.SourceKinds {
+		kinds[index] = string(kind)
+	}
+	lines := []string{
+		"Trusted source registry entry",
+		"ID: " + entry.ID.String(),
+		"Organization: " + entry.Organization,
+		"Status: " + string(entry.Status),
+		"Canonical domains: " + strings.Join(domains, ", "),
+		"Source kinds: " + strings.Join(kinds, ", "),
+		"Research domains: " + strings.Join(entry.ResearchDomains, ", "),
+		"Topic patterns: " + strings.Join(entry.TopicPatterns, ", "),
+		"Added: " + entry.AddedAt.Time().Format(time.RFC3339),
+		"Last reviewed: " + entry.LastReviewedAt.Time().Format(time.RFC3339),
+	}
+	for _, hint := range entry.AuthorityHints {
+		lines = append(lines, fmt.Sprintf("Authority hint: %s → tier %s — %s", hint.SourceKind, hint.Tier, hint.Reason))
+	}
+	if entry.Notes != "" {
+		lines = append(lines, "Notes: "+entry.Notes)
+	}
+	lines = append(lines, "Registry metadata is contextual input, not evidence or an automatic trust decision.")
+	return strings.Join(lines, "\n")
 }
 
 func parseMistakeArguments(result *invocation) error {

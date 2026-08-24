@@ -1381,6 +1381,46 @@ BEGIN SELECT RAISE(ABORT, 'diagnostic observation ownership mismatch'); END`,
 			`ALTER TABLE authority_profiles ADD COLUMN supplementary_kinds_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(supplementary_kinds_json) AND json_type(supplementary_kinds_json) = 'array')`,
 		},
 	},
+	{
+		version: 25,
+		name:    "trusted source registry",
+		statements: []string{
+			`CREATE TABLE source_registry_entries (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    organization TEXT NOT NULL CHECK (length(trim(organization)) > 0),
+    canonical_domains_json TEXT NOT NULL CHECK (json_valid(canonical_domains_json) AND json_type(canonical_domains_json) = 'array' AND json_array_length(canonical_domains_json) > 0),
+    source_kinds_json TEXT NOT NULL CHECK (json_valid(source_kinds_json) AND json_type(source_kinds_json) = 'array' AND json_array_length(source_kinds_json) > 0),
+    authority_hints_json TEXT NOT NULL CHECK (json_valid(authority_hints_json) AND json_type(authority_hints_json) = 'array' AND json_array_length(authority_hints_json) > 0),
+    research_domains_json TEXT NOT NULL CHECK (json_valid(research_domains_json) AND json_type(research_domains_json) = 'array' AND json_array_length(research_domains_json) > 0),
+    topic_patterns_json TEXT NOT NULL CHECK (json_valid(topic_patterns_json) AND json_type(topic_patterns_json) = 'array' AND json_array_length(topic_patterns_json) > 0),
+    notes TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('trusted','conditional','historical','deprecated','blocked')),
+    added_at TEXT NOT NULL CHECK (added_at GLOB '*Z'),
+    last_reviewed_at TEXT NOT NULL CHECK (last_reviewed_at GLOB '*Z' AND last_reviewed_at >= added_at)
+)`,
+			`CREATE INDEX source_registry_status_idx ON source_registry_entries (status, organization, id)`,
+			`CREATE TRIGGER source_registry_domains_insert_guard
+BEFORE INSERT ON source_registry_entries
+WHEN EXISTS (
+    SELECT 1 FROM source_registry_entries AS existing,
+                  json_each(existing.canonical_domains_json) AS old_domain,
+                  json_each(NEW.canonical_domains_json) AS new_domain
+    WHERE existing.id <> NEW.id
+      AND lower(old_domain.value) = lower(new_domain.value)
+)
+BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
+			`CREATE TRIGGER source_registry_domains_update_guard
+BEFORE UPDATE OF canonical_domains_json ON source_registry_entries
+WHEN EXISTS (
+    SELECT 1 FROM source_registry_entries AS existing,
+                  json_each(existing.canonical_domains_json) AS old_domain,
+                  json_each(NEW.canonical_domains_json) AS new_domain
+    WHERE existing.id <> NEW.id
+      AND lower(old_domain.value) = lower(new_domain.value)
+)
+BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

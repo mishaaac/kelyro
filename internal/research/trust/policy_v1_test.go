@@ -184,6 +184,48 @@ func TestPolicyV1IsDeterministicAndRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestPolicyV1UsesRegistryAsContextWithoutTreatingItAsTruth(t *testing.T) {
+	blocked := trustTestInput(t, research.SourceOfficialDocumentation)
+	blocked.Registry = trustRegistryEntry(t, blocked, research.RegistryBlocked, research.AuthorityTierE)
+	decision, err := (PolicyV1{}).Evaluate(blocked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRejected || decision.Tier != research.AuthorityTierE {
+		t.Fatalf("blocked registry decision = (%s, %s)", decision.State, decision.Tier)
+	}
+	assertReason(t, decision, "registry.blocked")
+	assertReason(t, decision, "decision.rejected_registry_blocked")
+
+	historical := trustTestInput(t, research.SourceOfficialDocumentation)
+	historical.Registry = trustRegistryEntry(t, historical, research.RegistryHistorical, research.AuthorityTierB)
+	decision, err = (PolicyV1{}).Evaluate(historical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRequiresVerification {
+		t.Fatalf("historical current-guidance state = %s", decision.State)
+	}
+	historical.UseCase = UseCaseHistoricalBehavior
+	decision, err = (PolicyV1{}).Evaluate(historical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustAccepted || decision.Tier != research.AuthorityTierB {
+		t.Fatalf("historical behavior decision = (%s, %s)", decision.State, decision.Tier)
+	}
+
+	trusted := trustTestInput(t, research.SourceOfficialDocumentation)
+	trusted.Registry = trustRegistryEntry(t, trusted, research.RegistryTrusted, research.AuthorityTierA)
+	decision, err = (PolicyV1{}).Evaluate(trusted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Tier != research.AuthorityTierB {
+		t.Fatalf("trusted registry elevated baseline tier to %s", decision.Tier)
+	}
+}
+
 func trustTestInput(t *testing.T, kind research.SourceKind) Input {
 	t.Helper()
 	return Input{
@@ -241,6 +283,20 @@ func trustTestTimestamp(t *testing.T, value time.Time) research.Timestamp {
 		t.Fatal(err)
 	}
 	return timestamp
+}
+
+func trustRegistryEntry(t *testing.T, input Input, status research.RegistryStatus, tier research.AuthorityTier) *research.SourceRegistryEntry {
+	t.Helper()
+	id, _ := research.NewID("registry.example")
+	domain, _ := research.NewCanonicalDomain("example.com")
+	entry := research.SourceRegistryEntry{
+		ID: id, Organization: "Example Authority", CanonicalDomains: []research.CanonicalDomain{domain},
+		SourceKinds:     []research.SourceKind{input.Source.Kind},
+		AuthorityHints:  []research.RegistryAuthorityHint{{SourceKind: input.Source.Kind, Tier: tier, Reason: "Registry fixture hint."}},
+		ResearchDomains: []string{"software"}, TopicPatterns: []string{"example/*"}, Status: status,
+		AddedAt: input.Source.CreatedAt, LastReviewedAt: input.EvaluatedAt,
+	}
+	return &entry
 }
 
 func assertReason(t *testing.T, decision research.TrustDecision, code string) {

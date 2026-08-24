@@ -13,32 +13,34 @@ import (
 
 func newResearchRepositories(target executor, timeout time.Duration) application.Repositories {
 	return application.Repositories{
-		Sources:       &researchSourceRepository{target, timeout},
-		Snapshots:     &researchSnapshotRepository{target, timeout},
-		Evidence:      &researchEvidenceRepository{target, timeout},
-		Runs:          &researchRunRepository{target, timeout},
-		TrustRegistry: &researchTrustRegistryRepository{target, timeout},
-		Releases:      &researchReleaseRepository{target, timeout},
-		Freshness:     &researchFreshnessRepository{target, timeout},
-		Verification:  &researchVerificationRepository{target, timeout},
-		Drift:         &researchDriftRepository{target, timeout},
-		Impact:        &researchImpactRepository{target, timeout},
-		Cache:         &researchCacheRepository{target, timeout},
+		Sources:        &researchSourceRepository{target, timeout},
+		Snapshots:      &researchSnapshotRepository{target, timeout},
+		Evidence:       &researchEvidenceRepository{target, timeout},
+		Runs:           &researchRunRepository{target, timeout},
+		TrustRegistry:  &researchTrustRegistryRepository{target, timeout},
+		SourceRegistry: &researchSourceRegistryRepository{target, timeout},
+		Releases:       &researchReleaseRepository{target, timeout},
+		Freshness:      &researchFreshnessRepository{target, timeout},
+		Verification:   &researchVerificationRepository{target, timeout},
+		Drift:          &researchDriftRepository{target, timeout},
+		Impact:         &researchImpactRepository{target, timeout},
+		Cache:          &researchCacheRepository{target, timeout},
 	}
 }
 
 var (
-	_ application.SourceRepository        = (*researchSourceRepository)(nil)
-	_ application.SnapshotRepository      = (*researchSnapshotRepository)(nil)
-	_ application.EvidenceRepository      = (*researchEvidenceRepository)(nil)
-	_ application.ResearchRunRepository   = (*researchRunRepository)(nil)
-	_ application.TrustRegistryRepository = (*researchTrustRegistryRepository)(nil)
-	_ application.ReleaseRepository       = (*researchReleaseRepository)(nil)
-	_ application.FreshnessRepository     = (*researchFreshnessRepository)(nil)
-	_ application.VerificationRepository  = (*researchVerificationRepository)(nil)
-	_ application.DriftRepository         = (*researchDriftRepository)(nil)
-	_ application.ImpactRepository        = (*researchImpactRepository)(nil)
-	_ application.ResearchCacheRepository = (*researchCacheRepository)(nil)
+	_ application.SourceRepository         = (*researchSourceRepository)(nil)
+	_ application.SnapshotRepository       = (*researchSnapshotRepository)(nil)
+	_ application.EvidenceRepository       = (*researchEvidenceRepository)(nil)
+	_ application.ResearchRunRepository    = (*researchRunRepository)(nil)
+	_ application.TrustRegistryRepository  = (*researchTrustRegistryRepository)(nil)
+	_ application.SourceRegistryRepository = (*researchSourceRegistryRepository)(nil)
+	_ application.ReleaseRepository        = (*researchReleaseRepository)(nil)
+	_ application.FreshnessRepository      = (*researchFreshnessRepository)(nil)
+	_ application.VerificationRepository   = (*researchVerificationRepository)(nil)
+	_ application.DriftRepository          = (*researchDriftRepository)(nil)
+	_ application.ImpactRepository         = (*researchImpactRepository)(nil)
+	_ application.ResearchCacheRepository  = (*researchCacheRepository)(nil)
 )
 
 type researchRunRepository struct {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/research"
+	registrycatalog "github.com/mishaaac/kelyro/internal/research/registry"
 )
 
 const PolicyVersionV1 = "trust-policy-v1"
@@ -117,6 +118,7 @@ type Input struct {
 	Directness    Directness
 	Stability     Stability
 	Corroboration Corroboration
+	Registry      *research.SourceRegistryEntry
 	EvaluatedAt   research.Timestamp
 }
 
@@ -141,6 +143,22 @@ func (input Input) Validate() error {
 			return fmt.Errorf("trust %s: %w", check.name, check.err)
 		}
 	}
+	if input.Registry != nil {
+		if err := input.Registry.Validate(); err != nil {
+			return fmt.Errorf("trust registry entry: %w", err)
+		}
+		catalog, err := registrycatalog.NewCatalog([]research.SourceRegistryEntry{*input.Registry})
+		if err != nil {
+			return fmt.Errorf("trust registry entry: %w", err)
+		}
+		matched, found, err := catalog.MatchLocator(input.Source.Locator)
+		if err != nil || !found || matched.ID != input.Registry.ID {
+			return fmt.Errorf("trust registry entry does not match source locator")
+		}
+		if !registrycatalog.AppliesTo(*input.Registry, input.Topic, input.Source.Kind) {
+			return fmt.Errorf("trust registry entry does not apply to source kind and topic")
+		}
+	}
 	return nil
 }
 
@@ -152,7 +170,7 @@ func (PolicyV1) Evaluate(input Input) (research.TrustDecision, error) {
 		return research.TrustDecision{}, err
 	}
 
-	tier := authorityTier(input.UseCase, input.Source.Kind)
+	tier := registryAdjustedTier(input, authorityTier(input.UseCase, input.Source.Kind))
 	reasons := dimensionReasons(input, tier)
 	state, outcomeReason := decide(input, tier, metadataComplete(input))
 	reasons = append(reasons, outcomeReason)
@@ -228,6 +246,9 @@ func authorityTier(useCase UseCase, kind research.SourceKind) research.Authority
 }
 
 func decide(input Input, tier research.AuthorityTier, completeMetadata bool) (research.TrustDecisionState, research.TrustReason) {
+	if input.Registry != nil && input.Registry.Status == research.RegistryBlocked {
+		return research.TrustRejected, reason("decision.rejected_registry_blocked", "The matched registry entry explicitly blocks this source family.")
+	}
 	if input.Relevance == RelevanceUnrelated || tier == research.AuthorityTierE {
 		return research.TrustRejected, reason("decision.rejected_low_quality", "The source is unrelated or has unverified authority.")
 	}
@@ -247,6 +268,11 @@ func decide(input Input, tier research.AuthorityTier, completeMetadata bool) (re
 		input.Corroboration == CorroborationNone || input.Corroboration == CorroborationUnknown ||
 		input.Corroboration == CorroborationConflicted ||
 		(tier == research.AuthorityTierD && input.Corroboration != CorroborationIndependent)
+	if input.Registry != nil {
+		requiresVerification = requiresVerification || input.Registry.Status == research.RegistryConditional ||
+			input.Registry.Status == research.RegistryDeprecated ||
+			(input.Registry.Status == research.RegistryHistorical && input.UseCase != UseCaseHistoricalBehavior)
+	}
 
 	if input.UseCase == UseCaseSecurityAdvisory &&
 		(tierRank(tier) > tierRank(research.AuthorityTierB) ||
@@ -286,6 +312,15 @@ func dimensionReasons(input Input, tier research.AuthorityTier) []research.Trust
 		reason("stability."+string(input.Stability), "Stability distinguishes durable guidance from preview or experimental material."),
 		reason("corroboration."+string(input.Corroboration), "Corroboration records independent support or explicit conflict."),
 	}
+	if input.Registry != nil {
+		reasons = append(reasons, reason("registry."+string(input.Registry.Status), "Registry status is contextual policy input, not evidence or an automatic trust decision."))
+		for _, hint := range input.Registry.AuthorityHints {
+			if hint.SourceKind == input.Source.Kind {
+				reasons = append(reasons, reason("registry.authority_hint", hint.Reason))
+				break
+			}
+		}
+	}
 	if metadataComplete(input) {
 		reasons = append(reasons, reason("metadata.complete", "Required publisher and temporal metadata are present."))
 	} else {
@@ -298,6 +333,21 @@ func dimensionReasons(input Input, tier research.AuthorityTier) []research.Trust
 		reasons = append(reasons, reason("security.independent_corroboration_required", "Security guidance requires vendor or normative evidence plus independent recognized support."))
 	}
 	return reasons
+}
+
+func registryAdjustedTier(input Input, baseline research.AuthorityTier) research.AuthorityTier {
+	if input.Registry == nil {
+		return baseline
+	}
+	if input.Registry.Status == research.RegistryBlocked {
+		return research.AuthorityTierE
+	}
+	for _, hint := range input.Registry.AuthorityHints {
+		if hint.SourceKind == input.Source.Kind && tierRank(hint.Tier) > tierRank(baseline) {
+			return hint.Tier
+		}
+	}
+	return baseline
 }
 
 func authorityDetail(tier research.AuthorityTier) string {

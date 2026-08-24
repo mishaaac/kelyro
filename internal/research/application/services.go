@@ -149,6 +149,44 @@ func (service *sourceService) LatestSnapshot(ctx context.Context, sourceID resea
 	return snapshot, repositoryError(operation, err)
 }
 
+type sourceRegistryService struct{ repository SourceRegistryRepository }
+
+func NewSourceRegistryService(repository SourceRegistryRepository) SourceRegistryService {
+	return &sourceRegistryService{repository: repository}
+}
+
+func (service *sourceRegistryService) Save(ctx context.Context, entry research.SourceRegistryEntry) error {
+	const operation = "save source registry entry"
+	if err := entry.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := requireDependency(operation, "source registry repository", service.repository); err != nil {
+		return err
+	}
+	return repositoryError(operation, service.repository.Save(ctx, entry))
+}
+
+func (service *sourceRegistryService) Get(ctx context.Context, id research.ID) (research.SourceRegistryEntry, error) {
+	const operation = "get source registry entry"
+	if err := id.Validate(); err != nil {
+		return research.SourceRegistryEntry{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "source registry repository", service.repository); err != nil {
+		return research.SourceRegistryEntry{}, err
+	}
+	entry, err := service.repository.Get(ctx, id)
+	return entry, repositoryError(operation, err)
+}
+
+func (service *sourceRegistryService) List(ctx context.Context) ([]research.SourceRegistryEntry, error) {
+	const operation = "list source registry entries"
+	if err := requireDependency(operation, "source registry repository", service.repository); err != nil {
+		return nil, err
+	}
+	entries, err := service.repository.List(ctx)
+	return entries, repositoryError(operation, err)
+}
+
 type verificationService struct{ repository VerificationRepository }
 
 func NewVerificationService(repository VerificationRepository) VerificationService {

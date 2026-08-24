@@ -63,6 +63,34 @@ func TestResearchAndSourceServicesUseNarrowMemoryRepositories(t *testing.T) {
 	}
 }
 
+func TestSourceRegistryServicePreservesEntriesAndRejectsDuplicateDomains(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repositories := memory.New().Repositories()
+	service := application.NewSourceRegistryService(repositories.SourceRegistry)
+	trusted := testRegistryEntry(t, "registry.alpha", "Docs.Example.Test.", research.RegistryTrusted)
+	if err := service.Save(ctx, trusted); err != nil {
+		t.Fatal(err)
+	}
+	historical := testRegistryEntry(t, "registry.history", "archive.example.test", research.RegistryHistorical)
+	if err := service.Save(ctx, historical); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := service.List(ctx)
+	if err != nil || len(entries) != 2 || entries[0].ID != trusted.ID || entries[1].Status != research.RegistryHistorical {
+		t.Fatalf("List() = (%+v, %v)", entries, err)
+	}
+	entries[0].ResearchDomains[0] = "changed"
+	loaded, err := service.Get(ctx, trusted.ID)
+	if err != nil || loaded.ResearchDomains[0] != "software" {
+		t.Fatalf("Get() defensive copy = (%+v, %v)", loaded, err)
+	}
+	duplicate := testRegistryEntry(t, "registry.duplicate", "docs.example.test", research.RegistryConditional)
+	if err := service.Save(ctx, duplicate); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("Save(duplicate domain) error = %v, want conflict", err)
+	}
+}
+
 func TestServicesClassifyValidationRepositoryAndContextErrors(t *testing.T) {
 	t.Parallel()
 
@@ -280,7 +308,7 @@ func TestMemoryFakesPreserveRelationshipsOrderingAndOwnership(t *testing.T) {
 		PreferredKinds: []research.SourceKind{research.SourceSpecification}, PreferredDomains: []string{"example.com"},
 		PreferredOrganizations: []string{"Example"}, MinimumCorroboration: 1,
 		AllowedSupplementaryKinds: []research.SourceKind{research.SourceCommunityArticle},
-		MinimumTier: research.AuthorityTierB, CreatedAt: testTimestamp(t, 9),
+		MinimumTier:               research.AuthorityTierB, CreatedAt: testTimestamp(t, 9),
 	}
 	if err := repositories.TrustRegistry.SaveProfile(ctx, profile); err != nil {
 		t.Fatal(err)
@@ -425,6 +453,21 @@ func testImpact(t *testing.T, drift research.DriftReport) research.ImpactReport 
 		AffectedBundleIDs: []research.ID{drift.OldBundleID},
 		AffectedClaimIDs:  drift.AffectedClaims, Severity: research.SeverityImportant,
 		RecommendedAction: research.ActionReviewCurriculum, AssessedAt: testTimestamp(t, 13),
+	}
+}
+
+func testRegistryEntry(t *testing.T, idSuffix, domainValue string, status research.RegistryStatus) research.SourceRegistryEntry {
+	t.Helper()
+	domain, err := research.NewCanonicalDomain(domainValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return research.SourceRegistryEntry{
+		ID: testID(t, idSuffix), Organization: "Example", CanonicalDomains: []research.CanonicalDomain{domain},
+		SourceKinds:     []research.SourceKind{research.SourceOfficialDocumentation},
+		AuthorityHints:  []research.RegistryAuthorityHint{{SourceKind: research.SourceOfficialDocumentation, Tier: research.AuthorityTierB, Reason: "Fixture authority hint."}},
+		ResearchDomains: []string{"software"}, TopicPatterns: []string{"*"}, Status: status,
+		AddedAt: testTimestamp(t, 8), LastReviewedAt: testTimestamp(t, 9),
 	}
 }
 

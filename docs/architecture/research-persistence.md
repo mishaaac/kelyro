@@ -2,13 +2,13 @@
 
 Step 03 adds schema version 23 to the workspace-local Foundation SQLite
 database. Step 05 adds forward-only migration v24 for topic-aware authority
-profiles. The 22 migrations that shipped Student Core and migration v23 remain
-unchanged, and an I-02 database is upgraded without rewriting its learning
-state.
+profiles, and Step 06 adds v25 for the Trusted Source Registry. The 22
+migrations that shipped Student Core and migrations v23/v24 remain unchanged,
+and an I-02 database is upgraded without rewriting its learning state.
 
 ## Adapter boundary
 
-`Database.Repositories().Research` exposes the eleven narrow repository ports
+`Database.Repositories().Research` exposes the twelve narrow repository ports
 defined by `internal/research/application`. The adapter depends on the research
 domain and application contracts; neither package imports SQLite.
 
@@ -45,6 +45,11 @@ Migration 23 creates the following durable groups:
 Migration 24 extends `authority_profiles` with preferred domain and
 organization JSON arrays, minimum corroboration, and supplementary source
 kinds. Existing v23 records receive empty arrays and corroboration `1`.
+
+Migration 25 creates `source_registry_entries` with validated arrays for
+canonical domains, source kinds, authority hints, research domains, and topic
+patterns. Insert/update triggers reject a canonical domain already owned by a
+different registry entry; status/organization listing is indexed.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.

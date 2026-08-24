@@ -1,0 +1,49 @@
+// Package researchdb binds Research application services to a workspace-local
+// SQLite database without exposing storage details to presentation packages.
+package researchdb
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/mishaaac/kelyro/internal/research/application"
+	"github.com/mishaaac/kelyro/internal/storage/sqlite"
+)
+
+type Factory struct {
+	appVersion string
+	backup     sqlite.BackupFunc
+}
+
+func NewFactory(appVersion string) *Factory { return &Factory{appVersion: appVersion} }
+
+func (factory *Factory) WithMigrationBackup(create sqlite.BackupFunc) *Factory {
+	factory.backup = create
+	return factory
+}
+
+func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (application.SourceRegistryStore, error) {
+	database, err := sqlite.Open(ctx, workspaceRoot, sqlite.WithAppVersion(factory.appVersion), sqlite.WithDestructiveMigrationBackup(factory.backup))
+	if err != nil {
+		return nil, err
+	}
+	registry := application.NewSourceRegistryService(database.Repositories().Research.SourceRegistry)
+	return &store{database: database, registry: registry}, nil
+}
+
+type store struct {
+	database *sqlite.Database
+	registry application.SourceRegistryService
+}
+
+func (store *store) Registry() application.SourceRegistryService { return store.registry }
+
+func (store *store) Close() error {
+	if err := store.database.Close(); err != nil {
+		return fmt.Errorf("close research database: %w", err)
+	}
+	return nil
+}
+
+var _ application.SourceRegistryStoreFactory = (*Factory)(nil)
+var _ application.SourceRegistryStore = (*store)(nil)
