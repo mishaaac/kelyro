@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 7
-Last completed step: 6
+Current step: 8
+Last completed step: 7
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -484,3 +484,75 @@ Release: unreleased
 - El privacy/network gate deberá cubrir toda operación live sin inutilizar
   evidencia persistida ni caché offline.
 - No implementar HTTP client, discovery ni pasos posteriores durante el Paso 7.
+
+## Step 07 — Privacy/network gate para Research Engine
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Modos de investigación cerrados `offline`, `online` y `auto`, validados en
+  application y sin capacidad de sobreescribir la política resuelta de
+  Foundation.
+- Gate obligatorio `privacy.NetworkGate` en los tres límites live actuales:
+  discovery (`research.discovery`), fetch (`research.fetch`) y release lookup
+  (`research.release_lookup`).
+- `DiscoveryService`, `FetchService` y `ReleaseLookupService` con autorización
+  previa al adapter live y validación de identidad/estructura de toda salida.
+- Puertos offline explícitos y separados para discovery, fetched sources y
+  releases, evitando que un fallback de cache pueda confundirse con un
+  provider de red.
+- Fallback determinista: `offline` usa solo cache, `online` exige permiso live y
+  `auto` usa live si Foundation autoriza o cache si la política bloquea.
+- Clasificación estable `network_research_blocked` mediante
+  `ErrNetworkResearchBlocked`, preservando también
+  `privacy.ErrNetworkBlocked` como causa categorizable.
+- Integración probada con la configuración Foundation deny-by-default y el log
+  seguro de privacy, sin incluir queries, URLs, contenido ni workspace paths en
+  la solicitud de autorización.
+- Contrato y límites documentados en
+  `docs/architecture/research-network-privacy.md` y sincronizados con la
+  documentación de Foundation y application.
+
+### Decisions
+
+- `online` expresa intención de usar red, no permiso; una denegación de
+  `privacy.allow_network` siempre gana y no consulta cache silenciosamente.
+- `auto` cae a cache únicamente ante una denegación de política. No oculta
+  errores de un provider ya autorizado con fallback automático; la política de
+  source fallback pertenece a un paso posterior.
+- `offline` no consulta el gate y nunca toca un provider live, incluso si
+  `privacy.allow_network` está habilitado.
+- Cache miss más imposibilidad de acceso live produce
+  `network_research_blocked`; fallos reales de cache conservan
+  `persistence_failure` y fallos live conservan `external_failure`.
+- El gate protege solo operaciones externas. Evidencia, snapshots, registry,
+  freshness y demás datos persistidos continúan disponibles sin red.
+- No se implementaron HTTP client, DNS/SSRF, retries, cache encoding/writes,
+  discovery provider, release discovery, CLI Research, Curriculum Compiler ni
+  cambios de Student Core.
+
+### Verification
+
+- Tests de bloqueo y cero llamadas accidentales a providers para discovery,
+  fetch y release lookup.
+- Tests de autorización, modos inválidos, `offline` sin consulta al gate,
+  fallback cacheado de `auto`, cache miss y fallos de cache diferenciados.
+- Test de integración con configuración Foundation deny-by-default y logging de
+  la operación estable `research.discovery`.
+- `GOCACHE=/tmp/kelyro-i03-step7-fulltest1-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step7-fullvet1-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step7-quality-final-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go vet ./...`,
+  `go test -race ./...`, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 8 es el siguiente paso pendiente y requiere autorización explícita.
+- El Research HTTP Client deberá vivir detrás de `SourceFetcher` y seguirá
+  dependiendo del gate aplicado en este paso; no deberá autorizarse a sí mismo.
+- No implementar discovery, parsing, cache policy ni pasos posteriores durante
+  el Paso 8.

@@ -53,16 +53,34 @@ func (service *researchService) UpdateRun(ctx context.Context, run research.Rese
 	return repositoryError(operation, service.runs.UpdateRun(ctx, run))
 }
 
-type discoveryService struct{ provider SearchProvider }
-
-func NewDiscoveryService(provider SearchProvider) DiscoveryService {
-	return &discoveryService{provider: provider}
+type discoveryService struct {
+	provider SearchProvider
+	cache    SearchCache
+	access   networkResearchAccess
 }
 
-func (service *discoveryService) Search(ctx context.Context, query SearchQuery) ([]SearchResult, error) {
+func NewDiscoveryService(provider SearchProvider, cache SearchCache, access NetworkResearchAccess) DiscoveryService {
+	return &discoveryService{provider: provider, cache: cache, access: newNetworkResearchAccess(access)}
+}
+
+func (service *discoveryService) Search(ctx context.Context, mode ResearchMode, query SearchQuery) ([]SearchResult, error) {
 	const operation = "search source candidates"
 	if err := query.Validate(); err != nil {
 		return nil, invalid(operation, err)
+	}
+	decision, err := service.access.decide(ctx, mode, NetworkOperationDiscovery)
+	if err != nil {
+		return nil, err
+	}
+	if !decision.live {
+		if service.cache == nil {
+			return nil, networkResearchBlocked(operation, decision.blocked, nil)
+		}
+		results, cacheErr := service.cache.SearchCached(ctx, query)
+		if cacheErr != nil {
+			return nil, offlineFallbackError(operation, decision.blocked, cacheErr)
+		}
+		return validateSearchResults(operation, results, true)
 	}
 	if err := requireDependency(operation, "search provider", service.provider); err != nil {
 		return nil, err
@@ -71,9 +89,17 @@ func (service *discoveryService) Search(ctx context.Context, query SearchQuery) 
 	if err != nil {
 		return nil, externalError(operation, err)
 	}
+	return validateSearchResults(operation, results, false)
+}
+
+func validateSearchResults(operation string, results []SearchResult, cached bool) ([]SearchResult, error) {
 	for index, result := range results {
 		if err := result.Validate(); err != nil {
-			return nil, externalError(operation, fmt.Errorf("result %d: %w", index, err))
+			cause := fmt.Errorf("result %d: %w", index, err)
+			if cached {
+				return nil, repositoryError(operation, cause)
+			}
+			return nil, externalError(operation, cause)
 		}
 	}
 	return results, nil

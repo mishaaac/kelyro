@@ -25,8 +25,10 @@ future CLI / TUI / compiler consumers
               research domain values
 ```
 
-The domain never imports application. Application depends only on the research
-domain and the Go standard library. No concrete adapter is selected here.
+The domain never imports application. Application depends on the research
+domain and Foundation's narrow `privacy.NetworkGate` contract, plus the Go
+standard library. No concrete adapter or resolved configuration is selected
+here.
 
 ## Repository ports
 
@@ -71,23 +73,32 @@ from entering domain or services:
   `SearchResult` values. Results remain candidates, never evidence.
 - `SourceFetcher` accepts a bounded `FetchRequest` and returns `FetchedSource`
   bytes plus transport-neutral `FetchMetadata`.
+- `ReleaseLookupProvider` accepts a validated technology/channel query and
+  returns release candidates for later evidence and verification work.
+- `SearchCache`, `SourceFetchCache`, and `ReleaseLookupCache` expose explicitly
+  offline fallback reads and cannot be confused with their live counterparts.
 - `SourceNormalizer` converts fetched bytes into a `NormalizedSource` without
   exposing parser-specific nodes.
 - `MetadataExtractor` derives `SourceMetadata` from normalized data.
 - `Clock` supplies a validated research timestamp to time-dependent use cases.
 
-These are contracts only. Step 02 does not implement search, HTTP, retry,
-privacy gating, normalization, metadata extraction, or a system clock adapter.
-`MaximumBytes` makes the fetch boundary explicitly bounded, but enforcement and
-security hardening remain adapter responsibilities in their dedicated steps.
+These are contracts only. Step 07 protects every live call with Foundation's
+privacy gate, but does not implement search, HTTP, retry, cache encoding,
+release discovery, normalization, metadata extraction, or a system clock
+adapter. `MaximumBytes` makes the fetch boundary explicitly bounded, but
+enforcement and security hardening remain adapter responsibilities in their
+dedicated steps.
 
 ## Initial application services
 
 The initial services are deliberately thin:
 
 - `ResearchService` creates and updates validated request/run state;
-- `DiscoveryService` validates queries, delegates to one `SearchProvider`, and
-  rejects invalid provider output;
+- `DiscoveryService` validates queries, enforces research mode/privacy, and
+  delegates to either the live provider or explicit offline cache;
+- `FetchService` applies the same boundary to live/cached source retrieval;
+- `ReleaseLookupService` applies it to live/cached release lookups without
+  persisting candidates automatically;
 - `SourceService` registers sources and records snapshots for known sources;
 - `SourceRegistryService` saves and queries reviewed registry entries;
 - `VerificationService` records and retrieves verification results;
@@ -115,6 +126,7 @@ Every error crossing the application boundary has one stable kind:
 | `unavailable` | A dependency is missing, or context was cancelled/timed out. |
 | `persistence_failure` | An unclassified repository/storage operation failed. |
 | `external_failure` | An unclassified external provider/adapter operation failed. |
+| `network_research_blocked` | The requested live research is disallowed and no usable offline result is available. |
 
 `application.Error` preserves the underlying cause for diagnostics while
 allowing callers to branch with `errors.Is` or `KindOf`. Repositories and
@@ -122,6 +134,9 @@ external providers have distinct fallback mappings, so a search outage cannot
 masquerade as SQLite corruption and a database error cannot masquerade as a
 provider outage. Already-classified errors retain their kind when a service
 adds operation context.
+
+The research modes and privacy authorization sequence are specified in
+[research-network-privacy.md](research-network-privacy.md).
 
 ## Deterministic memory fake
 
@@ -142,7 +157,7 @@ in Step 03.
 
 ## Deferred boundaries
 
-Step 02 does not add SQLite migrations, network access, credentials, background
-work, algorithms, evidence extraction, source bundles, CLI/TUI commands,
-curriculum compilation, or student-state mutations. The Student Core remains
-offline and unchanged.
+The current boundary does not add network adapters, credentials, background
+work, algorithms, evidence extraction, source bundles, public research
+commands, curriculum compilation, or student-state mutations. The Student Core
+remains offline and unchanged.

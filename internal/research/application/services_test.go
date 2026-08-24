@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mishaaac/kelyro/internal/privacy"
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/research/application/memory"
@@ -144,29 +145,30 @@ func TestDiscoveryServiceMapsProviderFailuresAndRejectsInvalidResults(t *testing
 		RequestID: testID(t, "request.search"), Text: "official interface specification", Limit: 5,
 	}
 	wantCause := errors.New("provider unavailable")
-	service := application.NewDiscoveryService(searchProviderStub{err: wantCause})
-	_, err := service.Search(ctx, query)
+	access := application.NetworkResearchAccess{Gate: privacy.NewNetworkGate(privacy.Policy{AllowNetwork: true}, nil)}
+	service := application.NewDiscoveryService(searchProviderStub{err: wantCause}, nil, access)
+	_, err := service.Search(ctx, application.ResearchModeOnline, query)
 	if !errors.Is(err, application.ErrExternalFailure) || !errors.Is(err, wantCause) {
 		t.Fatalf("provider error = %v, want external_failure preserving cause", err)
 	}
 
 	service = application.NewDiscoveryService(searchProviderStub{results: []application.SearchResult{{
 		Title: "Specification", Locator: testLocator(t, "spec"), Provider: "fixture", Rank: 0,
-	}}})
-	results, err := service.Search(ctx, query)
+	}}}, nil, access)
+	results, err := service.Search(ctx, application.ResearchModeOnline, query)
 	if err != nil || len(results) != 1 {
 		t.Fatalf("DiscoveryService.Search() = (%+v, %v)", results, err)
 	}
 
 	service = application.NewDiscoveryService(searchProviderStub{results: []application.SearchResult{{
 		Title: "", Locator: testLocator(t, "bad"), Provider: "fixture", Rank: 0,
-	}}})
-	if _, err := service.Search(ctx, query); !errors.Is(err, application.ErrExternalFailure) {
+	}}}, nil, access)
+	if _, err := service.Search(ctx, application.ResearchModeOnline, query); !errors.Is(err, application.ErrExternalFailure) {
 		t.Fatalf("invalid provider result error = %v, want external_failure", err)
 	}
 
 	query.Limit = 0
-	if _, err := service.Search(ctx, query); !errors.Is(err, application.ErrInvalidState) {
+	if _, err := service.Search(ctx, application.ResearchModeOnline, query); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("invalid query error = %v, want invalid_state", err)
 	}
 }

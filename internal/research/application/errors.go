@@ -9,12 +9,13 @@ import (
 type ErrorKind string
 
 const (
-	ErrorNotFound           ErrorKind = "not_found"
-	ErrorConflict           ErrorKind = "conflict"
-	ErrorInvalidState       ErrorKind = "invalid_state"
-	ErrorUnavailable        ErrorKind = "unavailable"
-	ErrorPersistenceFailure ErrorKind = "persistence_failure"
-	ErrorExternalFailure    ErrorKind = "external_failure"
+	ErrorNotFound               ErrorKind = "not_found"
+	ErrorConflict               ErrorKind = "conflict"
+	ErrorInvalidState           ErrorKind = "invalid_state"
+	ErrorUnavailable            ErrorKind = "unavailable"
+	ErrorPersistenceFailure     ErrorKind = "persistence_failure"
+	ErrorExternalFailure        ErrorKind = "external_failure"
+	ErrorNetworkResearchBlocked ErrorKind = "network_research_blocked"
 )
 
 // Error carries a stable application classification while preserving its
@@ -52,12 +53,13 @@ func (err *Error) Is(target error) bool {
 }
 
 var (
-	ErrNotFound           error = &Error{Kind: ErrorNotFound}
-	ErrConflict           error = &Error{Kind: ErrorConflict}
-	ErrInvalidState       error = &Error{Kind: ErrorInvalidState}
-	ErrUnavailable        error = &Error{Kind: ErrorUnavailable}
-	ErrPersistenceFailure error = &Error{Kind: ErrorPersistenceFailure}
-	ErrExternalFailure    error = &Error{Kind: ErrorExternalFailure}
+	ErrNotFound               error = &Error{Kind: ErrorNotFound}
+	ErrConflict               error = &Error{Kind: ErrorConflict}
+	ErrInvalidState           error = &Error{Kind: ErrorInvalidState}
+	ErrUnavailable            error = &Error{Kind: ErrorUnavailable}
+	ErrPersistenceFailure     error = &Error{Kind: ErrorPersistenceFailure}
+	ErrExternalFailure        error = &Error{Kind: ErrorExternalFailure}
+	ErrNetworkResearchBlocked error = &Error{Kind: ErrorNetworkResearchBlocked}
 )
 
 func Classify(kind ErrorKind, operation string, cause error) error {
@@ -65,22 +67,17 @@ func Classify(kind ErrorKind, operation string, cause error) error {
 }
 
 func KindOf(err error) (ErrorKind, bool) {
-	for _, candidate := range []struct {
-		kind   ErrorKind
-		target error
-	}{
-		{ErrorNotFound, ErrNotFound},
-		{ErrorConflict, ErrConflict},
-		{ErrorInvalidState, ErrInvalidState},
-		{ErrorUnavailable, ErrUnavailable},
-		{ErrorPersistenceFailure, ErrPersistenceFailure},
-		{ErrorExternalFailure, ErrExternalFailure},
-	} {
-		if errors.Is(err, candidate.target) {
-			return candidate.kind, true
-		}
+	var classified *Error
+	if !errors.As(err, &classified) {
+		return "", false
 	}
-	return "", false
+	switch classified.Kind {
+	case ErrorNotFound, ErrorConflict, ErrorInvalidState, ErrorUnavailable,
+		ErrorPersistenceFailure, ErrorExternalFailure, ErrorNetworkResearchBlocked:
+		return classified.Kind, true
+	default:
+		return "", false
+	}
 }
 
 func invalid(operation string, err error) error {

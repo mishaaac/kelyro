@@ -817,7 +817,7 @@ feat(sources): add trusted source registry
 
 ## Paso 7 — Integrar privacy/network gate con Research Engine
 
-- [ ] Paso 7 completado
+- [x] Paso 7 completado
 
 ### Objetivo
 

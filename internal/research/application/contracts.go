@@ -237,6 +237,13 @@ type SearchProvider interface {
 	Search(context.Context, SearchQuery) ([]SearchResult, error)
 }
 
+// SearchCache reads previously cached discovery output without network access.
+// It is deliberately distinct from SearchProvider so offline fallback cannot
+// accidentally invoke a live adapter.
+type SearchCache interface {
+	SearchCached(context.Context, SearchQuery) ([]SearchResult, error)
+}
+
 type FetchRequest struct {
 	SourceID     research.SourceID
 	Locator      research.SourceLocator
@@ -295,6 +302,34 @@ type SourceFetcher interface {
 	Fetch(context.Context, FetchRequest) (FetchedSource, error)
 }
 
+// SourceFetchCache reads a previously fetched source without network access.
+type SourceFetchCache interface {
+	FetchCached(context.Context, FetchRequest) (FetchedSource, error)
+}
+
+type ReleaseLookupQuery struct {
+	TechnologyID research.ID
+	Channel      research.ReleaseChannel
+}
+
+func (query ReleaseLookupQuery) Validate() error {
+	if err := query.TechnologyID.Validate(); err != nil {
+		return fmt.Errorf("release lookup technology: %w", err)
+	}
+	return query.Channel.Validate()
+}
+
+// ReleaseLookupProvider is the live boundary for release metadata. Results are
+// candidates until later evidence and verification steps persist them.
+type ReleaseLookupProvider interface {
+	LookupReleases(context.Context, ReleaseLookupQuery) ([]research.ReleaseRecord, error)
+}
+
+// ReleaseLookupCache reads previously cached release lookup output offline.
+type ReleaseLookupCache interface {
+	LookupCachedReleases(context.Context, ReleaseLookupQuery) ([]research.ReleaseRecord, error)
+}
+
 type NormalizedSource struct {
 	SourceID     research.SourceID
 	Locator      research.SourceLocator
@@ -343,7 +378,15 @@ type ResearchService interface {
 }
 
 type DiscoveryService interface {
-	Search(context.Context, SearchQuery) ([]SearchResult, error)
+	Search(context.Context, ResearchMode, SearchQuery) ([]SearchResult, error)
+}
+
+type FetchService interface {
+	Fetch(context.Context, ResearchMode, FetchRequest) (FetchedSource, error)
+}
+
+type ReleaseLookupService interface {
+	Lookup(context.Context, ResearchMode, ReleaseLookupQuery) ([]research.ReleaseRecord, error)
 }
 
 type SourceService interface {

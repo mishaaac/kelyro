@@ -39,6 +39,11 @@ The reviewed source-family registry, canonical domain rules, contextual Trust
 Policy signal, SQLite uniqueness contract, and initial read-only CLI are
 documented in [trusted-source-registry.md](trusted-source-registry.md).
 
+The mandatory Foundation privacy gate for live discovery, fetch, and release
+lookup, including offline/online/auto semantics and explicit cache fallbacks,
+is documented in
+[research-network-privacy.md](research-network-privacy.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).
