@@ -2731,7 +2731,7 @@ feat(maintenance): add versioned learning-state recalculation
 
 ## Paso 30 — Hardening de integridad, privacidad y rendimiento del Student Core
 
-- [ ] Paso 30 completado
+- [x] Paso 30 completado
 
 ### Objetivo
 

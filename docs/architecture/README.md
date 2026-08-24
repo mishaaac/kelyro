@@ -79,3 +79,7 @@ The internal algorithm suite, derived-state version metadata, dry-run impact,
 transactional recalculation, backup, audit, and immutable-evidence guarantees
 are documented in
 [versioned-learning-state-recalculation.md](versioned-learning-state-recalculation.md).
+
+The cross-aggregate integrity scan, privacy review, large deterministic fixture,
+query-plan protections, and concurrent-write behavior are documented in
+[student-core-hardening.md](student-core-hardening.md).

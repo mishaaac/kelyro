@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 30 (pending authorization)
-Last completed step: 29
+Current step: 31 (pending authorization)
+Last completed step: 30
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1316,3 +1316,43 @@ Release: unreleased
 - El Paso 30 es el siguiente paso pendiente y requiere autorización explícita.
 - El hardening de integridad, privacidad y rendimiento debe reutilizar este boundary y añadir migraciones forward-only si requiere nuevo estado persistido.
 - No implementar corrección de evidence, algoritmos v2 reales, Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+ sin su paso y autorización.
+
+## Step 30 — Hardening de integridad, privacidad y rendimiento
+
+Status: completed
+Date: 2026-08-23
+Release: unreleased
+
+### Delivered
+
+- Scan de integridad del Student Core al abrir SQLite y al validar backups: `foreign_key_check`, duplicados activos/pendientes, rangos de mastery, pertenencia curricular, ownership diagnóstico y timezones IANA.
+- Errores de integridad seguros que nombran el tipo de hallazgo sin exponer IDs, answers, evidence sources, mistake text ni contenido de filas.
+- Migration forward-only v22 con guards de pertenencia para concept state y diagnostic observations, sin modificar migrations publicadas.
+- Índices de timeline para curriculum instances, study sessions y review items, verificados mediante `EXPLAIN QUERY PLAN` sin imponer umbrales temporales dependientes de la máquina.
+- Fixture determinista `student-core-scale/v1` con 50 phases, 150 modules, 500 lessons, 500 topics, 2.000 concepts, 1.500 prerequisite edges, 2.000 concept states y 6.000 evidence records.
+- Logging defensivo de inputs educativos: onboarding/setup/profile/goal se marcan sensibles y los errores de validación no repiten answers rechazadas.
+- Regresiones de corrupción física-relacional, dangling state, diagnostic ownership, timezone inválido, allowlist de profile, doble write concurrente y clasificación SQLite busy/locked.
+- Contrato de hardening documentado en `docs/architecture/student-core-hardening.md` y enlazado desde el índice arquitectónico.
+
+### Decisions
+
+- `PRAGMA quick_check` no detecta foreign-key violations; por eso el open path conserva el chequeo físico antes de migrar y añade checks relacionales/semánticos después de alcanzar el schema actual.
+- Los guards v22 protegen relaciones que una FK simple a `concept_registry` no puede expresar: un concepto debe pertenecer a la versión exacta de la instancia y una observación diagnóstica debe coincidir con student/concept/evidence/curriculum.
+- Diferencias entre un timezone histórico válido y el timezone actual del perfil no son corrupción; todos los identificadores se validan, mientras refresh/recalculation conserva la responsabilidad de snapshots nuevos.
+- El fixture grande se valida por cardinalidad y query plans, no por milisegundos arbitrarios. Se ejecuta en la suite normal; bajo `-race` se omite únicamente ese caso de 11.000 writes, mientras las pruebas concurrentes sí corren instrumentadas.
+- Múltiples curriculum instances versionadas para un mismo goal siguen siendo válidas por diseño; el hardening no introduce una unicidad que rompería aislamiento histórico ya publicado.
+- Profile y export mantienen allowlists explícitas; no se añadió telemetry, background work, red, corrección/borrado de evidence ni algoritmo educativo nuevo.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-step30-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go test ./...`.
+- `GOCACHE=/tmp/kelyro-step30-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step30-quality-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- Race dirigido de concurrencia/busy y suite completa de `internal/storage/sqlite` con el fixture de escala correctamente omitido solo bajo build tag `race`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 31 es el siguiente paso pendiente y requiere autorización explícita.
+- El E2E completo debe recorrer el Student & Learning Core desde onboarding/diagnóstico hasta plan diario, historial y artefactos, reutilizando los boundaries endurecidos en este paso.
+- No implementar Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+ sin su paso y autorización.

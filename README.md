@@ -22,7 +22,9 @@ generated exercise content remain pending. The same read model powers the
 human-readable Student Core CLI and explicit `kelyro progress export` Markdown
 snapshot. Advanced maintenance can preview or apply a backup-protected rebuild
 of derived learning state with `kelyro maintenance recalculate --dry-run` or
-`kelyro maintenance recalculate`. See the
+`kelyro maintenance recalculate`. Student Core persistence now also performs
+cross-aggregate integrity checks and is regression-tested with a 2,000-concept,
+6,000-evidence deterministic fixture. See the
 [release notes](docs/releases/v0.1.0-alpha.2.md) for scope and limitations.
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
