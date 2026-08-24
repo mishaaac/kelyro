@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 31 (pending authorization)
-Last completed step: 30
+Current step: 32 (pending authorization)
+Last completed step: 31
 Current release: v0.1.0-alpha.2
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
@@ -1355,4 +1355,45 @@ Release: unreleased
 
 - El Paso 31 es el siguiente paso pendiente y requiere autorización explícita.
 - El E2E completo debe recorrer el Student & Learning Core desde onboarding/diagnóstico hasta plan diario, historial y artefactos, reutilizando los boundaries endurecidos en este paso.
+- No implementar Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+ sin su paso y autorización.
+
+## Step 31 — E2E completo del Student & Learning Core
+
+Status: completed
+Date: 2026-08-23
+Release: unreleased
+
+### Delivered
+
+- Suite `TestStudentLearningCoreEndToEnd` con los diez escenarios del plan sobre workspaces temporales aislados y el binario real con build tag `e2e`.
+- Recorrido de nuevo estudiante por `init`, TUI, onboarding, objetivo, threshold, opt-out diagnóstico, Today y reapertura con verificación de persistencia.
+- Diagnóstico integrado completo sobre `foundation-demo@1.0.0`, con reapertura, estimates, cuatro Evidence tipadas y Concept States iniciales que no inventan mastery confirmado.
+- Harness de aplicación sobre el adaptador SQLite y fixture determinista `student-core-lifecycle@1.0.0` para evidence/mastery/recalculate/unlock, Mistake Memory/warm-up, retention/review reschedule, Daily Plan y history/streak.
+- Clock mutable inyectado para vencimiento de retention, reviews y simulación de tres días consecutivos; IDs y Evidence metadata de prueba explícitamente versionados.
+- Daily Plan E2E con prerrequisito crítico vencido, review due independiente y siguiente concepto elegible, comprobando prioridad v1, posiciones y presupuesto de 60 minutos.
+- Protección E2E de Markdown generado por `progress export`: una edición manual produce conflicto accionable y se conserva byte por byte.
+- Fixture de schema Foundation I-01 v3 bajo build tag `e2e`, construido desde las migrations publicadas, y migración real por el binario hasta v22 preservando `app_state`.
+- Smoke offline de todos los comandos Student Core expuestos, con policy de red desactivada y adaptador E2E que falla si fuese invocado.
+- Gate y documentación renombrados a Foundation and Student Core E2E; las matrices CI y release lo ejecutan en Linux, macOS y Windows.
+
+### Decisions
+
+- El harness compone servicios de aplicación existentes sobre `sqlite.Database`; no expone handles SQLite al dominio, no añade comandos de mutación educativa y no adelanta Exercise Engine.
+- El helper de migración I-01 solo existe con build tag `e2e` y reutiliza `foundationMigrations[:3]`, evitando una copia divergente del SQL o cambios a migrations publicadas.
+- El E2E de TUI se omite en Windows porque stdin por pipe no es un console handle; los recorridos equivalentes de setup/persistencia y todos los demás escenarios sí compilan y se ejecutan donde son viables.
+- El historial público se verifica en su contrato newest-first; el planner se verifica contra el orden publicado: warm-up crítico, review importante y nuevo aprendizaje.
+- Los tests validan selección y scheduling metadata, no generan ejercicios ni incorporan contenido, Research, Curriculum Compiler, IA, plugins o red.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-step31-e2e-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go test -tags=e2e ./tests/e2e`.
+- Tests dirigidos de `tools/quality` e `internal/storage/sqlite`.
+- Compilación de la suite E2E para `windows/amd64` y `darwin/amd64` con `CGO_ENABLED=0` y `-exec=/bin/true`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-step31-quality-gocache GOMODCACHE=/tmp/kelyro-i02-step27-modcache go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 32 es el siguiente paso pendiente y requiere autorización explícita.
+- El dogfooding debe usar estos recorridos como baseline, registrar fricción real y evitar convertir observaciones en cambios fuera del alcance autorizado.
 - No implementar Exercise Engine, Research Engine, Curriculum Compiler, IA, plugins ni I-03+ sin su paso y autorización.

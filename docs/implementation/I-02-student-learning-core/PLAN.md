@@ -2824,7 +2824,7 @@ perf(progress): ...
 
 ## Paso 31 — Añadir E2E completo del Student & Learning Core
 
-- [ ] Paso 31 completado
+- [x] Paso 31 completado
 
 ### Objetivo
 

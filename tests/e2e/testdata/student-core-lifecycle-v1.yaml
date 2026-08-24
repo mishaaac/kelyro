@@ -1,0 +1,98 @@
+contract_version: curriculum-consumption/v1
+id: student-core-lifecycle
+version: 1.0.0
+title: Student Core lifecycle fixture
+description: Deterministic versioned content for end-to-end Student Core policy coverage.
+nodes:
+  - id: phase.core
+    type: phase
+    title: Core phase
+    description: Exercise the Student Core lifecycle.
+    order: 0
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: module.core
+    type: module
+    parent: phase.core
+    title: Core module
+    description: Hold the lifecycle lesson.
+    order: 0
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: lesson.core
+    type: lesson
+    parent: module.core
+    title: Core lesson
+    description: Traverse mastery, retention, and planning.
+    order: 0
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: topic.core
+    type: topic
+    parent: lesson.core
+    title: Core topic
+    description: Group deterministic concepts.
+    order: 0
+    status:
+      state: active
+    version: 1.0.0
+
+  - id: concept.review
+    type: concept
+    parent: topic.core
+    title: Review foundation
+    description: Independent mastered material that can become due for review.
+    order: 0
+    status:
+      state: active
+    version: 1.0.0
+    concept:
+      objectives:
+        - Recall a previously mastered idea.
+      difficulty: 1
+      estimated_effort_minutes: 15
+      assessment_expectations:
+        - Recall the idea accurately.
+
+  - id: concept.prerequisite
+    type: concept
+    parent: topic.core
+    title: Prerequisite foundation
+    description: Mastered prerequisite with an optional reinforcement signal.
+    order: 1
+    status:
+      state: active
+    version: 1.0.0
+    concept:
+      objectives:
+        - Explain the prerequisite idea.
+      difficulty: 1
+      estimated_effort_minutes: 15
+      assessment_expectations:
+        - Explain the prerequisite independently.
+
+  - id: concept.next
+    type: concept
+    parent: topic.core
+    title: Next eligible concept
+    description: New material unlocked by the prerequisite foundation.
+    order: 2
+    status:
+      state: active
+    version: 1.0.0
+    concept:
+      objectives:
+        - Apply the prerequisite to a new idea.
+      prerequisites:
+        - concept_id: concept.prerequisite
+          requirement: mastered
+      difficulty: 2
+      estimated_effort_minutes: 25
+      assessment_expectations:
+        - Apply the new idea independently.
