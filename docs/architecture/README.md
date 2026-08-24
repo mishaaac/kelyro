@@ -44,6 +44,10 @@ lookup, including offline/online/auto semantics and explicit cache fallbacks,
 is documented in
 [research-network-privacy.md](research-network-privacy.md).
 
+The reusable Research HTTP transport, bounded retry policy, response limits,
+safe hooks, compression behavior, redaction boundary, and SSRF defenses are
+documented in [research-http-client.md](research-http-client.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

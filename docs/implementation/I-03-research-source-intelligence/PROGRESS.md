@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 8
-Last completed step: 7
+Current step: 9
+Last completed step: 8
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -556,3 +556,94 @@ Release: unreleased
   dependiendo del gate aplicado en este paso; no deberá autorizarse a sí mismo.
 - No implementar discovery, parsing, cache policy ni pasos posteriores durante
   el Paso 8.
+
+## Step 08 — Research HTTP Client seguro y configurable
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Paquete de infraestructura reutilizable `internal/infra/researchhttp`, sin
+  `http.Get` disperso ni dependencias externas nuevas.
+- Configuración validada y acotada para timeout total por intento, dial, TLS,
+  response headers, idle connections, pools, redirects, decoded body, attempts
+  y exponential backoff.
+- `User-Agent` obligatorio y acotado con identidad `Kelyro/...`, transporte
+  reutilizable, HTTP/2, TLS 1.2 mínimo, certificate validation estándar y
+  `http.ProxyFromEnvironment`.
+- Lectura `max+1`, precheck de `Content-Length`, límite de headers, allowlist de
+  media types y soporte seguro de gzip con límite aplicado después de la
+  descompresión.
+- Retry GET únicamente para errores transitorios y statuses 408/429/500/502/
+  503/504, con `Retry-After` y exponential backoff siempre limitados;
+  cancellation interrumpe request y backoff.
+- SSRF deny-by-default para URL inicial y cada redirect, bloqueando user info,
+  localhost, redes privadas/locales, direcciones no globales y endpoints de
+  metadata; dial directo revalida y fija la IP resuelta.
+- Hooks `RateLimiter` y `Observer` con metadata acotada; el evento observable no
+  puede transportar URL, query, headers, body, credenciales ni error raw.
+- Request headers sensibles/client-owned rechazados, headers sensibles
+  eliminados defensivamente en redirects y response reducida a status,
+  content-type, ETag, Last-Modified, locator final y body acotado.
+- Errores tipados por invalid request, SSRF, redirect, timeout, HTTP status,
+  oversize, content type, encoding, transport y rate-limit hook, con strings
+  seguros para logging.
+- Contrato, defaults, SSRF, retry, hooks, redacción y límites documentados en
+  `docs/architecture/research-http-client.md`.
+
+### Decisions
+
+- El cliente HTTP es infraestructura y no implementa `SourceFetcher`; no crea
+  `SourceSnapshot`, hashes, evidence ni cache records. Ese adapter pertenece al
+  Paso 9.
+- Privacy authorization permanece en los application services del Paso 7. El
+  cliente no se autoautoriza ni puede reemplazar `privacy.allow_network`.
+- `http.Client.Timeout` limita cada intento completo; `MaxAttempts` y
+  `MaxBackoff` limitan la secuencia, y el context del caller puede imponer un
+  deadline total menor.
+- Solo 2xx y 304 son respuestas exitosas. Otros 4xx no se reintentan salvo 408
+  y 429; invalid content, oversize, redirects inseguros y SSRF nunca se
+  reintentan.
+- Un hostname con respuestas DNS mixtas public/private se rechaza completo. El
+  proxy estándar también queda sujeto a la address policy para que un proxy
+  local no se convierta en bypass SSRF.
+- Go maneja gzip automáticamente cuando el Transport lo solicita; el límite se
+  verifica sobre el body ya decodificado y otros encodings residuales se
+  rechazan.
+- La documentación actual de Go standard library se consultó mediante
+  Context7 para `http.Client`, `http.Transport`, redirects, proxy, compresión,
+  `DialContext`, contexts y cierre de response bodies.
+- No se implementaron Source Fetcher/Snapshot, cache writes, parsing,
+  discovery, release ingestion, CLI Research, Curriculum Compiler ni cambios
+  de Student Core.
+
+### Verification
+
+- Tests con `httptest.Server` para timeout, redirect limit, redirect SSRF,
+  oversize, unexpected content type/encoding, 404, 429, 500 y cancellation.
+- Tests adicionales de gzip, transient transport retry, bounded backoff,
+  Retry-After, Kelyro User-Agent, safe response metadata, rate-limit/observer
+  hooks, sensitive headers, safe error strings y config inválida.
+- Tests de política SSRF para loopback, RFC1918, link-local, metadata IPv4/IPv6
+  y user info, además de inspección de TLS/proxy/compression defaults.
+- `GOCACHE=/tmp/kelyro-i03-step8-target-final-gocache go test ./internal/infra/researchhttp`.
+- `GOCACHE=/tmp/kelyro-i03-step8-target-final-gocache go vet ./internal/infra/researchhttp`.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go vet ./...`.
+- `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOCACHE=/tmp/kelyro-i03-step8-cross-gocache go test -exec=/bin/true ./internal/infra/researchhttp`.
+- `GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 GOCACHE=/tmp/kelyro-i03-step8-cross-gocache go test -exec=/bin/true ./internal/infra/researchhttp`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step8-full-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go test -race ./...`, build y smokes
+  de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 9 es el siguiente paso pendiente y requiere autorización explícita.
+- `SourceFetcher` deberá adaptar `application.FetchRequest` a este cliente,
+  calcular metadata/hash y crear el output transport-neutral sin duplicar
+  timeouts, redirects, retries, SSRF ni content limits.
+- No implementar normalización/parsing, discovery, evidence extraction ni
+  pasos posteriores durante el Paso 9.

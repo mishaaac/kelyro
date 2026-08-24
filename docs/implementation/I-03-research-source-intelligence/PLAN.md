@@ -885,7 +885,7 @@ feat(research): enforce privacy gate for live research
 
 ## Paso 8 — Implementar Research HTTP Client seguro y configurable
 
-- [ ] Paso 8 completado
+- [x] Paso 8 completado
 
 ### Objetivo
 
