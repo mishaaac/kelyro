@@ -277,8 +277,10 @@ func TestMemoryFakesPreserveRelationshipsOrderingAndOwnership(t *testing.T) {
 
 	profile := research.AuthorityProfile{
 		ID: testID(t, "authority.software"), Version: fixtureVersion, Domain: "software",
-		PreferredKinds: []research.SourceKind{research.SourceSpecification},
-		MinimumTier:    research.AuthorityTierB, CreatedAt: testTimestamp(t, 9),
+		PreferredKinds: []research.SourceKind{research.SourceSpecification}, PreferredDomains: []string{"example.com"},
+		PreferredOrganizations: []string{"Example"}, MinimumCorroboration: 1,
+		AllowedSupplementaryKinds: []research.SourceKind{research.SourceCommunityArticle},
+		MinimumTier: research.AuthorityTierB, CreatedAt: testTimestamp(t, 9),
 	}
 	if err := repositories.TrustRegistry.SaveProfile(ctx, profile); err != nil {
 		t.Fatal(err)
@@ -288,8 +290,13 @@ func TestMemoryFakesPreserveRelationshipsOrderingAndOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	loadedProfile.PreferredKinds[0] = research.SourceVideo
+	loadedProfile.PreferredDomains[0] = "changed.example"
+	loadedProfile.PreferredOrganizations[0] = "Changed"
+	loadedProfile.AllowedSupplementaryKinds[0] = research.SourceVideo
 	reloadedProfile, err := repositories.TrustRegistry.GetProfile(ctx, profile.ID)
-	if err != nil || reloadedProfile.PreferredKinds[0] != research.SourceSpecification {
+	if err != nil || reloadedProfile.PreferredKinds[0] != research.SourceSpecification ||
+		reloadedProfile.PreferredDomains[0] != "example.com" || reloadedProfile.PreferredOrganizations[0] != "Example" ||
+		reloadedProfile.AllowedSupplementaryKinds[0] != research.SourceCommunityArticle {
 		t.Fatalf("authority profile fake leaked mutable slice: (%+v, %v)", reloadedProfile, err)
 	}
 

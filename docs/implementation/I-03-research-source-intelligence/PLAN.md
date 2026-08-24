@@ -683,7 +683,7 @@ feat(trust): add versioned source trust policy v1
 
 ## Paso 5 — Implementar Authority Profiles por dominio y tópico
 
-- [ ] Paso 5 completado
+- [x] Paso 5 completado
 
 ### Objetivo
 

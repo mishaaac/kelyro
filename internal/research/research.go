@@ -1,6 +1,9 @@
 package research
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type ResearchRequest struct {
 	ID            ID
@@ -107,16 +110,20 @@ func (tier AuthorityTier) Validate() error {
 	}
 }
 
-// AuthorityProfile is declarative domain data. Matching and precedence
-// algorithms are reserved for their dedicated implementation step.
+// AuthorityProfile is declarative, topic-aware authority data. It describes
+// preferences only; it never turns a source into trusted evidence by itself.
 type AuthorityProfile struct {
-	ID             ID
-	Version        string
-	Domain         string
-	TopicPattern   string
-	PreferredKinds []SourceKind
-	MinimumTier    AuthorityTier
-	CreatedAt      Timestamp
+	ID                        ID
+	Version                   string
+	Domain                    string
+	TopicPattern              string
+	PreferredKinds            []SourceKind
+	PreferredDomains          []string
+	PreferredOrganizations    []string
+	MinimumCorroboration      int
+	AllowedSupplementaryKinds []SourceKind
+	MinimumTier               AuthorityTier
+	CreatedAt                 Timestamp
 }
 
 func (profile AuthorityProfile) Validate() error {
@@ -126,10 +133,10 @@ func (profile AuthorityProfile) Validate() error {
 	if err := requireText("authority profile version", profile.Version); err != nil {
 		return err
 	}
-	if err := requireText("authority profile domain", profile.Domain); err != nil {
+	if err := validateAuthorityDomain(profile.Domain); err != nil {
 		return err
 	}
-	if err := validateOptionalText("authority profile topic pattern", profile.TopicPattern); err != nil {
+	if err := validateTopicPattern(profile.TopicPattern); err != nil {
 		return err
 	}
 	if len(profile.PreferredKinds) == 0 {
@@ -145,10 +152,118 @@ func (profile AuthorityProfile) Validate() error {
 		}
 		seen[kind] = struct{}{}
 	}
+	if err := validatePreferredDomains(profile.PreferredDomains); err != nil {
+		return err
+	}
+	if err := validateUniqueText("authority profile preferred organization", profile.PreferredOrganizations); err != nil {
+		return err
+	}
+	if profile.MinimumCorroboration < 1 {
+		return fmt.Errorf("authority profile minimum corroboration must be at least 1")
+	}
+	supplementary := make(map[SourceKind]struct{}, len(profile.AllowedSupplementaryKinds))
+	for _, kind := range profile.AllowedSupplementaryKinds {
+		if err := kind.Validate(); err != nil {
+			return err
+		}
+		if _, exists := supplementary[kind]; exists {
+			return fmt.Errorf("authority profile contains duplicate supplementary source kind %q", kind)
+		}
+		if _, preferred := seen[kind]; preferred {
+			return fmt.Errorf("authority profile source kind %q is both preferred and supplementary", kind)
+		}
+		supplementary[kind] = struct{}{}
+	}
 	if err := profile.MinimumTier.Validate(); err != nil {
 		return err
 	}
 	return validateTimestamp("authority profile created at", profile.CreatedAt)
+}
+
+func validateAuthorityDomain(value string) error {
+	if err := requireText("authority profile domain", value); err != nil {
+		return err
+	}
+	if value == "*" {
+		return nil
+	}
+	if value != strings.ToLower(value) || strings.TrimSpace(value) != value {
+		return fmt.Errorf("authority profile domain %q must be a lowercase domain label or *", value)
+	}
+	for index, character := range value {
+		if (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') {
+			continue
+		}
+		if (character == '-' || character == '_' || character == '.') && index > 0 && index < len(value)-1 {
+			continue
+		}
+		return fmt.Errorf("invalid authority profile domain %q", value)
+	}
+	return nil
+}
+
+func validateTopicPattern(value string) error {
+	if value == "" { // Legacy persisted profiles use empty as the fallback.
+		return nil
+	}
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf("authority profile topic pattern has surrounding whitespace")
+	}
+	if strings.ContainsAny(value, "?[]\\") || strings.Contains(value, "**") {
+		return fmt.Errorf("invalid authority profile topic pattern %q: only * wildcards are supported", value)
+	}
+	return requireText("authority profile topic pattern", value)
+}
+
+func validatePreferredDomains(patterns []string) error {
+	seen := make(map[string]struct{}, len(patterns))
+	for _, pattern := range patterns {
+		if pattern == "" || pattern != strings.TrimSpace(pattern) || pattern != strings.ToLower(pattern) {
+			return fmt.Errorf("invalid preferred domain pattern %q", pattern)
+		}
+		host := strings.TrimPrefix(pattern, "*.")
+		if strings.Contains(host, "*") || strings.ContainsAny(host, "/:@") {
+			return fmt.Errorf("invalid preferred domain pattern %q", pattern)
+		}
+		labels := strings.Split(host, ".")
+		if len(labels) < 2 {
+			return fmt.Errorf("invalid preferred domain pattern %q", pattern)
+		}
+		for _, label := range labels {
+			if label == "" || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+				return fmt.Errorf("invalid preferred domain pattern %q", pattern)
+			}
+			for _, character := range label {
+				if (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') || character == '-' {
+					continue
+				}
+				return fmt.Errorf("invalid preferred domain pattern %q", pattern)
+			}
+		}
+		if _, exists := seen[pattern]; exists {
+			return fmt.Errorf("authority profile contains duplicate preferred domain %q", pattern)
+		}
+		seen[pattern] = struct{}{}
+	}
+	return nil
+}
+
+func validateUniqueText(name string, values []string) error {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if err := requireText(name, value); err != nil {
+			return err
+		}
+		if strings.TrimSpace(value) != value {
+			return fmt.Errorf("%s %q has surrounding whitespace", name, value)
+		}
+		key := strings.ToLower(value)
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("duplicate %s %q", name, value)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
 }
 
 type TrustDecisionState string

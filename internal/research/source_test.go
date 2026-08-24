@@ -110,7 +110,7 @@ func TestResearchRunAuthorityTrustAndDiscoveryValidateEnumsAndTime(t *testing.T)
 	profile := AuthorityProfile{
 		ID: mustID(t, "authority.software"), Version: domainFixtureVersion,
 		Domain: "software", PreferredKinds: []SourceKind{SourceSpecification, SourceOfficialDocumentation},
-		MinimumTier: AuthorityTierB, CreatedAt: mustTimestamp(t, 9),
+		MinimumCorroboration: 1, MinimumTier: AuthorityTierB, CreatedAt: mustTimestamp(t, 9),
 	}
 	if err := profile.Validate(); err != nil {
 		t.Fatalf("AuthorityProfile.Validate() error = %v", err)

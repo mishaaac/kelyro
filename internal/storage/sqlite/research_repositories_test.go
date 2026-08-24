@@ -33,6 +33,12 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO app_state (namespace,key,value,updated_at) VALUES ('i02','kept',X'6F6B',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if err := database.migrate(context.Background(), foundationMigrations[:23]); err != nil {
+		t.Fatalf("migrate through research schema v23: %v", err)
+	}
+	if _, err := handle.Exec(`INSERT INTO authority_profiles (id,version,domain,topic_pattern,preferred_kinds_json,minimum_tier,created_at) VALUES ('authority.legacy','legacy/v1','software','*','["specification"]','C',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if err := database.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrate I-03: %v", err)
 	}
@@ -43,8 +49,16 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 23 {
-		t.Fatalf("schema=(%d,%v), want 23", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 24 {
+		t.Fatalf("schema=(%d,%v), want 24", version, err)
+	}
+	legacyID, err := research.NewID("authority.legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := database.Repositories().Research.TrustRegistry.GetProfile(context.Background(), legacyID)
+	if err != nil || legacy.MinimumCorroboration != 1 || len(legacy.PreferredDomains) != 0 || len(legacy.AllowedSupplementaryKinds) != 0 {
+		t.Fatalf("legacy authority profile after v24 = (%+v, %v)", legacy, err)
 	}
 }
 
@@ -156,7 +170,7 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if err := repositories.Sources.Create(ctx, source); err != nil {
 		t.Fatal(err)
 	}
-	profile := research.AuthorityProfile{ID: researchTestID(t, "profile.1"), Version: "profile/v1", Domain: "software", TopicPattern: "HTTP*", PreferredKinds: []research.SourceKind{research.SourceSpecification, research.SourceOfficialDocumentation}, MinimumTier: research.AuthorityTierA, CreatedAt: at}
+	profile := research.AuthorityProfile{ID: researchTestID(t, "profile.1"), Version: "profile/v1", Domain: "software", TopicPattern: "HTTP*", PreferredKinds: []research.SourceKind{research.SourceSpecification, research.SourceOfficialDocumentation}, PreferredDomains: []string{"example.com", "*.example.org"}, PreferredOrganizations: []string{"Example Standards"}, MinimumCorroboration: 2, AllowedSupplementaryKinds: []research.SourceKind{research.SourceCommunityArticle}, MinimumTier: research.AuthorityTierA, CreatedAt: at}
 	if err := repositories.TrustRegistry.SaveProfile(ctx, profile); err != nil {
 		t.Fatal(err)
 	}

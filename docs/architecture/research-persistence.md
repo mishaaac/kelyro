@@ -1,9 +1,10 @@
 # Research & Source Intelligence persistence
 
 Step 03 adds schema version 23 to the workspace-local Foundation SQLite
-database. The migration is additive and forward-only: the 22 migrations that
-shipped Student Core are unchanged, and an I-02 database is upgraded without
-rewriting its learning state.
+database. Step 05 adds forward-only migration v24 for topic-aware authority
+profiles. The 22 migrations that shipped Student Core and migration v23 remain
+unchanged, and an I-02 database is upgraded without rewriting its learning
+state.
 
 ## Adapter boundary
 
@@ -40,6 +41,10 @@ Migration 23 creates the following durable groups:
 - release, deprecation, freshness, verification, and conflict records;
 - bounded research cache entries;
 - drift and impact reports.
+
+Migration 24 extends `authority_profiles` with preferred domain and
+organization JSON arrays, minimum corroboration, and supplementary source
+kinds. Existing v23 records receive empty arrays and corroboration `1`.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.

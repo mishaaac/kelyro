@@ -31,6 +31,10 @@ The contextual authority tiers, six independent trust dimensions, deterministic
 decision precedence, and reason-code contract are documented in
 [trust-policy-v1.md](trust-policy-v1.md).
 
+The data-driven authority-profile contract, strict fixture loader, topic-key
+matching, precedence, fallback, and persistence compatibility are documented in
+[authority-profiles-v1.md](authority-profiles-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

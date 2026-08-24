@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 5
-Last completed step: 4
+Current step: 6
+Last completed step: 5
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -338,3 +338,77 @@ Release: unreleased
   tiers y use cases de Trust Policy v1, sin hardcodear Go dentro del core.
 - No implementar Trusted Source Registry, network access ni pasos posteriores
   durante el Paso 5.
+
+## Step 05 — Authority Profiles por dominio y tópico
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- `AuthorityProfile` enriquecido con dominios y organizaciones preferidos,
+  corroboración mínima y source kinds suplementarios, manteniendo authority
+  tier, version e identidad explícitos.
+- Subpaquete puro `internal/research/authority` con catálogo inmutable, matching
+  case-insensitive y precedencia determinista por dominio y especificidad del
+  patrón de tópico.
+- Topic key general `<technology>/<subject>` cuando existe tecnología, sin
+  branches ni constantes Go dentro del matcher.
+- Contrato data-driven `authority-profiles/v1` y loader YAML estricto en
+  `internal/infra/authorityyaml`, con rechazo de campos desconocidos, múltiples
+  documentos, versiones incompatibles y catálogos inválidos.
+- Fixture `assets/research/authority-profiles/technology-software.yaml` con
+  fallback Software y perfil Go más específico; dominios y organizaciones Go
+  viven únicamente en datos.
+- Validación de duplicate IDs, selectors contradictorios, patterns inválidos,
+  source kinds desconocidos, corroboración inválida y kinds simultáneamente
+  preferred/supplementary.
+- Migration SQLite forward-only v24 para persistir el contrato completo sin
+  modificar v23, con defaults compatibles para perfiles preexistentes.
+- Tests de topic matching, precedence, fallback, dominio futuro custom,
+  strict YAML, copias defensivas, roundtrip SQLite y upgrade v23 → v24.
+- Contrato, algoritmo, fixture, persistence y límites documentados en
+  `docs/architecture/authority-profiles-v1.md` y enlazados desde el índice.
+
+### Decisions
+
+- El dominio del perfil es exacto o `*`; el fallback siempre es explícito y el
+  matcher no inventa un perfil cuando no existe coincidencia.
+- `topic_pattern` soporta únicamente `*`. Con tecnología, compara contra
+  `<technology>/<subject>`; sin tecnología, compara contra `<subject>`.
+- Un dominio exacto precede al global; dentro de igual especificidad de dominio,
+  vence el patrón con más caracteres literales; los empates conservan orden por
+  ID estable.
+- Un catálogo rechaza selectors normalizados duplicados en vez de permitir que
+  reglas equivalentes se sobrescriban silenciosamente.
+- Preferred domains son host patterns DNS exactos o con wildcard inicial
+  `*.`; matching contra locators/sources queda reservado a pasos posteriores.
+- Authority Profile es preferencia contextual, no evidencia ni TrustDecision.
+  Trust Policy v1 y el catálogo permanecen componentes puros separados.
+- Se reutiliza `go.yaml.in/yaml/v3`, ya pinneado por el repositorio; no se añadió
+  ninguna dependencia externa nueva.
+- No se implementaron Trusted Source Registry, discovery, networking,
+  clasificación URL/source, freshness, verification, Curriculum Compiler ni
+  cambios de Student Core.
+
+### Verification
+
+- Documentación actual de `go.yaml.in/yaml/v3` consultada mediante Context7 para
+  confirmar `yaml.NewDecoder`, `KnownFields` y detección de trailing documents.
+- Tests dirigidos de research, authority YAML y SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step5-fulltest-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step5-fullvet-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step5-quality-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go test -race ./...`, build y smokes
+  de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 6 es el siguiente paso pendiente y requiere autorización explícita.
+- Trusted Source Registry podrá consumir los profile preferences y añadir
+  metadata razonada de sources/organizations, sin convertir perfiles en un
+  booleano global de confianza.
+- No implementar discovery live, network access ni pasos posteriores durante
+  el Paso 6.

@@ -1371,6 +1371,16 @@ BEGIN SELECT RAISE(ABORT, 'diagnostic observation ownership mismatch'); END`,
 )`,
 		},
 	},
+	{
+		version: 24,
+		name:    "topic-aware authority profiles",
+		statements: []string{
+			`ALTER TABLE authority_profiles ADD COLUMN preferred_domains_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(preferred_domains_json) AND json_type(preferred_domains_json) = 'array')`,
+			`ALTER TABLE authority_profiles ADD COLUMN preferred_organizations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(preferred_organizations_json) AND json_type(preferred_organizations_json) = 'array')`,
+			`ALTER TABLE authority_profiles ADD COLUMN minimum_corroboration INTEGER NOT NULL DEFAULT 1 CHECK (minimum_corroboration >= 1)`,
+			`ALTER TABLE authority_profiles ADD COLUMN supplementary_kinds_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(supplementary_kinds_json) AND json_type(supplementary_kinds_json) = 'array')`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

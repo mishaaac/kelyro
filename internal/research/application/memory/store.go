@@ -132,6 +132,9 @@ func cloneRun(run research.ResearchRun) research.ResearchRun {
 func cloneProfile(profile research.AuthorityProfile) research.AuthorityProfile {
 	clone := profile
 	clone.PreferredKinds = append([]research.SourceKind(nil), profile.PreferredKinds...)
+	clone.PreferredDomains = append([]string(nil), profile.PreferredDomains...)
+	clone.PreferredOrganizations = append([]string(nil), profile.PreferredOrganizations...)
+	clone.AllowedSupplementaryKinds = append([]research.SourceKind(nil), profile.AllowedSupplementaryKinds...)
 	return clone
 }
 

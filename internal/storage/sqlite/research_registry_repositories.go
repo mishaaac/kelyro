@@ -230,11 +230,19 @@ func (repository *researchTrustRegistryRepository) SaveProfile(ctx context.Conte
 	if err := profile.Validate(); err != nil {
 		return researchInvalid(operation, err)
 	}
-	kinds := make([]string, len(profile.PreferredKinds))
-	for i, kind := range profile.PreferredKinds {
-		kinds[i] = string(kind)
+	preferredKinds, err := encodeJSON(operation, sourceKindStrings(profile.PreferredKinds))
+	if err != nil {
+		return err
 	}
-	encoded, err := encodeJSON(operation, kinds)
+	preferredDomains, err := encodeJSON(operation, append([]string{}, profile.PreferredDomains...))
+	if err != nil {
+		return err
+	}
+	preferredOrganizations, err := encodeJSON(operation, append([]string{}, profile.PreferredOrganizations...))
+	if err != nil {
+		return err
+	}
+	supplementaryKinds, err := encodeJSON(operation, sourceKindStrings(profile.AllowedSupplementaryKinds))
 	if err != nil {
 		return err
 	}
@@ -243,7 +251,7 @@ func (repository *researchTrustRegistryRepository) SaveProfile(ctx context.Conte
 		return err
 	}
 	defer cancel()
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO authority_profiles (id,version,domain,topic_pattern,preferred_kinds_json,minimum_tier,created_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,domain=excluded.domain,topic_pattern=excluded.topic_pattern,preferred_kinds_json=excluded.preferred_kinds_json,minimum_tier=excluded.minimum_tier,created_at=excluded.created_at`, profile.ID.String(), profile.Version, profile.Domain, profile.TopicPattern, encoded, string(profile.MinimumTier), timestampText(profile.CreatedAt))
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO authority_profiles (id,version,domain,topic_pattern,preferred_kinds_json,preferred_domains_json,preferred_organizations_json,minimum_corroboration,supplementary_kinds_json,minimum_tier,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,domain=excluded.domain,topic_pattern=excluded.topic_pattern,preferred_kinds_json=excluded.preferred_kinds_json,preferred_domains_json=excluded.preferred_domains_json,preferred_organizations_json=excluded.preferred_organizations_json,minimum_corroboration=excluded.minimum_corroboration,supplementary_kinds_json=excluded.supplementary_kinds_json,minimum_tier=excluded.minimum_tier,created_at=excluded.created_at`, profile.ID.String(), profile.Version, profile.Domain, profile.TopicPattern, preferredKinds, preferredDomains, preferredOrganizations, profile.MinimumCorroboration, supplementaryKinds, string(profile.MinimumTier), timestampText(profile.CreatedAt))
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -259,7 +267,7 @@ func (repository *researchTrustRegistryRepository) GetProfile(ctx context.Contex
 		return research.AuthorityProfile{}, err
 	}
 	defer cancel()
-	return scanAuthorityProfile(repository.executor.QueryRowContext(opCtx, `SELECT id,version,domain,topic_pattern,preferred_kinds_json,minimum_tier,created_at FROM authority_profiles WHERE id=?`, id.String()), operation)
+	return scanAuthorityProfile(repository.executor.QueryRowContext(opCtx, authorityProfileSelect+` WHERE id=?`, id.String()), operation)
 }
 func (repository *researchTrustRegistryRepository) ListProfiles(ctx context.Context) ([]research.AuthorityProfile, error) {
 	const operation = "list SQLite authority profiles"
@@ -268,7 +276,7 @@ func (repository *researchTrustRegistryRepository) ListProfiles(ctx context.Cont
 		return nil, err
 	}
 	defer cancel()
-	rows, err := repository.executor.QueryContext(opCtx, `SELECT id,version,domain,topic_pattern,preferred_kinds_json,minimum_tier,created_at FROM authority_profiles ORDER BY id`)
+	rows, err := repository.executor.QueryContext(opCtx, authorityProfileSelect+` ORDER BY id`)
 	if err != nil {
 		return nil, researchPersistence(operation, err)
 	}
@@ -287,8 +295,9 @@ func (repository *researchTrustRegistryRepository) ListProfiles(ctx context.Cont
 	return result, nil
 }
 func scanAuthorityProfile(row rowScanner, operation string) (research.AuthorityProfile, error) {
-	var idValue, version, domain, pattern, kindsJSON, tier, created string
-	if err := row.Scan(&idValue, &version, &domain, &pattern, &kindsJSON, &tier, &created); err != nil {
+	var idValue, version, domain, pattern, kindsJSON, domainsJSON, organizationsJSON, supplementaryJSON, tier, created string
+	var minimumCorroboration int
+	if err := row.Scan(&idValue, &version, &domain, &pattern, &kindsJSON, &domainsJSON, &organizationsJSON, &minimumCorroboration, &supplementaryJSON, &tier, &created); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.AuthorityProfile{}, researchNotFound(operation)
 		}
@@ -306,15 +315,39 @@ func scanAuthorityProfile(row rowScanner, operation string) (research.AuthorityP
 	for i, value := range kindValues {
 		kinds[i] = research.SourceKind(value)
 	}
+	var preferredDomains, preferredOrganizations, supplementaryValues []string
+	if err := decodeJSON(domainsJSON, &preferredDomains); err != nil {
+		return research.AuthorityProfile{}, researchPersistence(operation, err)
+	}
+	if err := decodeJSON(organizationsJSON, &preferredOrganizations); err != nil {
+		return research.AuthorityProfile{}, researchPersistence(operation, err)
+	}
+	if err := decodeJSON(supplementaryJSON, &supplementaryValues); err != nil {
+		return research.AuthorityProfile{}, researchPersistence(operation, err)
+	}
+	supplementaryKinds := make([]research.SourceKind, len(supplementaryValues))
+	for i, value := range supplementaryValues {
+		supplementaryKinds[i] = research.SourceKind(value)
+	}
 	createdAt, err := scanTimestamp(created)
 	if err != nil {
 		return research.AuthorityProfile{}, researchPersistence(operation, err)
 	}
-	item := research.AuthorityProfile{ID: id, Version: version, Domain: domain, TopicPattern: pattern, PreferredKinds: kinds, MinimumTier: research.AuthorityTier(tier), CreatedAt: createdAt}
+	item := research.AuthorityProfile{ID: id, Version: version, Domain: domain, TopicPattern: pattern, PreferredKinds: kinds, PreferredDomains: preferredDomains, PreferredOrganizations: preferredOrganizations, MinimumCorroboration: minimumCorroboration, AllowedSupplementaryKinds: supplementaryKinds, MinimumTier: research.AuthorityTier(tier), CreatedAt: createdAt}
 	if err := item.Validate(); err != nil {
 		return research.AuthorityProfile{}, researchPersistence(operation, err)
 	}
 	return item, nil
+}
+
+const authorityProfileSelect = `SELECT id,version,domain,topic_pattern,preferred_kinds_json,preferred_domains_json,preferred_organizations_json,minimum_corroboration,supplementary_kinds_json,minimum_tier,created_at FROM authority_profiles`
+
+func sourceKindStrings(kinds []research.SourceKind) []string {
+	values := make([]string, len(kinds))
+	for index, kind := range kinds {
+		values[index] = string(kind)
+	}
+	return values
 }
 
 func (repository *researchTrustRegistryRepository) SaveDecision(ctx context.Context, decision research.TrustDecision) error {

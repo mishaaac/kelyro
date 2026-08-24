@@ -86,12 +86,14 @@ time. `ResearchRun` gives an execution a separate lifecycle and validates
 terminal completion timestamps.
 
 `AuthorityProfile`, `AuthorityTier`, `TrustDecision`, and `TrustReason` define
-the stable input/output vocabulary. `internal/research/trust` implements the
-deterministic `trust-policy-v1` decision policy without numeric scoring or I/O.
-A trust decision carries its policy version and ordered human-readable reasons
-so authority, freshness, relevance, directness, stability, corroboration, and
-the terminal decision remain explainable. Data-driven Authority Profile
-matching remains a later boundary.
+the stable input/output vocabulary. `internal/research/authority` implements
+data-driven domain/topic matching and deterministic precedence, while
+`internal/research/trust` implements the deterministic `trust-policy-v1`
+decision policy without numeric scoring or I/O. A trust decision carries its
+policy version and ordered human-readable reasons so authority, freshness,
+relevance, directness, stability, corroboration, and the terminal decision
+remain explainable. A matching Authority Profile is contextual preference data,
+not a trust decision.
 
 `DiscoveredSource` is explicitly a candidate with provider and rank metadata.
 It is not evidence. Conversion into evidence requires later classification,
