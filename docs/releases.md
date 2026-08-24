@@ -6,10 +6,9 @@ and reproducible build date. `SHA256SUMS` detects accidental corruption; it is
 not a cryptographic signature or proof of publisher identity.
 
 Release-specific scope and limitations are recorded under [`docs/releases/`](releases/).
-The I-02 Student & Learning Core release candidate is
-[`v0.1.0-alpha.3`](releases/v0.1.0-alpha.3.md). The latest published prerelease
-remains [`v0.1.0-alpha.2`](releases/v0.1.0-alpha.2.md) until the generated draft
-is reviewed and explicitly published.
+The latest published prerelease is
+[`v0.1.0-alpha.3`](releases/v0.1.0-alpha.3.md), which delivers the completed and
+manually accepted I-02 Student & Learning Core.
 
 ## Manual installation
 

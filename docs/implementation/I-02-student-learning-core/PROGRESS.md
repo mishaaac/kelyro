@@ -4,7 +4,7 @@
 
 Current step: complete
 Last completed step: 33
-Current release: v0.1.0-alpha.3 candidate (latest published: v0.1.0-alpha.2)
+Current release: v0.1.0-alpha.3 (published prerelease)
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
 ## Registro
@@ -1459,7 +1459,8 @@ Release: unreleased
 
 Status: completed
 Date: 2026-08-24
-Release: v0.1.0-alpha.3 candidate (latest published: v0.1.0-alpha.2)
+Release at source closure: unreleased; subsequent `v0.1.0-alpha.3` publication
+is recorded below
 
 ### Delivered
 
@@ -1506,7 +1507,7 @@ Release: v0.1.0-alpha.3 candidate (latest published: v0.1.0-alpha.2)
 ## I-02 Student & Learning Core Completion
 
 Status: completed
-Release: v0.1.0-alpha.3 candidate (latest published: v0.1.0-alpha.2)
+Release: v0.1.0-alpha.3 (published prerelease)
 Completed steps: 0-33
 
 Algorithms and versioned contracts:
@@ -1523,26 +1524,45 @@ Known limitations:
 - No researched production Learning Packs or Curriculum Compiler yet.
 - No full Exercise/Assessment Engine or generated learning content yet.
 - No AI runtime, AI provider, plugin runtime, or automatic network dependency.
-- I-02 is included in the `v0.1.0-alpha.3` candidate; its generated GitHub draft must still be reviewed before publication.
+- I-02 is published in `v0.1.0-alpha.3`; its fixture-content and later-engine
+  boundaries remain explicit release limitations.
 
 Ready for:
 I-03 Research & Source Intelligence
 
-## Release candidate v0.1.0-alpha.3
+## Published prerelease v0.1.0-alpha.3
 
-Status: tagged candidate; draft publication requires maintainer review
+Status: published; manual acceptance passed
 Date: 2026-08-24
 Release: v0.1.0-alpha.3
+Published: 2026-08-24T13:12:44Z
 
 ### Delivered
 
 - Canonical SemVer prerelease selected for the completed I-02 Student & Learning Core milestone.
 - Release-specific scope and limitations recorded in `docs/releases/v0.1.0-alpha.3.md`.
-- Annotated tag targets the clean release commit on `main`; pushing it starts the protected release workflow.
-- The workflow creates only a reviewable GitHub draft with six platform archives and `SHA256SUMS`; it never publishes automatically.
+- Annotated tag targets clean release commit `751f6b9995c058b1d0eea1f2e67cdbe5b3cb076d` on `main`.
+- The protected workflow created a reviewable GitHub draft with six platform
+  archives and `SHA256SUMS`; the maintainer reviewed its metadata, replaced the
+  generated notes with the release-specific notes, marked it as a prerelease,
+  and published it manually.
 
 ### Verification
 
 - Release target is the same `main` history that passed the hosted CI matrix on Ubuntu, macOS, and Windows, including Linux race coverage.
 - `go mod verify`, tracked-file formatting, documentation-link checks, `git diff --check`, and clean-tree validation.
 - Release workflow independently repeats quality gates and validates the annotated tag, source ancestry, SemVer, archives, embedded metadata, smoke test, and checksums.
+- Manual Linux `amd64` acceptance verified SHA-256
+  `b9d37a0bd86677960e615fc658f1b9f06db1e35d123aa542fda1a7a516d0f270`,
+  the packaged static binary, embedded version and source commit, onboarding,
+  diagnostic evidence, learner views, persistence, backup, full portable
+  export/import, Markdown ownership protection, maintenance `--dry-run`,
+  operation inside an isolated network namespace, and final database,
+  migration, configuration, and artifact-index health.
+- The accepted state retained the expected I-02 boundaries: diagnostic evidence
+  remained estimated rather than confirmed mastery, the deterministic
+  curriculum remained fixture-sourced, and no Research Engine, Curriculum
+  Compiler, full Exercise/Assessment Engine, AI runtime/provider, or plugin was
+  claimed or introduced.
+- Final GitHub verification reported `draft=false`, `prerelease=true`, seven
+  uploaded assets, and no blocking acceptance defect.

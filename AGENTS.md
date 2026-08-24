@@ -17,7 +17,8 @@
 ## Implementation status
 
 - I-01 Foundation and I-02 Student & Learning Core are complete.
-- I-02 is the `v0.1.0-alpha.3` release candidate; publishing its generated draft remains a separate maintainer action.
+- I-02 shipped in the published `v0.1.0-alpha.3` prerelease after its Linux
+  `amd64` manual acceptance pass.
 - Do not begin I-03 or any later implementation without its own specification and explicit authorization.
 
 ## I-02 compatibility boundaries
