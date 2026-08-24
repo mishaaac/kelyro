@@ -72,6 +72,12 @@ func (SnapshotValidator) Validate(ctx context.Context, path string) (int, error)
 			version = appliedVersion
 		}
 	}
+	if err := checkRelationalIntegrity(ctx, handle); err != nil {
+		return 0, err
+	}
+	if err := checkStudentCoreIntegrity(ctx, handle, version); err != nil {
+		return 0, err
+	}
 	return version, nil
 }
 

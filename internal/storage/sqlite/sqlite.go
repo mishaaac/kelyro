@@ -183,6 +183,9 @@ func Open(ctx context.Context, workspaceRoot string, configured ...Option) (*Dat
 	if err := database.Migrate(ctx); err != nil {
 		return nil, err
 	}
+	if err := database.checkStudentCoreIntegrity(ctx); err != nil {
+		return nil, err
+	}
 
 	opened = true
 	return database, nil
@@ -293,6 +296,15 @@ func (database *Database) checkIntegrity(ctx context.Context) error {
 		return fmt.Errorf("%w: no result", ErrIntegrity)
 	}
 	return nil
+}
+
+func (database *Database) checkStudentCoreIntegrity(ctx context.Context) error {
+	operationContext, cancel := database.operationContext(ctx)
+	defer cancel()
+	if err := checkRelationalIntegrity(operationContext, database.sql); err != nil {
+		return err
+	}
+	return checkStudentCoreIntegrity(operationContext, database.sql, LatestSchemaVersion())
 }
 
 func sqliteOperationError(operation string, err error) error {

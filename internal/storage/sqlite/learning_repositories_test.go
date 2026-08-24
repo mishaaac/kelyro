@@ -897,7 +897,7 @@ func TestStudentCoreSchemaHasRequiredIndexesAndConstraints(t *testing.T) {
 	database, _ := openTestDatabase(t)
 	ctx := context.Background()
 	repositories := database.LearningRepositories()
-	want := []string{"curriculum_nodes_concept_idx", "diagnostic_attempts_student_status_idx", "diagnostic_observations_concept_idx", "learning_goals_active_idx", "learning_goals_one_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "study_session_lifecycle_goal_timeline_idx", "study_session_lifecycle_one_active_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
+	want := []string{"curriculum_nodes_concept_idx", "diagnostic_attempts_student_status_idx", "diagnostic_observations_concept_idx", "learner_curriculum_instances_timeline_idx", "learning_goals_active_idx", "learning_goals_one_active_idx", "learning_evidence_concept_idx", "review_items_due_idx", "review_items_student_timeline_idx", "study_session_lifecycle_goal_timeline_idx", "study_session_lifecycle_one_active_idx", "study_session_lifecycle_student_timeline_idx", "study_sessions_goal_timeline_idx", "study_sessions_range_idx"}
 	for _, name := range want {
 		var count int
 		if err := database.sql.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", name).Scan(&count); err != nil || count != 1 {

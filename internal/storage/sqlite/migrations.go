@@ -1062,6 +1062,86 @@ CHECK (length(trim(mastery_algorithm_version)) > 0)`,
 CHECK (length(trim(progression_policy_version)) > 0)`,
 		},
 	},
+	{
+		version: 22,
+		name:    "student core integrity and query hardening",
+		statements: []string{
+			`CREATE INDEX learner_curriculum_instances_timeline_idx
+ON learner_curriculum_instances (student_id, created_at, id)`,
+			`CREATE INDEX study_session_lifecycle_student_timeline_idx
+ON study_session_lifecycle (student_id, started_at, id)`,
+			`CREATE INDEX review_items_student_timeline_idx
+ON review_items (student_id, due_at, id)`,
+			`CREATE TRIGGER learner_curriculum_concept_states_membership_insert_guard
+BEFORE INSERT ON learner_curriculum_concept_states
+WHEN NOT EXISTS (
+  SELECT 1
+  FROM learner_curriculum_instances AS instance
+  JOIN curriculum_nodes AS node
+    ON node.curriculum_id = instance.curriculum_id
+   AND node.curriculum_version = instance.curriculum_version
+   AND node.node_id = NEW.concept_id
+   AND node.node_type = 'concept'
+  WHERE instance.id = NEW.curriculum_instance_id
+    AND instance.student_id = NEW.student_id
+)
+BEGIN SELECT RAISE(ABORT, 'concept state is outside curriculum instance'); END`,
+			`CREATE TRIGGER learner_curriculum_concept_states_membership_update_guard
+BEFORE UPDATE ON learner_curriculum_concept_states
+WHEN NOT EXISTS (
+  SELECT 1
+  FROM learner_curriculum_instances AS instance
+  JOIN curriculum_nodes AS node
+    ON node.curriculum_id = instance.curriculum_id
+   AND node.curriculum_version = instance.curriculum_version
+   AND node.node_id = NEW.concept_id
+   AND node.node_type = 'concept'
+  WHERE instance.id = NEW.curriculum_instance_id
+    AND instance.student_id = NEW.student_id
+)
+BEGIN SELECT RAISE(ABORT, 'concept state is outside curriculum instance'); END`,
+			`CREATE TRIGGER diagnostic_observations_ownership_insert_guard
+BEFORE INSERT ON diagnostic_observations
+WHEN NOT EXISTS (
+  SELECT 1
+  FROM diagnostic_attempts AS attempt
+  JOIN learner_curriculum_instances AS instance
+    ON instance.id = attempt.curriculum_instance_id
+   AND instance.student_id = attempt.student_id
+  JOIN curriculum_nodes AS node
+    ON node.curriculum_id = instance.curriculum_id
+   AND node.curriculum_version = instance.curriculum_version
+   AND node.node_id = NEW.concept_id
+   AND node.node_type = 'concept'
+  JOIN learning_evidence AS evidence
+    ON evidence.id = NEW.evidence_id
+   AND evidence.student_id = attempt.student_id
+   AND evidence.concept_id = NEW.concept_id
+  WHERE attempt.id = NEW.attempt_id
+)
+BEGIN SELECT RAISE(ABORT, 'diagnostic observation ownership mismatch'); END`,
+			`CREATE TRIGGER diagnostic_observations_ownership_update_guard
+BEFORE UPDATE ON diagnostic_observations
+WHEN NOT EXISTS (
+  SELECT 1
+  FROM diagnostic_attempts AS attempt
+  JOIN learner_curriculum_instances AS instance
+    ON instance.id = attempt.curriculum_instance_id
+   AND instance.student_id = attempt.student_id
+  JOIN curriculum_nodes AS node
+    ON node.curriculum_id = instance.curriculum_id
+   AND node.curriculum_version = instance.curriculum_version
+   AND node.node_id = NEW.concept_id
+   AND node.node_type = 'concept'
+  JOIN learning_evidence AS evidence
+    ON evidence.id = NEW.evidence_id
+   AND evidence.student_id = attempt.student_id
+   AND evidence.concept_id = NEW.concept_id
+  WHERE attempt.id = NEW.attempt_id
+)
+BEGIN SELECT RAISE(ABORT, 'diagnostic observation ownership mismatch'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this
