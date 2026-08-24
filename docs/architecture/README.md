@@ -23,6 +23,10 @@ Research repository ports, external adapter contracts, application services,
 error taxonomy, and deterministic memory fakes are documented in
 [research-application.md](research-application.md).
 
+The additive Research SQLite schema, bounded retention policy, indexes,
+constraints, migration compatibility, and production repository adapter are
+documented in [research-persistence.md](research-persistence.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

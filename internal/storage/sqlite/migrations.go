@@ -1142,6 +1142,235 @@ WHEN NOT EXISTS (
 BEGIN SELECT RAISE(ABORT, 'diagnostic observation ownership mismatch'); END`,
 		},
 	},
+	{
+		version: 23,
+		name:    "research and source intelligence persistence",
+		statements: []string{
+			`CREATE TABLE research_topics (
+    request_id TEXT PRIMARY KEY CHECK (length(trim(request_id)) > 0),
+    subject TEXT NOT NULL CHECK (length(trim(subject)) > 0),
+    domain TEXT NOT NULL DEFAULT '',
+    technology TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL CHECK (purpose IN ('concept_definition','current_usage','version_behavior','release_status','deprecation_check','prerequisite_research','production_practice','security_guidance')),
+    target_version TEXT,
+    requested_at TEXT NOT NULL CHECK (requested_at GLOB '*Z')
+)`,
+			`CREATE TABLE research_runs (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    request_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('planned','running','completed','failed','cancelled')),
+    started_at TEXT NOT NULL CHECK (started_at GLOB '*Z'),
+    completed_at TEXT CHECK (completed_at IS NULL OR completed_at GLOB '*Z'),
+    FOREIGN KEY (request_id) REFERENCES research_topics(request_id),
+    CHECK ((status IN ('completed','failed','cancelled') AND completed_at IS NOT NULL) OR
+           (status IN ('planned','running') AND completed_at IS NULL)),
+    CHECK (completed_at IS NULL OR completed_at >= started_at)
+)`,
+			`CREATE INDEX research_runs_request_idx ON research_runs (request_id, started_at, id)`,
+			`CREATE TABLE sources (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    kind TEXT NOT NULL CHECK (kind IN ('official_documentation','specification','standard','release_notes','official_blog','package_reference','official_tutorial','source_code','issue_tracker','community_article','community_forum','video','paper','book_reference','other')),
+    locator TEXT NOT NULL UNIQUE CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    version TEXT,
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+    publisher TEXT NOT NULL DEFAULT '',
+    language TEXT NOT NULL DEFAULT '',
+    published_at TEXT CHECK (published_at IS NULL OR published_at GLOB '*Z'),
+    updated_at TEXT CHECK (updated_at IS NULL OR updated_at GLOB '*Z'),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    CHECK (published_at IS NULL OR updated_at IS NULL OR updated_at >= published_at)
+)`,
+			`CREATE INDEX sources_locator_idx ON sources (locator)`,
+			`CREATE TABLE source_aliases (
+    locator TEXT PRIMARY KEY CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    source_id TEXT NOT NULL,
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX source_aliases_source_idx ON source_aliases (source_id, locator)`,
+			`CREATE TABLE source_snapshots (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    source_id TEXT NOT NULL,
+    locator TEXT NOT NULL CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    fetched_at TEXT NOT NULL CHECK (fetched_at GLOB '*Z'),
+    status_code INTEGER NOT NULL CHECK (status_code BETWEEN 100 AND 599),
+    content_type TEXT NOT NULL DEFAULT '',
+    etag TEXT NOT NULL DEFAULT '',
+    last_modified TEXT NOT NULL DEFAULT '',
+    content_hash TEXT NOT NULL DEFAULT '',
+    content_length INTEGER NOT NULL CHECK (content_length >= 0),
+    fetch_version TEXT NOT NULL CHECK (length(trim(fetch_version)) > 0),
+    UNIQUE (id, source_id),
+    FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX source_snapshots_latest_idx ON source_snapshots (source_id, fetched_at DESC, id DESC)`,
+			`CREATE TABLE authority_profiles (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    domain TEXT NOT NULL CHECK (length(trim(domain)) > 0),
+    topic_pattern TEXT NOT NULL DEFAULT '',
+    preferred_kinds_json TEXT NOT NULL CHECK (json_valid(preferred_kinds_json) AND json_type(preferred_kinds_json) = 'array' AND json_array_length(preferred_kinds_json) > 0),
+    minimum_tier TEXT NOT NULL CHECK (minimum_tier IN ('A','B','C','D','E')),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z')
+)`,
+			`CREATE TABLE trust_registry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('accepted','accepted_as_supplement','requires_verification','rejected')),
+    tier TEXT NOT NULL CHECK (tier IN ('A','B','C','D','E')),
+    reasons_json TEXT NOT NULL CHECK (json_valid(reasons_json) AND json_type(reasons_json) = 'array' AND json_array_length(reasons_json) > 0),
+    policy_version TEXT NOT NULL CHECK (length(trim(policy_version)) > 0),
+    evaluated_at TEXT NOT NULL CHECK (evaluated_at GLOB '*Z'),
+    FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX trust_registry_latest_idx ON trust_registry (source_id, evaluated_at DESC, id DESC)`,
+			`CREATE TABLE evidence (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    source_id TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    location TEXT NOT NULL CHECK (length(trim(location)) > 0),
+    excerpt TEXT NOT NULL CHECK (length(trim(excerpt)) > 0 AND length(CAST(excerpt AS BLOB)) <= 8192),
+    excerpt_hash TEXT NOT NULL CHECK (length(trim(excerpt_hash)) > 0),
+    extracted_at TEXT NOT NULL CHECK (extracted_at GLOB '*Z'),
+    extractor_version TEXT NOT NULL CHECK (length(trim(extractor_version)) > 0),
+    FOREIGN KEY (snapshot_id, source_id) REFERENCES source_snapshots(id, source_id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX evidence_source_idx ON evidence (source_id, id)`,
+			`CREATE INDEX evidence_snapshot_idx ON evidence (snapshot_id, id)`,
+			`CREATE TABLE claims (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    topic_subject TEXT NOT NULL CHECK (length(trim(topic_subject)) > 0),
+    topic_domain TEXT NOT NULL DEFAULT '',
+    topic_technology TEXT NOT NULL DEFAULT '',
+    statement TEXT NOT NULL CHECK (length(trim(statement)) > 0),
+    claim_type TEXT NOT NULL CHECK (claim_type IN ('definition','requirement','behavior','version_change','deprecation','recommendation','warning','example','compatibility','security','historical')),
+    version_scope TEXT,
+    confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    evidence_ids_json TEXT NOT NULL CHECK (json_valid(evidence_ids_json) AND json_type(evidence_ids_json) = 'array' AND json_array_length(evidence_ids_json) > 0),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z')
+)`,
+			`CREATE INDEX claims_topic_idx ON claims (topic_subject, topic_domain, topic_technology, created_at, id)`,
+			`CREATE TABLE claim_sources (
+    claim_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (claim_id, source_id),
+    UNIQUE (claim_id, position),
+    FOREIGN KEY (claim_id) REFERENCES claims(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_id) REFERENCES sources(id)
+)`,
+			`CREATE TABLE citations (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    source_id TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    evidence_id TEXT NOT NULL,
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+    locator TEXT NOT NULL CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    deep_link_locator TEXT,
+    deep_link_label TEXT NOT NULL DEFAULT '',
+    snapshot_date TEXT NOT NULL CHECK (snapshot_date GLOB '*Z'),
+    last_verified TEXT NOT NULL CHECK (last_verified GLOB '*Z' AND last_verified >= snapshot_date),
+    FOREIGN KEY (snapshot_id, source_id) REFERENCES source_snapshots(id, source_id),
+    FOREIGN KEY (evidence_id) REFERENCES evidence(id)
+)`,
+			`CREATE INDEX citations_last_verified_idx ON citations (last_verified, id)`,
+			`CREATE TABLE source_bundles (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    run_id TEXT NOT NULL,
+    topic_subject TEXT NOT NULL CHECK (length(trim(topic_subject)) > 0),
+    topic_domain TEXT NOT NULL DEFAULT '',
+    topic_technology TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL CHECK (purpose IN ('concept_definition','current_usage','version_behavior','release_status','deprecation_check','prerequisite_research','production_practice','security_guidance')),
+    target_version TEXT,
+    state TEXT NOT NULL CHECK (state IN ('ready','ready_with_caveats','incomplete','conflicted')),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z'),
+    FOREIGN KEY (run_id) REFERENCES research_runs(id)
+)`,
+			`CREATE TABLE source_bundle_items (
+    bundle_id TEXT NOT NULL,
+    item_type TEXT NOT NULL CHECK (item_type IN ('claim','source')),
+    item_id TEXT NOT NULL CHECK (length(trim(item_id)) > 0),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (bundle_id, item_type, item_id),
+    UNIQUE (bundle_id, item_type, position),
+    FOREIGN KEY (bundle_id) REFERENCES source_bundles(id) ON DELETE CASCADE
+)`,
+			`CREATE TABLE release_records (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    technology_id TEXT NOT NULL CHECK (length(trim(technology_id)) > 0),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    channel TEXT NOT NULL CHECK (channel IN ('stable','preview','beta','rc','experimental','nightly','unknown')),
+    status TEXT NOT NULL CHECK (status IN ('current','superseded','legacy','eol','unknown')),
+    source_ids_json TEXT NOT NULL CHECK (json_valid(source_ids_json) AND json_type(source_ids_json) = 'array' AND json_array_length(source_ids_json) > 0),
+    released_at TEXT CHECK (released_at IS NULL OR released_at GLOB '*Z'),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z')
+)`,
+			`CREATE INDEX release_records_technology_version_idx ON release_records (technology_id, version, verified_at, id)`,
+			`CREATE TABLE deprecation_records (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    subject TEXT NOT NULL CHECK (length(trim(subject)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('deprecated','removed','legacy','historical_only','superseded')),
+    introduced_in TEXT, deprecated_in TEXT, removed_in TEXT, replacement TEXT NOT NULL DEFAULT '',
+    source_ids_json TEXT NOT NULL CHECK (json_valid(source_ids_json) AND json_array_length(source_ids_json) > 0),
+    evidence_ids_json TEXT NOT NULL CHECK (json_valid(evidence_ids_json) AND json_array_length(evidence_ids_json) > 0),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z')
+)`,
+			`CREATE INDEX deprecation_records_verified_idx ON deprecation_records (verified_at, id)`,
+			`CREATE TABLE freshness_state (
+    subject_id TEXT PRIMARY KEY CHECK (length(trim(subject_id)) > 0),
+    state TEXT NOT NULL CHECK (state IN ('fresh','aging','stale','unknown')),
+    score REAL NOT NULL CHECK (score BETWEEN 0 AND 1),
+    last_verified_at TEXT NOT NULL CHECK (last_verified_at GLOB '*Z'),
+    next_verify_at TEXT CHECK (next_verify_at IS NULL OR (next_verify_at GLOB '*Z' AND next_verify_at >= last_verified_at)),
+    algorithm_version TEXT NOT NULL CHECK (length(trim(algorithm_version)) > 0)
+)`,
+			`CREATE INDEX freshness_state_due_idx ON freshness_state (next_verify_at, subject_id) WHERE next_verify_at IS NOT NULL`,
+			`CREATE INDEX freshness_state_last_verified_idx ON freshness_state (last_verified_at, subject_id)`,
+			`CREATE TABLE verification_results (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    claim_id TEXT NOT NULL CHECK (length(trim(claim_id)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('verified','verified_with_caveat','insufficient_evidence','conflicted','rejected')),
+    source_ids_json TEXT NOT NULL CHECK (json_valid(source_ids_json) AND json_type(source_ids_json) = 'array' AND json_array_length(source_ids_json) > 0),
+    confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z')
+)`,
+			`CREATE INDEX verification_results_claim_idx ON verification_results (claim_id, verified_at DESC, id DESC)`,
+			`CREATE TABLE source_conflicts (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    conflict_type TEXT NOT NULL CHECK (conflict_type IN ('direct_contradiction','version_mismatch','temporal_mismatch','scope_mismatch','recommendation_disagreement','authority_mismatch')),
+    claim_ids_json TEXT NOT NULL CHECK (json_valid(claim_ids_json) AND json_array_length(claim_ids_json) >= 2),
+    resolution TEXT NOT NULL DEFAULT '', unresolved INTEGER NOT NULL CHECK (unresolved IN (0,1)),
+    detected_at TEXT NOT NULL CHECK (detected_at GLOB '*Z'),
+    CHECK ((unresolved = 1 AND resolution = '') OR (unresolved = 0 AND length(trim(resolution)) > 0))
+)`,
+			`CREATE TABLE research_cache_entries (
+    cache_key TEXT PRIMARY KEY CHECK (length(trim(cache_key)) > 0),
+    payload BLOB NOT NULL CHECK (length(payload) BETWEEN 1 AND 1048576),
+    content_hash TEXT NOT NULL CHECK (length(trim(content_hash)) > 0),
+    stored_at TEXT NOT NULL CHECK (stored_at GLOB '*Z'),
+    expires_at TEXT CHECK (expires_at IS NULL OR (expires_at GLOB '*Z' AND expires_at >= stored_at))
+)`,
+			`CREATE INDEX research_cache_expiry_idx ON research_cache_entries (expires_at, cache_key) WHERE expires_at IS NOT NULL`,
+			`CREATE TABLE drift_reports (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0), old_bundle_id TEXT NOT NULL,
+    new_bundle_id TEXT, drift_type TEXT NOT NULL CHECK (drift_type IN ('source_changed','claim_invalidated','version_superseded','recommendation_changed','deprecation_introduced','scope_changed')),
+    severity TEXT NOT NULL CHECK (severity IN ('informational','minor','important','critical')),
+    affected_claim_ids_json TEXT NOT NULL CHECK (json_valid(affected_claim_ids_json) AND json_array_length(affected_claim_ids_json) > 0),
+    old_evidence_ids_json TEXT NOT NULL CHECK (json_valid(old_evidence_ids_json) AND json_array_length(old_evidence_ids_json) > 0),
+    new_evidence_ids_json TEXT NOT NULL CHECK (json_valid(new_evidence_ids_json)),
+    detected_at TEXT NOT NULL CHECK (detected_at GLOB '*Z')
+)`,
+			`CREATE TABLE impact_reports (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0), drift_report_id TEXT NOT NULL,
+    affected_bundle_ids_json TEXT NOT NULL CHECK (json_valid(affected_bundle_ids_json) AND json_array_length(affected_bundle_ids_json) > 0),
+    affected_claim_ids_json TEXT NOT NULL CHECK (json_valid(affected_claim_ids_json) AND json_array_length(affected_claim_ids_json) > 0),
+    severity TEXT NOT NULL CHECK (severity IN ('informational','minor','important','critical')),
+    recommended_action TEXT NOT NULL CHECK (recommended_action IN ('no_action','reverify','review_curriculum','recompile_future','manual_review')),
+    assessed_at TEXT NOT NULL CHECK (assessed_at GLOB '*Z'),
+    FOREIGN KEY (drift_report_id) REFERENCES drift_reports(id) ON DELETE CASCADE
+)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

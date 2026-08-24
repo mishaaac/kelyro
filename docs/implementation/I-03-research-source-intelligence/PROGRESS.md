@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 3
-Last completed step: 2
+Current step: 4
+Last completed step: 3
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -189,3 +189,78 @@ Release: unreleased
   conflictos/not-found y conservar las relaciones source/snapshot/evidence.
 - No implementar Trust Policy, network access ni pasos posteriores durante la
   persistence de Step 03.
+
+## Step 03 — Persistence schema y migrations de Research
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Migration SQLite forward-only v23 sobre el schema publicado de Student Core,
+  sin modificar ninguna de las 22 migrations previas.
+- Schema para requests/topics y runs, sources/aliases/snapshots, authority y
+  trust, evidence/claims/citations/bundles, release/deprecation/freshness,
+  verification/conflicts, cache, drift e impact.
+- Claves foráneas y constraint compuesto que preservan la cadena
+  `source → snapshot → evidence`, además de relaciones run/request,
+  trust/source, claim/source, bundle/run, citation/evidence e impact/drift.
+- Índices para locator, aliases, latest snapshot, research run, claim topic,
+  last verified, release/version, verification por claim y vencimientos de
+  freshness/cache.
+- Adapter de producción expuesto como `Database.Repositories().Research` para
+  los once repository ports definidos en Step 02, también disponible dentro de
+  las transacciones Foundation existentes.
+- Error mapping estable para invalid state, not found, conflict, unavailable y
+  persistence failure, con orden determinista y semántica alineada con el fake
+  en memoria.
+- Retención acotada: snapshots sin body web, excerpts separados de metadata y
+  limitados a 8 KiB, cache opaco limitado a 1 MiB, y hashes conservados para
+  reproducibilidad.
+- Contrato de persistencia documentado en
+  `docs/architecture/research-persistence.md` y enlazado desde el índice de
+  arquitectura.
+
+### Decisions
+
+- `research_topics.request_id` representa la identidad inmutable del request y
+  puede ser referenciado por múltiples runs, sin duplicar el request.
+- Identidad estable de source y canonical locator son constraints únicos
+  independientes; aliases quedan preparados en schema para pasos posteriores.
+- Colecciones pequeñas sin consultas independientes se persisten como arrays
+  JSON validados; relaciones consultables de claim/source y bundle items usan
+  tablas dedicadas.
+- Los adapters comprueban relaciones que sus ports pueden observar antes de
+  escribir, para conservar las clasificaciones `not_found` e `invalid_state`
+  en vez de filtrar errores internos de SQLite.
+- No se añadió un Unit of Work nuevo: los repositorios Research reutilizan el
+  transaction boundary ya provisto por Foundation.
+- No se implementaron Trust Policy, red, fetchers, parsers, algoritmos de
+  freshness/verification/drift/impact, CLI/TUI, Curriculum Compiler ni cambios
+  de Student Core.
+
+### Verification
+
+- Migration test determinista desde schema v22 (I-02) a v23, preservando estado
+  Foundation/Student Core.
+- New database test actualizado con todas las tablas v23 y foreign keys activas.
+- Roundtrips de sources, snapshots, evidence, requests/runs, authority profiles,
+  trust decisions, releases, freshness, verification, drift, impact y cache.
+- Tests de duplicate source ID/locator, ownership source/snapshot/evidence,
+  foreign keys, excerpt máximo y cache máximo.
+- `GOCACHE=/tmp/kelyro-i03-step3-target2-gocache go test ./internal/storage/sqlite`.
+- `GOCACHE=/tmp/kelyro-i03-step3-target2-vet-gocache go vet ./internal/storage/sqlite`.
+- `GOCACHE=/tmp/kelyro-i03-step3-fulltest-gocache go test ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step3-quality-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go vet ./...`, `go test -race ./...`,
+  build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 4 es el siguiente paso pendiente y requiere autorización explícita.
+- Trust Policy v1 deberá consumir los authority profiles y append-only trust
+  decisions persistidos aquí sin introducir un booleano global `trusted`.
+- No implementar discovery live, networking ni pasos posteriores durante el
+  Paso 4.

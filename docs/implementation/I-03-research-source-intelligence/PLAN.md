@@ -529,7 +529,7 @@ refactor(research): define Research Engine service boundaries
 
 ## Paso 3 — Añadir persistence schema y migrations de I-03
 
-- [ ] Paso 3 completado
+- [x] Paso 3 completado
 
 ### Objetivo
 
