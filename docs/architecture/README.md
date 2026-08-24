@@ -15,6 +15,10 @@ documented in [foundation.md](foundation.md).
 The Student & Learning Core domain vocabulary and invariants are documented in
 [student-learning-domain.md](student-learning-domain.md).
 
+The Research & Source Intelligence domain vocabulary, traceability graph,
+value objects, invariants, and deferred adapter/policy boundaries are documented
+in [research-domain.md](research-domain.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

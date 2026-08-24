@@ -325,7 +325,7 @@ docs(roadmap): open I-03 Research and Source Intelligence
 
 ## Paso 1 — Diseñar el modelo de dominio de Research & Source Intelligence
 
-- [ ] Paso 1 completado
+- [x] Paso 1 completado
 
 ### Objetivo
 
@@ -3180,7 +3180,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 ## Ejecución
 
 - [x] Paso 0 — Apertura formal
-- [ ] Paso 1 — Research domain
+- [x] Paso 1 — Research domain
 - [ ] Paso 2 — Service boundaries
 - [ ] Paso 3 — Persistence
 - [ ] Paso 4 — Trust Policy

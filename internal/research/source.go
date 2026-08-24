@@ -1,0 +1,162 @@
+package research
+
+import "fmt"
+
+type SourceKind string
+
+const (
+	SourceOfficialDocumentation SourceKind = "official_documentation"
+	SourceSpecification         SourceKind = "specification"
+	SourceStandard              SourceKind = "standard"
+	SourceReleaseNotes          SourceKind = "release_notes"
+	SourceOfficialBlog          SourceKind = "official_blog"
+	SourcePackageReference      SourceKind = "package_reference"
+	SourceOfficialTutorial      SourceKind = "official_tutorial"
+	SourceCode                  SourceKind = "source_code"
+	SourceIssueTracker          SourceKind = "issue_tracker"
+	SourceCommunityArticle      SourceKind = "community_article"
+	SourceCommunityForum        SourceKind = "community_forum"
+	SourceVideo                 SourceKind = "video"
+	SourcePaper                 SourceKind = "paper"
+	SourceBookReference         SourceKind = "book_reference"
+	SourceOther                 SourceKind = "other"
+)
+
+func (kind SourceKind) Validate() error {
+	switch kind {
+	case SourceOfficialDocumentation, SourceSpecification, SourceStandard,
+		SourceReleaseNotes, SourceOfficialBlog, SourcePackageReference,
+		SourceOfficialTutorial, SourceCode, SourceIssueTracker,
+		SourceCommunityArticle, SourceCommunityForum, SourceVideo,
+		SourcePaper, SourceBookReference, SourceOther:
+		return nil
+	default:
+		return fmt.Errorf("invalid source kind %q", kind)
+	}
+}
+
+// SourceMetadata describes a source independently from a particular fetch.
+type SourceMetadata struct {
+	Title       string
+	Publisher   string
+	Language    string
+	PublishedAt *Timestamp
+	UpdatedAt   *Timestamp
+}
+
+func (metadata SourceMetadata) Validate() error {
+	if err := requireText("source title", metadata.Title); err != nil {
+		return err
+	}
+	if err := validateOptionalText("source publisher", metadata.Publisher); err != nil {
+		return err
+	}
+	if err := validateOptionalText("source language", metadata.Language); err != nil {
+		return err
+	}
+	if err := validateOptionalTimestamp("source published at", metadata.PublishedAt); err != nil {
+		return err
+	}
+	if err := validateOptionalTimestamp("source updated at", metadata.UpdatedAt); err != nil {
+		return err
+	}
+	if metadata.PublishedAt != nil && metadata.UpdatedAt != nil && metadata.UpdatedAt.Before(*metadata.PublishedAt) {
+		return fmt.Errorf("source updated at precedes published at")
+	}
+	return nil
+}
+
+// Source is the stable identity and classification of an external resource.
+// Its content and fetch history live in immutable SourceSnapshots.
+type Source struct {
+	ID        SourceID
+	Kind      SourceKind
+	Locator   SourceLocator
+	Version   *SourceVersion
+	Metadata  SourceMetadata
+	CreatedAt Timestamp
+}
+
+func (source Source) Validate() error {
+	if err := source.ID.Validate(); err != nil {
+		return err
+	}
+	if err := source.Kind.Validate(); err != nil {
+		return err
+	}
+	if err := source.Locator.Validate(); err != nil {
+		return err
+	}
+	if source.Version != nil {
+		if err := source.Version.Validate(); err != nil {
+			return err
+		}
+	}
+	if err := source.Metadata.Validate(); err != nil {
+		return err
+	}
+	return validateTimestamp("source created at", source.CreatedAt)
+}
+
+// FetchMetadata records adapter output without coupling the domain to net/http.
+type FetchMetadata struct {
+	StatusCode    int
+	ContentType   string
+	ETag          string
+	LastModified  string
+	ContentHash   string
+	ContentLength int64
+	FetchVersion  string
+}
+
+func (metadata FetchMetadata) Validate() error {
+	if metadata.StatusCode < 100 || metadata.StatusCode > 599 {
+		return fmt.Errorf("invalid fetch status code %d", metadata.StatusCode)
+	}
+	if metadata.StatusCode != 204 && metadata.StatusCode != 304 {
+		if err := requireText("fetch content type", metadata.ContentType); err != nil {
+			return err
+		}
+	} else if err := validateOptionalText("fetch content type", metadata.ContentType); err != nil {
+		return err
+	}
+	if metadata.ContentLength < 0 {
+		return fmt.Errorf("fetch content length is negative")
+	}
+	if err := validateOptionalText("fetch etag", metadata.ETag); err != nil {
+		return err
+	}
+	if err := validateOptionalText("fetch last modified", metadata.LastModified); err != nil {
+		return err
+	}
+	if err := validateOptionalText("fetch content hash", metadata.ContentHash); err != nil {
+		return err
+	}
+	return requireText("fetch version", metadata.FetchVersion)
+}
+
+// SourceSnapshot is immutable evidence of a fetch at a particular instant.
+// Body-retention policy is intentionally outside this record.
+type SourceSnapshot struct {
+	ID        ID
+	SourceID  SourceID
+	Locator   SourceLocator
+	FetchedAt Timestamp
+	Fetch     FetchMetadata
+}
+
+func (snapshot SourceSnapshot) Validate() error {
+	if err := snapshot.ID.Validate(); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	if err := snapshot.SourceID.Validate(); err != nil {
+		return err
+	}
+	if err := snapshot.Locator.Validate(); err != nil {
+		return err
+	}
+	if err := validateTimestamp("snapshot fetched at", snapshot.FetchedAt); err != nil {
+		return err
+	}
+	return snapshot.Fetch.Validate()
+}
