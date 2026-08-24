@@ -4,7 +4,7 @@
 
 Current step: complete
 Last completed step: 33
-Current release: unreleased (latest published: v0.1.0-alpha.2)
+Current release: v0.1.0-alpha.3 candidate (latest published: v0.1.0-alpha.2)
 Foundation baseline: v0.1.0-alpha.2 (2a9eb2b)
 
 ## Registro
@@ -1459,7 +1459,7 @@ Release: unreleased
 
 Status: completed
 Date: 2026-08-24
-Release: unreleased (latest published: v0.1.0-alpha.2)
+Release: v0.1.0-alpha.3 candidate (latest published: v0.1.0-alpha.2)
 
 ### Delivered
 
@@ -1470,7 +1470,7 @@ Release: unreleased (latest published: v0.1.0-alpha.2)
 - Stable domain, curriculum, mastery, retention, daily-plan, dashboard, TUI, and adapter boundaries reviewed and indexed as completed v1 contracts.
 - Dependency audit confirming that `internal/learning` remains standard-library-only and does not know Bubble Tea, SQLite, GitHub, AI providers, research, curriculum generation, or the operating system.
 - Full quality and cross-platform GitHub Actions gates for Foundation and Student Core, including Linux race coverage and Linux/macOS/Windows test, E2E, vet, build, and smoke checks.
-- No release or tag created: I-02 is complete in source, while `v0.1.0-alpha.2` remains the latest real SemVer release and contains Foundation only.
+- At formal closure no release or tag was created: I-02 was complete in source while `v0.1.0-alpha.2` remained the latest published SemVer release.
 
 ### Decisions
 
@@ -1506,7 +1506,7 @@ Release: unreleased (latest published: v0.1.0-alpha.2)
 ## I-02 Student & Learning Core Completion
 
 Status: completed
-Release: unreleased (latest published: v0.1.0-alpha.2)
+Release: v0.1.0-alpha.3 candidate (latest published: v0.1.0-alpha.2)
 Completed steps: 0-33
 
 Algorithms and versioned contracts:
@@ -1523,7 +1523,26 @@ Known limitations:
 - No researched production Learning Packs or Curriculum Compiler yet.
 - No full Exercise/Assessment Engine or generated learning content yet.
 - No AI runtime, AI provider, plugin runtime, or automatic network dependency.
-- I-02 is not included in the latest published `v0.1.0-alpha.2` artifacts; release publication remains a separate authorized workflow.
+- I-02 is included in the `v0.1.0-alpha.3` candidate; its generated GitHub draft must still be reviewed before publication.
 
 Ready for:
 I-03 Research & Source Intelligence
+
+## Release candidate v0.1.0-alpha.3
+
+Status: tagged candidate; draft publication requires maintainer review
+Date: 2026-08-24
+Release: v0.1.0-alpha.3
+
+### Delivered
+
+- Canonical SemVer prerelease selected for the completed I-02 Student & Learning Core milestone.
+- Release-specific scope and limitations recorded in `docs/releases/v0.1.0-alpha.3.md`.
+- Annotated tag targets the clean release commit on `main`; pushing it starts the protected release workflow.
+- The workflow creates only a reviewable GitHub draft with six platform archives and `SHA256SUMS`; it never publishes automatically.
+
+### Verification
+
+- Release target is the same `main` history that passed the hosted CI matrix on Ubuntu, macOS, and Windows, including Linux race coverage.
+- `go mod verify`, tracked-file formatting, documentation-link checks, `git diff --check`, and clean-tree validation.
+- Release workflow independently repeats quality gates and validates the annotated tag, source ancestry, SemVer, archives, embedded metadata, smoke test, and checksums.

@@ -8,8 +8,9 @@ persistence needed to build the product incrementally.
 ## Status
 
 The latest published prerelease is Foundation `v0.1.0-alpha.2`. I-02 Student &
-Learning Core is complete and verified in source, but has not yet been assigned
-or published as a new SemVer release. The executable provides workspace
+Learning Core is complete and verified as the `v0.1.0-alpha.3` release
+candidate; publication remains a manual action after reviewing the generated
+draft release. The executable provides workspace
 initialization, global/project configuration, secret management, safe opening
 of Foundation documents, portability and recovery operations, and an
 interactive TUI with resumable onboarding, a learning goal, mastery policy, an
@@ -27,8 +28,9 @@ of derived learning state with `kelyro maintenance recalculate --dry-run` or
 cross-aggregate integrity checks and is regression-tested with a 2,000-concept,
 6,000-evidence deterministic fixture. The completion record and known
 limitations live in
-[I-02 PROGRESS](docs/implementation/I-02-student-learning-core/PROGRESS.md);
-the published `v0.1.0-alpha.2` release notes still describe Foundation only.
+[I-02 PROGRESS](docs/implementation/I-02-student-learning-core/PROGRESS.md),
+with candidate scope and limitations in the
+[`v0.1.0-alpha.3` release notes](docs/releases/v0.1.0-alpha.3.md).
 
 The canonical Go module path is `github.com/mishaaac/kelyro`.
 

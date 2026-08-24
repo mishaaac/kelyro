@@ -6,9 +6,10 @@ and reproducible build date. `SHA256SUMS` detects accidental corruption; it is
 not a cryptographic signature or proof of publisher identity.
 
 Release-specific scope and limitations are recorded under [`docs/releases/`](releases/).
-The current Foundation pre-release is
-[`v0.1.0-alpha.2`](releases/v0.1.0-alpha.2.md); the initial Foundation release
-remains documented as [`v0.1.0-alpha.1`](releases/v0.1.0-alpha.1.md).
+The I-02 Student & Learning Core release candidate is
+[`v0.1.0-alpha.3`](releases/v0.1.0-alpha.3.md). The latest published prerelease
+remains [`v0.1.0-alpha.2`](releases/v0.1.0-alpha.2.md) until the generated draft
+is reviewed and explicitly published.
 
 ## Manual installation
 
