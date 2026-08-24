@@ -592,7 +592,7 @@ feat(storage): add Research Engine persistence schema
 
 ## Paso 4 — Implementar Trust Policy v1
 
-- [ ] Paso 4 completado
+- [x] Paso 4 completado
 
 ### Objetivo
 

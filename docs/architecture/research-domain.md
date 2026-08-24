@@ -2,9 +2,10 @@
 
 I-03 introduces `internal/research` as Kelyro's transport-, persistence-, and
 presentation-independent vocabulary for research and evidence. The package
-contains domain data and validation only. It does not search the web, perform
-HTTP requests, parse documents, choose trusted sources, calculate scores,
-persist records, compile curriculum, or modify learner state.
+contains domain data and validation. Its `trust` subpackage adds the pure,
+versioned Trust Policy v1; neither package searches the web, performs HTTP
+requests, parses documents, persists records, compiles curriculum, or modifies
+learner state.
 
 ## Package shape
 
@@ -85,10 +86,12 @@ time. `ResearchRun` gives an execution a separate lifecycle and validates
 terminal completion timestamps.
 
 `AuthorityProfile`, `AuthorityTier`, `TrustDecision`, and `TrustReason` define
-the shapes that later policies will consume and produce. This step implements
-no ranking or scoring algorithm. A trust decision must still carry a policy
-version and at least one human-readable reason so future decisions are
-explainable.
+the stable input/output vocabulary. `internal/research/trust` implements the
+deterministic `trust-policy-v1` decision policy without numeric scoring or I/O.
+A trust decision carries its policy version and ordered human-readable reasons
+so authority, freshness, relevance, directness, stability, corroboration, and
+the terminal decision remain explainable. Data-driven Authority Profile
+matching remains a later boundary.
 
 `DiscoveredSource` is explicitly a candidate with provider and rank metadata.
 It is not evidence. Conversion into evidence requires later classification,
@@ -176,8 +179,8 @@ The following remain intentionally absent from this step:
 - repositories, units of work, application services, and SQLite schema;
 - network privacy orchestration and HTTP clients;
 - discovery providers, query planning, fetching, and normalization;
-- trust, authority matching, quality, freshness, conflict, verification, drift,
-  impact, trigger, or cost algorithms;
+- authority-profile matching, quality, freshness, conflict, verification,
+  drift, impact, trigger, or cost algorithms;
 - raw-body retention, caches, audit adapters, CLI, and TUI;
 - production curriculum compilation and any mutation of student mastery.
 

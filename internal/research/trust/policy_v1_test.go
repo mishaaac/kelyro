@@ -1,0 +1,254 @@
+package trust
+
+import (
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/mishaaac/kelyro/internal/research"
+)
+
+func TestPolicyV1AcceptsNormativeLanguageSpecification(t *testing.T) {
+	input := trustTestInput(t, research.SourceSpecification)
+	input.UseCase = UseCaseLanguageSpecification
+	input.Corroboration = CorroborationSingleSource
+
+	decision, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustAccepted || decision.Tier != research.AuthorityTierA {
+		t.Fatalf("decision = (%s, %s), want (accepted, A)", decision.State, decision.Tier)
+	}
+	assertReason(t, decision, "authority.tier_a")
+	assertReason(t, decision, "decision.accepted")
+	if decision.Policy != PolicyVersionV1 {
+		t.Fatalf("policy = %q, want %q", decision.Policy, PolicyVersionV1)
+	}
+}
+
+func TestPolicyV1DoesNotAllowCommunityOnlyEvidenceToSustainKnowledge(t *testing.T) {
+	input := trustTestInput(t, research.SourceCommunityArticle)
+	input.Directness = DirectnessSupporting
+	input.Corroboration = CorroborationSingleSource
+
+	decision, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRequiresVerification || decision.Tier != research.AuthorityTierD {
+		t.Fatalf("decision = (%s, %s), want (requires_verification, D)", decision.State, decision.Tier)
+	}
+	assertReason(t, decision, "corroboration.single_source")
+}
+
+func TestPolicyV1FlagsStaleOfficialSourceWithoutLoweringAuthority(t *testing.T) {
+	input := trustTestInput(t, research.SourceOfficialDocumentation)
+	input.Freshness = research.FreshnessStale
+	input.Corroboration = CorroborationIndependent
+
+	decision, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRequiresVerification || decision.Tier != research.AuthorityTierB {
+		t.Fatalf("decision = (%s, %s), want (requires_verification, B)", decision.State, decision.Tier)
+	}
+	assertReason(t, decision, "freshness.stale")
+}
+
+func TestPolicyV1ExposesOfficialHistoricalConflictAndContextualPrecedence(t *testing.T) {
+	historical := trustTestInput(t, research.SourceReleaseNotes)
+	historical.UseCase = UseCaseHistoricalBehavior
+	historical.Purpose = research.PurposeVersionBehavior
+	historical.Corroboration = CorroborationConflicted
+	current := historical
+	current.Source = trustTestSource(t, research.SourceOfficialDocumentation)
+
+	historicalDecision, err := (PolicyV1{}).Evaluate(historical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentDecision, err := (PolicyV1{}).Evaluate(current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if historicalDecision.Tier != research.AuthorityTierA || currentDecision.Tier != research.AuthorityTierB {
+		t.Fatalf("historical/current tiers = %s/%s, want A/B", historicalDecision.Tier, currentDecision.Tier)
+	}
+	if historicalDecision.State != research.TrustRequiresVerification || currentDecision.State != research.TrustRequiresVerification {
+		t.Fatalf("conflicted states = %s/%s", historicalDecision.State, currentDecision.State)
+	}
+	assertReason(t, historicalDecision, "authority.historical_primary")
+	assertReason(t, historicalDecision, "corroboration.conflicted")
+}
+
+func TestPolicyV1RejectsLowQualitySource(t *testing.T) {
+	input := trustTestInput(t, research.SourceOther)
+	input.Relevance = RelevancePartial
+	input.Directness = DirectnessIndirect
+	input.Stability = StabilityUnknown
+	input.Corroboration = CorroborationNone
+
+	decision, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRejected || decision.Tier != research.AuthorityTierE {
+		t.Fatalf("decision = (%s, %s), want (rejected, E)", decision.State, decision.Tier)
+	}
+	assertReason(t, decision, "decision.rejected_low_quality")
+}
+
+func TestPolicyV1RequiresVerificationForMissingMetadata(t *testing.T) {
+	input := trustTestInput(t, research.SourceSpecification)
+	input.Source.Metadata.Publisher = ""
+
+	decision, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRequiresVerification || decision.Tier != research.AuthorityTierA {
+		t.Fatalf("decision = (%s, %s), want (requires_verification, A)", decision.State, decision.Tier)
+	}
+	assertReason(t, decision, "metadata.incomplete")
+}
+
+func TestPolicyV1SecurityAdvisoryRequiresIndependentCorroboration(t *testing.T) {
+	input := trustTestInput(t, research.SourceOfficialBlog)
+	input.UseCase = UseCaseSecurityAdvisory
+	input.Purpose = research.PurposeSecurityGuidance
+	input.Corroboration = CorroborationSingleSource
+
+	decision, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRequiresVerification {
+		t.Fatalf("single-source security state = %s", decision.State)
+	}
+	assertReason(t, decision, "security.independent_corroboration_required")
+
+	input.Corroboration = CorroborationIndependent
+	decision, err = (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustAccepted || decision.Tier != research.AuthorityTierA {
+		t.Fatalf("corroborated security decision = (%s, %s)", decision.State, decision.Tier)
+	}
+}
+
+func TestPolicyV1PackageAPIPrefersReferenceOverTutorial(t *testing.T) {
+	reference := trustTestInput(t, research.SourcePackageReference)
+	reference.UseCase = UseCasePackageAPI
+	reference.Purpose = research.PurposeCurrentUsage
+	reference.Corroboration = CorroborationSingleSource
+	tutorial := reference
+	tutorial.Source = trustTestSource(t, research.SourceOfficialTutorial)
+	tutorial.Directness = DirectnessSupporting
+
+	referenceDecision, err := (PolicyV1{}).Evaluate(reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tutorialDecision, err := (PolicyV1{}).Evaluate(tutorial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if referenceDecision.Tier != research.AuthorityTierA || referenceDecision.State != research.TrustAccepted {
+		t.Fatalf("reference decision = (%s, %s)", referenceDecision.State, referenceDecision.Tier)
+	}
+	if tutorialDecision.Tier != research.AuthorityTierB || tutorialDecision.State != research.TrustAcceptedSupplement {
+		t.Fatalf("tutorial decision = (%s, %s)", tutorialDecision.State, tutorialDecision.Tier)
+	}
+}
+
+func TestPolicyV1IsDeterministicAndRejectsInvalidInput(t *testing.T) {
+	input := trustTestInput(t, research.SourceStandard)
+	first, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("non-deterministic decisions:\n%+v\n%+v", first, second)
+	}
+
+	input.Relevance = "invented"
+	if _, err := (PolicyV1{}).Evaluate(input); err == nil {
+		t.Fatal("Evaluate() accepted an invalid relevance")
+	}
+}
+
+func trustTestInput(t *testing.T, kind research.SourceKind) Input {
+	t.Helper()
+	return Input{
+		Source:        trustTestSource(t, kind),
+		Topic:         trustTestTopic(t),
+		Purpose:       research.PurposeConceptDefinition,
+		UseCase:       UseCaseGeneral,
+		Freshness:     research.FreshnessFresh,
+		Relevance:     RelevanceExact,
+		Directness:    DirectnessPrimary,
+		Stability:     StabilityStable,
+		Corroboration: CorroborationIndependent,
+		EvaluatedAt:   trustTestTimestamp(t, time.Date(2026, time.August, 24, 18, 0, 0, 0, time.UTC)),
+	}
+}
+
+func trustTestSource(t *testing.T, kind research.SourceKind) research.Source {
+	t.Helper()
+	published := trustTestTimestamp(t, time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC))
+	id, err := research.NewSourceID("source." + string(kind))
+	if err != nil {
+		t.Fatal(err)
+	}
+	locator, err := research.NewSourceLocator("https://example.com/" + string(kind))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return research.Source{
+		ID:      id,
+		Kind:    kind,
+		Locator: locator,
+		Metadata: research.SourceMetadata{
+			Title:       "Source " + string(kind),
+			Publisher:   "Example Authority",
+			Language:    "en",
+			PublishedAt: &published,
+		},
+		CreatedAt: published,
+	}
+}
+
+func trustTestTopic(t *testing.T) research.ResearchTopic {
+	t.Helper()
+	topic, err := research.NewResearchTopic("request routing", "software", "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return topic
+}
+
+func trustTestTimestamp(t *testing.T, value time.Time) research.Timestamp {
+	t.Helper()
+	timestamp, err := research.NewTimestamp(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return timestamp
+}
+
+func assertReason(t *testing.T, decision research.TrustDecision, code string) {
+	t.Helper()
+	for _, item := range decision.Reasons {
+		if item.Code == code {
+			return
+		}
+	}
+	t.Fatalf("decision reasons do not contain %q: %+v", code, decision.Reasons)
+}

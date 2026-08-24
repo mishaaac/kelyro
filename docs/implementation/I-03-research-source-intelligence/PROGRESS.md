@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 4
-Last completed step: 3
+Current step: 5
+Last completed step: 4
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -264,3 +264,77 @@ Release: unreleased
   decisions persistidos aquí sin introducir un booleano global `trusted`.
 - No implementar discovery live, networking ni pasos posteriores durante el
   Paso 4.
+
+## Step 04 — Trust Policy v1
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Subpaquete puro `internal/research/trust` con política stateless y
+  determinista identificada de forma inmutable como `trust-policy-v1`.
+- Input validado para source, topic, purpose, use case, evaluation timestamp y
+  las dimensiones independientes freshness, relevance, directness, stability y
+  corroboration; authority se clasifica contextualmente como tier A–E.
+- Contextos explícitos general, language specification, security advisory,
+  package API e historical behavior, sin hardcodear tecnologías, dominios ni
+  organizaciones concretas.
+- Precedencia determinista de decisiones para `accepted`,
+  `accepted_as_supplement`, `requires_verification` y `rejected`, sin booleano
+  global de trusted ni score numérico que oculte dimensiones.
+- Reason codes ordenados para cada dimensión, metadata, reglas contextuales y
+  outcome final, preservados dentro del `TrustDecision` existente.
+- Reglas conservadoras para metadata incompleta, official stale, community-only,
+  preview/experimental/legacy, evidencia ausente y conflictos explícitos.
+- Security guidance requiere evidence authority A/B y corroboración
+  independiente; historical release notes reciben precedencia A pero un
+  conflicto sigue visible como `requires_verification`.
+- Política y fronteras documentadas en
+  `docs/architecture/trust-policy-v1.md`, enlazadas desde el índice y reflejadas
+  en el documento del dominio Research.
+
+### Decisions
+
+- Trust Policy v1 es lógica de dominio pura y no un application service: no
+  necesita repositories, clocks implícitos, SQLite, HTTP ni UI.
+- Authority v1 usa source kind + use case como baseline contextual. El matching
+  data-driven de profiles, organizations y domains permanece reservado al Paso
+  5 y el Trusted Source Registry al Paso 6.
+- Freshness no reduce authority: una fuente official stale conserva su tier y
+  cambia a `requires_verification`.
+- Una source normative single-source puede aceptarse fuera de security; una
+  community source sin corroboración independiente nunca sostiene conocimiento
+  por sí sola.
+- Historical precedence no resuelve conflictos. Release notes pueden tener
+  mayor tier que current docs para historical behavior, pero corroboration
+  `conflicted` siempre exige verificación explícita.
+- Metadata mínima requiere publisher; contextos y purposes time-sensitive
+  requieren además `published_at` o `updated_at`.
+- No se implementaron Authority Profile matching/fixtures, Trusted Registry,
+  freshness calculation, verification, Conflict Resolver, network access,
+  discovery, Curriculum Compiler ni cambios de Student Core.
+
+### Verification
+
+- Tests de normative source, community-only, stale official,
+  official/historical conflict, low quality y missing metadata.
+- Tests adicionales de security independent corroboration, package API
+  precedence, determinismo e inputs inválidos.
+- `GOCACHE=/tmp/kelyro-i03-step4-research-gocache go test ./internal/research/...`.
+- `GOCACHE=/tmp/kelyro-i03-step4-research-vet-gocache go vet ./internal/research/...`.
+- `GOCACHE=/tmp/kelyro-i03-step4-fulltest-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step4-fullvet-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step4-final-quality-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go vet ./...`, `go test -race ./...`,
+  build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 5 es el siguiente paso pendiente y requiere autorización explícita.
+- Authority Profiles deberá producir matching data-driven compatible con los
+  tiers y use cases de Trust Policy v1, sin hardcodear Go dentro del core.
+- No implementar Trusted Source Registry, network access ni pasos posteriores
+  durante el Paso 5.

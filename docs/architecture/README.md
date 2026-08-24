@@ -27,6 +27,10 @@ The additive Research SQLite schema, bounded retention policy, indexes,
 constraints, migration compatibility, and production repository adapter are
 documented in [research-persistence.md](research-persistence.md).
 
+The contextual authority tiers, six independent trust dimensions, deterministic
+decision precedence, and reason-code contract are documented in
+[trust-policy-v1.md](trust-policy-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).
