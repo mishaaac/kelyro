@@ -460,7 +460,7 @@ feat(research): define research and source domain model
 
 ## Paso 2 — Definir repositories y application services de Research
 
-- [ ] Paso 2 completado
+- [x] Paso 2 completado
 
 ### Objetivo
 
@@ -3181,7 +3181,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 
 - [x] Paso 0 — Apertura formal
 - [x] Paso 1 — Research domain
-- [ ] Paso 2 — Service boundaries
+- [x] Paso 2 — Service boundaries
 - [ ] Paso 3 — Persistence
 - [ ] Paso 4 — Trust Policy
 - [ ] Paso 5 — Authority Profiles

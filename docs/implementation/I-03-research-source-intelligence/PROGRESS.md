@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 2
-Last completed step: 1
+Current step: 3
+Last completed step: 2
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -118,3 +118,74 @@ Release: unreleased
   exponer SQLite, HTTP o UI al dominio.
 - No implementar persistence schema, adapters web, Trust Policy ni pasos
   posteriores antes de su autorización independiente.
+
+## Step 02 — Repositories y application services de Research
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Paquete `internal/research/application` con puertos pequeños para sources,
+  snapshots, evidence, research runs, trust registry, releases, freshness,
+  verification, drift, impact y research cache.
+- Contratos transport-neutral para `SearchProvider`, `SourceFetcher`,
+  `SourceNormalizer`, `MetadataExtractor` y `Clock`, con DTOs validados y fetch
+  explícitamente limitado por bytes.
+- Ocho servicios de aplicación delgados: Research, Discovery, Source,
+  Verification, Freshness, Release Intelligence, Drift e Impact.
+- Taxonomía causal de errores `not_found`, `conflict`, `invalid_state`,
+  `unavailable`, `persistence_failure` y `external_failure`, preservando causas
+  y separando fallos de storage de fallos de providers.
+- Fake determinista `internal/research/application/memory` para todos los
+  repositories, con mutex, orden estable, cancelación, checks relacionales y
+  copias defensivas de pointers, slices y payloads.
+- Soporte de múltiples runs para un mismo `ResearchRequest` inmutable, sin
+  duplicar o mutar la identidad del request.
+- Tests black-box de servicios, fakes, error mapping, provider failures,
+  dependencias ausentes, context cancellation, ownership de datos y contratos
+  externos.
+- Límites, semántica de repositories, puertos, servicios, errores y fake
+  documentados en `docs/architecture/research-application.md`.
+
+### Decisions
+
+- `Repositories` es solo un wiring bundle; no es una mega-interface ni se
+  expone como dependencia de los servicios.
+- Cada servicio recibe únicamente los ports que utiliza. Verification e Impact
+  tienen repositories propios para no mezclar agregados con Drift.
+- No se introdujo `UnitOfWork`: las operaciones actuales escriben un solo
+  registro y aún no existe un caso de uso atómico que justifique ese contrato.
+- `ResearchRunRepository` conserva un request y admite múltiples runs; reutilizar
+  el mismo request ID con contenido diferente produce conflict.
+- Repository failures desconocidos mapean a `persistence_failure`; fallos de
+  adapters externos mapean a `external_failure`; cancelación y deadlines siempre
+  mapean a `unavailable`.
+- Freshness y cache records son outputs/DTOs de application. No implementan
+  todavía fórmulas, eviction, TTL policy ni algoritmos reservados a pasos
+  posteriores.
+- No se añadieron SQLite, HTTP real, search providers, parsers, Trust Policy,
+  CLI/TUI, Curriculum Compiler ni cambios al Student Core.
+
+### Verification
+
+- `GOCACHE=/tmp/kelyro-i03-step2-target2-gocache go test ./internal/research/application/...`.
+- `GOCACHE=/tmp/kelyro-i03-step2-target2-gocache go vet ./internal/research/application/...`.
+- `GOCACHE=/tmp/kelyro-i03-step2-full-test-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step2-full-vet-gocache go vet ./...`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step2-quality2-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go test -race ./...`, build y smokes
+  de CLI.
+- Auditoría de imports: application y memory dependen únicamente de la librería
+  estándar y de los paquetes `internal/research` correspondientes; no importan
+  HTTP, SQLite, UI, Student Core ni providers concretos.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 3 es el siguiente paso pendiente y requiere autorización explícita.
+- El adapter SQLite deberá implementar estos ports, respetar la semántica de
+  conflictos/not-found y conservar las relaciones source/snapshot/evidence.
+- No implementar Trust Policy, network access ni pasos posteriores durante la
+  persistence de Step 03.

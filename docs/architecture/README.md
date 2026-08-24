@@ -19,6 +19,10 @@ The Research & Source Intelligence domain vocabulary, traceability graph,
 value objects, invariants, and deferred adapter/policy boundaries are documented
 in [research-domain.md](research-domain.md).
 
+Research repository ports, external adapter contracts, application services,
+error taxonomy, and deterministic memory fakes are documented in
+[research-application.md](research-application.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).
