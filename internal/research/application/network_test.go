@@ -21,7 +21,7 @@ func TestNetworkResearchServicesBlockEveryLiveBoundary(t *testing.T) {
 	access := application.NetworkResearchAccess{Gate: gate}
 
 	_, searchErr := application.NewDiscoveryService(search, nil, access).
-		Search(context.Background(), application.ResearchModeOnline, fixture.searchQuery)
+		Search(context.Background(), application.ResearchModeOnline, fixture.searchQuery, fixture.searchOptions)
 	_, fetchErr := application.NewFetchService(fetch, nil, access).
 		Fetch(context.Background(), application.ResearchModeOnline, fixture.fetchRequest)
 	_, releaseErr := application.NewReleaseLookupService(releases, nil, access).
@@ -71,7 +71,7 @@ func TestNetworkResearchAutoUsesOfflineCacheWhenPrivacyBlocks(t *testing.T) {
 	access := application.NetworkResearchAccess{Gate: gate}
 
 	results, err := application.NewDiscoveryService(search, searchCache, access).
-		Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery)
+		Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery, fixture.searchOptions)
 	if err != nil || len(results) != 1 {
 		t.Fatalf("cached Search() = (%+v, %v)", results, err)
 	}
@@ -125,21 +125,21 @@ func TestNetworkResearchModesKeepOfflineOfflineAndAllowAuthorizedLiveCalls(t *te
 	cache := &recordingSearchCache{results: fixture.results}
 	service := application.NewDiscoveryService(live, cache, application.NetworkResearchAccess{Gate: gate})
 
-	if _, err := service.Search(context.Background(), application.ResearchModeOffline, fixture.searchQuery); err != nil {
+	if _, err := service.Search(context.Background(), application.ResearchModeOffline, fixture.searchQuery, fixture.searchOptions); err != nil {
 		t.Fatalf("offline Search() error = %v", err)
 	}
 	if live.calls != 0 || cache.calls != 1 || len(gate.requests) != 0 {
 		t.Fatalf("offline calls = live:%d cache:%d gate:%d", live.calls, cache.calls, len(gate.requests))
 	}
 
-	if _, err := service.Search(context.Background(), application.ResearchModeOnline, fixture.searchQuery); err != nil {
+	if _, err := service.Search(context.Background(), application.ResearchModeOnline, fixture.searchQuery, fixture.searchOptions); err != nil {
 		t.Fatalf("online Search() error = %v", err)
 	}
 	if live.calls != 1 || cache.calls != 1 || len(gate.requests) != 1 {
 		t.Fatalf("online calls = live:%d cache:%d gate:%d", live.calls, cache.calls, len(gate.requests))
 	}
 
-	if _, err := service.Search(context.Background(), application.ResearchMode("invented"), fixture.searchQuery); !errors.Is(err, application.ErrInvalidState) {
+	if _, err := service.Search(context.Background(), application.ResearchMode("invented"), fixture.searchQuery, fixture.searchOptions); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("invalid mode error = %v, want invalid_state", err)
 	}
 	if live.calls != 1 || cache.calls != 1 || len(gate.requests) != 1 {
@@ -155,7 +155,7 @@ func TestNetworkResearchAutoWithoutCachedFallbackReturnsCategorizedBlock(t *test
 	service := application.NewDiscoveryService(live, nil, application.NetworkResearchAccess{
 		Gate: &recordingNetworkGate{err: privacy.ErrNetworkBlocked},
 	})
-	_, err := service.Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery)
+	_, err := service.Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery, fixture.searchOptions)
 	if !errors.Is(err, application.ErrNetworkResearchBlocked) || live.calls != 0 {
 		t.Fatalf("Search() error = %v calls = %d", err, live.calls)
 	}
@@ -168,26 +168,27 @@ func TestNetworkResearchCacheMissAndFailureKeepDistinctCategories(t *testing.T) 
 	blocked := application.NetworkResearchAccess{Gate: &recordingNetworkGate{err: privacy.ErrNetworkBlocked}}
 	cacheMiss := application.Classify(application.ErrorNotFound, "read search cache", errors.New("fixture miss"))
 	_, err := application.NewDiscoveryService(nil, &recordingSearchCache{err: cacheMiss}, blocked).
-		Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery)
+		Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery, fixture.searchOptions)
 	if kind, ok := application.KindOf(err); !ok || kind != application.ErrorNetworkResearchBlocked {
 		t.Fatalf("cache miss KindOf() = (%q, %v), error = %v", kind, ok, err)
 	}
 
 	cacheFailure := errors.New("cache database failed")
 	_, err = application.NewDiscoveryService(nil, &recordingSearchCache{err: cacheFailure}, blocked).
-		Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery)
+		Search(context.Background(), application.ResearchModeAuto, fixture.searchQuery, fixture.searchOptions)
 	if !errors.Is(err, application.ErrPersistenceFailure) || !errors.Is(err, cacheFailure) {
 		t.Fatalf("cache failure error = %v, want persistence_failure", err)
 	}
 }
 
 type networkTestFixture struct {
-	searchQuery  application.SearchQuery
-	results      []application.SearchResult
-	fetchRequest application.FetchRequest
-	fetched      application.FetchedSource
-	releaseQuery application.ReleaseLookupQuery
-	releases     []research.ReleaseRecord
+	searchQuery   application.SearchQuery
+	searchOptions application.SearchOptions
+	results       []application.SearchResult
+	fetchRequest  application.FetchRequest
+	fetched       application.FetchedSource
+	releaseQuery  application.ReleaseLookupQuery
+	releases      []research.ReleaseRecord
 }
 
 func networkFixture(t *testing.T) networkTestFixture {
@@ -201,8 +202,9 @@ func networkFixture(t *testing.T) networkTestFixture {
 	release.TechnologyID = technologyID
 	return networkTestFixture{
 		searchQuery: application.SearchQuery{
-			RequestID: testID(t, "request.network"), Text: "official documentation", Limit: 5,
+			RequestID: testID(t, "request.network"), Text: "official documentation",
 		},
+		searchOptions: application.SearchOptions{Limit: 5},
 		results: []application.SearchResult{{
 			Title: "Official documentation", Locator: source.Locator, Provider: "fixture", Rank: 0,
 		}},
@@ -236,7 +238,7 @@ type recordingSearchProvider struct {
 	calls   int
 }
 
-func (provider *recordingSearchProvider) Search(context.Context, application.SearchQuery) ([]application.SearchResult, error) {
+func (provider *recordingSearchProvider) Search(context.Context, application.SearchQuery, application.SearchOptions) ([]application.SearchResult, error) {
 	provider.calls++
 	return provider.results, provider.err
 }
@@ -247,7 +249,7 @@ type recordingSearchCache struct {
 	calls   int
 }
 
-func (cache *recordingSearchCache) SearchCached(context.Context, application.SearchQuery) ([]application.SearchResult, error) {
+func (cache *recordingSearchCache) SearchCached(context.Context, application.SearchQuery, application.SearchOptions) ([]application.SearchResult, error) {
 	cache.calls++
 	return cache.results, cache.err
 }

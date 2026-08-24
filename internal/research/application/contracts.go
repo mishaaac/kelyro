@@ -173,46 +173,56 @@ type Repositories struct {
 	Cache          ResearchCacheRepository
 }
 
-// SearchQuery and SearchResult keep provider-specific request/response types
-// outside the application and domain packages.
+// SearchQuery, SearchOptions, and SearchResult keep provider-specific
+// request/response types outside the application and domain packages.
 type SearchQuery struct {
-	RequestID     research.ID
-	Text          string
-	DesiredKind   *research.SourceKind
-	TargetVersion *research.SourceVersion
-	Limit         int
+	RequestID research.ID
+	Text      string
 }
 
 func (query SearchQuery) Validate() error {
 	if err := query.RequestID.Validate(); err != nil {
 		return fmt.Errorf("search request: %w", err)
 	}
-	if err := requireText("search query", query.Text); err != nil {
-		return err
-	}
-	if query.DesiredKind != nil {
-		if err := query.DesiredKind.Validate(); err != nil {
+	return requireText("search query", query.Text)
+}
+
+type SearchOptions struct {
+	DesiredKind   *research.SourceKind
+	TargetVersion *research.SourceVersion
+	Limit         int
+}
+
+func (options SearchOptions) Validate() error {
+	if options.DesiredKind != nil {
+		if err := options.DesiredKind.Validate(); err != nil {
 			return err
 		}
 	}
-	if query.TargetVersion != nil {
-		if err := query.TargetVersion.Validate(); err != nil {
+	if options.TargetVersion != nil {
+		if err := options.TargetVersion.Validate(); err != nil {
 			return err
 		}
 	}
-	if query.Limit <= 0 {
+	if options.Limit <= 0 {
 		return fmt.Errorf("search result limit must be positive")
+	}
+	if options.Limit > MaximumSearchResults {
+		return fmt.Errorf("search result limit exceeds %d", MaximumSearchResults)
 	}
 	return nil
 }
 
 type SearchResult struct {
-	Title    string
-	Locator  research.SourceLocator
-	Snippet  string
-	Provider string
-	Rank     int
+	Title         string
+	Locator       research.SourceLocator
+	Snippet       string
+	Provider      string
+	Rank          int
+	PublishedHint *research.Timestamp
 }
+
+const MaximumSearchResults = 100
 
 func (result SearchResult) Validate() error {
 	if err := requireText("search result title", result.Title); err != nil {
@@ -230,18 +240,23 @@ func (result SearchResult) Validate() error {
 	if result.Rank < 0 {
 		return fmt.Errorf("search result rank is negative")
 	}
+	if result.PublishedHint != nil {
+		if err := result.PublishedHint.Validate(); err != nil {
+			return fmt.Errorf("search result published hint: %w", err)
+		}
+	}
 	return nil
 }
 
 type SearchProvider interface {
-	Search(context.Context, SearchQuery) ([]SearchResult, error)
+	Search(context.Context, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
 
 // SearchCache reads previously cached discovery output without network access.
 // It is deliberately distinct from SearchProvider so offline fallback cannot
 // accidentally invoke a live adapter.
 type SearchCache interface {
-	SearchCached(context.Context, SearchQuery) ([]SearchResult, error)
+	SearchCached(context.Context, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
 
 type FetchRequest struct {
@@ -541,7 +556,7 @@ type ResearchService interface {
 }
 
 type DiscoveryService interface {
-	Search(context.Context, ResearchMode, SearchQuery) ([]SearchResult, error)
+	Search(context.Context, ResearchMode, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
 
 type FetchService interface {

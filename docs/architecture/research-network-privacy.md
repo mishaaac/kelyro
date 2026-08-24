@@ -39,15 +39,16 @@ the caller's requested behavior, not permission. A missing privacy gate is an
 
 The offline read contracts are intentionally distinct from live ports:
 
-- `SearchCache.SearchCached`;
+- `SearchCache.SearchCached`, with the same query/options as the live provider;
 - `SourceFetchCache.FetchCached`;
 - `ReleaseLookupCache.LookupCachedReleases`.
 
 This makes the fallback path explicit and prevents an adapter labeled as a
 cache from silently delegating to a network provider. Cached outputs pass the
-same structural and request-identity validation as live outputs. Step 07 does
-not define cache encoding, cache writes, expiry, or eviction; the existing
-bounded `ResearchCacheRepository` remains available for future adapters.
+same normalization, URL deduplication, rank preservation, limits, and
+structural validation as live outputs. Step 07 does not define cache encoding,
+cache writes, expiry, or eviction; the existing bounded
+`ResearchCacheRepository` remains available for future adapters.
 
 When live access is impossible and the offline cache is absent or reports a
 miss, the service returns the stable application classification
@@ -66,7 +67,7 @@ access is disabled. The source registry CLI therefore remains fully offline.
 
 ## Deferred work
 
-This step adds no HTTP client, DNS resolution, retries, redirects, discovery
-provider, cache format, release discovery algorithm, background activity, or
-public research command. Those remain in their explicitly assigned later
-steps. Student Core state and Curriculum Compiler behavior are unchanged.
+Step 11 later adds a network-free static discovery provider and completes the
+vendor-neutral contract. No production search provider, cache format, release
+discovery algorithm, background activity, or public research command exists.
+Student Core state and Curriculum Compiler behavior are unchanged.

@@ -57,6 +57,10 @@ derived-source contract, sanitization boundary, canonical links, output limits,
 and golden fixtures are documented in
 [source-normalization-v1.md](source-normalization-v1.md).
 
+The vendor-neutral source-discovery contracts, candidate normalization,
+duplicate URL policy, exact rank preservation, privacy boundary, and static
+network-free provider are documented in [source-discovery.md](source-discovery.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

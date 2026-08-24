@@ -69,8 +69,10 @@ request. Reusing a request ID with different request data is a conflict.
 The following application-owned contracts prevent provider and transport types
 from entering domain or services:
 
-- `SearchProvider` accepts a validated `SearchQuery` and returns candidate
-  `SearchResult` values. Results remain candidates, never evidence.
+- `SearchProvider` accepts a normalized `SearchQuery` and separate validated
+  `SearchOptions`, then returns candidate `SearchResult` values. Results remain
+  candidates, never evidence. The service deterministically normalizes and
+  deduplicates locators while preserving provider order and ranks.
 - `SourceFetcher` accepts a bounded `FetchRequest` and returns `FetchedSource`
   bytes plus transport-neutral `FetchMetadata`; the privacy-gated service marks
   the result origin as `live` or `cache`.
@@ -84,9 +86,11 @@ from entering domain or services:
 - `Clock` supplies a validated research timestamp to time-dependent use cases.
 
 Step 07 protects every live call with Foundation's privacy gate. Steps 08–09
-implement the hardened HTTP transport and `SourceFetcher`, and Step 10
-implements the deterministic `SourceNormalizer`; search, cache encoding,
-release discovery, and separate metadata extraction remain unimplemented.
+implement the hardened HTTP transport and `SourceFetcher`, Step 10 implements
+the deterministic `SourceNormalizer`, and Step 11 completes the vendor-neutral
+search contract with a static network-free provider. A production search
+adapter, cache encoding, release discovery, and separate metadata extraction
+remain unimplemented.
 `MaximumBytes` is enforced by the fetch adapter as a request-specific limit
 below the transport's configured global ceiling. A safe redirect may change
 the returned locator without changing `SourceID`.
@@ -96,8 +100,9 @@ the returned locator without changing `SourceID`.
 The initial services are deliberately thin:
 
 - `ResearchService` creates and updates validated request/run state;
-- `DiscoveryService` validates queries, enforces research mode/privacy, and
-  delegates to either the live provider or explicit offline cache;
+- `DiscoveryService` normalizes and validates queries/options, enforces research
+  mode/privacy, delegates to either the live provider or explicit offline cache,
+  and returns bounded unique candidates without reranking them;
 - `FetchService` applies the same boundary to live/cached source retrieval;
 - `SnapshotCaptureService` resolves the latest source snapshot, sends its
   conditional validators through `FetchService`, verifies canonical content

@@ -142,12 +142,13 @@ func TestDiscoveryServiceMapsProviderFailuresAndRejectsInvalidResults(t *testing
 
 	ctx := context.Background()
 	query := application.SearchQuery{
-		RequestID: testID(t, "request.search"), Text: "official interface specification", Limit: 5,
+		RequestID: testID(t, "request.search"), Text: "official interface specification",
 	}
+	options := application.SearchOptions{Limit: 5}
 	wantCause := errors.New("provider unavailable")
 	access := application.NetworkResearchAccess{Gate: privacy.NewNetworkGate(privacy.Policy{AllowNetwork: true}, nil)}
 	service := application.NewDiscoveryService(searchProviderStub{err: wantCause}, nil, access)
-	_, err := service.Search(ctx, application.ResearchModeOnline, query)
+	_, err := service.Search(ctx, application.ResearchModeOnline, query, options)
 	if !errors.Is(err, application.ErrExternalFailure) || !errors.Is(err, wantCause) {
 		t.Fatalf("provider error = %v, want external_failure preserving cause", err)
 	}
@@ -155,7 +156,7 @@ func TestDiscoveryServiceMapsProviderFailuresAndRejectsInvalidResults(t *testing
 	service = application.NewDiscoveryService(searchProviderStub{results: []application.SearchResult{{
 		Title: "Specification", Locator: testLocator(t, "spec"), Provider: "fixture", Rank: 0,
 	}}}, nil, access)
-	results, err := service.Search(ctx, application.ResearchModeOnline, query)
+	results, err := service.Search(ctx, application.ResearchModeOnline, query, options)
 	if err != nil || len(results) != 1 {
 		t.Fatalf("DiscoveryService.Search() = (%+v, %v)", results, err)
 	}
@@ -163,12 +164,12 @@ func TestDiscoveryServiceMapsProviderFailuresAndRejectsInvalidResults(t *testing
 	service = application.NewDiscoveryService(searchProviderStub{results: []application.SearchResult{{
 		Title: "", Locator: testLocator(t, "bad"), Provider: "fixture", Rank: 0,
 	}}}, nil, access)
-	if _, err := service.Search(ctx, application.ResearchModeOnline, query); !errors.Is(err, application.ErrExternalFailure) {
+	if _, err := service.Search(ctx, application.ResearchModeOnline, query, options); !errors.Is(err, application.ErrExternalFailure) {
 		t.Fatalf("invalid provider result error = %v, want external_failure", err)
 	}
 
-	query.Limit = 0
-	if _, err := service.Search(ctx, application.ResearchModeOnline, query); !errors.Is(err, application.ErrInvalidState) {
+	options.Limit = 0
+	if _, err := service.Search(ctx, application.ResearchModeOnline, query, options); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("invalid query error = %v, want invalid_state", err)
 	}
 }
@@ -376,7 +377,7 @@ func (clock fixedClock) Now() research.Timestamp { return clock.now }
 
 var _ application.Clock = fixedClock{}
 
-func (provider searchProviderStub) Search(context.Context, application.SearchQuery) ([]application.SearchResult, error) {
+func (provider searchProviderStub) Search(context.Context, application.SearchQuery, application.SearchOptions) ([]application.SearchResult, error) {
 	return provider.results, provider.err
 }
 

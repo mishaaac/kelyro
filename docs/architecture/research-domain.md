@@ -102,8 +102,10 @@ remain explainable. A matching Authority Profile is contextual preference data,
 not a trust decision.
 
 `DiscoveredSource` is explicitly a candidate with provider and rank metadata.
-It is not evidence. Conversion into evidence requires later classification,
-fetch, normalization, and extraction steps.
+At the application boundary, `SearchResult` also carries an optional snippet
+and publication hint supplied by the provider. Neither value is evidence.
+Conversion into evidence requires later classification, fetch, normalization,
+and extraction steps.
 
 `SourceRegistryEntry`, `CanonicalDomain`, `RegistryAuthorityHint`, and
 `RegistryStatus` model reviewed source-family metadata. The pure registry

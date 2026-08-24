@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 11
-Last completed step: 10
+Current step: 12
+Last completed step: 11
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -813,3 +813,76 @@ Release: unreleased
   cualquier operación live.
 - No implementar discovery, evidence extraction, cache persistence, PDF ni
   pasos posteriores sin su autorización correspondiente.
+
+## Step 11 — Source Discovery abstraction
+
+Status: completed
+Date: 2026-08-24
+Release: unreleased
+
+### Delivered
+
+- Contratos vendor-neutral `SearchQuery`, `SearchOptions`, `SearchResult` y
+  `SearchProvider`, con query/options separados como exige el plan y sin tipos
+  de requests/responses de un proveedor concreto.
+- Resultados candidatos con título, locator HTTP(S), snippet opcional,
+  provider, rank y published hint temporal opcional; ningún resultado se
+  convierte en source registrada, snapshot, evidence o claim.
+- Normalización determinista de query, título, snippet y provider mediante
+  whitespace estable, más canonicalización de locator a nivel documento sin
+  fragmentos.
+- Deduplicación por locator normalizado que conserva la primera aparición, el
+  orden del provider y los ranks originales sin reordenar ni renumerar.
+- Límite obligatorio positivo y máximo de 100 resultados, validación de todo
+  el output antes de retornarlo y truncado solo después de deduplicar.
+- Mismo pipeline para candidatos live y cacheados, manteniendo
+  `external_failure`, `persistence_failure`, `unavailable` y
+  `network_research_blocked` como categorías causales distintas.
+- Provider estático determinista y sin red en
+  `application/memory.StaticSearchProvider`, con copias defensivas para tests y
+  desarrollo, reemplazable por futuros adapters reales.
+- Tests de provider error, query/options normalizados, URLs duplicadas por deep
+  link, published hints, bounds, cancellation, copias defensivas y preservación
+  exacta de ranks no monotónicos.
+- Contrato, lifecycle candidato, privacidad y trabajo diferido documentados en
+  `docs/architecture/source-discovery.md` y sincronizados con la documentación
+  de domain, application y network privacy.
+
+### Decisions
+
+- Search options se separan del texto de query para que el planner del Paso 12
+  pueda producir intención estructurada sin acoplarse a ningún buscador.
+- Los fragments no forman una identidad distinta de documento durante
+  discovery; paths y query strings sí permanecen significativos porque Kelyro
+  no adivina qué parámetros son tracking.
+- Los duplicates conservan el primer candidato observado. Discovery no usa el
+  rank para ordenar ni escoger silenciosamente otro resultado.
+- El published hint continúa siendo metadata no verificada del provider; no
+  alimenta freshness ni respalda claims antes de fetch y verificación.
+- El límite global es un bound de seguridad del contrato, no la política de
+  coste, triggers ni cache reservada para pasos posteriores.
+- Privacy authorization continúa en `DiscoveryService`; el provider estático
+  no introduce bypass y un futuro adapter live tampoco podrá autoautorizarse.
+- No se añadieron API keys, dependencias externas, search adapter real, Query
+  Planner, clasificación, evidence/claims, cache persistence, CLI Research,
+  Curriculum Compiler ni cambios de Student Core.
+
+### Verification
+
+- Tests dirigidos de discovery, application, memory provider y privacy wiring.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step8-full-gocache go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de application y app con
+  `CGO_ENABLED=0`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step8-full-gocache go run ./tools/quality all`,
+  incluyendo E2E Foundation/Student Core, `go test -race ./...`, vet, build y
+  smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 12 es el siguiente paso pendiente y requiere autorización explícita.
+- Query Planner v1 podrá producir `SearchQuery` y `SearchOptions` deterministas
+  consumiendo topic, purpose, authority profile y target version.
+- No implementar Evidence/Claims, live search, cache persistence ni pasos
+  posteriores antes de su autorización independiente.

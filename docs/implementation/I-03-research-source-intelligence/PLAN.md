@@ -1047,7 +1047,7 @@ feat(research): normalize fetched source documents
 
 ## Paso 11 — Implementar Source Discovery abstraction
 
-- [ ] Paso 11 completado
+- [x] Paso 11 completado
 
 ### Objetivo
 

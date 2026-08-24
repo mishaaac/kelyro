@@ -100,8 +100,8 @@ func TestResolvedPrivacyGateBlocksResearchDiscoveryByDefault(t *testing.T) {
 	provider := &appResearchSearchProvider{}
 	discovery := researchapp.NewDiscoveryService(provider, nil, researchapp.NetworkResearchAccess{Gate: gate})
 	_, err = discovery.Search(context.Background(), researchapp.ResearchModeAuto, researchapp.SearchQuery{
-		RequestID: requestID, Text: "official documentation", Limit: 5,
-	})
+		RequestID: requestID, Text: "official documentation",
+	}, researchapp.SearchOptions{Limit: 5})
 	if !errors.Is(err, researchapp.ErrNetworkResearchBlocked) {
 		t.Fatalf("Search() error = %v, want network_research_blocked", err)
 	}
@@ -115,7 +115,7 @@ func TestResolvedPrivacyGateBlocksResearchDiscoveryByDefault(t *testing.T) {
 
 type appResearchSearchProvider struct{ calls int }
 
-func (provider *appResearchSearchProvider) Search(context.Context, researchapp.SearchQuery) ([]researchapp.SearchResult, error) {
+func (provider *appResearchSearchProvider) Search(context.Context, researchapp.SearchQuery, researchapp.SearchOptions) ([]researchapp.SearchResult, error) {
 	provider.calls++
 	return nil, nil
 }

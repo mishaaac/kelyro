@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/mishaaac/kelyro/internal/research"
 )
@@ -63,11 +65,16 @@ func NewDiscoveryService(provider SearchProvider, cache SearchCache, access Netw
 	return &discoveryService{provider: provider, cache: cache, access: newNetworkResearchAccess(access)}
 }
 
-func (service *discoveryService) Search(ctx context.Context, mode ResearchMode, query SearchQuery) ([]SearchResult, error) {
+func (service *discoveryService) Search(ctx context.Context, mode ResearchMode, query SearchQuery, options SearchOptions) ([]SearchResult, error) {
 	const operation = "search source candidates"
+	query.Text = normalizeSearchText(query.Text)
 	if err := query.Validate(); err != nil {
 		return nil, invalid(operation, err)
 	}
+	if err := options.Validate(); err != nil {
+		return nil, invalid(operation, err)
+	}
+	options = cloneSearchOptions(options)
 	decision, err := service.access.decide(ctx, mode, NetworkOperationDiscovery)
 	if err != nil {
 		return nil, err
@@ -76,33 +83,99 @@ func (service *discoveryService) Search(ctx context.Context, mode ResearchMode, 
 		if service.cache == nil {
 			return nil, networkResearchBlocked(operation, decision.blocked, nil)
 		}
-		results, cacheErr := service.cache.SearchCached(ctx, query)
+		results, cacheErr := service.cache.SearchCached(ctx, query, options)
 		if cacheErr != nil {
 			return nil, offlineFallbackError(operation, decision.blocked, cacheErr)
 		}
-		return validateSearchResults(operation, results, true)
+		return normalizeSearchResults(ctx, operation, results, options.Limit, true)
 	}
 	if err := requireDependency(operation, "search provider", service.provider); err != nil {
 		return nil, err
 	}
-	results, err := service.provider.Search(ctx, query)
+	results, err := service.provider.Search(ctx, query, options)
 	if err != nil {
 		return nil, externalError(operation, err)
 	}
-	return validateSearchResults(operation, results, false)
+	return normalizeSearchResults(ctx, operation, results, options.Limit, false)
 }
 
-func validateSearchResults(operation string, results []SearchResult, cached bool) ([]SearchResult, error) {
+func normalizeSearchResults(ctx context.Context, operation string, results []SearchResult, limit int, cached bool) ([]SearchResult, error) {
+	if len(results) > MaximumSearchResults {
+		return nil, searchResultError(operation, fmt.Errorf("provider returned more than %d results", MaximumSearchResults), cached)
+	}
+	normalized := make([]SearchResult, 0, min(len(results), limit))
+	seen := make(map[string]struct{}, len(results))
 	for index, result := range results {
+		if err := ctx.Err(); err != nil {
+			return nil, Classify(ErrorUnavailable, operation, err)
+		}
+		result.Title = normalizeSearchText(result.Title)
+		result.Snippet = normalizeSearchText(result.Snippet)
+		result.Provider = normalizeSearchText(result.Provider)
+		locator, err := normalizeDiscoveryLocator(result.Locator)
+		if err != nil {
+			return nil, searchResultError(operation, fmt.Errorf("result %d: %w", index, err), cached)
+		}
+		result.Locator = locator
 		if err := result.Validate(); err != nil {
-			cause := fmt.Errorf("result %d: %w", index, err)
-			if cached {
-				return nil, repositoryError(operation, cause)
-			}
-			return nil, externalError(operation, cause)
+			return nil, searchResultError(operation, fmt.Errorf("result %d: %w", index, err), cached)
+		}
+		key := result.Locator.String()
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
+		if len(normalized) < limit {
+			normalized = append(normalized, cloneSearchResult(result))
 		}
 	}
-	return results, nil
+	return normalized, nil
+}
+
+func normalizeSearchText(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func normalizeDiscoveryLocator(locator research.SourceLocator) (research.SourceLocator, error) {
+	parsed, err := url.Parse(locator.String())
+	if err != nil {
+		return research.SourceLocator{}, fmt.Errorf("parse search result locator: %w", err)
+	}
+	parsed.Fragment = ""
+	normalized, err := research.NewSourceLocator(parsed.String())
+	if err != nil {
+		return research.SourceLocator{}, fmt.Errorf("search result locator: %w", err)
+	}
+	return normalized, nil
+}
+
+func cloneSearchResult(result SearchResult) SearchResult {
+	clone := result
+	if result.PublishedHint != nil {
+		published := *result.PublishedHint
+		clone.PublishedHint = &published
+	}
+	return clone
+}
+
+func cloneSearchOptions(options SearchOptions) SearchOptions {
+	clone := options
+	if options.DesiredKind != nil {
+		kind := *options.DesiredKind
+		clone.DesiredKind = &kind
+	}
+	if options.TargetVersion != nil {
+		version := *options.TargetVersion
+		clone.TargetVersion = &version
+	}
+	return clone
+}
+
+func searchResultError(operation string, cause error, cached bool) error {
+	if cached {
+		return repositoryError(operation, cause)
+	}
+	return externalError(operation, cause)
 }
 
 type sourceService struct {
