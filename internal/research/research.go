@@ -122,6 +122,7 @@ type AuthorityProfile struct {
 	PreferredOrganizations    []string
 	MinimumCorroboration      int
 	AllowedSupplementaryKinds []SourceKind
+	FreshnessTTLHints         []FreshnessTTLHint
 	MinimumTier               AuthorityTier
 	CreatedAt                 Timestamp
 }
@@ -174,10 +175,36 @@ func (profile AuthorityProfile) Validate() error {
 		}
 		supplementary[kind] = struct{}{}
 	}
+	if len(profile.FreshnessTTLHints) > MaximumFreshnessTTLHints {
+		return fmt.Errorf("authority profile freshness TTL hints exceed %d", MaximumFreshnessTTLHints)
+	}
+	seenTTLHints := make(map[string]struct{}, len(profile.FreshnessTTLHints))
+	for index, hint := range profile.FreshnessTTLHints {
+		if err := hint.Validate(); err != nil {
+			return fmt.Errorf("authority profile freshness TTL hint %d: %w", index, err)
+		}
+		key := freshnessTTLHintKey(hint)
+		if _, exists := seenTTLHints[key]; exists {
+			return fmt.Errorf("authority profile contains duplicate freshness TTL hint %q", key)
+		}
+		seenTTLHints[key] = struct{}{}
+	}
 	if err := profile.MinimumTier.Validate(); err != nil {
 		return err
 	}
 	return validateTimestamp("authority profile created at", profile.CreatedAt)
+}
+
+func freshnessTTLHintKey(hint FreshnessTTLHint) string {
+	claimType := "*"
+	if hint.ClaimType != nil {
+		claimType = string(*hint.ClaimType)
+	}
+	sourceKind := "*"
+	if hint.SourceKind != nil {
+		sourceKind = string(*hint.SourceKind)
+	}
+	return claimType + "/" + sourceKind
 }
 
 func validateAuthorityDomain(value string) error {

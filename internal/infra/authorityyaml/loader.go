@@ -17,17 +17,24 @@ type document struct {
 }
 
 type profileDocument struct {
-	ID                        string   `yaml:"id"`
-	Version                   string   `yaml:"version"`
-	Domain                    string   `yaml:"domain"`
-	TopicPattern              string   `yaml:"topic_pattern"`
-	PreferredKinds            []string `yaml:"preferred_source_kinds"`
-	PreferredDomains          []string `yaml:"preferred_domains,omitempty"`
-	PreferredOrganizations    []string `yaml:"preferred_organizations,omitempty"`
-	MinimumCorroboration      int      `yaml:"minimum_corroboration"`
-	AllowedSupplementaryKinds []string `yaml:"allowed_supplementary_kinds,omitempty"`
-	MinimumTier               string   `yaml:"minimum_tier"`
-	CreatedAt                 string   `yaml:"created_at"`
+	ID                        string                     `yaml:"id"`
+	Version                   string                     `yaml:"version"`
+	Domain                    string                     `yaml:"domain"`
+	TopicPattern              string                     `yaml:"topic_pattern"`
+	PreferredKinds            []string                   `yaml:"preferred_source_kinds"`
+	PreferredDomains          []string                   `yaml:"preferred_domains,omitempty"`
+	PreferredOrganizations    []string                   `yaml:"preferred_organizations,omitempty"`
+	MinimumCorroboration      int                        `yaml:"minimum_corroboration"`
+	AllowedSupplementaryKinds []string                   `yaml:"allowed_supplementary_kinds,omitempty"`
+	FreshnessTTLHints         []freshnessTTLHintDocument `yaml:"freshness_ttl_hints,omitempty"`
+	MinimumTier               string                     `yaml:"minimum_tier"`
+	CreatedAt                 string                     `yaml:"created_at"`
+}
+
+type freshnessTTLHintDocument struct {
+	ClaimType  string `yaml:"claim_type,omitempty"`
+	SourceKind string `yaml:"source_kind,omitempty"`
+	TTLDays    int    `yaml:"ttl_days"`
 }
 
 // Load strictly decodes exactly one YAML document and validates the complete
@@ -89,12 +96,32 @@ func decodeProfile(source profileDocument) (research.AuthorityProfile, error) {
 		PreferredOrganizations:    append([]string(nil), source.PreferredOrganizations...),
 		MinimumCorroboration:      source.MinimumCorroboration,
 		AllowedSupplementaryKinds: decodeKinds(source.AllowedSupplementaryKinds),
+		FreshnessTTLHints:         decodeFreshnessTTLHints(source.FreshnessTTLHints),
 		MinimumTier:               research.AuthorityTier(source.MinimumTier), CreatedAt: createdAt,
 	}
 	if err := profile.Validate(); err != nil {
 		return research.AuthorityProfile{}, err
 	}
 	return profile, nil
+}
+
+func decodeFreshnessTTLHints(values []freshnessTTLHintDocument) []research.FreshnessTTLHint {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]research.FreshnessTTLHint, len(values))
+	for index, value := range values {
+		result[index].TTLDays = value.TTLDays
+		if value.ClaimType != "" {
+			claimType := research.ClaimType(value.ClaimType)
+			result[index].ClaimType = &claimType
+		}
+		if value.SourceKind != "" {
+			sourceKind := research.SourceKind(value.SourceKind)
+			result[index].SourceKind = &sourceKind
+		}
+	}
+	return result
 }
 
 func decodeKinds(values []string) []research.SourceKind {

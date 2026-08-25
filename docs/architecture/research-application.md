@@ -121,6 +121,10 @@ The initial services are deliberately thin:
   deterministic stable citation, and exposes offline citation reads;
 - `VerificationService` records and retrieves verification results;
 - `FreshnessService` stores already-computed, versioned freshness outputs;
+  the pure `internal/research/freshness` model produces `freshness-v1`
+  assessments with an injected clock and no adapter dependency, while
+  `FreshnessRecordFromAssessment` maps only known-verification results without
+  calculating `next_verify_at`;
 - `ReleaseIntelligenceService` records and reads release facts;
 - `DriftService` records and reads drift reports;
 - `ImpactService` records and reads impact reports.
@@ -130,7 +134,7 @@ dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
 implement Trust Policy, authority matching, query execution orchestration,
-evidence extraction, verification rules, freshness formulas, release discovery,
+evidence extraction, verification rules, release discovery,
 conflict resolution, drift detection, or impact analysis. Those remain future
 versioned policies and orchestration steps.
 

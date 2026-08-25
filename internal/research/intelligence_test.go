@@ -45,6 +45,27 @@ func TestFreshnessReleaseAndDeprecationVocabularyValidatesState(t *testing.T) {
 	}
 }
 
+func TestFreshnessTTLHintValidatesSelectorsAndInclusiveBounds(t *testing.T) {
+	t.Parallel()
+	claimType := ClaimSecurity
+	sourceKind := SourceReleaseNotes
+	for _, days := range []int{MinimumFreshnessTTLDays, MaximumFreshnessTTLDays} {
+		hint := FreshnessTTLHint{ClaimType: &claimType, SourceKind: &sourceKind, TTLDays: days}
+		if err := hint.Validate(); err != nil {
+			t.Fatalf("FreshnessTTLHint(%d).Validate() error = %v", days, err)
+		}
+	}
+	for _, days := range []int{MinimumFreshnessTTLDays - 1, MaximumFreshnessTTLDays + 1} {
+		if err := (FreshnessTTLHint{TTLDays: days}).Validate(); err == nil {
+			t.Fatalf("FreshnessTTLHint(%d).Validate() accepted out-of-range TTL", days)
+		}
+	}
+	invalidClaim := ClaimType("rumor")
+	if err := (FreshnessTTLHint{ClaimType: &invalidClaim, TTLDays: 30}).Validate(); err == nil {
+		t.Fatal("FreshnessTTLHint.Validate() accepted invalid claim selector")
+	}
+}
+
 func TestConflictAndVerificationRepresentResolvedAndUnresolvedOutcomes(t *testing.T) {
 	t.Parallel()
 

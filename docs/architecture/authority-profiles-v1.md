@@ -39,6 +39,8 @@ Each profile declares:
 - optional preferred DNS host patterns and publisher/organization names;
 - a minimum independent corroboration count of at least one;
 - source kinds permitted only as supplements;
+- optional freshness TTL hints selected by claim type, source kind, their exact
+  pair, or the whole profile;
 - the minimum contextual authority tier compatible with Trust Policy v1;
 - a UTC creation timestamp.
 
@@ -85,11 +87,13 @@ SQLite migration v24 extends the v23 `authority_profiles` table with validated
 JSON arrays for preferred domains, organizations, and supplementary kinds, plus
 `minimum_corroboration`. Existing v23 records migrate with empty preference
 arrays and corroboration `1`. The repository and memory fake preserve all
-slices defensively.
+slices defensively. Step 16 adds forward-only migration v29 for the bounded
+TTL-hint JSON array; existing profiles receive no hints.
 
 ## Deferred work
 
 Authority Profiles v1 does not implement the Trusted Source Registry, source
 discovery, URL-to-profile classification, network access, trust decisions,
-freshness, verification, or curriculum compilation. Those remain separate
-I-03/I-04 steps.
+freshness source/release observation, verification, or curriculum compilation.
+The profile supplies configuration to `freshness-v1`; it does not calculate or
+persist an assessment itself.

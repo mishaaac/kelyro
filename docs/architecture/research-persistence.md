@@ -5,8 +5,9 @@ database. Step 05 adds forward-only migration v24 for topic-aware authority
 profiles, Step 06 adds v25 for the Trusted Source Registry, Step 13 adds v26
 for structured Evidence context and Claim scopes, and Step 14 adds v27 for
 bounded claim provenance graphs. Step 15 adds v28 for stable citation metadata
-and evidence lookup. The 22 migrations that shipped Student Core and migrations
-v23–v27 remain unchanged, and an I-02 database is upgraded
+and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints.
+The 22 migrations that shipped Student Core and migrations v23–v28 remain
+unchanged, and an I-02 database is upgraded
 without rewriting its learning state.
 
 ## Adapter boundary
@@ -74,6 +75,10 @@ Migration 28 extends `citations` with its closed deep-link strategy, required
 classified as generic URL anchors; rows without one use canonical fallback. An
 evidence/ID index provides deterministic `ListByEvidence` reads.
 
+Migration 29 adds a bounded JSON array of `freshness-v1` TTL hints to Authority
+Profiles. Existing profiles receive an empty array; repository reads validate
+each claim/source selector and its 1–3,650 day TTL through the domain contract.
+
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
 Small ordered identity collections and versioned reason records that do not
@@ -119,6 +124,6 @@ changing the domain's dependency direction.
 ## Deferred behavior
 
 Step 03 does not implement Trust Policy, authority matching, network access,
-fetching, parsing, evidence extraction, freshness formulas, release discovery,
+fetching, parsing, evidence extraction, release discovery,
 conflict resolution, cache eviction, drift detection, impact analysis, CLI/TUI
 surfaces, curriculum compilation, or Student Core mutations.

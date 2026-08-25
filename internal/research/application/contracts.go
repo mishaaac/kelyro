@@ -73,8 +73,9 @@ type ReleaseRepository interface {
 	ListByTechnology(context.Context, research.ID) ([]research.ReleaseRecord, error)
 }
 
-// FreshnessRecord is stored policy output. The dedicated freshness step owns
-// the future scoring formula; this boundary only preserves its versioned result.
+// FreshnessRecord is persisted policy output. freshness-v1 owns the scoring
+// formula; this boundary preserves a known last verification and its versioned
+// result without calculating refresh scheduling.
 type FreshnessRecord struct {
 	SubjectID        research.ID
 	State            research.FreshnessState

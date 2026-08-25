@@ -1462,6 +1462,13 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE INDEX citations_evidence_idx ON citations (evidence_id, id)`,
 		},
 	},
+	{
+		version: 29,
+		name:    "authority freshness TTL hints",
+		statements: []string{
+			`ALTER TABLE authority_profiles ADD COLUMN freshness_ttl_hints_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(freshness_ttl_hints_json) AND json_type(freshness_ttl_hints_json) = 'array' AND json_array_length(freshness_ttl_hints_json) <= 64)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

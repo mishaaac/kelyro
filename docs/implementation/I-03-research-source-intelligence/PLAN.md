@@ -1381,7 +1381,7 @@ feat(citation): add stable source citations and deep links
 
 ## Paso 16 — Implementar Freshness Model v1
 
-- [ ] Paso 16 completado
+- [x] Paso 16 completado
 
 ### Objetivo
 
@@ -3194,8 +3194,8 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 12 — Query Planner
 - [x] Paso 13 — Evidence/Claims
 - [x] Paso 14 — Provenance
-- [ ] Paso 15 — Citations/Deep Links
-- [ ] Paso 16 — Freshness
+- [x] Paso 15 — Citations/Deep Links
+- [x] Paso 16 — Freshness
 - [ ] Paso 17 — Verification scheduling
 - [ ] Paso 18 — Resource Quality
 - [ ] Paso 19 — Release model

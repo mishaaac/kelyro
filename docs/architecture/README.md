@@ -79,6 +79,10 @@ The deterministic `citation-v1` model, explicit anchor strategies, verified
 source-code permalinks, canonical fallback, chronology, and persistence are
 documented in [citations-deep-links-v1.md](citations-deep-links-v1.md).
 
+The versioned evidence-age formula, Authority Profile TTL precedence, release
+cadence cap, temporal invalidation triggers, state boundaries, and score are
+documented in [freshness-v1.md](freshness-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

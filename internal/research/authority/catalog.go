@@ -133,5 +133,22 @@ func cloneProfile(profile research.AuthorityProfile) research.AuthorityProfile {
 	clone.PreferredDomains = append([]string(nil), profile.PreferredDomains...)
 	clone.PreferredOrganizations = append([]string(nil), profile.PreferredOrganizations...)
 	clone.AllowedSupplementaryKinds = append([]research.SourceKind(nil), profile.AllowedSupplementaryKinds...)
+	clone.FreshnessTTLHints = cloneFreshnessTTLHints(profile.FreshnessTTLHints)
 	return clone
+}
+
+func cloneFreshnessTTLHints(hints []research.FreshnessTTLHint) []research.FreshnessTTLHint {
+	result := make([]research.FreshnessTTLHint, len(hints))
+	for index, hint := range hints {
+		result[index] = hint
+		if hint.ClaimType != nil {
+			value := *hint.ClaimType
+			result[index].ClaimType = &value
+		}
+		if hint.SourceKind != nil {
+			value := *hint.SourceKind
+			result[index].SourceKind = &value
+		}
+	}
+	return result
 }

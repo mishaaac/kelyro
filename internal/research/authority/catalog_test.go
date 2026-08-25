@@ -48,6 +48,8 @@ func TestCatalogSupportsCustomFutureDomainWithoutCoreChanges(t *testing.T) {
 	profile.PreferredDomains = []string{"who.int"}
 	profile.PreferredOrganizations = []string{"World Health Organization"}
 	profile.MinimumCorroboration = 2
+	securityClaim := research.ClaimSecurity
+	profile.FreshnessTTLHints = []research.FreshnessTTLHint{{ClaimType: &securityClaim, TTLDays: 14}}
 	catalog, err := NewCatalog([]research.AuthorityProfile{profile})
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +57,11 @@ func TestCatalogSupportsCustomFutureDomainWithoutCoreChanges(t *testing.T) {
 	got, found, err := catalog.Match(authorityTestTopic(t, "Cardiology guidelines", "medicine", ""))
 	if err != nil || !found || got.ID != profile.ID || got.MinimumCorroboration != 2 {
 		t.Fatalf("custom Match() = (%+v, %v, %v)", got, found, err)
+	}
+	*got.FreshnessTTLHints[0].ClaimType = research.ClaimHistorical
+	reloaded, found, err := catalog.Match(authorityTestTopic(t, "Cardiology guidelines", "medicine", ""))
+	if err != nil || !found || *reloaded.FreshnessTTLHints[0].ClaimType != research.ClaimSecurity {
+		t.Fatalf("catalog leaked freshness TTL selector: (%+v, %v, %v)", reloaded, found, err)
 	}
 	if _, found, err := catalog.Match(authorityTestTopic(t, "Cardiology", "software", "")); err != nil || found {
 		t.Fatalf("cross-domain Match() found=%v error=%v", found, err)
@@ -99,6 +106,13 @@ func TestAuthorityProfileRejectsInvalidAndContradictoryRules(t *testing.T) {
 		}, want: "both preferred and supplementary"},
 		{name: "invalid topic glob", mutate: func(profile *research.AuthorityProfile) { profile.TopicPattern = "go/[api]" }, want: "invalid authority profile topic pattern"},
 		{name: "zero corroboration", mutate: func(profile *research.AuthorityProfile) { profile.MinimumCorroboration = 0 }, want: "minimum corroboration"},
+		{name: "invalid freshness TTL", mutate: func(profile *research.AuthorityProfile) {
+			profile.FreshnessTTLHints = []research.FreshnessTTLHint{{TTLDays: 0}}
+		}, want: "freshness TTL days"},
+		{name: "duplicate freshness selector", mutate: func(profile *research.AuthorityProfile) {
+			claimType := research.ClaimSecurity
+			profile.FreshnessTTLHints = []research.FreshnessTTLHint{{ClaimType: &claimType, TTLDays: 14}, {ClaimType: &claimType, TTLDays: 30}}
+		}, want: "duplicate freshness TTL hint"},
 	}
 	for _, test := range tests {
 		profile := authorityTestProfile(t, "authority.valid", "software", "*")

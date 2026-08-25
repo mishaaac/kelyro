@@ -2,6 +2,13 @@ package research
 
 import "fmt"
 
+const (
+	FreshnessAlgorithmV1     = "freshness-v1"
+	MinimumFreshnessTTLDays  = 1
+	MaximumFreshnessTTLDays  = 3650
+	MaximumFreshnessTTLHints = 64
+)
+
 type FreshnessState string
 
 const (
@@ -18,6 +25,31 @@ func (state FreshnessState) Validate() error {
 	default:
 		return fmt.Errorf("invalid freshness state %q", state)
 	}
+}
+
+// FreshnessTTLHint optionally specializes a profile TTL by claim type, source
+// kind, or their exact pair. Nil selectors form a profile-wide default.
+type FreshnessTTLHint struct {
+	ClaimType  *ClaimType
+	SourceKind *SourceKind
+	TTLDays    int
+}
+
+func (hint FreshnessTTLHint) Validate() error {
+	if hint.ClaimType != nil {
+		if err := hint.ClaimType.Validate(); err != nil {
+			return fmt.Errorf("freshness TTL claim type: %w", err)
+		}
+	}
+	if hint.SourceKind != nil {
+		if err := hint.SourceKind.Validate(); err != nil {
+			return fmt.Errorf("freshness TTL source kind: %w", err)
+		}
+	}
+	if hint.TTLDays < MinimumFreshnessTTLDays || hint.TTLDays > MaximumFreshnessTTLDays {
+		return fmt.Errorf("freshness TTL days must be between %d and %d", MinimumFreshnessTTLDays, MaximumFreshnessTTLDays)
+	}
+	return nil
 }
 
 type ReleaseChannel string

@@ -194,8 +194,12 @@ to application discovery DTOs are documented in
 
 `FreshnessScore` and `ClaimConfidence` are finite values in the closed interval
 `[0,1]`. `FreshnessState` distinguishes `fresh`, `aging`, `stale`, and
-`unknown`. No formula is implemented in this step; the future formula must be
-explicitly versioned.
+`unknown`. Step 16 implements the deterministic `freshness-v1` formula with
+explicit claim/source TTL defaults, optional Authority Profile hints, a release
+cadence cap, known-release/source-update invalidation, and clock-controlled age
+boundaries. It never substitutes publication or snapshot time for
+`last_verified_at`. The complete policy is documented in
+[freshness-v1.md](freshness-v1.md).
 
 `ReleaseRecord` supports opaque versions, stable/preview/beta/RC/experimental/
 nightly/unknown channels, and current/superseded/legacy/EOL/unknown lifecycle

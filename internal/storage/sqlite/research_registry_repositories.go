@@ -231,6 +231,12 @@ type researchTrustRegistryRepository struct {
 	timeout  time.Duration
 }
 
+type freshnessTTLHintJSON struct {
+	ClaimType  string `json:"claim_type,omitempty"`
+	SourceKind string `json:"source_kind,omitempty"`
+	TTLDays    int    `json:"ttl_days"`
+}
+
 func (repository *researchTrustRegistryRepository) SaveProfile(ctx context.Context, profile research.AuthorityProfile) error {
 	const operation = "save SQLite authority profile"
 	if err := profile.Validate(); err != nil {
@@ -252,12 +258,16 @@ func (repository *researchTrustRegistryRepository) SaveProfile(ctx context.Conte
 	if err != nil {
 		return err
 	}
+	freshnessTTLHints, err := encodeJSON(operation, encodeFreshnessTTLHints(profile.FreshnessTTLHints))
+	if err != nil {
+		return err
+	}
 	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
 	if err != nil {
 		return err
 	}
 	defer cancel()
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO authority_profiles (id,version,domain,topic_pattern,preferred_kinds_json,preferred_domains_json,preferred_organizations_json,minimum_corroboration,supplementary_kinds_json,minimum_tier,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,domain=excluded.domain,topic_pattern=excluded.topic_pattern,preferred_kinds_json=excluded.preferred_kinds_json,preferred_domains_json=excluded.preferred_domains_json,preferred_organizations_json=excluded.preferred_organizations_json,minimum_corroboration=excluded.minimum_corroboration,supplementary_kinds_json=excluded.supplementary_kinds_json,minimum_tier=excluded.minimum_tier,created_at=excluded.created_at`, profile.ID.String(), profile.Version, profile.Domain, profile.TopicPattern, preferredKinds, preferredDomains, preferredOrganizations, profile.MinimumCorroboration, supplementaryKinds, string(profile.MinimumTier), timestampText(profile.CreatedAt))
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO authority_profiles (id,version,domain,topic_pattern,preferred_kinds_json,preferred_domains_json,preferred_organizations_json,minimum_corroboration,supplementary_kinds_json,freshness_ttl_hints_json,minimum_tier,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,domain=excluded.domain,topic_pattern=excluded.topic_pattern,preferred_kinds_json=excluded.preferred_kinds_json,preferred_domains_json=excluded.preferred_domains_json,preferred_organizations_json=excluded.preferred_organizations_json,minimum_corroboration=excluded.minimum_corroboration,supplementary_kinds_json=excluded.supplementary_kinds_json,freshness_ttl_hints_json=excluded.freshness_ttl_hints_json,minimum_tier=excluded.minimum_tier,created_at=excluded.created_at`, profile.ID.String(), profile.Version, profile.Domain, profile.TopicPattern, preferredKinds, preferredDomains, preferredOrganizations, profile.MinimumCorroboration, supplementaryKinds, freshnessTTLHints, string(profile.MinimumTier), timestampText(profile.CreatedAt))
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -301,9 +311,9 @@ func (repository *researchTrustRegistryRepository) ListProfiles(ctx context.Cont
 	return result, nil
 }
 func scanAuthorityProfile(row rowScanner, operation string) (research.AuthorityProfile, error) {
-	var idValue, version, domain, pattern, kindsJSON, domainsJSON, organizationsJSON, supplementaryJSON, tier, created string
+	var idValue, version, domain, pattern, kindsJSON, domainsJSON, organizationsJSON, supplementaryJSON, freshnessTTLJSON, tier, created string
 	var minimumCorroboration int
-	if err := row.Scan(&idValue, &version, &domain, &pattern, &kindsJSON, &domainsJSON, &organizationsJSON, &minimumCorroboration, &supplementaryJSON, &tier, &created); err != nil {
+	if err := row.Scan(&idValue, &version, &domain, &pattern, &kindsJSON, &domainsJSON, &organizationsJSON, &minimumCorroboration, &supplementaryJSON, &freshnessTTLJSON, &tier, &created); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.AuthorityProfile{}, researchNotFound(operation)
 		}
@@ -335,18 +345,56 @@ func scanAuthorityProfile(row rowScanner, operation string) (research.AuthorityP
 	for i, value := range supplementaryValues {
 		supplementaryKinds[i] = research.SourceKind(value)
 	}
+	var freshnessTTLValues []freshnessTTLHintJSON
+	if err := decodeJSON(freshnessTTLJSON, &freshnessTTLValues); err != nil {
+		return research.AuthorityProfile{}, researchPersistence(operation, err)
+	}
+	freshnessTTLHints := decodeFreshnessTTLHints(freshnessTTLValues)
 	createdAt, err := scanTimestamp(created)
 	if err != nil {
 		return research.AuthorityProfile{}, researchPersistence(operation, err)
 	}
-	item := research.AuthorityProfile{ID: id, Version: version, Domain: domain, TopicPattern: pattern, PreferredKinds: kinds, PreferredDomains: preferredDomains, PreferredOrganizations: preferredOrganizations, MinimumCorroboration: minimumCorroboration, AllowedSupplementaryKinds: supplementaryKinds, MinimumTier: research.AuthorityTier(tier), CreatedAt: createdAt}
+	item := research.AuthorityProfile{ID: id, Version: version, Domain: domain, TopicPattern: pattern, PreferredKinds: kinds, PreferredDomains: preferredDomains, PreferredOrganizations: preferredOrganizations, MinimumCorroboration: minimumCorroboration, AllowedSupplementaryKinds: supplementaryKinds, FreshnessTTLHints: freshnessTTLHints, MinimumTier: research.AuthorityTier(tier), CreatedAt: createdAt}
 	if err := item.Validate(); err != nil {
 		return research.AuthorityProfile{}, researchPersistence(operation, err)
 	}
 	return item, nil
 }
 
-const authorityProfileSelect = `SELECT id,version,domain,topic_pattern,preferred_kinds_json,preferred_domains_json,preferred_organizations_json,minimum_corroboration,supplementary_kinds_json,minimum_tier,created_at FROM authority_profiles`
+const authorityProfileSelect = `SELECT id,version,domain,topic_pattern,preferred_kinds_json,preferred_domains_json,preferred_organizations_json,minimum_corroboration,supplementary_kinds_json,freshness_ttl_hints_json,minimum_tier,created_at FROM authority_profiles`
+
+func encodeFreshnessTTLHints(hints []research.FreshnessTTLHint) []freshnessTTLHintJSON {
+	result := make([]freshnessTTLHintJSON, len(hints))
+	for index, hint := range hints {
+		result[index].TTLDays = hint.TTLDays
+		if hint.ClaimType != nil {
+			result[index].ClaimType = string(*hint.ClaimType)
+		}
+		if hint.SourceKind != nil {
+			result[index].SourceKind = string(*hint.SourceKind)
+		}
+	}
+	return result
+}
+
+func decodeFreshnessTTLHints(values []freshnessTTLHintJSON) []research.FreshnessTTLHint {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]research.FreshnessTTLHint, len(values))
+	for index, value := range values {
+		result[index].TTLDays = value.TTLDays
+		if value.ClaimType != "" {
+			claimType := research.ClaimType(value.ClaimType)
+			result[index].ClaimType = &claimType
+		}
+		if value.SourceKind != "" {
+			sourceKind := research.SourceKind(value.SourceKind)
+			result[index].SourceKind = &sourceKind
+		}
+	}
+	return result
+}
 
 func sourceKindStrings(kinds []research.SourceKind) []string {
 	values := make([]string, len(kinds))

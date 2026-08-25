@@ -199,7 +199,7 @@ func TestIntelligenceServicesPersistOnlyValidatedPolicyOutputs(t *testing.T) {
 	freshness := application.FreshnessRecord{
 		SubjectID: testID(t, "claim.release"), State: research.FreshnessAging,
 		Score: testFreshnessScore(t, 0.6), LastVerifiedAt: testTimestamp(t, 10),
-		NextVerifyAt: &dueAt, AlgorithmVersion: fixtureVersion,
+		NextVerifyAt: &dueAt, AlgorithmVersion: research.FreshnessAlgorithmV1,
 	}
 	if err := freshnessService.Save(ctx, freshness); err != nil {
 		t.Fatalf("FreshnessService.Save() error = %v", err)
@@ -308,11 +308,13 @@ func TestMemoryFakesPreserveRelationshipsOrderingAndOwnership(t *testing.T) {
 		t.Fatalf("Evidence.ListBySnapshot() = (%+v, %v)", items, err)
 	}
 
+	securityClaim := research.ClaimSecurity
 	profile := research.AuthorityProfile{
 		ID: testID(t, "authority.software"), Version: fixtureVersion, Domain: "software",
 		PreferredKinds: []research.SourceKind{research.SourceSpecification}, PreferredDomains: []string{"example.com"},
 		PreferredOrganizations: []string{"Example"}, MinimumCorroboration: 1,
 		AllowedSupplementaryKinds: []research.SourceKind{research.SourceCommunityArticle},
+		FreshnessTTLHints:         []research.FreshnessTTLHint{{ClaimType: &securityClaim, TTLDays: 14}},
 		MinimumTier:               research.AuthorityTierB, CreatedAt: testTimestamp(t, 9),
 	}
 	if err := repositories.TrustRegistry.SaveProfile(ctx, profile); err != nil {
@@ -326,10 +328,13 @@ func TestMemoryFakesPreserveRelationshipsOrderingAndOwnership(t *testing.T) {
 	loadedProfile.PreferredDomains[0] = "changed.example"
 	loadedProfile.PreferredOrganizations[0] = "Changed"
 	loadedProfile.AllowedSupplementaryKinds[0] = research.SourceVideo
+	*loadedProfile.FreshnessTTLHints[0].ClaimType = research.ClaimHistorical
+	loadedProfile.FreshnessTTLHints[0].TTLDays = 300
 	reloadedProfile, err := repositories.TrustRegistry.GetProfile(ctx, profile.ID)
 	if err != nil || reloadedProfile.PreferredKinds[0] != research.SourceSpecification ||
 		reloadedProfile.PreferredDomains[0] != "example.com" || reloadedProfile.PreferredOrganizations[0] != "Example" ||
-		reloadedProfile.AllowedSupplementaryKinds[0] != research.SourceCommunityArticle {
+		reloadedProfile.AllowedSupplementaryKinds[0] != research.SourceCommunityArticle ||
+		*reloadedProfile.FreshnessTTLHints[0].ClaimType != research.ClaimSecurity || reloadedProfile.FreshnessTTLHints[0].TTLDays != 14 {
 		t.Fatalf("authority profile fake leaked mutable slice: (%+v, %v)", reloadedProfile, err)
 	}
 

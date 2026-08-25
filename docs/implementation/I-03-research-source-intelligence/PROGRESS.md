@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 16
-Last completed step: 15
+Current step: 17
+Last completed step: 16
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1175,3 +1175,68 @@ Release: unreleased
   scope sin modificar el contrato de Citation ni confundir esas fechas.
 - No implementar Freshness, refresh scheduling ni pasos posteriores antes de su
   autorización independiente.
+
+## Step 16 — Freshness Model v1
+
+Status: completed
+Date: 2026-08-25
+Release: unreleased
+
+### Delivered
+
+- Modelo puro y versionado `freshness-v1`, con clock inyectable, estados
+  `fresh`, `aging`, `stale` y `unknown`, score normalizado y reasons explícitos.
+- Inputs diferenciados para `last_verified_at`, `source_updated_at`, cadence de
+  releases, claim type, source kind y señal de nueva release conocida.
+- Matrices TTL deterministas por claim/source kind, resolución conservadora por
+  mínimo y precedencia de hints del Authority Profile: par exacto, claim,
+  source y global.
+- Triggers inmediatos a `stale` cuando la fuente fue actualizada después de la
+  última verificación o existe una nueva release conocida; la ausencia de
+  `last_verified_at` produce `unknown` sin inventar fechas.
+- Bridge de aplicación hacia `FreshnessRecord` que conserva assessments
+  conocidos y rechaza persistir `unknown`; no calcula `next_verify_at`.
+- Authority Profiles YAML, memoria y SQLite ampliados con hints TTL validados,
+  bounded y copiados defensivamente.
+- Migración forward-only v29 para `freshness_ttl_hints_json`, con default legacy
+  vacío y round-trip validado.
+- Contrato completo documentado en `docs/architecture/freshness-v1.md` y
+  referencias de dominio, aplicación, profiles y persistencia sincronizadas.
+
+### Decisions
+
+- El score decae linealmente como `max(0, 1 - age/(2 * TTL))`; `fresh` incluye
+  la mitad del TTL, `aging` llega inclusivamente al TTL y luego es `stale`.
+- La cadence solo acorta el TTL resuelto; nunca relaja la política del claim,
+  source kind o Authority Profile.
+- Publication/update, fetched/snapshot y last-verified permanecen como fechas
+  distintas. Freshness usa únicamente los inputs explícitos del assessment.
+- Los hints están limitados a 64 por profile y entre 1 y 3650 días; selectores
+  duplicados son inválidos para evitar precedencias ambiguas.
+- No se implementó refresh scheduling, cálculo de próxima verificación, release
+  discovery, Resource Quality, UI, live research, Curriculum Compiler ni
+  cambios funcionales de Student Core.
+
+### Verification
+
+- Tests dirigidos y vet de Research domain/freshness/application/memory,
+  Authority YAML y SQLite.
+- Tests de clock inyectable, límites exactos del TTL, score, defaults,
+  precedencia de hints, cadence, release/update triggers, `unknown`, chronology,
+  defensive copies, migración v29 y round-trip SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step16-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step16-vet-gocache go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de los paquetes afectados
+  con `CGO_ENABLED=0`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step16-quality-gocache go run ./tools/quality all`,
+  incluyendo tests, E2E, vet, `go test -race ./...`, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 17 es el siguiente paso pendiente y requiere autorización explícita.
+- Verification scheduling podrá consumir assessments conocidos y el
+  `FreshnessRepository` existente sin alterar `freshness-v1` ni fabricar una
+  fecha de verificación para evidencias `unknown`.
+- No implementar scheduling ni pasos posteriores antes de su autorización
+  independiente.

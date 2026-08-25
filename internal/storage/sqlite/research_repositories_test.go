@@ -65,16 +65,16 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 28 {
-		t.Fatalf("schema=(%d,%v), want 28", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 29 {
+		t.Fatalf("schema=(%d,%v), want 29", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
 		t.Fatal(err)
 	}
 	legacy, err := database.Repositories().Research.TrustRegistry.GetProfile(context.Background(), legacyID)
-	if err != nil || legacy.MinimumCorroboration != 1 || len(legacy.PreferredDomains) != 0 || len(legacy.AllowedSupplementaryKinds) != 0 {
-		t.Fatalf("legacy authority profile after v24 = (%+v, %v)", legacy, err)
+	if err != nil || legacy.MinimumCorroboration != 1 || len(legacy.PreferredDomains) != 0 || len(legacy.AllowedSupplementaryKinds) != 0 || len(legacy.FreshnessTTLHints) != 0 {
+		t.Fatalf("legacy authority profile after v29 = (%+v, %v)", legacy, err)
 	}
 	var contextBefore, contextAfter, scope, statusScope string
 	if err := handle.QueryRow(`SELECT context_before,context_after FROM evidence WHERE id='evidence.legacy'`).Scan(&contextBefore, &contextAfter); err != nil {
@@ -98,6 +98,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`UPDATE claims SET status_scope='sometimes' WHERE id='claim.legacy'`); err == nil {
 		t.Fatal("v26 accepted invalid claim status scope")
+	}
+	if _, err := handle.Exec(`UPDATE authority_profiles SET freshness_ttl_hints_json='{}' WHERE id='authority.legacy'`); err == nil {
+		t.Fatal("v29 accepted non-array freshness TTL hints")
 	}
 }
 
@@ -236,7 +239,9 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if err := repositories.Sources.Create(ctx, source); err != nil {
 		t.Fatal(err)
 	}
-	profile := research.AuthorityProfile{ID: researchTestID(t, "profile.1"), Version: "profile/v1", Domain: "software", TopicPattern: "HTTP*", PreferredKinds: []research.SourceKind{research.SourceSpecification, research.SourceOfficialDocumentation}, PreferredDomains: []string{"example.com", "*.example.org"}, PreferredOrganizations: []string{"Example Standards"}, MinimumCorroboration: 2, AllowedSupplementaryKinds: []research.SourceKind{research.SourceCommunityArticle}, MinimumTier: research.AuthorityTierA, CreatedAt: at}
+	securityClaim := research.ClaimSecurity
+	releaseNotesKind := research.SourceReleaseNotes
+	profile := research.AuthorityProfile{ID: researchTestID(t, "profile.1"), Version: "profile/v1", Domain: "software", TopicPattern: "HTTP*", PreferredKinds: []research.SourceKind{research.SourceSpecification, research.SourceOfficialDocumentation}, PreferredDomains: []string{"example.com", "*.example.org"}, PreferredOrganizations: []string{"Example Standards"}, MinimumCorroboration: 2, AllowedSupplementaryKinds: []research.SourceKind{research.SourceCommunityArticle}, FreshnessTTLHints: []research.FreshnessTTLHint{{ClaimType: &securityClaim, TTLDays: 14}, {SourceKind: &releaseNotesKind, TTLDays: 21}}, MinimumTier: research.AuthorityTierA, CreatedAt: at}
 	if err := repositories.TrustRegistry.SaveProfile(ctx, profile); err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +284,7 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 
 	next := researchTestTimestamp(t, fixedTime.Add(time.Hour))
 	score, _ := research.NewFreshnessScore(.8)
-	freshness := application.FreshnessRecord{SubjectID: researchTestID(t, source.ID.String()), State: research.FreshnessFresh, Score: score, LastVerifiedAt: at, NextVerifyAt: &next, AlgorithmVersion: "freshness/v1"}
+	freshness := application.FreshnessRecord{SubjectID: researchTestID(t, source.ID.String()), State: research.FreshnessFresh, Score: score, LastVerifiedAt: at, NextVerifyAt: &next, AlgorithmVersion: research.FreshnessAlgorithmV1}
 	if err := repositories.Freshness.Save(ctx, freshness); err != nil {
 		t.Fatal(err)
 	}

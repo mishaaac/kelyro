@@ -31,6 +31,9 @@ func TestLoadTechnologySoftwareFixture(t *testing.T) {
 	if len(profile.PreferredDomains) != 3 || profile.PreferredDomains[0] != "go.dev" {
 		t.Fatalf("Go preferred domains = %v", profile.PreferredDomains)
 	}
+	if len(profile.FreshnessTTLHints) != 2 || profile.FreshnessTTLHints[0].TTLDays != 14 {
+		t.Fatalf("Go freshness TTL hints = %+v", profile.FreshnessTTLHints)
+	}
 }
 
 func TestLoadRejectsStrictYAMLAndProfileViolations(t *testing.T) {
@@ -56,6 +59,7 @@ profiles:
 		{name: "unknown source kind", encoded: strings.Replace(base, "specification", "social_post", 1), want: "invalid source kind"},
 		{name: "invalid preferred domain", encoded: strings.Replace(base, "minimum_corroboration", "preferred_domains: [go.dev/doc]\n    minimum_corroboration", 1), want: "invalid preferred domain pattern"},
 		{name: "contradictory kinds", encoded: strings.Replace(base, "minimum_corroboration", "allowed_supplementary_kinds: [specification]\n    minimum_corroboration", 1), want: "both preferred and supplementary"},
+		{name: "invalid freshness TTL", encoded: strings.Replace(base, "minimum_tier", "freshness_ttl_hints: [{claim_type: security, ttl_days: 0}]\n    minimum_tier", 1), want: "freshness TTL days"},
 		{name: "duplicate ID", encoded: base + strings.TrimPrefix(base, "contract_version: authority-profiles/v1\nprofiles:\n"), want: "duplicate authority profile ID"},
 		{name: "empty", encoded: "", want: "document is empty"},
 	}
