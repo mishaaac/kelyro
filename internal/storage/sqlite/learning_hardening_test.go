@@ -219,11 +219,17 @@ func TestConcurrentActiveGoalWritesHaveSingleWinner(t *testing.T) {
 
 func TestLearningWriteClassifiesBusyDatabaseAsUnavailable(t *testing.T) {
 	first, root := openTestDatabase(t)
-	second, err := Open(context.Background(), root, WithOperationTimeout(75*time.Millisecond))
+	second, err := Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = second.Close() })
+	const busyTimeout = 75 * time.Millisecond
+	pragma := fmt.Sprintf("PRAGMA busy_timeout=%d", busyTimeout.Milliseconds())
+	if _, err := second.sql.ExecContext(context.Background(), pragma); err != nil {
+		t.Fatalf("configure busy timeout: %v", err)
+	}
+	repositories := newLearningRepositories(second.sql, busyTimeout)
 	student := testStudent(t)
 	if err := first.LearningRepositories().Students.Create(context.Background(), student); err != nil {
 		t.Fatal(err)
@@ -237,7 +243,7 @@ func TestLearningWriteClassifiesBusyDatabaseAsUnavailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	goal := testGoal(t, student.ID)
-	err = second.LearningRepositories().Goals.Create(context.Background(), goal)
+	err = repositories.Goals.Create(context.Background(), goal)
 	if rollbackErr := transaction.Rollback(); rollbackErr != nil {
 		t.Fatal(rollbackErr)
 	}
