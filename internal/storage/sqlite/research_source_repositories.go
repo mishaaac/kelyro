@@ -256,15 +256,10 @@ type researchEvidenceRepository struct {
 	timeout  time.Duration
 }
 
-const maximumResearchExcerptBytes = 8 << 10
-
 func (repository *researchEvidenceRepository) Append(ctx context.Context, item research.Evidence) error {
 	const operation = "append SQLite research evidence"
 	if err := item.Validate(); err != nil {
 		return researchInvalid(operation, err)
-	}
-	if len(item.Excerpt) > maximumResearchExcerptBytes {
-		return researchInvalid(operation, fmt.Errorf("evidence excerpt exceeds %d bytes", maximumResearchExcerptBytes))
 	}
 	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
 	if err != nil {
@@ -289,7 +284,7 @@ func (repository *researchEvidenceRepository) Append(ctx context.Context, item r
 	if snapshotSource != item.SourceID.String() {
 		return researchInvalid(operation, errors.New("evidence source does not match snapshot"))
 	}
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version) VALUES (?,?,?,?,?,?,?,?)`, item.ID.String(), item.SourceID.String(), item.SnapshotID.String(), item.Location, item.Excerpt, item.ExcerptHash, timestampText(item.ExtractedAt), item.ExtractorVersion)
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version) VALUES (?,?,?,?,?,?,?,?,?,?)`, item.ID.String(), item.SourceID.String(), item.SnapshotID.String(), item.Location, item.Excerpt, item.ExcerptHash, item.ContextBefore, item.ContextAfter, timestampText(item.ExtractedAt), item.ExtractorVersion)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -307,7 +302,7 @@ func (repository *researchEvidenceRepository) getOne(ctx context.Context, operat
 		return research.Evidence{}, err
 	}
 	defer cancel()
-	return scanResearchEvidence(repository.executor.QueryRowContext(opCtx, `SELECT id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version FROM evidence `+suffix, value), operation)
+	return scanResearchEvidence(repository.executor.QueryRowContext(opCtx, `SELECT id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version FROM evidence `+suffix, value), operation)
 }
 func (repository *researchEvidenceRepository) ListBySource(ctx context.Context, id research.SourceID) ([]research.Evidence, error) {
 	return repository.list(ctx, "list SQLite evidence by source", "source_id", id.String(), id.Validate())
@@ -324,7 +319,7 @@ func (repository *researchEvidenceRepository) list(ctx context.Context, operatio
 		return nil, err
 	}
 	defer cancel()
-	rows, err := repository.executor.QueryContext(opCtx, `SELECT id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version FROM evidence WHERE `+column+`=? ORDER BY id`, value)
+	rows, err := repository.executor.QueryContext(opCtx, `SELECT id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version FROM evidence WHERE `+column+`=? ORDER BY id`, value)
 	if err != nil {
 		return nil, researchPersistence(operation, err)
 	}
@@ -343,8 +338,8 @@ func (repository *researchEvidenceRepository) list(ctx context.Context, operatio
 	return result, nil
 }
 func scanResearchEvidence(row rowScanner, operation string) (research.Evidence, error) {
-	var idValue, sourceValue, snapshotValue, location, excerpt, hash, extracted, version string
-	if err := row.Scan(&idValue, &sourceValue, &snapshotValue, &location, &excerpt, &hash, &extracted, &version); err != nil {
+	var idValue, sourceValue, snapshotValue, location, excerpt, hash, contextBefore, contextAfter, extracted, version string
+	if err := row.Scan(&idValue, &sourceValue, &snapshotValue, &location, &excerpt, &hash, &contextBefore, &contextAfter, &extracted, &version); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.Evidence{}, researchNotFound(operation)
 		}
@@ -366,7 +361,11 @@ func scanResearchEvidence(row rowScanner, operation string) (research.Evidence, 
 	if err != nil {
 		return research.Evidence{}, researchPersistence(operation, err)
 	}
-	item := research.Evidence{ID: id, SourceID: sourceID, SnapshotID: snapshotID, Location: location, Excerpt: excerpt, ExcerptHash: hash, ExtractedAt: extractedAt, ExtractorVersion: version}
+	item := research.Evidence{
+		ID: id, SourceID: sourceID, SnapshotID: snapshotID, Location: location,
+		Excerpt: excerpt, ExcerptHash: hash, ContextBefore: contextBefore, ContextAfter: contextAfter,
+		ExtractedAt: extractedAt, ExtractorVersion: version,
+	}
 	if err := item.Validate(); err != nil {
 		return research.Evidence{}, researchPersistence(operation, fmt.Errorf("invalid stored evidence: %w", err))
 	}

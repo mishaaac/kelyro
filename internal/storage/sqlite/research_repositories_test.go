@@ -39,6 +39,19 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO authority_profiles (id,version,domain,topic_pattern,preferred_kinds_json,minimum_tier,created_at) VALUES ('authority.legacy','legacy/v1','software','*','["specification"]','C',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO sources (id,kind,locator,title,created_at) VALUES ('source.legacy','other','https://example.test/legacy','Legacy source',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO source_snapshots (id,source_id,locator,fetched_at,status_code,content_type,content_hash,content_length,fetch_version) VALUES ('snapshot.legacy','source.legacy','https://example.test/legacy',?,200,'text/plain','sha256:legacy',6,'fetch/v1')`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	excerptHash := research.CanonicalEvidenceExcerptHashV1("legacy")
+	if _, err := handle.Exec(`INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version) VALUES ('evidence.legacy','source.legacy','snapshot.legacy','line 1','legacy',?,?, 'extract/v1')`, excerptHash, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO claims (id,topic_subject,statement,claim_type,confidence,evidence_ids_json,created_at) VALUES ('claim.legacy','Legacy topic','Legacy claim','historical',0.5,'["evidence.legacy"]',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if err := database.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrate I-03: %v", err)
 	}
@@ -49,8 +62,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 25 {
-		t.Fatalf("schema=(%d,%v), want 25", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 26 {
+		t.Fatalf("schema=(%d,%v), want 26", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -59,6 +72,22 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	legacy, err := database.Repositories().Research.TrustRegistry.GetProfile(context.Background(), legacyID)
 	if err != nil || legacy.MinimumCorroboration != 1 || len(legacy.PreferredDomains) != 0 || len(legacy.AllowedSupplementaryKinds) != 0 {
 		t.Fatalf("legacy authority profile after v24 = (%+v, %v)", legacy, err)
+	}
+	var contextBefore, contextAfter, scope, statusScope string
+	if err := handle.QueryRow(`SELECT context_before,context_after FROM evidence WHERE id='evidence.legacy'`).Scan(&contextBefore, &contextAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := handle.QueryRow(`SELECT scope,status_scope FROM claims WHERE id='claim.legacy'`).Scan(&scope, &statusScope); err != nil {
+		t.Fatal(err)
+	}
+	if contextBefore != "" || contextAfter != "" || scope != "general" || statusScope != "all" {
+		t.Fatalf("v26 defaults = contexts (%q,%q), scope %q, status %q", contextBefore, contextAfter, scope, statusScope)
+	}
+	if _, err := handle.Exec(`UPDATE evidence SET context_before=? WHERE id='evidence.legacy'`, strings.Repeat("x", research.MaximumEvidenceContextBytes+1)); err == nil {
+		t.Fatal("v26 accepted oversized evidence context")
+	}
+	if _, err := handle.Exec(`UPDATE claims SET status_scope='sometimes' WHERE id='claim.legacy'`); err == nil {
+		t.Fatal("v26 accepted invalid claim status scope")
 	}
 }
 
@@ -101,7 +130,13 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 		t.Fatalf("snapshot list=(%+v,%v)", list, err)
 	}
 
-	evidence := research.Evidence{ID: researchTestID(t, "evidence.1"), SourceID: source.ID, SnapshotID: snapshot2.ID, Location: "section 2", Excerpt: "A bounded excerpt.", ExcerptHash: "sha256:excerpt", ExtractedAt: snapshot2.FetchedAt, ExtractorVersion: "extract/v1"}
+	evidence := research.Evidence{
+		ID: researchTestID(t, "evidence.1"), SourceID: source.ID, SnapshotID: snapshot2.ID,
+		Location: "section 2", Excerpt: "A bounded excerpt.",
+		ExcerptHash:   research.CanonicalEvidenceExcerptHashV1("A bounded excerpt."),
+		ContextBefore: "The preceding bounded context.", ContextAfter: "The following bounded context.",
+		ExtractedAt: snapshot2.FetchedAt, ExtractorVersion: "extract/v1",
+	}
 	if err := repositories.Evidence.Append(ctx, evidence); err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +331,7 @@ func TestResearchSchemaEnforcesRelationshipsAndBoundedExcerpts(t *testing.T) {
 	if _, err := database.sql.ExecContext(ctx, `INSERT INTO source_snapshots (id,source_id,locator,fetched_at,status_code,content_type,content_length,fetch_version) VALUES ('snapshot.raw','source.raw','https://example.com/raw',?,200,'text/html',9000,'fetch/v1')`, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.sql.ExecContext(ctx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version) VALUES ('evidence.large','source.raw','snapshot.raw','body',?,'hash',?,'extract/v1')`, strings.Repeat("x", 8193), now); err == nil {
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version) VALUES ('evidence.large','source.raw','snapshot.raw','body',?,'hash',?,'extract/v1')`, strings.Repeat("x", research.MaximumEvidenceExcerptBytes+1), now); err == nil {
 		t.Fatal("unbounded excerpt was accepted")
 	}
 }

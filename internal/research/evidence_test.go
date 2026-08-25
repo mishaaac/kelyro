@@ -1,6 +1,9 @@
 package research
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestEvidenceClaimProvenanceAndCitationFormTraceableChain(t *testing.T) {
 	t.Parallel()
@@ -37,7 +40,10 @@ func TestEvidenceClaimProvenanceAndCitationFormTraceableChain(t *testing.T) {
 	evidence := Evidence{
 		ID: evidenceID, SourceID: sourceID, SnapshotID: snapshotID,
 		Location: "§Interface types", Excerpt: "A bounded fixture excerpt.",
-		ExcerptHash: "sha256:def", ExtractedAt: mustTimestamp(t, 11),
+		ExcerptHash:      CanonicalEvidenceExcerptHashV1("A bounded fixture excerpt."),
+		ContextBefore:    "The specification introduces interface types.",
+		ContextAfter:     "Implementations satisfy the type set.",
+		ExtractedAt:      mustTimestamp(t, 11),
 		ExtractorVersion: domainFixtureVersion,
 	}
 	if err := evidence.Validate(); err != nil {
@@ -46,8 +52,9 @@ func TestEvidenceClaimProvenanceAndCitationFormTraceableChain(t *testing.T) {
 
 	claim := Claim{
 		ID: claimID, Topic: topic, Statement: "An interface defines a type set.",
-		Type: ClaimDefinition, Confidence: mustConfidence(t, 0.95),
-		SourceIDs: []SourceID{sourceID}, EvidenceIDs: []ID{evidenceID},
+		Type: ClaimDefinition, Scope: "language semantics", StatusScope: ClaimStatusStable,
+		Confidence: mustConfidence(t, 0.95),
+		SourceIDs:  []SourceID{sourceID}, EvidenceIDs: []ID{evidenceID},
 		CreatedAt: mustTimestamp(t, 12),
 	}
 	if err := claim.Validate(); err != nil {
@@ -96,7 +103,7 @@ func TestEvidenceAndClaimRejectMissingRelationships(t *testing.T) {
 	sourceID := mustSourceID(t, "spec")
 	evidence := Evidence{
 		ID: mustID(t, "evidence.spec"), SourceID: sourceID,
-		Location: "section", Excerpt: "fixture", ExcerptHash: "sha256:abc",
+		Location: "section", Excerpt: "fixture", ExcerptHash: CanonicalEvidenceExcerptHashV1("fixture"),
 		ExtractedAt: mustTimestamp(t, 10), ExtractorVersion: domainFixtureVersion,
 	}
 	if err := evidence.Validate(); err == nil {
@@ -106,7 +113,8 @@ func TestEvidenceAndClaimRejectMissingRelationships(t *testing.T) {
 	topic, _ := NewResearchTopic("Interfaces", "software", "Go")
 	claim := Claim{
 		ID: mustClaimID(t, "interfaces"), Topic: topic, Statement: "A statement",
-		Type: ClaimBehavior, Confidence: mustConfidence(t, 0.8), CreatedAt: mustTimestamp(t, 11),
+		Type: ClaimBehavior, Scope: "language semantics", StatusScope: ClaimStatusAll,
+		Confidence: mustConfidence(t, 0.8), CreatedAt: mustTimestamp(t, 11),
 	}
 	if err := claim.Validate(); err == nil {
 		t.Fatal("Claim.Validate() accepted no source or evidence")
@@ -119,6 +127,99 @@ func TestEvidenceAndClaimRejectMissingRelationships(t *testing.T) {
 	claim.SourceIDs = []SourceID{sourceID, sourceID}
 	if err := claim.Validate(); err == nil {
 		t.Fatal("Claim.Validate() accepted duplicate source relationship")
+	}
+}
+
+func TestEvidenceEnforcesCopyrightAwareBoundsAndExcerptHash(t *testing.T) {
+	t.Parallel()
+
+	excerpt := strings.Repeat("x", MaximumEvidenceExcerptBytes)
+	evidence := Evidence{
+		ID: mustID(t, "evidence.bounds"), SourceID: mustSourceID(t, "source.bounds"),
+		SnapshotID: mustID(t, "snapshot.bounds"), Location: "bounded section",
+		Excerpt: excerpt, ExcerptHash: CanonicalEvidenceExcerptHashV1(excerpt),
+		ContextBefore: strings.Repeat("b", MaximumEvidenceContextBytes),
+		ContextAfter:  strings.Repeat("a", MaximumEvidenceContextBytes),
+		ExtractedAt:   mustTimestamp(t, 10), ExtractorVersion: domainFixtureVersion,
+	}
+	if err := evidence.Validate(); err != nil {
+		t.Fatalf("Evidence.Validate() at bounds error = %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Evidence)
+		want   string
+	}{
+		{name: "excerpt", mutate: func(item *Evidence) {
+			item.Excerpt += "x"
+			item.ExcerptHash = CanonicalEvidenceExcerptHashV1(item.Excerpt)
+		}, want: "evidence excerpt exceeds"},
+		{name: "context before", mutate: func(item *Evidence) { item.ContextBefore += "x" }, want: "evidence context before exceeds"},
+		{name: "context after", mutate: func(item *Evidence) { item.ContextAfter += "x" }, want: "evidence context after exceeds"},
+		{name: "hash format", mutate: func(item *Evidence) { item.ExcerptHash = "sha256:not-a-digest" }, want: "not canonical"},
+		{name: "hash mismatch", mutate: func(item *Evidence) {
+			item.ExcerptHash = CanonicalEvidenceExcerptHashV1("different excerpt")
+		}, want: "does not match"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			candidate := evidence
+			test.mutate(&candidate)
+			if err := candidate.Validate(); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Validate() error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestClaimSupportsMultipleEvidenceAndExplicitVersionScope(t *testing.T) {
+	t.Parallel()
+
+	topic, _ := NewResearchTopic("HTTP behavior", "software", "Go")
+	version := mustVersion(t, "1.24")
+	claim := Claim{
+		ID: mustClaimID(t, "http.behavior.1.24"), Topic: topic,
+		Statement: "The behavior applies to the target version.", Type: ClaimVersionChange,
+		Scope: "standard library HTTP client", VersionScope: &version, StatusScope: ClaimStatusStable,
+		Confidence: mustConfidence(t, 0.9), SourceIDs: []SourceID{
+			mustSourceID(t, "source.docs"), mustSourceID(t, "source.release"),
+		}, EvidenceIDs: []ID{
+			mustID(t, "evidence.docs"), mustID(t, "evidence.release"),
+		}, CreatedAt: mustTimestamp(t, 12),
+	}
+	if err := claim.Validate(); err != nil {
+		t.Fatalf("Claim.Validate() error = %v", err)
+	}
+	if claim.VersionScope == nil || claim.VersionScope.String() != "1.24" || len(claim.EvidenceIDs) != 2 {
+		t.Fatalf("versioned multi-evidence claim = %+v", claim)
+	}
+
+	claim.EvidenceIDs[1] = claim.EvidenceIDs[0]
+	if err := claim.Validate(); err == nil || !strings.Contains(err.Error(), "duplicate") {
+		t.Fatalf("duplicate evidence error = %v", err)
+	}
+}
+
+func TestClaimRejectsInvalidScopeAndStatusScope(t *testing.T) {
+	t.Parallel()
+
+	topic, _ := NewResearchTopic("Interfaces", "software", "Go")
+	claim := Claim{
+		ID: mustClaimID(t, "interfaces.scope"), Topic: topic, Statement: "A statement.",
+		Type: ClaimBehavior, Scope: "language semantics", StatusScope: ClaimStatusAll,
+		Confidence: mustConfidence(t, 0.8), SourceIDs: []SourceID{mustSourceID(t, "source.spec")},
+		EvidenceIDs: []ID{mustID(t, "evidence.spec")}, CreatedAt: mustTimestamp(t, 11),
+	}
+	claim.Scope = strings.Repeat("s", MaximumClaimScopeBytes+1)
+	if err := claim.Validate(); err == nil || !strings.Contains(err.Error(), "claim scope exceeds") {
+		t.Fatalf("oversize scope error = %v", err)
+	}
+	claim.Scope = "language semantics"
+	claim.StatusScope = ClaimStatusScope("sometimes")
+	if err := claim.Validate(); err == nil || !strings.Contains(err.Error(), "invalid claim status scope") {
+		t.Fatalf("invalid status scope error = %v", err)
 	}
 }
 

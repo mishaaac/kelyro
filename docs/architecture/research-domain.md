@@ -138,12 +138,19 @@ Citation / SourceBundle
 ```
 
 `Evidence` is a bounded excerpt or observation tied to exactly one source and
-snapshot, with an excerpt hash, extraction timestamp, and extractor version.
-It is not a complete mirrored document.
+snapshot. Its required excerpt is capped at 8 KiB; optional context before and
+after is capped at 2 KiB each. `CanonicalEvidenceExcerptHashV1` verifies
+canonical SHA-256 over the exact excerpt bytes, while extraction time and
+extractor version retain temporal and algorithm identity. These are safety
+ceilings: Evidence is not a complete mirrored document.
 
-`Claim` is a structured assertion. It requires at least one `SourceID` and one
-evidence identity, a closed claim type, a confidence in `[0,1]`, and an optional
-opaque version scope. Empty claims and claims without evidence are invalid.
+`Claim` is a structured assertion. It requires at least one distinct `SourceID`
+and evidence identity, a closed claim type, bounded domain-general applicability
+scope, explicit `all/stable/preview/experimental/legacy` status scope,
+confidence in `[0,1]`, and an optional opaque version scope. Empty claims and
+claims without evidence are invalid; multiple evidence records are supported.
+The detailed model and copyright boundary are documented in
+[evidence-claims-v1.md](evidence-claims-v1.md).
 
 `Provenance` names the request, run, source, snapshot, evidence, and claim in a
 single trace record; discovery is optional for manually registered sources.

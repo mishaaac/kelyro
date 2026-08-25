@@ -1421,6 +1421,16 @@ WHEN EXISTS (
 BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 		},
 	},
+	{
+		version: 26,
+		name:    "structured evidence and claim scopes",
+		statements: []string{
+			`ALTER TABLE evidence ADD COLUMN context_before TEXT NOT NULL DEFAULT '' CHECK ((context_before = '' OR length(trim(context_before)) > 0) AND length(CAST(context_before AS BLOB)) <= 2048)`,
+			`ALTER TABLE evidence ADD COLUMN context_after TEXT NOT NULL DEFAULT '' CHECK ((context_after = '' OR length(trim(context_after)) > 0) AND length(CAST(context_after AS BLOB)) <= 2048)`,
+			`ALTER TABLE claims ADD COLUMN scope TEXT NOT NULL DEFAULT 'general' CHECK (length(trim(scope)) > 0 AND length(CAST(scope AS BLOB)) <= 1024)`,
+			`ALTER TABLE claims ADD COLUMN status_scope TEXT NOT NULL DEFAULT 'all' CHECK (status_scope IN ('all','stable','preview','experimental','legacy'))`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

@@ -2,9 +2,10 @@
 
 Step 03 adds schema version 23 to the workspace-local Foundation SQLite
 database. Step 05 adds forward-only migration v24 for topic-aware authority
-profiles, and Step 06 adds v25 for the Trusted Source Registry. The 22
-migrations that shipped Student Core and migrations v23/v24 remain unchanged,
-and an I-02 database is upgraded without rewriting its learning state.
+profiles, Step 06 adds v25 for the Trusted Source Registry, and Step 13 adds v26
+for structured Evidence context and Claim scopes. The 22 migrations that
+shipped Student Core and migrations v23–v25 remain unchanged, and an I-02
+database is upgraded without rewriting its learning state.
 
 ## Adapter boundary
 
@@ -51,6 +52,12 @@ canonical domains, source kinds, authority hints, research domains, and topic
 patterns. Insert/update triggers reject a canonical domain already owned by a
 different registry entry; status/organization listing is indexed.
 
+Migration 26 adds optional 2 KiB `context_before`/`context_after` fields to
+Evidence and required bounded `scope` plus closed `status_scope` fields to
+Claims. Existing rows receive empty contexts, `general` scope, and `all` status
+scope. The Evidence adapter reads and writes the new context fields; Claim
+repository/application behavior remains deferred.
+
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
 Small ordered identity collections and versioned reason records that do not
@@ -76,9 +83,10 @@ is stable.
 
 Snapshots contain transport metadata and a content hash, never a fetched web
 body. Evidence stores the excerpt separately from metadata and limits it to
-8 KiB. Opaque cache payloads are capped at 1 MiB. These limits are enforced by
-both adapters and SQLite constraints, preventing this initial persistence layer
-from becoming an unbounded raw-content archive.
+8 KiB, with at most 2 KiB of optional context on each side. Opaque cache
+payloads are capped at 1 MiB. These limits are enforced by both adapters and
+SQLite constraints, preventing this persistence layer from becoming an
+unbounded raw-content archive.
 
 Step 09 uses this schema without a new migration. Each live `2xx` or `304`
 observation appends a new row; the service never updates an earlier row. A

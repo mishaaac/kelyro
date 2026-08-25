@@ -1184,7 +1184,7 @@ feat(research): add deterministic research query planner v1
 
 ## Paso 13 — Implementar Evidence y Claim Model
 
-- [ ] Paso 13 completado
+- [x] Paso 13 completado
 
 ### Objetivo
 
@@ -3192,7 +3192,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 10 — Normalization
 - [ ] Paso 11 — Discovery abstraction
 - [x] Paso 12 — Query Planner
-- [ ] Paso 13 — Evidence/Claims
+- [x] Paso 13 — Evidence/Claims
 - [ ] Paso 14 — Provenance
 - [ ] Paso 15 — Citations/Deep Links
 - [ ] Paso 16 — Freshness
@@ -3266,9 +3266,9 @@ No asumir número de versión. Usar SemVer real del repositorio.
 
 ## Evidence
 
-- [ ] Evidence
-- [ ] Claims
-- [ ] Bounded excerpts
+- [x] Evidence
+- [x] Claims
+- [x] Bounded excerpts
 - [ ] Provenance
 - [ ] Citations
 - [ ] Deep links
@@ -3350,10 +3350,10 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Authority depende del tópico
 - [ ] Source snapshots son inmutables
 - [ ] Content hashes son reproducibles
-- [ ] Claims requieren evidence
+- [x] Claims requieren evidence
 - [ ] Evidence tiene provenance
 - [ ] Citations tienen source/snapshot
-- [ ] Excerpts respetan política bounded
+- [x] Excerpts respetan política bounded
 - [ ] No se exportan bodies externos por defecto
 - [ ] Freshness usa clock injectable
 - [ ] Historical ≠ current

@@ -1,6 +1,22 @@
 package research
 
-import "fmt"
+import (
+	"fmt"
+	"unicode/utf8"
+)
+
+const (
+	MaximumEvidenceExcerptBytes = 8 << 10
+	MaximumEvidenceContextBytes = 2 << 10
+	MaximumClaimScopeBytes      = 1 << 10
+)
+
+// CanonicalEvidenceExcerptHashV1 hashes the exact validated UTF-8 excerpt.
+// Context is deliberately excluded because ExcerptHash identifies only the
+// minimal quoted evidence carried by Evidence.Excerpt.
+func CanonicalEvidenceExcerptHashV1(excerpt string) string {
+	return CanonicalContentHashV1([]byte(excerpt))
+}
 
 // Evidence is a bounded observation from one immutable SourceSnapshot.
 type Evidence struct {
@@ -10,6 +26,8 @@ type Evidence struct {
 	Location         string
 	Excerpt          string
 	ExcerptHash      string
+	ContextBefore    string
+	ContextAfter     string
 	ExtractedAt      Timestamp
 	ExtractorVersion string
 }
@@ -27,16 +45,42 @@ func (evidence Evidence) Validate() error {
 	if err := requireText("evidence location", evidence.Location); err != nil {
 		return err
 	}
-	if err := requireText("evidence excerpt", evidence.Excerpt); err != nil {
+	if err := validateBoundedEvidenceText("evidence excerpt", evidence.Excerpt, MaximumEvidenceExcerptBytes, true); err != nil {
 		return err
 	}
-	if err := requireText("evidence excerpt hash", evidence.ExcerptHash); err != nil {
+	if err := validateBoundedEvidenceText("evidence context before", evidence.ContextBefore, MaximumEvidenceContextBytes, false); err != nil {
 		return err
+	}
+	if err := validateBoundedEvidenceText("evidence context after", evidence.ContextAfter, MaximumEvidenceContextBytes, false); err != nil {
+		return err
+	}
+	if err := ValidateCanonicalContentHashV1(evidence.ExcerptHash); err != nil {
+		return fmt.Errorf("evidence excerpt hash: %w", err)
+	}
+	if evidence.ExcerptHash != CanonicalEvidenceExcerptHashV1(evidence.Excerpt) {
+		return fmt.Errorf("evidence excerpt hash does not match excerpt")
 	}
 	if err := validateTimestamp("evidence extracted at", evidence.ExtractedAt); err != nil {
 		return err
 	}
 	return requireText("evidence extractor version", evidence.ExtractorVersion)
+}
+
+func validateBoundedEvidenceText(name, value string, maximumBytes int, required bool) error {
+	if required {
+		if err := requireText(name, value); err != nil {
+			return err
+		}
+	} else if err := validateOptionalText(name, value); err != nil {
+		return err
+	}
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("%s is not valid UTF-8", name)
+	}
+	if len(value) > maximumBytes {
+		return fmt.Errorf("%s exceeds %d bytes", name, maximumBytes)
+	}
+	return nil
 }
 
 type ClaimType string
@@ -66,13 +110,38 @@ func (claimType ClaimType) Validate() error {
 	}
 }
 
+// ClaimStatusScope records which maturity/status family a claim applies to.
+// It is separate from release detection: this value scopes the assertion but
+// does not establish the actual status of a release.
+type ClaimStatusScope string
+
+const (
+	ClaimStatusAll          ClaimStatusScope = "all"
+	ClaimStatusStable       ClaimStatusScope = "stable"
+	ClaimStatusPreview      ClaimStatusScope = "preview"
+	ClaimStatusExperimental ClaimStatusScope = "experimental"
+	ClaimStatusLegacy       ClaimStatusScope = "legacy"
+)
+
+func (scope ClaimStatusScope) Validate() error {
+	switch scope {
+	case ClaimStatusAll, ClaimStatusStable, ClaimStatusPreview,
+		ClaimStatusExperimental, ClaimStatusLegacy:
+		return nil
+	default:
+		return fmt.Errorf("invalid claim status scope %q", scope)
+	}
+}
+
 // Claim is an assertion explicitly backed by both sources and evidence.
 type Claim struct {
 	ID           ClaimID
 	Topic        ResearchTopic
 	Statement    string
 	Type         ClaimType
+	Scope        string
 	VersionScope *SourceVersion
+	StatusScope  ClaimStatusScope
 	Confidence   ClaimConfidence
 	SourceIDs    []SourceID
 	EvidenceIDs  []ID
@@ -92,10 +161,22 @@ func (claim Claim) Validate() error {
 	if err := claim.Type.Validate(); err != nil {
 		return err
 	}
+	if err := requireText("claim scope", claim.Scope); err != nil {
+		return err
+	}
+	if !utf8.ValidString(claim.Scope) {
+		return fmt.Errorf("claim scope is not valid UTF-8")
+	}
+	if len(claim.Scope) > MaximumClaimScopeBytes {
+		return fmt.Errorf("claim scope exceeds %d bytes", MaximumClaimScopeBytes)
+	}
 	if claim.VersionScope != nil {
 		if err := claim.VersionScope.Validate(); err != nil {
 			return err
 		}
+	}
+	if err := claim.StatusScope.Validate(); err != nil {
+		return err
 	}
 	if err := claim.Confidence.Validate(); err != nil {
 		return fmt.Errorf("claim confidence: %w", err)

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 13
-Last completed step: 12
+Current step: 14
+Last completed step: 13
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -957,5 +957,72 @@ Release: unreleased
 - El Paso 13 es el siguiente paso pendiente y requiere autorización explícita.
 - Evidence/Claims podrá consumir sources fetched/normalized y conservar excerpts
   acotados con provenance, sin convertir discovery snippets en evidencia.
+- No implementar Provenance, Citations, Freshness, live search, cache ni pasos
+  posteriores antes de su autorización independiente.
+
+## Step 13 — Evidence and Claim Model
+
+Status: completed
+Date: 2026-08-25
+Release: unreleased
+
+### Delivered
+
+- Modelo de dominio `Evidence` ampliado con `context_before` y `context_after`
+  opcionales y acotados, además del excerpt mínimo necesario, su hash canónico,
+  ubicación, snapshot, timestamp y versión del extractor.
+- Modelo `Claim` estructurado con scope y status scope explícitos, version scope
+  opcional, tipo cerrado, confianza, timestamps y una o más referencias a
+  evidence y source.
+- Límites públicos y validados de 8 KiB para excerpts, 2 KiB por contexto y
+  1 KiB para claim scope, siempre medidos sobre bytes UTF-8.
+- Hash reproducible `sha256:<hex>` calculado sobre los bytes exactos del
+  excerpt; evidence con hash ausente, mal formado o divergente es rechazado.
+- Migración forward-only v26 para persistir contextos de evidence y scope/status
+  scope de claims, con defaults compatibles para filas existentes y constraints
+  equivalentes en SQLite.
+- Round-trip del repositorio SQLite actualizado para conservar ambos contextos
+  sin almacenar cuerpos web completos ni ampliar el alcance hacia extracción.
+- Tests para claim sin evidence, bounds de excerpt/context, múltiples evidences,
+  version scope, status scope, hash canónico y migración desde esquemas previos.
+- Contrato y límites documentados en `docs/architecture/evidence-claims-v1.md`,
+  con referencias sincronizadas en la arquitectura de dominio y persistencia.
+
+### Decisions
+
+- Discovery candidates y snippets continúan sin ser evidence. Una Evidence
+  válida referencia un snapshot persistido y conserva únicamente el fragmento
+  necesario y contexto acotado.
+- `ClaimStatusScope` usa el vocabulario cerrado `all`, `stable`, `preview`,
+  `experimental` y `legacy`; `all` permite expresar claims no ligados a un
+  estado de release sin confundirlo con un valor vacío.
+- `VersionScope` sigue siendo opcional y opaco para admitir SemVer, revisiones,
+  ediciones o fechas sin imponer un esquema de versión específico.
+- Los defaults de migración (`scope=general`, `status_scope=all`, contextos
+  vacíos) preservan claims/evidence existentes; las nuevas escrituras pasan por
+  validación estricta del dominio.
+- Paso 13 define y persiste el modelo. No implementa extractor, ClaimRepository,
+  Provenance Graph, citations, verification, live search, IA, cache, Curriculum
+  Compiler ni cambios funcionales de Student Core.
+
+### Verification
+
+- Tests dirigidos y vet de `internal/research`,
+  `internal/research/application` e `internal/storage/sqlite`.
+- `GOCACHE=/tmp/kelyro-i03-step13-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step13-vet-gocache go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de `internal/research` e
+  `internal/storage/sqlite` con `CGO_ENABLED=0`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step13-quality-gocache go run ./tools/quality all`,
+  incluyendo tests, E2E, vet, `go test -race ./...`, build y smokes de CLI.
+- Migración verificada desde schemas anteriores hacia v26, incluidos defaults,
+  round-trip y rechazo de valores fuera de bounds.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 14 es el siguiente paso pendiente y requiere autorización explícita.
+- Provenance Graph podrá enlazar los IDs y timestamps ya definidos sin cambiar
+  la semántica de Evidence/Claim del Paso 13.
 - No implementar Provenance, Citations, Freshness, live search, cache ni pasos
   posteriores antes de su autorización independiente.

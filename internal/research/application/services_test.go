@@ -297,7 +297,8 @@ func TestMemoryFakesPreserveRelationshipsOrderingAndOwnership(t *testing.T) {
 
 	evidence := research.Evidence{
 		ID: testID(t, "evidence.spec"), SourceID: source.ID, SnapshotID: second.ID,
-		Location: "section", Excerpt: "bounded fixture", ExcerptHash: "sha256:evidence",
+		Location: "section", Excerpt: "bounded fixture",
+		ExcerptHash: research.CanonicalEvidenceExcerptHashV1("bounded fixture"),
 		ExtractedAt: testTimestamp(t, 12), ExtractorVersion: fixtureVersion,
 	}
 	if err := repositories.Evidence.Append(ctx, evidence); err != nil {
