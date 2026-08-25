@@ -88,9 +88,12 @@ from entering domain or services:
 Step 07 protects every live call with Foundation's privacy gate. Steps 08–09
 implement the hardened HTTP transport and `SourceFetcher`, Step 10 implements
 the deterministic `SourceNormalizer`, and Step 11 completes the vendor-neutral
-search contract with a static network-free provider. A production search
-adapter, cache encoding, release discovery, and separate metadata extraction
-remain unimplemented.
+search contract with a static network-free provider. Step 12 adds the pure
+`query-planner-v1` producer for query text, desired kind, authority threshold,
+and execution priority; callers add request ID, result limit, and target-version
+options when mapping a plan item into these discovery contracts. A production
+search adapter, cache encoding, release discovery, and separate metadata
+extraction remain unimplemented.
 `MaximumBytes` is enforced by the fetch adapter as a request-specific limit
 below the transport's configured global ceiling. A safe redirect may change
 the returned locator without changing `SourceID`.
@@ -121,8 +124,8 @@ They validate input, enforce immediate identity relationships, require their
 dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
-implement Trust Policy, authority matching, discovery planning, evidence
-extraction, verification rules, freshness formulas, release discovery,
+implement Trust Policy, authority matching, query execution orchestration,
+evidence extraction, verification rules, freshness formulas, release discovery,
 conflict resolution, drift detection, or impact analysis. Those remain future
 versioned policies and orchestration steps.
 

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 12
-Last completed step: 11
+Current step: 13
+Last completed step: 12
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -885,4 +885,77 @@ Release: unreleased
 - Query Planner v1 podrá producir `SearchQuery` y `SearchOptions` deterministas
   consumiendo topic, purpose, authority profile y target version.
 - No implementar Evidence/Claims, live search, cache persistence ni pasos
+  posteriores antes de su autorización independiente.
+
+## Step 12 — Research Query Planner v1
+
+Status: completed
+Date: 2026-08-25
+Release: unreleased
+
+### Delivered
+
+- Subpaquete puro `internal/research/queryplanner` con algoritmo stateless y
+  determinista identificado de forma inmutable como `query-planner-v1`.
+- Contratos validados `Input`, `ResearchQuery` y `ResearchQueryPlan` para topic,
+  target version opcional, purpose, Authority Profile, query normalizada,
+  desired source kind, required authority tier y prioridad secuencial.
+- Matrices explícitas para los ocho `ResearchPurpose`, con variantes de
+  official documentation, specification, release notes, deprecation, API
+  reference, tutorial, source code y security según el propósito.
+- Construcción estable de query que usa technology cuando existe o domain para
+  tópicos genéricos, seguida de subject, target version opaca y calificador de
+  intención, con whitespace Unicode colapsado.
+- Orden authority-aware: los preferred kinds relevantes se promueven en orden
+  declarado, la cobertura base del propósito nunca se pierde y otros preferred
+  kinds se añaden mientras exista capacidad.
+- Planes limitados a ocho queries, sin source kinds ni textos duplicados, con
+  prioridades positivas `1..N` y el `MinimumTier` contextual del perfil.
+- Tests de definition, release version-bound, security y tópico no tecnológico,
+  además de cobertura de todos los purposes, bounds, determinismo, ownership de
+  inputs y rechazo de estados inválidos.
+- Contrato, ordering, mapping a discovery y límites documentados en
+  `docs/architecture/query-planner-v1.md` y enlazados desde la arquitectura.
+
+### Decisions
+
+- El planner vive junto a las políticas puras de Research y depende solo del
+  vocabulario `internal/research`; no importa application, providers, HTTP,
+  SQLite, UI, Student Core ni dependencias externas.
+- Authority Profile matching ocurre antes mediante `internal/research/authority`.
+  El planner valida el perfil suministrado, pero no selecciona ni inventa un
+  fallback silencioso.
+- `RequiredAuthority` es un threshold para clasificación posterior; no convierte
+  candidatos en trusted sources ni produce una `TrustDecision`.
+- La cobertura canónica de cada purpose precede a preferred kinds no
+  relacionados, evitando que un perfil grande desplace release notes,
+  security standards u otras intenciones esenciales.
+- El plan conserva intención provider-neutral. Un orchestrator futuro añadirá
+  request ID y result limit al mapear query/kind/version hacia `SearchQuery` y
+  `SearchOptions`; Step 12 no ejecuta discovery.
+- No se añadieron IA, network access, persistencia, live search, clasificación,
+  Evidence/Claims, cache, Curriculum Compiler ni cambios funcionales de Student
+  Core.
+
+### Verification
+
+- Tests dirigidos y vet de `internal/research/queryplanner`.
+- Suite completa de `internal/research/...`, incluida su ejecución bajo race.
+- `GOCACHE=/tmp/kelyro-i03-step12-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step12-vet-gocache go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de `queryplanner` con
+  `CGO_ENABLED=0`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step12-quality-gocache go run ./tools/quality all`,
+  incluyendo tests, E2E, vet, `go test -race ./...`, build y smokes de CLI.
+- La puerta race expuso un test I-02 que aplicaba su timeout busy de 75 ms al
+  `Open`; se separó setup de contención sin cambiar producción y se verificó en
+  cinco repeticiones race antes del commit independiente `c41b05b`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 13 es el siguiente paso pendiente y requiere autorización explícita.
+- Evidence/Claims podrá consumir sources fetched/normalized y conservar excerpts
+  acotados con provenance, sin convertir discovery snippets en evidencia.
+- No implementar Provenance, Citations, Freshness, live search, cache ni pasos
   posteriores antes de su autorización independiente.

@@ -61,6 +61,10 @@ The vendor-neutral source-discovery contracts, candidate normalization,
 duplicate URL policy, exact rank preservation, privacy boundary, and static
 network-free provider are documented in [source-discovery.md](source-discovery.md).
 
+The pure `query-planner-v1` input/output contract, purpose variants,
+authority-aware deterministic ordering, generic-topic behavior, and discovery
+mapping are documented in [query-planner-v1.md](query-planner-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

@@ -3,7 +3,8 @@
 I-03 introduces `internal/research` as Kelyro's transport-, persistence-, and
 presentation-independent vocabulary for research and evidence. The package
 contains domain data and validation. Its `trust` subpackage adds the pure,
-versioned Trust Policy v1; neither package searches the web, performs HTTP
+versioned Trust Policy v1, while `queryplanner` adds deterministic discovery
+intent planning; none of these packages searches the web, performs HTTP
 requests, parses documents, persists records, compiles curriculum, or modifies
 learner state.
 
@@ -159,6 +160,19 @@ defines only identity, topic, purpose, target version, state, and verification
 time. Deterministic serialization, hashing, conflict assembly, and compiler
 eligibility are later responsibilities.
 
+## Query planning
+
+`internal/research/queryplanner` implements the pure `query-planner-v1`
+algorithm. It combines a topic, optional target version, purpose, and
+already-selected Authority Profile into bounded, ordered discovery intentions.
+Every intention preserves query text, desired source kind, minimum authority
+tier, and priority. The algorithm supports technology-free topics, and its
+output remains candidate-search intent rather than evidence or trust.
+
+The complete ordering policy, purpose matrix, validation contract, and mapping
+to application discovery DTOs are documented in
+[query-planner-v1.md](query-planner-v1.md).
+
 ## Freshness and change intelligence vocabulary
 
 `FreshnessScore` and `ClaimConfidence` are finite values in the closed interval
@@ -195,7 +209,7 @@ The following remain intentionally absent from this step:
 
 - repositories, units of work, application services, and SQLite schema;
 - network privacy orchestration and HTTP clients;
-- discovery providers and query planning;
+- discovery providers and live query execution orchestration;
 - authority-profile matching, quality, freshness, conflict, verification,
   drift, impact, trigger, or cost algorithms;
 - raw-body retention, caches, audit adapters, CLI, and TUI;

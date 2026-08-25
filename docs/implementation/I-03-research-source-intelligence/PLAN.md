@@ -1104,7 +1104,7 @@ feat(discovery): add pluggable source discovery
 
 ## Paso 12 — Implementar Research Query Planner v1
 
-- [ ] Paso 12 completado
+- [x] Paso 12 completado
 
 ### Objetivo
 
@@ -3191,7 +3191,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 9 — Fetcher/Snapshots
 - [x] Paso 10 — Normalization
 - [ ] Paso 11 — Discovery abstraction
-- [ ] Paso 12 — Query Planner
+- [x] Paso 12 — Query Planner
 - [ ] Paso 13 — Evidence/Claims
 - [ ] Paso 14 — Provenance
 - [ ] Paso 15 — Citations/Deep Links
@@ -3259,7 +3259,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 ## Discovery
 
 - [ ] SearchProvider abstraction
-- [ ] Query Planner v1
+- [x] Query Planner v1
 - [ ] Deduplication
 - [ ] Cost-aware discovery
 - [ ] Offline behavior
