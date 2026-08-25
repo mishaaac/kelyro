@@ -2,14 +2,15 @@
 
 Step 03 adds schema version 23 to the workspace-local Foundation SQLite
 database. Step 05 adds forward-only migration v24 for topic-aware authority
-profiles, Step 06 adds v25 for the Trusted Source Registry, and Step 13 adds v26
-for structured Evidence context and Claim scopes. The 22 migrations that
-shipped Student Core and migrations v23–v25 remain unchanged, and an I-02
-database is upgraded without rewriting its learning state.
+profiles, Step 06 adds v25 for the Trusted Source Registry, Step 13 adds v26
+for structured Evidence context and Claim scopes, and Step 14 adds v27 for
+bounded claim provenance graphs. The 22 migrations that shipped Student Core
+and migrations v23–v26 remain unchanged, and an I-02 database is upgraded
+without rewriting its learning state.
 
 ## Adapter boundary
 
-`Database.Repositories().Research` exposes the twelve narrow repository ports
+`Database.Repositories().Research` exposes the thirteen narrow repository ports
 defined by `internal/research/application`. The adapter depends on the research
 domain and application contracts; neither package imports SQLite.
 
@@ -21,6 +22,8 @@ Repository behavior matches the deterministic memory adapter:
 - request identity is immutable and may own multiple research runs;
 - snapshots, evidence, verification results, drift reports, and impact reports
   are append-only through their ports;
+- provenance graphs are append-only and latest lookup is deterministic by
+  claim, recording time, and stable graph ID;
 - authority profiles, freshness state, and cache entries use explicit upsert
   semantics;
 - collection and latest-record queries have deterministic ordering.
@@ -58,6 +61,12 @@ Claims. Existing rows receive empty contexts, `general` scope, and `all` status
 scope. The Evidence adapter reads and writes the new context fields; Claim
 repository/application behavior remains deferred.
 
+Migration 27 creates `provenance_graphs`. Each row stores a validated canonical
+JSON graph capped at 256 KiB alongside its graph ID, claim ID, recording time,
+and immutable `provenance-graph-v1` algorithm identifier. SQLite verifies that
+the indexed identity/version columns agree with the JSON payload and indexes
+latest lookup without overwriting older audit history.
+
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
 Small ordered identity collections and versioned reason records that do not
@@ -75,9 +84,9 @@ records can be created together in this schema.
 
 Indexes cover canonical locator lookup, aliases, latest snapshots, request
 runs, claim topics, last-verified state, releases by technology/version,
-verification by claim, and due cache/freshness records. UTC timestamps continue
-to use Foundation's fixed-width representation so chronological `TEXT` ordering
-is stable.
+verification and provenance by claim, and due cache/freshness records. UTC
+timestamps continue to use Foundation's fixed-width representation so
+chronological `TEXT` ordering is stable.
 
 ## Retention boundary
 

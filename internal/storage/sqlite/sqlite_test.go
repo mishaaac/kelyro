@@ -96,6 +96,7 @@ func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 		"mistake_events",
 		"mistakes",
 		"onboarding_interviews",
+		"provenance_graphs",
 		"release_records",
 		"research_cache_entries",
 		"research_runs",

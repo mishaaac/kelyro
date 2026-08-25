@@ -39,6 +39,7 @@ Persistence is divided by aggregate or durable output:
 | `SourceRepository` | Stable source identities, canonical locators, and source metadata. |
 | `SnapshotRepository` | Immutable fetch snapshots ordered by `fetched_at`. |
 | `EvidenceRepository` | Immutable evidence tied to a source and snapshot. |
+| `ProvenanceRepository` | Immutable bounded claim graphs and latest trace lookup. |
 | `ResearchRunRepository` | Research requests and one or more runs for each request. |
 | `TrustRegistryRepository` | Authority profiles and versioned trust decisions. |
 | `SourceRegistryRepository` | Reviewed source-family entries with deterministic list/show access. |
@@ -114,6 +115,7 @@ The initial services are deliberately thin:
   persisting candidates automatically;
 - `SourceService` registers sources and records snapshots for known sources;
 - `SourceRegistryService` saves and queries reviewed registry entries;
+- `ProvenanceService` records, traces, and exports validated claim graphs;
 - `VerificationService` records and retrieves verification results;
 - `FreshnessService` stores already-computed, versioned freshness outputs;
 - `ReleaseIntelligenceService` records and reads release facts;

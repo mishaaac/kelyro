@@ -1262,7 +1262,7 @@ feat(evidence): add structured claims and evidence
 
 ## Paso 14 — Implementar Provenance Graph
 
-- [ ] Paso 14 completado
+- [x] Paso 14 completado
 
 ### Objetivo
 
@@ -3193,7 +3193,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 11 — Discovery abstraction
 - [x] Paso 12 — Query Planner
 - [x] Paso 13 — Evidence/Claims
-- [ ] Paso 14 — Provenance
+- [x] Paso 14 — Provenance
 - [ ] Paso 15 — Citations/Deep Links
 - [ ] Paso 16 — Freshness
 - [ ] Paso 17 — Verification scheduling
@@ -3269,7 +3269,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Evidence
 - [x] Claims
 - [x] Bounded excerpts
-- [ ] Provenance
+- [x] Provenance
 - [ ] Citations
 - [ ] Deep links
 - [ ] Source bundles
@@ -3351,7 +3351,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Source snapshots son inmutables
 - [ ] Content hashes son reproducibles
 - [x] Claims requieren evidence
-- [ ] Evidence tiene provenance
+- [x] Evidence tiene provenance
 - [ ] Citations tienen source/snapshot
 - [x] Excerpts respetan política bounded
 - [ ] No se exportan bodies externos por defecto

@@ -6,6 +6,7 @@ var (
 	_ application.SourceRepository         = sourceRepository{}
 	_ application.SnapshotRepository       = snapshotRepository{}
 	_ application.EvidenceRepository       = evidenceRepository{}
+	_ application.ProvenanceRepository     = provenanceRepository{}
 	_ application.ResearchRunRepository    = researchRunRepository{}
 	_ application.TrustRegistryRepository  = trustRegistryRepository{}
 	_ application.SourceRegistryRepository = sourceRegistryRepository{}

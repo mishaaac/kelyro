@@ -70,6 +70,11 @@ scopes, multi-evidence relationships, copyright boundary, and forward-only
 persistence compatibility are documented in
 [evidence-claims-v1.md](evidence-claims-v1.md).
 
+The bounded `provenance-graph-v1` DAG, typed relationships, historical and
+multi-source paths, deterministic explain/export behavior, persistence, and
+internal trace command are documented in
+[provenance-graph-v1.md](provenance-graph-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

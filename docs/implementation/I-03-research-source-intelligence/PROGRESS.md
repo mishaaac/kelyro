@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 14
-Last completed step: 13
+Current step: 15
+Last completed step: 14
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1026,3 +1026,81 @@ Release: unreleased
   la semántica de Evidence/Claim del Paso 13.
 - No implementar Provenance, Citations, Freshness, live search, cache ni pasos
   posteriores antes de su autorización independiente.
+
+## Step 14 — Provenance Graph v1
+
+Status: completed
+Date: 2026-08-25
+Release: unreleased
+
+### Delivered
+
+- Grafo de dominio acotado `ProvenanceGraph` identificado de forma inmutable
+  como `provenance-graph-v1`, con nodos tipados para request, run, query,
+  discovered source, source, snapshot, evidence, claim y SourceBundle.
+- Vocabulario cerrado de transiciones que admite ramas Query/Discovery y el
+  camino explícito `run -> source` para fuentes registradas manualmente, sin
+  permitir que candidates o snippets salten directamente a Evidence.
+- Validación de IDs/nodos/edges únicos, endpoints existentes, estructura
+  conectada, cobertura de la claim, timestamps, tool versions y ausencia de
+  autociclos/ciclos inválidos.
+- Soporte de múltiples fuentes/evidences que convergen en una claim y snapshots
+  históricos exactos sin sustituirlos silenciosamente por el latest snapshot.
+- `Explain` humano determinista y export/import JSON estricto, estable y
+  acotado, sin excerpts ni raw source bodies.
+- Límites explícitos de 512 nodos, 1.024 edges, labels de 1 KiB, tool versions
+  de 256 bytes y export de 256 KiB.
+- `ProvenanceRepository` y `ProvenanceService` con record, latest trace y export,
+  más adapters deterministas de memoria y SQLite.
+- Migración forward-only v27 para graphs append-only, con metadata/index latest
+  por claim y constraints que vinculan ID/claim/algorithm con el JSON guardado.
+- Wiring workspace-local y comando interno funcional
+  `kelyro sources trace <claim-id>` para imprimir la explicación almacenada sin
+  acceso de red.
+- Contrato completo documentado en
+  `docs/architecture/provenance-graph-v1.md` y referencias de dominio,
+  aplicación y persistencia sincronizadas.
+
+### Decisions
+
+- Un grafo explica exactamente una claim, request y run, pero puede contener
+  múltiples queries, candidates, sources, snapshots y evidences. Todo nodo
+  anterior a la claim debe ser alcanzable desde request y conducir a esa claim.
+- SourceBundle es terminal y opcional. El grafo se detiene allí: future
+  Curriculum Concept pertenece a I-04 y no fue modelado ni persistido.
+- Query/Discovery no son obligatorios para una fuente revisada manualmente; si
+  existen, sus tool versions son obligatorias. Fetch y extraction versions son
+  igualmente obligatorias en sus nodos.
+- Cada append conserva audit history. `Trace` elige determinísticamente el graph
+  más reciente por `recorded_at` e ID sin sobrescribir versiones anteriores.
+- Los labels son metadata explicativa acotada, no contenido web. Export y read
+  validan otra vez tamaño, campos conocidos, algoritmo y grafo completo.
+- El scaffold lineal `Provenance` del Paso 1 se conserva compatible; el DAG v1
+  completa las capacidades del Paso 14 sin modificar Citation/Deep Link.
+- No se implementaron Citations, Deep Links, verification, freshness, conflict
+  resolution, live search, IA, Curriculum Compiler ni cambios funcionales de
+  Student Core.
+
+### Verification
+
+- Tests dirigidos y vet de Research domain/application/memory, SQLite,
+  `researchdb`, app y CLI.
+- Tests de full chain, múltiples fuentes, missing node, autociclo, desconexión,
+  manual source, historical snapshot, bounds, JSON estable y defensive copies.
+- Tests de migración/esquema v27, append/latest/duplicate SQLite y rechazo de
+  metadata JSON divergente.
+- `GOCACHE=/tmp/kelyro-i03-step14-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step14-vet-gocache go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de todos los paquetes
+  afectados con `CGO_ENABLED=0`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step14-quality-gocache go run ./tools/quality all`,
+  incluyendo tests, E2E, vet, `go test -race ./...`, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 15 es el siguiente paso pendiente y requiere autorización explícita.
+- Citations/Deep Links podrá consumir los paths validados sin alterar el graph
+  ni convertir metadata de discovery en evidence.
+- No implementar Citations, Deep Links, Freshness ni pasos posteriores antes de
+  su autorización independiente.

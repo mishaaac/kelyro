@@ -286,6 +286,48 @@ func (service *sourceRegistryService) List(ctx context.Context) ([]research.Sour
 	return entries, repositoryError(operation, err)
 }
 
+type provenanceService struct{ repository ProvenanceRepository }
+
+func NewProvenanceService(repository ProvenanceRepository) ProvenanceService {
+	return &provenanceService{repository: repository}
+}
+
+func (service *provenanceService) Record(ctx context.Context, graph research.ProvenanceGraph) error {
+	const operation = "record provenance graph"
+	if err := graph.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := requireDependency(operation, "provenance repository", service.repository); err != nil {
+		return err
+	}
+	return repositoryError(operation, service.repository.Append(ctx, graph))
+}
+
+func (service *provenanceService) Trace(ctx context.Context, claimID research.ClaimID) (research.ProvenanceGraph, error) {
+	const operation = "trace claim provenance"
+	if err := claimID.Validate(); err != nil {
+		return research.ProvenanceGraph{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "provenance repository", service.repository); err != nil {
+		return research.ProvenanceGraph{}, err
+	}
+	graph, err := service.repository.LatestByClaim(ctx, claimID)
+	return graph, repositoryError(operation, err)
+}
+
+func (service *provenanceService) Export(ctx context.Context, claimID research.ClaimID) ([]byte, error) {
+	const operation = "export claim provenance"
+	graph, err := service.Trace(ctx, claimID)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := graph.ExportJSON()
+	if err != nil {
+		return nil, invalid(operation, err)
+	}
+	return encoded, nil
+}
+
 type verificationService struct{ repository VerificationRepository }
 
 func NewVerificationService(repository VerificationRepository) VerificationService {

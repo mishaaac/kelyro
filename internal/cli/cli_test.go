@@ -1362,11 +1362,55 @@ func TestRunnerParsesAndRendersSourceRegistryCommands(t *testing.T) {
 			t.Fatalf("show command = %+v", service.commands)
 		}
 	})
-	for _, args := range [][]string{{"sources"}, {"sources", "registry"}, {"sources", "registry", "show"}, {"sources", "registry", "delete", "id"}} {
+	t.Run("trace", func(t *testing.T) {
+		graph := cliProvenanceGraph(t)
+		service := &fakeService{result: app.Result{ProvenanceGraph: &graph}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "trace", graph.ClaimID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Claim provenance: claim.cli-trace") || !strings.Contains(stdout.String(), "historical snapshot") {
+			t.Fatalf("trace = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ProvenanceClaimID != graph.ClaimID || service.commands[0].SourceRegistryOperation != "trace" {
+			t.Fatalf("trace command = %+v", service.commands)
+		}
+	})
+	for _, args := range [][]string{{"sources"}, {"sources", "registry"}, {"sources", "registry", "show"}, {"sources", "registry", "delete", "id"}, {"sources", "trace"}} {
 		var stderr bytes.Buffer
 		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
 			t.Fatalf("Run(%v) code = %d, want usage; stderr=%q", args, code, stderr.String())
 		}
+	}
+}
+
+func cliProvenanceGraph(t *testing.T) research.ProvenanceGraph {
+	t.Helper()
+	id := func(value string) research.ID {
+		result, err := research.NewID(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	claimID, _ := research.NewClaimID("claim.cli-trace")
+	claimNode := id(claimID.String())
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+	recorded, _ := research.NewTimestamp(at.Time().Add(time.Hour))
+	request, run, source := id("request.cli-trace"), id("run.cli-trace"), id("source.cli-trace")
+	snapshot, evidence := id("snapshot.cli-trace"), id("evidence.cli-trace")
+	return research.ProvenanceGraph{
+		ID: id("graph.cli-trace"), ClaimID: claimID, RecordedAt: recorded, AlgorithmVersion: research.ProvenanceGraphAlgorithmV1,
+		Nodes: []research.ProvenanceNode{
+			{ID: request, Kind: research.ProvenanceRequest, Label: "trace request", OccurredAt: at},
+			{ID: run, Kind: research.ProvenanceRun, Label: "trace run", OccurredAt: at},
+			{ID: source, Kind: research.ProvenanceSource, Label: "manual source", OccurredAt: at},
+			{ID: snapshot, Kind: research.ProvenanceSnapshot, Label: "historical snapshot", OccurredAt: at, ToolVersion: "fetch/v1"},
+			{ID: evidence, Kind: research.ProvenanceEvidence, Label: "section 1", OccurredAt: at, ToolVersion: "extract/v1"},
+			{ID: claimNode, Kind: research.ProvenanceClaim, Label: "traceable claim", OccurredAt: at},
+		},
+		Edges: []research.ProvenanceEdge{
+			{From: request, To: run}, {From: run, To: source}, {From: source, To: snapshot},
+			{From: snapshot, To: evidence}, {From: evidence, To: claimNode},
+		},
 	}
 }
 

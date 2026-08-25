@@ -175,6 +175,7 @@ Streak command:
 Source registry commands:
   kelyro sources registry list
   kelyro sources registry show <id>
+  kelyro sources trace <claim-id>
 
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
@@ -324,6 +325,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		ReviewsDue:              invocation.reviewsDue,
 		SourceRegistryOperation: invocation.sourceRegistryOperation,
 		SourceRegistryID:        invocation.sourceRegistryID,
+		ProvenanceClaimID:       invocation.provenanceClaimID,
 		Verbose:                 invocation.verbose,
 	}
 	if invocation.noColor {
@@ -446,6 +448,13 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatSourceRegistryEntry(*result.SourceRegistryEntry))
 	} else if result.SourceRegistryEntries != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatSourceRegistryEntries(result.SourceRegistryEntries))
+	} else if result.ProvenanceGraph != nil && !invocation.quiet {
+		explanation, explainErr := result.ProvenanceGraph.Explain()
+		if explainErr != nil {
+			fmt.Fprintf(r.stderr, "kelyro %s: explain provenance: %v\n", commandName, explainErr)
+			return ExitFailure
+		}
+		fmt.Fprintln(r.stdout, explanation)
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -1126,6 +1135,7 @@ type invocation struct {
 	reviewsDue              bool
 	sourceRegistryOperation string
 	sourceRegistryID        research.ID
+	provenanceClaimID       research.ClaimID
 }
 
 func parse(args []string) (invocation, error) {
@@ -1528,6 +1538,15 @@ func parse(args []string) (invocation, error) {
 }
 
 func parseSourcesArguments(result *invocation) error {
+	if len(result.arguments) == 2 && result.arguments[0] == "trace" {
+		id, err := research.NewClaimID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("sources trace: invalid claim id: %w", err)
+		}
+		result.sourceRegistryOperation = "trace"
+		result.provenanceClaimID = id
+		return nil
+	}
 	if len(result.arguments) == 2 && result.arguments[0] == "registry" && result.arguments[1] == "list" {
 		result.sourceRegistryOperation = "list"
 		return nil
@@ -1541,7 +1560,7 @@ func parseSourcesArguments(result *invocation) error {
 		result.sourceRegistryID = id
 		return nil
 	}
-	return fmt.Errorf("sources requires registry list or registry show <id>")
+	return fmt.Errorf("sources requires registry list, registry show <id>, or trace <claim-id>")
 }
 
 func formatSourceRegistryEntries(entries []research.SourceRegistryEntry) string {

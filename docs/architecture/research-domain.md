@@ -152,10 +152,14 @@ claims without evidence are invalid; multiple evidence records are supported.
 The detailed model and copyright boundary are documented in
 [evidence-claims-v1.md](evidence-claims-v1.md).
 
-`Provenance` names the request, run, source, snapshot, evidence, and claim in a
-single trace record; discovery is optional for manually registered sources.
-`ValidateProvenanceRelationships` verifies that the supplied aggregates form
-the same chain rather than only checking that each ID is non-empty.
+The initial `Provenance` record remains a single-path relationship validator.
+Step 14 completes traceability with bounded `ProvenanceGraph` and the immutable
+algorithm ID `provenance-graph-v1`. Its typed DAG includes optional
+Query/Discovery branches, supports multiple source/evidence paths and exact
+historical snapshots, rejects missing/disconnected/cyclic structure, and can
+terminate at an optional SourceBundle. Deterministic explain and JSON export
+never include raw source bodies or evidence excerpts. The complete contract is
+documented in [provenance-graph-v1.md](provenance-graph-v1.md).
 
 `Citation` always names a source, snapshot, and evidence item. It may carry a
 more specific `DeepLink`, but the canonical locator remains available as a

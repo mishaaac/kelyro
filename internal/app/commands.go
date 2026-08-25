@@ -112,6 +112,7 @@ type Command struct {
 	ReviewsDue              bool
 	SourceRegistryOperation string
 	SourceRegistryID        research.ID
+	ProvenanceClaimID       research.ClaimID
 	Verbose                 bool
 }
 
@@ -143,6 +144,7 @@ type Result struct {
 	Maintenance           *learningapp.RecalculationImpact
 	SourceRegistryEntry   *research.SourceRegistryEntry
 	SourceRegistryEntries []research.SourceRegistryEntry
+	ProvenanceGraph       *research.ProvenanceGraph
 }
 
 // FoundationService executes the operations currently exposed by the CLI.

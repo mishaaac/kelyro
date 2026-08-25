@@ -352,6 +352,73 @@ func TestMemoryFakesPreserveRelationshipsOrderingAndOwnership(t *testing.T) {
 	}
 }
 
+func TestProvenanceServiceRecordsTracesAndExportsLatestGraph(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	repository := memory.New().Repositories().Provenance
+	service := application.NewProvenanceService(repository)
+	first := testProvenanceGraph(t, "001", 15)
+	second := testProvenanceGraph(t, "002", 16)
+	if err := service.Record(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Record(ctx, second); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Record(ctx, second); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate Record() error = %v", err)
+	}
+	loaded, err := service.Trace(ctx, second.ClaimID)
+	if err != nil || loaded.ID != second.ID {
+		t.Fatalf("Trace() = (%+v, %v)", loaded, err)
+	}
+	loaded.Nodes[0].Label = "changed"
+	reloaded, err := service.Trace(ctx, second.ClaimID)
+	if err != nil || reloaded.Nodes[0].Label == "changed" {
+		t.Fatalf("Trace() leaked graph ownership: (%+v, %v)", reloaded, err)
+	}
+	exported, err := service.Export(ctx, second.ClaimID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := research.ParseProvenanceGraphJSON(exported)
+	if err != nil || parsed.ID != second.ID {
+		t.Fatalf("Export() parsed = (%+v, %v)", parsed, err)
+	}
+}
+
+func testProvenanceGraph(t *testing.T, suffix string, recordedHour int) research.ProvenanceGraph {
+	t.Helper()
+	claimID := testClaimID(t, "trace")
+	claimNodeID, err := research.NewID(claimID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestID := testID(t, "request.trace")
+	runID := testID(t, "run.trace")
+	sourceID := testID(t, "source.trace")
+	snapshotID := testID(t, "snapshot.trace")
+	evidenceID := testID(t, "evidence.trace")
+	return research.ProvenanceGraph{
+		ID: testID(t, "graph.trace."+suffix), ClaimID: claimID,
+		RecordedAt: testTimestamp(t, recordedHour), AlgorithmVersion: research.ProvenanceGraphAlgorithmV1,
+		Nodes: []research.ProvenanceNode{
+			{ID: requestID, Kind: research.ProvenanceRequest, Label: "trace request", OccurredAt: testTimestamp(t, 9)},
+			{ID: runID, Kind: research.ProvenanceRun, Label: "trace run", OccurredAt: testTimestamp(t, 10)},
+			{ID: sourceID, Kind: research.ProvenanceSource, Label: "manual source", OccurredAt: testTimestamp(t, 8)},
+			{ID: snapshotID, Kind: research.ProvenanceSnapshot, Label: "historical snapshot", OccurredAt: testTimestamp(t, 11), ToolVersion: "fetch/v1"},
+			{ID: evidenceID, Kind: research.ProvenanceEvidence, Label: "section 1", OccurredAt: testTimestamp(t, 12), ToolVersion: "extract/v1"},
+			{ID: claimNodeID, Kind: research.ProvenanceClaim, Label: "traceable claim", OccurredAt: testTimestamp(t, 13)},
+		},
+		Edges: []research.ProvenanceEdge{
+			{From: requestID, To: runID}, {From: runID, To: sourceID},
+			{From: sourceID, To: snapshotID}, {From: snapshotID, To: evidenceID},
+			{From: evidenceID, To: claimNodeID},
+		},
+	}
+}
+
 type failingSourceRepository struct{ err error }
 
 func (repository failingSourceRepository) Create(context.Context, research.Source) error {

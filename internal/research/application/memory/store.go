@@ -19,6 +19,7 @@ type Store struct {
 	sourceLocators  map[string]research.SourceID
 	snapshots       map[research.ID]research.SourceSnapshot
 	evidence        map[research.ID]research.Evidence
+	provenance      map[research.ClaimID][]research.ProvenanceGraph
 	requests        map[research.ID]research.ResearchRequest
 	runs            map[research.ID]research.ResearchRun
 	profiles        map[research.ID]research.AuthorityProfile
@@ -38,6 +39,7 @@ func New() *Store {
 		sourceLocators:  make(map[string]research.SourceID),
 		snapshots:       make(map[research.ID]research.SourceSnapshot),
 		evidence:        make(map[research.ID]research.Evidence),
+		provenance:      make(map[research.ClaimID][]research.ProvenanceGraph),
 		requests:        make(map[research.ID]research.ResearchRequest),
 		runs:            make(map[research.ID]research.ResearchRun),
 		profiles:        make(map[research.ID]research.AuthorityProfile),
@@ -57,6 +59,7 @@ func (store *Store) Repositories() application.Repositories {
 		Sources:        sourceRepository{store},
 		Snapshots:      snapshotRepository{store},
 		Evidence:       evidenceRepository{store},
+		Provenance:     provenanceRepository{store},
 		Runs:           researchRunRepository{store},
 		TrustRegistry:  trustRegistryRepository{store},
 		SourceRegistry: sourceRegistryRepository{store},
@@ -129,6 +132,13 @@ func cloneRequest(request research.ResearchRequest) research.ResearchRequest {
 func cloneRun(run research.ResearchRun) research.ResearchRun {
 	clone := run
 	clone.CompletedAt = cloneTimestamp(run.CompletedAt)
+	return clone
+}
+
+func cloneProvenanceGraph(graph research.ProvenanceGraph) research.ProvenanceGraph {
+	clone := graph
+	clone.Nodes = append([]research.ProvenanceNode(nil), graph.Nodes...)
+	clone.Edges = append([]research.ProvenanceEdge(nil), graph.Edges...)
 	return clone
 }
 

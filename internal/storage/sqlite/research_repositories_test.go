@@ -62,8 +62,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 26 {
-		t.Fatalf("schema=(%d,%v), want 26", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 27 {
+		t.Fatalf("schema=(%d,%v), want 27", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -333,6 +333,61 @@ func TestResearchSchemaEnforcesRelationshipsAndBoundedExcerpts(t *testing.T) {
 	}
 	if _, err := database.sql.ExecContext(ctx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version) VALUES ('evidence.large','source.raw','snapshot.raw','body',?,'hash',?,'extract/v1')`, strings.Repeat("x", research.MaximumEvidenceExcerptBytes+1), now); err == nil {
 		t.Fatal("unbounded excerpt was accepted")
+	}
+}
+
+func TestResearchProvenanceRepositoryRoundTripsLatestBoundedGraph(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	repository := database.Repositories().Research.Provenance
+	ctx := context.Background()
+	first := researchTestProvenanceGraph(t, "graph.trace.001", fixedTime.Add(time.Minute))
+	second := researchTestProvenanceGraph(t, "graph.trace.002", fixedTime.Add(2*time.Minute))
+	if err := repository.Append(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.Append(ctx, second); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.Append(ctx, second); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate provenance error = %v", err)
+	}
+	loaded, err := repository.LatestByClaim(ctx, second.ClaimID)
+	loadedJSON, loadedJSONErr := loaded.ExportJSON()
+	wantJSON, wantJSONErr := second.ExportJSON()
+	if err != nil || loadedJSONErr != nil || wantJSONErr != nil || !reflect.DeepEqual(loadedJSON, wantJSON) {
+		t.Fatalf("LatestByClaim() = (%+v, %v), want %+v", loaded, err, second)
+	}
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO provenance_graphs (id,claim_id,graph_json,recorded_at,algorithm_version) VALUES ('graph.bad','claim.bad','{}',?,'provenance-graph-v1')`, fixedTime.Format(timestampFormat)); err == nil {
+		t.Fatal("provenance schema accepted mismatched graph metadata")
+	}
+}
+
+func researchTestProvenanceGraph(t *testing.T, graphID string, recorded time.Time) research.ProvenanceGraph {
+	t.Helper()
+	claimID := researchTestClaimID(t, "claim.trace")
+	claimNodeID := researchTestID(t, claimID.String())
+	requestID := researchTestID(t, "request.trace")
+	runID := researchTestID(t, "run.trace")
+	sourceID := researchTestID(t, "source.trace")
+	snapshotID := researchTestID(t, "snapshot.trace")
+	evidenceID := researchTestID(t, "evidence.trace")
+	at := researchTestTimestamp(t, fixedTime)
+	return research.ProvenanceGraph{
+		ID: researchTestID(t, graphID), ClaimID: claimID,
+		RecordedAt: researchTestTimestamp(t, recorded), AlgorithmVersion: research.ProvenanceGraphAlgorithmV1,
+		Nodes: []research.ProvenanceNode{
+			{ID: requestID, Kind: research.ProvenanceRequest, Label: "trace request", OccurredAt: at},
+			{ID: runID, Kind: research.ProvenanceRun, Label: "trace run", OccurredAt: at},
+			{ID: sourceID, Kind: research.ProvenanceSource, Label: "manual source", OccurredAt: at},
+			{ID: snapshotID, Kind: research.ProvenanceSnapshot, Label: "historical snapshot", OccurredAt: at, ToolVersion: "fetch/v1"},
+			{ID: evidenceID, Kind: research.ProvenanceEvidence, Label: "section 1", OccurredAt: at, ToolVersion: "extract/v1"},
+			{ID: claimNodeID, Kind: research.ProvenanceClaim, Label: "traceable claim", OccurredAt: at},
+		},
+		Edges: []research.ProvenanceEdge{
+			{From: requestID, To: runID}, {From: runID, To: sourceID},
+			{From: sourceID, To: snapshotID}, {From: snapshotID, To: evidenceID},
+			{From: evidenceID, To: claimNodeID},
+		},
 	}
 }
 

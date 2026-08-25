@@ -16,6 +16,7 @@ func newResearchRepositories(target executor, timeout time.Duration) application
 		Sources:        &researchSourceRepository{target, timeout},
 		Snapshots:      &researchSnapshotRepository{target, timeout},
 		Evidence:       &researchEvidenceRepository{target, timeout},
+		Provenance:     &researchProvenanceRepository{target, timeout},
 		Runs:           &researchRunRepository{target, timeout},
 		TrustRegistry:  &researchTrustRegistryRepository{target, timeout},
 		SourceRegistry: &researchSourceRegistryRepository{target, timeout},
@@ -32,6 +33,7 @@ var (
 	_ application.SourceRepository         = (*researchSourceRepository)(nil)
 	_ application.SnapshotRepository       = (*researchSnapshotRepository)(nil)
 	_ application.EvidenceRepository       = (*researchEvidenceRepository)(nil)
+	_ application.ProvenanceRepository     = (*researchProvenanceRepository)(nil)
 	_ application.ResearchRunRepository    = (*researchRunRepository)(nil)
 	_ application.TrustRegistryRepository  = (*researchTrustRegistryRepository)(nil)
 	_ application.SourceRegistryRepository = (*researchSourceRegistryRepository)(nil)

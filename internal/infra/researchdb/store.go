@@ -28,15 +28,18 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		return nil, err
 	}
 	registry := application.NewSourceRegistryService(database.Repositories().Research.SourceRegistry)
-	return &store{database: database, registry: registry}, nil
+	provenance := application.NewProvenanceService(database.Repositories().Research.Provenance)
+	return &store{database: database, registry: registry, provenance: provenance}, nil
 }
 
 type store struct {
-	database *sqlite.Database
-	registry application.SourceRegistryService
+	database   *sqlite.Database
+	registry   application.SourceRegistryService
+	provenance application.ProvenanceService
 }
 
 func (store *store) Registry() application.SourceRegistryService { return store.registry }
+func (store *store) Provenance() application.ProvenanceService   { return store.provenance }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

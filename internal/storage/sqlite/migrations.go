@@ -1431,6 +1431,23 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`ALTER TABLE claims ADD COLUMN status_scope TEXT NOT NULL DEFAULT 'all' CHECK (status_scope IN ('all','stable','preview','experimental','legacy'))`,
 		},
 	},
+	{
+		version: 27,
+		name:    "claim provenance graphs",
+		statements: []string{
+			`CREATE TABLE provenance_graphs (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    claim_id TEXT NOT NULL CHECK (length(trim(claim_id)) > 0),
+    graph_json TEXT NOT NULL CHECK (json_valid(graph_json) AND length(CAST(graph_json AS BLOB)) <= 262144),
+    recorded_at TEXT NOT NULL CHECK (recorded_at GLOB '*Z'),
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version = 'provenance-graph-v1'),
+    CHECK (COALESCE(json_type(graph_json, '$.graph_id') = 'text' AND json_extract(graph_json, '$.graph_id') = id, 0)),
+    CHECK (COALESCE(json_type(graph_json, '$.claim_id') = 'text' AND json_extract(graph_json, '$.claim_id') = claim_id, 0)),
+    CHECK (COALESCE(json_type(graph_json, '$.algorithm_version') = 'text' AND json_extract(graph_json, '$.algorithm_version') = algorithm_version, 0))
+)`,
+			`CREATE INDEX provenance_graphs_claim_latest_idx ON provenance_graphs (claim_id, recorded_at DESC, id DESC)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

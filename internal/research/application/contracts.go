@@ -30,6 +30,13 @@ type EvidenceRepository interface {
 	ListBySnapshot(context.Context, research.ID) ([]research.Evidence, error)
 }
 
+// ProvenanceRepository appends immutable claim graphs and returns the latest
+// recorded graph for a stable claim identity.
+type ProvenanceRepository interface {
+	Append(context.Context, research.ProvenanceGraph) error
+	LatestByClaim(context.Context, research.ClaimID) (research.ProvenanceGraph, error)
+}
+
 // ResearchRunRepository owns a request and its runs as one persistence
 // aggregate; it does not perform discovery or network calls.
 type ResearchRunRepository interface {
@@ -162,6 +169,7 @@ type Repositories struct {
 	Sources        SourceRepository
 	Snapshots      SnapshotRepository
 	Evidence       EvidenceRepository
+	Provenance     ProvenanceRepository
 	Runs           ResearchRunRepository
 	TrustRegistry  TrustRegistryRepository
 	SourceRegistry SourceRegistryRepository
@@ -636,10 +644,17 @@ type SourceRegistryService interface {
 	List(context.Context) ([]research.SourceRegistryEntry, error)
 }
 
-// SourceRegistryStore scopes registry queries and the underlying workspace
-// database lifetime without exposing SQLite to application or presentation.
+type ProvenanceService interface {
+	Record(context.Context, research.ProvenanceGraph) error
+	Trace(context.Context, research.ClaimID) (research.ProvenanceGraph, error)
+	Export(context.Context, research.ClaimID) ([]byte, error)
+}
+
+// SourceRegistryStore scopes read-only source registry/provenance commands and
+// the underlying workspace database lifetime without exposing SQLite.
 type SourceRegistryStore interface {
 	Registry() SourceRegistryService
+	Provenance() ProvenanceService
 	Close() error
 }
 
