@@ -52,6 +52,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO claims (id,topic_subject,statement,claim_type,confidence,evidence_ids_json,created_at) VALUES ('claim.legacy','Legacy topic','Legacy claim','historical',0.5,'["evidence.legacy"]',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO citations (id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,snapshot_date,last_verified) VALUES ('citation.legacy','source.legacy','snapshot.legacy','evidence.legacy','Legacy source','https://example.test/legacy','https://example.test/legacy#section',?,?)`, fixedTime.Format(timestampFormat), fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if err := database.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrate I-03: %v", err)
 	}
@@ -62,8 +65,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 27 {
-		t.Fatalf("schema=(%d,%v), want 27", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 28 {
+		t.Fatalf("schema=(%d,%v), want 28", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -82,6 +85,13 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if contextBefore != "" || contextAfter != "" || scope != "general" || statusScope != "all" {
 		t.Fatalf("v26 defaults = contexts (%q,%q), scope %q, status %q", contextBefore, contextAfter, scope, statusScope)
+	}
+	var linkStrategy, section, deepLabel, algorithm string
+	if err := handle.QueryRow(`SELECT link_strategy,section,deep_link_label,algorithm_version FROM citations WHERE id='citation.legacy'`).Scan(&linkStrategy, &section, &deepLabel, &algorithm); err != nil {
+		t.Fatal(err)
+	}
+	if linkStrategy != string(research.CitationURLAnchor) || section != "unspecified" || deepLabel != section || algorithm != research.CitationAlgorithmV1 {
+		t.Fatalf("v28 citation defaults = (%q,%q,%q,%q)", linkStrategy, section, deepLabel, algorithm)
 	}
 	if _, err := handle.Exec(`UPDATE evidence SET context_before=? WHERE id='evidence.legacy'`, strings.Repeat("x", research.MaximumEvidenceContextBytes+1)); err == nil {
 		t.Fatal("v26 accepted oversized evidence context")
@@ -145,6 +155,27 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 	}
 	if list, err := repositories.Evidence.ListBySnapshot(ctx, snapshot2.ID); err != nil || len(list) != 1 || list[0].ID != evidence.ID {
 		t.Fatalf("evidence list=(%+v,%v)", list, err)
+	}
+	deepLocator := researchTestLocator(t, "https://example.com/docs#section-2")
+	citation := research.Citation{
+		ID: researchTestID(t, "citation.1"), SourceID: source.ID, SnapshotID: snapshot2.ID,
+		EvidenceID: evidence.ID, Title: source.Metadata.Title, Locator: source.Locator,
+		DeepLink:     &research.DeepLink{Locator: deepLocator, Label: "Section 2"},
+		LinkStrategy: research.CitationURLAnchor, Section: "Guide > Section 2",
+		SnapshotDate: snapshot2.FetchedAt, VersionScope: &version,
+		LastVerified: snapshot2.FetchedAt, AlgorithmVersion: research.CitationAlgorithmV1,
+	}
+	if err := repositories.Citations.Append(ctx, citation); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Citations.Get(ctx, citation.ID); err != nil || !reflect.DeepEqual(got, citation) {
+		t.Fatalf("citation roundtrip=(%+v,%v), want %+v", got, err, citation)
+	}
+	if list, err := repositories.Citations.ListByEvidence(ctx, evidence.ID); err != nil || len(list) != 1 || list[0].ID != citation.ID {
+		t.Fatalf("citation list=(%+v,%v)", list, err)
+	}
+	if err := repositories.Citations.Append(ctx, citation); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate citation error=%v", err)
 	}
 
 	if err := repositories.Sources.Create(ctx, source); !errors.Is(err, application.ErrConflict) {
@@ -333,6 +364,15 @@ func TestResearchSchemaEnforcesRelationshipsAndBoundedExcerpts(t *testing.T) {
 	}
 	if _, err := database.sql.ExecContext(ctx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version) VALUES ('evidence.large','source.raw','snapshot.raw','body',?,'hash',?,'extract/v1')`, strings.Repeat("x", research.MaximumEvidenceExcerptBytes+1), now); err == nil {
 		t.Fatal("unbounded excerpt was accepted")
+	}
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,extracted_at,extractor_version) VALUES ('evidence.raw','source.raw','snapshot.raw','body','bounded','hash',?,'extract/v1')`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO citations (id,source_id,snapshot_id,evidence_id,title,locator,snapshot_date,last_verified,link_strategy,section,algorithm_version) VALUES ('citation.bad','source.raw','snapshot.raw','evidence.raw','Bad','https://example.com/raw',?,?,'canonical_fallback',?,'citation-v1')`, now, now, strings.Repeat("x", research.MaximumCitationSectionBytes+1)); err == nil {
+		t.Fatal("unbounded citation section was accepted")
+	}
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO citations (id,source_id,snapshot_id,evidence_id,title,locator,snapshot_date,last_verified,link_strategy,section,algorithm_version) VALUES ('citation.bad-link','source.raw','snapshot.raw','evidence.raw','Bad','https://example.com/raw',?,?,'url_anchor','body','citation-v1')`, now, now); err == nil {
+		t.Fatal("deep-link strategy without a deep link was accepted")
 	}
 }
 

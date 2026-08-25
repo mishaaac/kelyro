@@ -39,6 +39,7 @@ Persistence is divided by aggregate or durable output:
 | `SourceRepository` | Stable source identities, canonical locators, and source metadata. |
 | `SnapshotRepository` | Immutable fetch snapshots ordered by `fetched_at`. |
 | `EvidenceRepository` | Immutable evidence tied to a source and snapshot. |
+| `CitationRepository` | Immutable `citation-v1` references and evidence-scoped reads. |
 | `ProvenanceRepository` | Immutable bounded claim graphs and latest trace lookup. |
 | `ResearchRunRepository` | Research requests and one or more runs for each request. |
 | `TrustRegistryRepository` | Authority profiles and versioned trust decisions. |
@@ -116,6 +117,8 @@ The initial services are deliberately thin:
 - `SourceService` registers sources and records snapshots for known sources;
 - `SourceRegistryService` saves and queries reviewed registry entries;
 - `ProvenanceService` records, traces, and exports validated claim graphs;
+- `CitationService` loads a source/snapshot/evidence chain, generates one
+  deterministic stable citation, and exposes offline citation reads;
 - `VerificationService` records and retrieves verification results;
 - `FreshnessService` stores already-computed, versioned freshness outputs;
 - `ReleaseIntelligenceService` records and reads release facts;
@@ -162,7 +165,7 @@ mutex-protected maps. It provides:
 
 - deterministic ordering for collection and latest-record queries;
 - classified invalid, not-found, conflict, and cancellation errors;
-- source/snapshot/evidence, source/release, source/verification, and
+- source/snapshot/evidence/citation, source/release, source/verification, and
   drift/impact relationship checks;
 - defensive copies for pointer, slice, and byte fields so callers cannot mutate
   stored state through returned values;

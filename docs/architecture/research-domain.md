@@ -161,10 +161,16 @@ terminate at an optional SourceBundle. Deterministic explain and JSON export
 never include raw source bodies or evidence excerpts. The complete contract is
 documented in [provenance-graph-v1.md](provenance-graph-v1.md).
 
-`Citation` always names a source, snapshot, and evidence item. It may carry a
-more specific `DeepLink`, but the canonical locator remains available as a
-fallback. `ValidateCitationRelationships` checks source, snapshot, evidence,
-and locator consistency.
+`Citation` always names a source, snapshot, and evidence item. Step 15 completes
+it with the immutable `citation-v1` algorithm, a closed deep-link strategy,
+required bounded section/path hint, exact snapshot date, optional source version
+scope, and explicit `last_verified`. A more specific `DeepLink` is included only
+when an explicit stable anchor or verified source-code permalink is available;
+otherwise the canonical source locator remains available with the hint.
+`ValidateCitationRelationships` checks source, snapshot, evidence, title,
+canonical locator, snapshot date, version, and chronology consistency. The full
+contract is documented in
+[citations-deep-links-v1.md](citations-deep-links-v1.md).
 
 `SourceBundle` groups claim and source identities for a research run. This step
 defines only identity, topic, purpose, target version, state, and verification

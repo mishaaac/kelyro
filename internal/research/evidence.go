@@ -9,6 +9,9 @@ const (
 	MaximumEvidenceExcerptBytes = 8 << 10
 	MaximumEvidenceContextBytes = 2 << 10
 	MaximumClaimScopeBytes      = 1 << 10
+	MaximumCitationSectionBytes = 2 << 10
+	MaximumCitationLabelBytes   = 2 << 10
+	CitationAlgorithmV1         = "citation-v1"
 )
 
 // CanonicalEvidenceExcerptHashV1 hashes the exact validated UTF-8 excerpt.
@@ -282,16 +285,43 @@ func ValidateProvenanceRelationships(
 	return nil
 }
 
+// CitationLinkStrategy records how the most specific stable locator was
+// selected. The canonical fallback intentionally has no DeepLink.
+type CitationLinkStrategy string
+
+const (
+	CitationURLAnchor         CitationLinkStrategy = "url_anchor"
+	CitationPackageSymbol     CitationLinkStrategy = "package_symbol"
+	CitationSpecification     CitationLinkStrategy = "spec_section"
+	CitationReleaseHeading    CitationLinkStrategy = "release_heading"
+	CitationSourcePermalink   CitationLinkStrategy = "source_permalink"
+	CitationCanonicalFallback CitationLinkStrategy = "canonical_fallback"
+)
+
+func (strategy CitationLinkStrategy) Validate() error {
+	switch strategy {
+	case CitationURLAnchor, CitationPackageSymbol, CitationSpecification,
+		CitationReleaseHeading, CitationSourcePermalink, CitationCanonicalFallback:
+		return nil
+	default:
+		return fmt.Errorf("invalid citation link strategy %q", strategy)
+	}
+}
+
 type Citation struct {
-	ID           ID
-	SourceID     SourceID
-	SnapshotID   ID
-	EvidenceID   ID
-	Title        string
-	Locator      SourceLocator
-	DeepLink     *DeepLink
-	SnapshotDate Timestamp
-	LastVerified Timestamp
+	ID               ID
+	SourceID         SourceID
+	SnapshotID       ID
+	EvidenceID       ID
+	Title            string
+	Locator          SourceLocator
+	DeepLink         *DeepLink
+	LinkStrategy     CitationLinkStrategy
+	Section          string
+	SnapshotDate     Timestamp
+	VersionScope     *SourceVersion
+	LastVerified     Timestamp
+	AlgorithmVersion string
 }
 
 func (citation Citation) Validate() error {
@@ -317,15 +347,50 @@ func (citation Citation) Validate() error {
 		if err := citation.DeepLink.Validate(); err != nil {
 			return err
 		}
+		if err := requireText("citation deep link label", citation.DeepLink.Label); err != nil {
+			return err
+		}
+		if !utf8.ValidString(citation.DeepLink.Label) {
+			return fmt.Errorf("citation deep link label is not valid UTF-8")
+		}
+		if len(citation.DeepLink.Label) > MaximumCitationLabelBytes {
+			return fmt.Errorf("citation deep link label exceeds %d bytes", MaximumCitationLabelBytes)
+		}
+	}
+	if err := citation.LinkStrategy.Validate(); err != nil {
+		return err
+	}
+	if citation.LinkStrategy == CitationCanonicalFallback && citation.DeepLink != nil {
+		return fmt.Errorf("canonical fallback must not contain a deep link")
+	}
+	if citation.LinkStrategy != CitationCanonicalFallback && citation.DeepLink == nil {
+		return fmt.Errorf("citation strategy %q requires a deep link", citation.LinkStrategy)
+	}
+	if err := requireText("citation section", citation.Section); err != nil {
+		return err
+	}
+	if !utf8.ValidString(citation.Section) {
+		return fmt.Errorf("citation section is not valid UTF-8")
+	}
+	if len(citation.Section) > MaximumCitationSectionBytes {
+		return fmt.Errorf("citation section exceeds %d bytes", MaximumCitationSectionBytes)
 	}
 	if err := validateTimestamp("citation snapshot date", citation.SnapshotDate); err != nil {
 		return err
+	}
+	if citation.VersionScope != nil {
+		if err := citation.VersionScope.Validate(); err != nil {
+			return fmt.Errorf("citation version scope: %w", err)
+		}
 	}
 	if err := validateTimestamp("citation last verified", citation.LastVerified); err != nil {
 		return err
 	}
 	if citation.LastVerified.Before(citation.SnapshotDate) {
 		return fmt.Errorf("citation verification precedes snapshot")
+	}
+	if citation.AlgorithmVersion != CitationAlgorithmV1 {
+		return fmt.Errorf("citation algorithm version must be %q", CitationAlgorithmV1)
 	}
 	return nil
 }
@@ -360,10 +425,29 @@ func ValidateCitationRelationships(
 	if citation.EvidenceID != evidence.ID {
 		return fmt.Errorf("citation evidence relationship does not match")
 	}
-	if citation.Locator != snapshot.Locator {
-		return fmt.Errorf("citation locator does not match snapshot")
+	if citation.LastVerified.Before(evidence.ExtractedAt) {
+		return fmt.Errorf("citation verification precedes evidence extraction")
+	}
+	if citation.Locator != source.Locator {
+		return fmt.Errorf("citation locator does not match canonical source")
+	}
+	if !citation.SnapshotDate.Time().Equal(snapshot.FetchedAt.Time()) {
+		return fmt.Errorf("citation snapshot date does not match snapshot")
+	}
+	if citation.Title != source.Metadata.Title {
+		return fmt.Errorf("citation title does not match source")
+	}
+	if !sameOptionalSourceVersion(citation.VersionScope, source.Version) {
+		return fmt.Errorf("citation version scope does not match source")
 	}
 	return nil
+}
+
+func sameOptionalSourceVersion(left, right *SourceVersion) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 type SourceBundleState string

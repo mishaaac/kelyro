@@ -19,6 +19,7 @@ type Store struct {
 	sourceLocators  map[string]research.SourceID
 	snapshots       map[research.ID]research.SourceSnapshot
 	evidence        map[research.ID]research.Evidence
+	citations       map[research.ID]research.Citation
 	provenance      map[research.ClaimID][]research.ProvenanceGraph
 	requests        map[research.ID]research.ResearchRequest
 	runs            map[research.ID]research.ResearchRun
@@ -39,6 +40,7 @@ func New() *Store {
 		sourceLocators:  make(map[string]research.SourceID),
 		snapshots:       make(map[research.ID]research.SourceSnapshot),
 		evidence:        make(map[research.ID]research.Evidence),
+		citations:       make(map[research.ID]research.Citation),
 		provenance:      make(map[research.ClaimID][]research.ProvenanceGraph),
 		requests:        make(map[research.ID]research.ResearchRequest),
 		runs:            make(map[research.ID]research.ResearchRun),
@@ -59,6 +61,7 @@ func (store *Store) Repositories() application.Repositories {
 		Sources:        sourceRepository{store},
 		Snapshots:      snapshotRepository{store},
 		Evidence:       evidenceRepository{store},
+		Citations:      citationRepository{store},
 		Provenance:     provenanceRepository{store},
 		Runs:           researchRunRepository{store},
 		TrustRegistry:  trustRegistryRepository{store},
@@ -139,6 +142,19 @@ func cloneProvenanceGraph(graph research.ProvenanceGraph) research.ProvenanceGra
 	clone := graph
 	clone.Nodes = append([]research.ProvenanceNode(nil), graph.Nodes...)
 	clone.Edges = append([]research.ProvenanceEdge(nil), graph.Edges...)
+	return clone
+}
+
+func cloneCitation(citation research.Citation) research.Citation {
+	clone := citation
+	if citation.DeepLink != nil {
+		link := *citation.DeepLink
+		clone.DeepLink = &link
+	}
+	if citation.VersionScope != nil {
+		version := *citation.VersionScope
+		clone.VersionScope = &version
+	}
 	return clone
 }
 

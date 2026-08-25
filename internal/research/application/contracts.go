@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/research"
+	"github.com/mishaaac/kelyro/internal/research/citation"
 )
 
 // Persistence ports are intentionally split by aggregate/use case.
@@ -28,6 +29,12 @@ type EvidenceRepository interface {
 	Get(context.Context, research.ID) (research.Evidence, error)
 	ListBySource(context.Context, research.SourceID) ([]research.Evidence, error)
 	ListBySnapshot(context.Context, research.ID) ([]research.Evidence, error)
+}
+
+type CitationRepository interface {
+	Append(context.Context, research.Citation) error
+	Get(context.Context, research.ID) (research.Citation, error)
+	ListByEvidence(context.Context, research.ID) ([]research.Citation, error)
 }
 
 // ProvenanceRepository appends immutable claim graphs and returns the latest
@@ -169,6 +176,7 @@ type Repositories struct {
 	Sources        SourceRepository
 	Snapshots      SnapshotRepository
 	Evidence       EvidenceRepository
+	Citations      CitationRepository
 	Provenance     ProvenanceRepository
 	Runs           ResearchRunRepository
 	TrustRegistry  TrustRegistryRepository
@@ -554,6 +562,21 @@ type MetadataExtractor interface {
 
 type Clock interface {
 	Now() research.Timestamp
+}
+
+type GenerateCitationRequest struct {
+	ID           research.ID
+	SourceID     research.SourceID
+	SnapshotID   research.ID
+	EvidenceID   research.ID
+	LastVerified research.Timestamp
+	Target       citation.Target
+}
+
+type CitationService interface {
+	Generate(context.Context, GenerateCitationRequest) (research.Citation, error)
+	Get(context.Context, research.ID) (research.Citation, error)
+	ListForEvidence(context.Context, research.ID) ([]research.Citation, error)
 }
 
 // Application service contracts expose use cases without leaking repositories.

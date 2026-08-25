@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 15
-Last completed step: 14
+Current step: 16
+Last completed step: 15
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1104,3 +1104,74 @@ Release: unreleased
   ni convertir metadata de discovery en evidence.
 - No implementar Citations, Deep Links, Freshness ni pasos posteriores antes de
   su autorización independiente.
+
+## Step 15 — Citations and Deep Links v1
+
+Status: completed
+Date: 2026-08-25
+Release: unreleased
+
+### Delivered
+
+- Generador puro y determinista `citation-v1` sobre una cadena validada
+  source/snapshot/evidence, sin I/O, parsing ni inferencia de contenido.
+- Citation ampliada con estrategia cerrada, section/heading/path hint UTF-8
+  requerido y acotado a 2 KiB, snapshot date exacta, version scope opaco,
+  `last_verified` y algorithm version inmutable.
+- Selección por source kind para URL anchors, package symbols, specification o
+  standard sections y release headings, usando únicamente fragments explícitos.
+- Source-code permalinks validados por host canónico, commit hexadecimal
+  inmutable, file path relativo limpio y rango exacto `#Lstart[-Lend]`.
+- Fallback explícito `canonical URL + heading/path hint` cuando no existe un
+  deep link estable, sin fabricar slugs o anchors.
+- `CitationRepository` y `CitationService` para generate, append, get y list by
+  evidence, con adapters deterministas de memoria y SQLite.
+- Migración forward-only v28 para strategy, section, version scope, algorithm
+  version e índice por evidence, preservando de forma conservadora citations
+  legacy.
+- Contrato, estrategia, cronología, persistencia y límites documentados en
+  `docs/architecture/citations-deep-links-v1.md` y referencias arquitectónicas
+  sincronizadas.
+
+### Decisions
+
+- `Source.Locator` es la URL canónica de la Citation; `SourceSnapshot.Locator`
+  conserva por separado el locator exacto observado durante fetch.
+- El generador no deriva anchors desde headings porque los algoritmos de slug
+  varían por sitio. Sin fragment explícito se conserva el hint y se usa
+  `canonical_fallback`.
+- Package symbol, spec section y release heading comparten construcción segura
+  canonical-plus-fragment, pero conservan estrategias distintas para auditoría
+  y presentación futura.
+- Source code no acepta anchors sobre ramas mutables. El adapter/reviewer aporta
+  la URL específica del host y `citation-v1` verifica commit, archivo y líneas
+  sin acoplar el dominio a GitHub u otro proveedor concreto.
+- `last_verified` no puede preceder al snapshot ni a la extracción de Evidence;
+  no se confunde con publication/update dates ni calcula Freshness.
+- Citations son append-only y siguen disponibles offline; no requieren network
+  access y Discovery metadata continúa sin ser Evidence.
+- No se añadieron Freshness, Verification, Source Bundles, UI, live research,
+  Curriculum Compiler ni cambios funcionales de Student Core.
+
+### Verification
+
+- Tests dirigidos y vet de Research domain/citation/application/memory y
+  SQLite, incluidos anchor, no-anchor fallback, package/spec/release strategy,
+  commit permalink, URLs inválidas, chronology, duplicate y round-trip.
+- Migración v28 verificada desde schema v23 y schemas posteriores, con defaults
+  legacy, constraints de section y schema final 28.
+- `GOCACHE=/tmp/kelyro-i03-step15-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step15-vet-gocache go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de Research y SQLite con
+  `CGO_ENABLED=0`.
+- `GOMAXPROCS=2 GOCACHE=/tmp/kelyro-i03-step15-quality-gocache go run ./tools/quality all`,
+  incluyendo tests, E2E, vet, `go test -race ./...`, build y smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 16 es el siguiente paso pendiente y requiere autorización explícita.
+- Freshness podrá consumir `last_verified`, source/snapshot dates y version
+  scope sin modificar el contrato de Citation ni confundir esas fechas.
+- No implementar Freshness, refresh scheduling ni pasos posteriores antes de su
+  autorización independiente.

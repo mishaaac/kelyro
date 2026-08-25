@@ -75,6 +75,10 @@ multi-source paths, deterministic explain/export behavior, persistence, and
 internal trace command are documented in
 [provenance-graph-v1.md](provenance-graph-v1.md).
 
+The deterministic `citation-v1` model, explicit anchor strategies, verified
+source-code permalinks, canonical fallback, chronology, and persistence are
+documented in [citations-deep-links-v1.md](citations-deep-links-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

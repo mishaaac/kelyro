@@ -78,7 +78,9 @@ func TestEvidenceClaimProvenanceAndCitationFormTraceableChain(t *testing.T) {
 		ID: mustID(t, "citation.interfaces"), SourceID: sourceID,
 		SnapshotID: snapshotID, EvidenceID: evidenceID, Title: "Language specification",
 		Locator: mustLocator(t, "spec"), DeepLink: &deepLink,
+		LinkStrategy: CitationSpecification, Section: "§Interface types",
 		SnapshotDate: mustTimestamp(t, 10), LastVerified: mustTimestamp(t, 12),
+		AlgorithmVersion: CitationAlgorithmV1,
 	}
 	if err := citation.Validate(); err != nil {
 		t.Fatalf("Citation.Validate() error = %v", err)

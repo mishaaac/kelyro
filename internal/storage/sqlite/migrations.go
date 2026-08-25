@@ -1448,6 +1448,20 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE INDEX provenance_graphs_claim_latest_idx ON provenance_graphs (claim_id, recorded_at DESC, id DESC)`,
 		},
 	},
+	{
+		version: 28,
+		name:    "stable citation deep links",
+		statements: []string{
+			`ALTER TABLE citations ADD COLUMN link_strategy TEXT NOT NULL DEFAULT 'canonical_fallback' CHECK (link_strategy IN ('url_anchor','package_symbol','spec_section','release_heading','source_permalink','canonical_fallback'))`,
+			`ALTER TABLE citations ADD COLUMN section TEXT NOT NULL DEFAULT 'unspecified' CHECK (length(trim(section)) > 0 AND length(CAST(section AS BLOB)) <= 2048)`,
+			`ALTER TABLE citations ADD COLUMN version_scope TEXT`,
+			`ALTER TABLE citations ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'citation-v1' CHECK (algorithm_version = 'citation-v1')`,
+			`UPDATE citations SET link_strategy='url_anchor',deep_link_label=CASE WHEN deep_link_label='' THEN section ELSE deep_link_label END WHERE deep_link_locator IS NOT NULL`,
+			`CREATE TRIGGER citations_deep_link_insert BEFORE INSERT ON citations WHEN length(CAST(NEW.deep_link_label AS BLOB)) > 2048 OR (NEW.link_strategy='canonical_fallback' AND NEW.deep_link_locator IS NOT NULL) OR (NEW.link_strategy<>'canonical_fallback' AND NEW.deep_link_locator IS NULL) BEGIN SELECT RAISE(ABORT, 'invalid citation deep link'); END`,
+			`CREATE TRIGGER citations_deep_link_update BEFORE UPDATE ON citations WHEN length(CAST(NEW.deep_link_label AS BLOB)) > 2048 OR (NEW.link_strategy='canonical_fallback' AND NEW.deep_link_locator IS NOT NULL) OR (NEW.link_strategy<>'canonical_fallback' AND NEW.deep_link_locator IS NULL) BEGIN SELECT RAISE(ABORT, 'invalid citation deep link'); END`,
+			`CREATE INDEX citations_evidence_idx ON citations (evidence_id, id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

@@ -1326,7 +1326,7 @@ feat(provenance): add research provenance graph
 
 ## Paso 15 — Implementar Citations y Deep Links
 
-- [ ] Paso 15 completado
+- [x] Paso 15 completado
 
 ### Objetivo
 
