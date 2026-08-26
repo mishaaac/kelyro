@@ -1501,7 +1501,7 @@ feat(freshness): schedule source reverification
 
 ## Paso 18 — Implementar Resource Quality Model v1
 
-- [ ] Paso 18 completado
+- [x] Paso 18 completado
 
 ### Objetivo
 

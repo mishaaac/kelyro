@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 18
-Last completed step: 17
+Current step: 19
+Last completed step: 18
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1318,3 +1318,79 @@ Release: unreleased
   utilidad pedagógica con autoridad, Freshness o scheduling priority.
 - No implementar Resource Quality ni pasos posteriores antes de su autorización
   independiente.
+
+## Step 18 — Resource Quality Model v1
+
+Status: completed
+Date: 2026-08-26
+Release: unreleased
+
+### Delivered
+
+- Modelo puro y determinista `resource-quality-v1` sobre ocho dimensiones
+  revisadas: accuracy confidence, clarity, specificity, depth,
+  maintainability, examples, accessibility y noise.
+- `QualityScore` finito y normalizado en `[0,1]`, con fórmula ponderada
+  explícita que da mayor peso a accuracy confidence e invierte noise como
+  señal de calidad.
+- Recomendaciones cerradas `evidence`, `further_reading`, `example`,
+  `supplementary` y `reject`, con gates y precedencia deterministas además del
+  score agregado.
+- Caso explícito para recursos técnicamente fuertes pero pedagógicamente densos:
+  pueden recomendarse como evidence sin calificarse como Further Reading.
+- Nueve reasons ordenadas y validadas por assessment: una por dimensión y una
+  terminal para la recomendación, con bands y valores visibles.
+- Validación relacional que recalcula score y recomendación, exige exactamente
+  `resource-quality-v1` y rechaza reasons desconocidas, duplicadas o faltantes.
+- Contrato, fórmula, thresholds, precedencia, explainability y límites
+  documentados en `docs/architecture/resource-quality-v1.md`, con índice y
+  vocabulario de dominio sincronizados.
+
+### Decisions
+
+- Accuracy confidence es un input de revisión de contenido, no AuthorityTier,
+  TrustDecision ni ClaimConfidence. El modelo no recibe source kind, publisher,
+  dominio, popularidad, discovery rank, freshness ni scheduling priority.
+- La recomendación `evidence` describe únicamente la forma técnica del recurso;
+  no crea Evidence ni autoriza una Claim. Snapshot, extracción acotada, trust,
+  provenance y verification continúan siendo contratos independientes.
+- `example` y `further_reading` preceden a `evidence` cuando se cumplen sus gates
+  pedagógicos; esto permite escoger el mejor uso sin convertir autoridad en
+  facilidad de aprendizaje.
+- Rejection tiene precedencia por accuracy confidence menor que `0.50`, score
+  menor que `0.40` o noise mayor que `0.85`; el resto de thresholds está
+  versionado y documentado como parte inmutable de v1.
+- Los inputs faltantes no se inventan ni se derivan de metadata. Un futuro
+  evaluator deberá preservar provenance y permanecer detrás de un contrato
+  separado.
+- No se añadieron repository, migration, adapter, red, CLI/TUI, release
+  intelligence, Curriculum Compiler ni cambios funcionales de Student Core.
+
+### Verification
+
+- Tests de fórmula ponderada, reasons, ownership de slices, valores no finitos
+  y fuera de rango, divergencias internas y cada uso recomendado.
+- Tests específicos para fuente técnica densa, Further Reading, Example,
+  Supplementary, rejection por accuracy/noise y thresholds inclusivos.
+- `GOCACHE=/tmp/kelyro-i03-step18-research-gocache go test ./internal/research/...`.
+- `GOCACHE=/tmp/kelyro-i03-step18-research-vet-gocache go vet ./internal/research/...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de Research/quality con
+  `CGO_ENABLED=0`.
+- `GOCACHE=/tmp/kelyro-i03-step18-full3-gocache go test ./...` fuera del
+  sandbox para permitir listeners locales deterministas de `httptest`.
+- `GOCACHE=/tmp/kelyro-i03-step18-vet2-gocache go vet ./...`.
+- SQLite race dirigida completa en 619.039 s con el mismo conjunto de tests y
+  `-timeout=20m`; dos pasadas previas alcanzaron exclusivamente el timeout
+  estándar de 600 s durante migrations distintas, sin fallo funcional.
+- Quality gate final con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache aislada y
+  `go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y
+  smokes de CLI.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 19 es el siguiente paso pendiente y requiere autorización explícita.
+- Release Intelligence podrá reutilizar SourceVersion y los repository ports
+  existentes sin mezclar lifecycle/version status con Resource Quality.
+- No implementar release discovery ni pasos posteriores antes de su
+  autorización independiente.

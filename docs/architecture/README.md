@@ -87,6 +87,11 @@ The versioned next-verification policy, trigger precedence, priorities,
 deterministic due ordering, persistence, and read-only stale command are
 documented in [refresh-scheduling-v1.md](refresh-scheduling-v1.md).
 
+The deterministic technical/pedagogical rubric, weighted dimensions,
+recommended-use precedence, explainability contract, and strict separation
+from authority and freshness are documented in
+[resource-quality-v1.md](resource-quality-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

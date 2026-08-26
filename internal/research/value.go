@@ -240,6 +240,20 @@ func NewFreshnessScore(value float64) (FreshnessScore, error) {
 func (score FreshnessScore) Value() float64  { return score.value }
 func (score FreshnessScore) Validate() error { return validateScore(score.value) }
 
+// QualityScore expresses computed resource quality in [0, 1]. Authority,
+// trust, and freshness remain independent assessments.
+type QualityScore struct{ value float64 }
+
+func NewQualityScore(value float64) (QualityScore, error) {
+	if err := validateScore(value); err != nil {
+		return QualityScore{}, fmt.Errorf("quality score: %w", err)
+	}
+	return QualityScore{value: value}, nil
+}
+
+func (score QualityScore) Value() float64  { return score.value }
+func (score QualityScore) Validate() error { return validateScore(score.value) }
+
 func validateScore(value float64) error {
 	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 1 {
 		return ErrInvalidScore
