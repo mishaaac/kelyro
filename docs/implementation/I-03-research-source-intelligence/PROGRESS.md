@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 20
-Last completed step: 19
+Current step: 21
+Last completed step: 20
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1470,3 +1470,82 @@ Release: unreleased
   GitHub.
 - No implementar discovery, release-notes ingestion ni pasos posteriores antes
   de su autorización independiente.
+
+## Step 20 — Release Discovery y Release Notes ingestion
+
+Status: completed
+Date: 2026-08-26
+Release: unreleased
+
+### Delivered
+
+- Servicio de aplicación `release-discovery-v1` que descubre releases para una
+  tecnología únicamente desde sources aceptadas por Trust Registry y
+  autorizadas y ordenadas por su Authority Profile.
+- Contrato `ReleaseNotesProvider` libre de red y adapters vendor-neutral para
+  feeds JSON y Atom; soportan páginas/changelogs, repositorios/tags y package
+  registries oficiales sin acoplar el core ni el workflow a GitHub.
+- Captura de cada feed mediante el pipeline existente de snapshots, fetch y
+  `privacy.allow_network`, con hash de contenido, tamaño máximo de 1 MiB y
+  límites explícitos para sources, releases y cambios.
+- Normalización y deduplicación deterministas por identidad exacta
+  `version + channel`, unión de sources/notas repetidas y rechazo de fechas
+  conocidas incompatibles.
+- Selección determinista de current stable y de la familia preview por
+  precedencia SemVer/date-based o fecha publicada; previews permanecen
+  separados y releases legacy/EOL nunca se reclasifican como current.
+- Evidence acotada vinculada al snapshot y Claims `version_change` con
+  `VersionScope`, status scope y confidence explícitos, usando IDs estables para
+  que una nueva observación de la misma release sea idempotente.
+- Persistencia transaccional de Evidence, Claims, releases y cambios de status
+  mediante un port de ingestión atómica, implementado en memoria y SQLite; el
+  repository de Claims valida todas sus relaciones source/evidence.
+- Contrato, algoritmos, precedencia, límites y responsabilidades documentados en
+  `docs/architecture/release-discovery-v1.md`, con los documentos de dominio,
+  aplicación, persistencia, privacidad e índice sincronizados.
+
+### Decisions
+
+- Los providers interpretan bytes ya capturados y nunca hacen llamadas de red;
+  discovery reutiliza `SnapshotCaptureService`, de modo que el único camino live
+  conserva SSRF hardening, límites, redirects y el gate de privacidad existente.
+- Search results no se convierten en releases ni evidence. Cada source debe
+  existir en el registry, tener el kind permitido por el profile y una última
+  decisión de trust accepted con tier suficiente.
+- Stable y preview se clasifican como familias independientes. Legacy/EOL se
+  preservan; identidades opacas sin fechas comparables y empates ambiguos se
+  rechazan en vez de inventar precedencia.
+- Una feed malformada conserva el snapshot para auditoría pero no persiste una
+  ingestión parcial. El batch completo se valida y confirma atómicamente.
+- No se añadió migration porque las tablas de releases, evidence y claims ya
+  existían. Tampoco se implementó auto-upgrade, Curriculum Compiler,
+  Deprecation Intelligence ni cambios de Student Core.
+
+### Verification
+
+- Tests de adapters JSON/Atom para formas repository/registry, stable, RC,
+  feed malformada e integridad/tamaño de contenido.
+- Tests de aplicación para new stable, separación preview, no releases, feed
+  malformada con snapshot retenido, duplicados, prioridad del Authority Profile,
+  corroboración multi-source y exclusión de legacy/EOL como current.
+- Tests de memoria y SQLite para round-trip de Claims, status updates y rollback
+  total de un batch inválido.
+- `go test ./internal/research/application/... ./internal/infra/researchrelease ./internal/storage/sqlite`.
+- `go test ./...` y `go vet ./...`.
+- Cross-build tests Linux-hosted para Windows y Darwin de application,
+  `researchrelease` y SQLite con `CGO_ENABLED=0`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 245.525 s.
+- La primera ejecución del gate agotó el espacio de `/tmp` durante compilación
+  race; se eliminaron únicamente caches aisladas de este paso y la pasada final
+  terminó completa sin fallos.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 21 es el siguiente paso pendiente y requiere autorización explícita.
+- Deprecation & Legacy Intelligence podrá consumir releases, snapshots,
+  evidence y Claims existentes sin cambiar la política de current stable.
+- No implementar deprecation, historical sources ni pasos posteriores antes de
+  su autorización independiente.

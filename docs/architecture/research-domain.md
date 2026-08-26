@@ -215,6 +215,10 @@ current/superseded/legacy/EOL/unknown lifecycle states. A release requires
 evidence-bearing source identities and a verification time, and a known release
 date cannot follow verification. The complete contract is documented in
 [release-intelligence-model.md](release-intelligence-model.md).
+Step 20 adds deterministic precedence, stable/preview separation, deduplication,
+and literal version-scoped release-note Claims through
+[release-discovery-v1.md](release-discovery-v1.md). It does not authorize an
+upgrade or curriculum mutation.
 `DeprecationRecord` likewise requires sources and evidence; absence from
 documentation is not represented as a deprecation.
 

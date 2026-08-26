@@ -268,6 +268,48 @@ func (repository releaseRepository) Create(ctx context.Context, record research.
 	return nil
 }
 
+func (repository releaseRepository) Update(ctx context.Context, record research.ReleaseRecord) error {
+	const operation = "update memory release"
+	if err := contextError(operation, ctx); err != nil {
+		return err
+	}
+	if err := record.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	stored, exists := repository.store.releases[record.ID]
+	if !exists {
+		return notFound(operation)
+	}
+	if stored.TechnologyID != record.TechnologyID || stored.Version != record.Version || stored.Channel != record.Channel ||
+		!sameOptionalTimestamp(stored.ReleasedAt, record.ReleasedAt) || !stored.VerifiedAt.Time().Equal(record.VerifiedAt.Time()) ||
+		!sameSourceIDs(stored.SourceIDs, record.SourceIDs) {
+		return invalid(operation, errRelationship("release update may only change lifecycle status"))
+	}
+	repository.store.releases[record.ID] = cloneRelease(record)
+	return nil
+}
+
+func sameOptionalTimestamp(left, right *research.Timestamp) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Time().Equal(right.Time())
+}
+
+func sameSourceIDs(left, right []research.SourceID) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
 func (repository releaseRepository) Get(ctx context.Context, id research.ID) (research.ReleaseRecord, error) {
 	const operation = "get memory release"
 	if err := contextError(operation, ctx); err != nil {

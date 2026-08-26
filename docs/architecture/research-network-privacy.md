@@ -65,9 +65,15 @@ snapshots, evidence, registry entries, freshness records, verification output,
 drift/impact records, and opaque cache data remain available while network
 access is disabled. The source registry CLI therefore remains fully offline.
 
+Step 20 release discovery reuses `SnapshotCaptureService`; its JSON/Atom
+release adapters parse only the bounded bytes returned after the
+`research.fetch` authorization. They have no transport and cannot bypass the
+gate. Stored releases, Evidence, and Claims remain ordinary offline repository
+reads.
+
 ## Deferred work
 
-Step 11 later adds a network-free static discovery provider and completes the
-vendor-neutral contract. No production search provider, cache format, release
-discovery algorithm, background activity, or public research command exists.
+Step 11 adds a network-free static search provider and Step 20 adds network-free
+release-feed parsers. No production search provider, cache format, background
+activity, or public research command exists.
 Student Core state and Curriculum Compiler behavior are unchanged.

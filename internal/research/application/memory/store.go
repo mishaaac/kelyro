@@ -19,6 +19,7 @@ type Store struct {
 	sourceLocators  map[string]research.SourceID
 	snapshots       map[research.ID]research.SourceSnapshot
 	evidence        map[research.ID]research.Evidence
+	claims          map[research.ClaimID]research.Claim
 	citations       map[research.ID]research.Citation
 	provenance      map[research.ClaimID][]research.ProvenanceGraph
 	requests        map[research.ID]research.ResearchRequest
@@ -40,6 +41,7 @@ func New() *Store {
 		sourceLocators:  make(map[string]research.SourceID),
 		snapshots:       make(map[research.ID]research.SourceSnapshot),
 		evidence:        make(map[research.ID]research.Evidence),
+		claims:          make(map[research.ClaimID]research.Claim),
 		citations:       make(map[research.ID]research.Citation),
 		provenance:      make(map[research.ClaimID][]research.ProvenanceGraph),
 		requests:        make(map[research.ID]research.ResearchRequest),
@@ -58,20 +60,22 @@ func New() *Store {
 
 func (store *Store) Repositories() application.Repositories {
 	return application.Repositories{
-		Sources:        sourceRepository{store},
-		Snapshots:      snapshotRepository{store},
-		Evidence:       evidenceRepository{store},
-		Citations:      citationRepository{store},
-		Provenance:     provenanceRepository{store},
-		Runs:           researchRunRepository{store},
-		TrustRegistry:  trustRegistryRepository{store},
-		SourceRegistry: sourceRegistryRepository{store},
-		Releases:       releaseRepository{store},
-		Freshness:      freshnessRepository{store},
-		Verification:   verificationRepository{store},
-		Drift:          driftRepository{store},
-		Impact:         impactRepository{store},
-		Cache:          cacheRepository{store},
+		Sources:          sourceRepository{store},
+		Snapshots:        snapshotRepository{store},
+		Evidence:         evidenceRepository{store},
+		Claims:           claimRepository{store},
+		Citations:        citationRepository{store},
+		Provenance:       provenanceRepository{store},
+		Runs:             researchRunRepository{store},
+		TrustRegistry:    trustRegistryRepository{store},
+		SourceRegistry:   sourceRegistryRepository{store},
+		Releases:         releaseRepository{store},
+		ReleaseIngestion: releaseIngestionRepository{store},
+		Freshness:        freshnessRepository{store},
+		Verification:     verificationRepository{store},
+		Drift:            driftRepository{store},
+		Impact:           impactRepository{store},
+		Cache:            cacheRepository{store},
 	}
 }
 
@@ -204,6 +208,17 @@ func cloneRelease(record research.ReleaseRecord) research.ReleaseRecord {
 	clone := record
 	clone.SourceIDs = append([]research.SourceID(nil), record.SourceIDs...)
 	clone.ReleasedAt = cloneTimestamp(record.ReleasedAt)
+	return clone
+}
+
+func cloneClaim(claim research.Claim) research.Claim {
+	clone := claim
+	if claim.VersionScope != nil {
+		version := *claim.VersionScope
+		clone.VersionScope = &version
+	}
+	clone.SourceIDs = append([]research.SourceID(nil), claim.SourceIDs...)
+	clone.EvidenceIDs = append([]research.ID(nil), claim.EvidenceIDs...)
 	return clone
 }
 

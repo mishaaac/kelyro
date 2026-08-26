@@ -96,6 +96,11 @@ The SemVer/date/opaque version identity, technology release entity, lifecycle
 vocabulary, chronology, and existing persistence/application compatibility are
 documented in [release-intelligence-model.md](release-intelligence-model.md).
 
+The authority-ordered, privacy-gated release pipeline, JSON/Atom provider
+adapters, deterministic current-stable/preview policy, duplicate handling, and
+atomic version-scoped release-notes ingestion are documented in
+[release-discovery-v1.md](release-discovery-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

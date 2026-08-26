@@ -31,6 +31,13 @@ type EvidenceRepository interface {
 	ListBySnapshot(context.Context, research.ID) ([]research.Evidence, error)
 }
 
+// ClaimRepository persists structured assertions separately from the evidence
+// excerpts that support them.
+type ClaimRepository interface {
+	Append(context.Context, research.Claim) error
+	Get(context.Context, research.ClaimID) (research.Claim, error)
+}
+
 type CitationRepository interface {
 	Append(context.Context, research.Citation) error
 	Get(context.Context, research.ID) (research.Citation, error)
@@ -69,8 +76,22 @@ type SourceRegistryRepository interface {
 
 type ReleaseRepository interface {
 	Create(context.Context, research.ReleaseRecord) error
+	Update(context.Context, research.ReleaseRecord) error
 	Get(context.Context, research.ID) (research.ReleaseRecord, error)
 	ListByTechnology(context.Context, research.ID) ([]research.ReleaseRecord, error)
+}
+
+// ReleaseIngestionBatch is the durable portion of one fully validated release
+// discovery. StatusUpdates may only alter lifecycle status of existing rows.
+type ReleaseIngestionBatch struct {
+	Evidence      []research.Evidence
+	Claims        []research.Claim
+	Releases      []research.TechnologyRelease
+	StatusUpdates []research.TechnologyRelease
+}
+
+type ReleaseIngestionRepository interface {
+	Commit(context.Context, ReleaseIngestionBatch) error
 }
 
 // FreshnessRecord persists freshness-v1 output and, when scheduled, the
@@ -187,20 +208,22 @@ type ResearchCacheRepository interface {
 // Repositories is a wiring bundle, not a repository and not a transaction.
 // Consumers continue to depend on the narrow ports relevant to each use case.
 type Repositories struct {
-	Sources        SourceRepository
-	Snapshots      SnapshotRepository
-	Evidence       EvidenceRepository
-	Citations      CitationRepository
-	Provenance     ProvenanceRepository
-	Runs           ResearchRunRepository
-	TrustRegistry  TrustRegistryRepository
-	SourceRegistry SourceRegistryRepository
-	Releases       ReleaseRepository
-	Freshness      FreshnessRepository
-	Verification   VerificationRepository
-	Drift          DriftRepository
-	Impact         ImpactRepository
-	Cache          ResearchCacheRepository
+	Sources          SourceRepository
+	Snapshots        SnapshotRepository
+	Evidence         EvidenceRepository
+	Claims           ClaimRepository
+	Citations        CitationRepository
+	Provenance       ProvenanceRepository
+	Runs             ResearchRunRepository
+	TrustRegistry    TrustRegistryRepository
+	SourceRegistry   SourceRegistryRepository
+	Releases         ReleaseRepository
+	ReleaseIngestion ReleaseIngestionRepository
+	Freshness        FreshnessRepository
+	Verification     VerificationRepository
+	Drift            DriftRepository
+	Impact           ImpactRepository
+	Cache            ResearchCacheRepository
 }
 
 // SearchQuery, SearchOptions, and SearchResult keep provider-specific
@@ -393,6 +416,143 @@ type ReleaseLookupProvider interface {
 // ReleaseLookupCache reads previously cached release lookup output offline.
 type ReleaseLookupCache interface {
 	LookupCachedReleases(context.Context, ReleaseLookupQuery) ([]research.ReleaseRecord, error)
+}
+
+const (
+	ReleaseDiscoveryAlgorithmV1       = "release-discovery-v1"
+	ReleaseNotesIngestionAlgorithmV1  = "release-notes-ingestion-v1"
+	MaximumReleaseDiscoverySources    = 16
+	MaximumReleaseCandidates          = 256
+	MaximumReleaseChangesPerCandidate = 256
+	MaximumReleaseFeedBytes           = 1 << 20
+)
+
+// ReleaseDiscoverySource binds an already registered and trust-evaluated
+// source to the adapter that understands its feed representation.
+type ReleaseDiscoverySource struct {
+	SourceID research.SourceID
+	Provider string
+}
+
+func (source ReleaseDiscoverySource) Validate() error {
+	if err := source.SourceID.Validate(); err != nil {
+		return err
+	}
+	return requireText("release provider", source.Provider)
+}
+
+// ReleaseChange is a bounded, literal observation extracted from release
+// notes. Statement is never interpreted as an instruction.
+type ReleaseChange struct {
+	Location  string
+	Statement string
+	Excerpt   string
+}
+
+func (change ReleaseChange) Validate() error {
+	if err := requireText("release change location", change.Location); err != nil {
+		return err
+	}
+	if err := requireText("release change statement", change.Statement); err != nil {
+		return err
+	}
+	if err := requireText("release change excerpt", change.Excerpt); err != nil {
+		return err
+	}
+	if len(change.Excerpt) > research.MaximumEvidenceExcerptBytes {
+		return fmt.Errorf("release change excerpt exceeds %d bytes", research.MaximumEvidenceExcerptBytes)
+	}
+	return nil
+}
+
+// ReleaseCandidate is unpersisted provider output. A provider reports the
+// channel explicitly; the discovery policy never guesses stable from rank.
+type ReleaseCandidate struct {
+	Version    research.VersionIdentifier
+	Channel    research.ReleaseChannel
+	ReleasedAt *research.Timestamp
+	Changes    []ReleaseChange
+}
+
+func (candidate ReleaseCandidate) Validate() error {
+	if err := candidate.Version.Validate(); err != nil {
+		return err
+	}
+	if err := candidate.Channel.Validate(); err != nil {
+		return err
+	}
+	if candidate.ReleasedAt != nil {
+		if err := candidate.ReleasedAt.Validate(); err != nil {
+			return fmt.Errorf("release candidate date: %w", err)
+		}
+	}
+	if len(candidate.Changes) > MaximumReleaseChangesPerCandidate {
+		return fmt.Errorf("release candidate changes exceed %d", MaximumReleaseChangesPerCandidate)
+	}
+	for index, change := range candidate.Changes {
+		if err := change.Validate(); err != nil {
+			return fmt.Errorf("release candidate change %d: %w", index, err)
+		}
+	}
+	return nil
+}
+
+// ReleaseNotesProvider parses one bounded fetched representation. It is a
+// network-free adapter; live access remains owned by SnapshotCaptureService.
+type ReleaseNotesProvider interface {
+	ID() string
+	Discover(context.Context, FetchedSource) ([]ReleaseCandidate, error)
+}
+
+type ReleaseDiscoveryRequest struct {
+	TechnologyID research.ID
+	Topic        research.ResearchTopic
+	Profile      research.AuthorityProfile
+	Sources      []ReleaseDiscoverySource
+	MaximumBytes int64
+}
+
+func (request ReleaseDiscoveryRequest) Validate() error {
+	if err := request.TechnologyID.Validate(); err != nil {
+		return fmt.Errorf("release discovery technology: %w", err)
+	}
+	if err := request.Topic.Validate(); err != nil {
+		return err
+	}
+	if err := request.Profile.Validate(); err != nil {
+		return err
+	}
+	if len(request.Sources) == 0 || len(request.Sources) > MaximumReleaseDiscoverySources {
+		return fmt.Errorf("release discovery sources must contain between 1 and %d entries", MaximumReleaseDiscoverySources)
+	}
+	seen := make(map[research.SourceID]struct{}, len(request.Sources))
+	for index, source := range request.Sources {
+		if err := source.Validate(); err != nil {
+			return fmt.Errorf("release discovery source %d: %w", index, err)
+		}
+		if _, exists := seen[source.SourceID]; exists {
+			return fmt.Errorf("release discovery contains duplicate source %q", source.SourceID.String())
+		}
+		seen[source.SourceID] = struct{}{}
+	}
+	if request.MaximumBytes <= 0 || request.MaximumBytes > MaximumReleaseFeedBytes {
+		return fmt.Errorf("release feed maximum bytes must be between 1 and %d", MaximumReleaseFeedBytes)
+	}
+	return nil
+}
+
+type ReleaseDiscoveryResult struct {
+	Releases         []research.TechnologyRelease
+	Evidence         []research.Evidence
+	Claims           []research.Claim
+	CurrentStable    *research.TechnologyRelease
+	PreviewReleases  []research.TechnologyRelease
+	DuplicateCount   int
+	AlgorithmVersion string
+}
+
+type ReleaseDiscoveryService interface {
+	Discover(context.Context, ResearchMode, ReleaseDiscoveryRequest) (ReleaseDiscoveryResult, error)
 }
 
 type NormalizedSource struct {

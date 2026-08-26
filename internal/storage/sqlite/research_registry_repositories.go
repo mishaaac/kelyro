@@ -13,38 +13,42 @@ import (
 
 func newResearchRepositories(target executor, timeout time.Duration) application.Repositories {
 	return application.Repositories{
-		Sources:        &researchSourceRepository{target, timeout},
-		Snapshots:      &researchSnapshotRepository{target, timeout},
-		Evidence:       &researchEvidenceRepository{target, timeout},
-		Citations:      &researchCitationRepository{target, timeout},
-		Provenance:     &researchProvenanceRepository{target, timeout},
-		Runs:           &researchRunRepository{target, timeout},
-		TrustRegistry:  &researchTrustRegistryRepository{target, timeout},
-		SourceRegistry: &researchSourceRegistryRepository{target, timeout},
-		Releases:       &researchReleaseRepository{target, timeout},
-		Freshness:      &researchFreshnessRepository{target, timeout},
-		Verification:   &researchVerificationRepository{target, timeout},
-		Drift:          &researchDriftRepository{target, timeout},
-		Impact:         &researchImpactRepository{target, timeout},
-		Cache:          &researchCacheRepository{target, timeout},
+		Sources:          &researchSourceRepository{target, timeout},
+		Snapshots:        &researchSnapshotRepository{target, timeout},
+		Evidence:         &researchEvidenceRepository{target, timeout},
+		Claims:           &researchClaimRepository{target, timeout},
+		Citations:        &researchCitationRepository{target, timeout},
+		Provenance:       &researchProvenanceRepository{target, timeout},
+		Runs:             &researchRunRepository{target, timeout},
+		TrustRegistry:    &researchTrustRegistryRepository{target, timeout},
+		SourceRegistry:   &researchSourceRegistryRepository{target, timeout},
+		Releases:         &researchReleaseRepository{target, timeout},
+		ReleaseIngestion: &researchReleaseIngestionRepository{target, timeout},
+		Freshness:        &researchFreshnessRepository{target, timeout},
+		Verification:     &researchVerificationRepository{target, timeout},
+		Drift:            &researchDriftRepository{target, timeout},
+		Impact:           &researchImpactRepository{target, timeout},
+		Cache:            &researchCacheRepository{target, timeout},
 	}
 }
 
 var (
-	_ application.SourceRepository         = (*researchSourceRepository)(nil)
-	_ application.SnapshotRepository       = (*researchSnapshotRepository)(nil)
-	_ application.EvidenceRepository       = (*researchEvidenceRepository)(nil)
-	_ application.CitationRepository       = (*researchCitationRepository)(nil)
-	_ application.ProvenanceRepository     = (*researchProvenanceRepository)(nil)
-	_ application.ResearchRunRepository    = (*researchRunRepository)(nil)
-	_ application.TrustRegistryRepository  = (*researchTrustRegistryRepository)(nil)
-	_ application.SourceRegistryRepository = (*researchSourceRegistryRepository)(nil)
-	_ application.ReleaseRepository        = (*researchReleaseRepository)(nil)
-	_ application.FreshnessRepository      = (*researchFreshnessRepository)(nil)
-	_ application.VerificationRepository   = (*researchVerificationRepository)(nil)
-	_ application.DriftRepository          = (*researchDriftRepository)(nil)
-	_ application.ImpactRepository         = (*researchImpactRepository)(nil)
-	_ application.ResearchCacheRepository  = (*researchCacheRepository)(nil)
+	_ application.SourceRepository           = (*researchSourceRepository)(nil)
+	_ application.SnapshotRepository         = (*researchSnapshotRepository)(nil)
+	_ application.EvidenceRepository         = (*researchEvidenceRepository)(nil)
+	_ application.ClaimRepository            = (*researchClaimRepository)(nil)
+	_ application.CitationRepository         = (*researchCitationRepository)(nil)
+	_ application.ProvenanceRepository       = (*researchProvenanceRepository)(nil)
+	_ application.ResearchRunRepository      = (*researchRunRepository)(nil)
+	_ application.TrustRegistryRepository    = (*researchTrustRegistryRepository)(nil)
+	_ application.SourceRegistryRepository   = (*researchSourceRegistryRepository)(nil)
+	_ application.ReleaseRepository          = (*researchReleaseRepository)(nil)
+	_ application.ReleaseIngestionRepository = (*researchReleaseIngestionRepository)(nil)
+	_ application.FreshnessRepository        = (*researchFreshnessRepository)(nil)
+	_ application.VerificationRepository     = (*researchVerificationRepository)(nil)
+	_ application.DriftRepository            = (*researchDriftRepository)(nil)
+	_ application.ImpactRepository           = (*researchImpactRepository)(nil)
+	_ application.ResearchCacheRepository    = (*researchCacheRepository)(nil)
 )
 
 type researchRunRepository struct {
@@ -508,6 +512,58 @@ func (repository *researchReleaseRepository) Create(ctx context.Context, record 
 		return researchPersistence(operation, err)
 	}
 	return nil
+}
+
+func (repository *researchReleaseRepository) Update(ctx context.Context, record research.ReleaseRecord) error {
+	const operation = "update SQLite release record"
+	if err := record.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	stored, err := repository.get(opCtx, operation, `WHERE id=?`, record.ID.String(), nil)
+	if err != nil {
+		return err
+	}
+	if stored.TechnologyID != record.TechnologyID || stored.Version != record.Version || stored.Channel != record.Channel ||
+		!sameResearchTimestamp(stored.ReleasedAt, record.ReleasedAt) || !stored.VerifiedAt.Time().Equal(record.VerifiedAt.Time()) ||
+		!sameResearchSourceIDs(stored.SourceIDs, record.SourceIDs) {
+		return researchInvalid(operation, errors.New("release update may only change lifecycle status"))
+	}
+	result, err := repository.executor.ExecContext(opCtx, `UPDATE release_records SET status=? WHERE id=?`, string(record.Status), record.ID.String())
+	if err != nil {
+		return researchPersistence(operation, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return researchPersistence(operation, err)
+	}
+	if changed != 1 {
+		return researchNotFound(operation)
+	}
+	return nil
+}
+
+func sameResearchTimestamp(left, right *research.Timestamp) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Time().Equal(right.Time())
+}
+
+func sameResearchSourceIDs(left, right []research.SourceID) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 func (repository *researchReleaseRepository) Get(ctx context.Context, id research.ID) (research.ReleaseRecord, error) {
 	return repository.get(ctx, "get SQLite release record", `WHERE id=?`, id.String(), id.Validate())

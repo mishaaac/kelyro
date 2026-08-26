@@ -1620,7 +1620,7 @@ feat(releases): add technology release intelligence model
 
 ## Paso 20 — Implementar Release Discovery y Release Notes ingestion
 
-- [ ] Paso 20 completado
+- [x] Paso 20 completado
 
 ### Objetivo
 
@@ -3199,7 +3199,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 17 — Verification scheduling
 - [ ] Paso 18 — Resource Quality
 - [ ] Paso 19 — Release model
-- [ ] Paso 20 — Release discovery
+- [x] Paso 20 — Release discovery
 - [ ] Paso 21 — Deprecation
 - [ ] Paso 22 — Historical sources
 - [ ] Paso 23 — Conflict Resolver

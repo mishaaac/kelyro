@@ -257,3 +257,60 @@ type relationshipError string
 
 func (err relationshipError) Error() string { return string(err) }
 func errRelationship(message string) error  { return relationshipError(message) }
+
+type claimRepository struct{ store *Store }
+
+func (repository claimRepository) Append(ctx context.Context, claim research.Claim) error {
+	const operation = "append memory claim"
+	if err := contextError(operation, ctx); err != nil {
+		return err
+	}
+	if err := claim.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	if _, exists := repository.store.claims[claim.ID]; exists {
+		return conflict(operation)
+	}
+	seenSources := make(map[research.SourceID]struct{}, len(claim.SourceIDs))
+	for _, sourceID := range claim.SourceIDs {
+		if _, exists := repository.store.sources[sourceID]; !exists {
+			return notFound(operation)
+		}
+		seenSources[sourceID] = struct{}{}
+	}
+	usedSources := make(map[research.SourceID]struct{}, len(claim.SourceIDs))
+	for _, evidenceID := range claim.EvidenceIDs {
+		evidence, exists := repository.store.evidence[evidenceID]
+		if !exists {
+			return notFound(operation)
+		}
+		if _, exists := seenSources[evidence.SourceID]; !exists {
+			return invalid(operation, errRelationship("claim evidence source is not declared"))
+		}
+		usedSources[evidence.SourceID] = struct{}{}
+	}
+	if len(usedSources) != len(seenSources) {
+		return invalid(operation, errRelationship("claim source has no supporting evidence"))
+	}
+	repository.store.claims[claim.ID] = cloneClaim(claim)
+	return nil
+}
+
+func (repository claimRepository) Get(ctx context.Context, id research.ClaimID) (research.Claim, error) {
+	const operation = "get memory claim"
+	if err := contextError(operation, ctx); err != nil {
+		return research.Claim{}, err
+	}
+	if err := id.Validate(); err != nil {
+		return research.Claim{}, invalid(operation, err)
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	claim, exists := repository.store.claims[id]
+	if !exists {
+		return research.Claim{}, notFound(operation)
+	}
+	return cloneClaim(claim), nil
+}

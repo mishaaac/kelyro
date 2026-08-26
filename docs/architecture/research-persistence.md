@@ -13,7 +13,7 @@ without rewriting its learning state.
 
 ## Adapter boundary
 
-`Database.Repositories().Research` exposes the fourteen narrow repository ports
+`Database.Repositories().Research` exposes the narrow Research repository ports
 defined by `internal/research/application`. The adapter depends on the research
 domain and application contracts; neither package imports SQLite.
 
@@ -62,7 +62,7 @@ Migration 26 adds optional 2 KiB `context_before`/`context_after` fields to
 Evidence and required bounded `scope` plus closed `status_scope` fields to
 Claims. Existing rows receive empty contexts, `general` scope, and `all` status
 scope. The Evidence adapter reads and writes the new context fields; Claim
-repository/application behavior remains deferred.
+repository behavior is added by Step 20 without changing this schema.
 
 Migration 27 creates `provenance_graphs`. Each row stores a validated canonical
 JSON graph capped at 256 KiB alongside its graph ID, claim ID, recording time,
@@ -90,6 +90,13 @@ Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and
 opaque classification is reconstructed deterministically after reads. Existing
 release rows therefore remain compatible without a scheme backfill.
+
+Step 20 also requires no migration. `ClaimRepository` uses the existing
+`claims`/`claim_sources` tables and validates that every declared source has
+supporting Evidence. `ReleaseIngestionRepository` commits new Evidence, Claims,
+release rows, and lifecycle-only status updates atomically. A release status may
+change from current to superseded; its identity and all other fields remain
+immutable.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
@@ -128,10 +135,9 @@ observation appends a new row; the service never updates an earlier row. A
 of the snapshot it revalidated, while its status, fetch time, and fetch version
 record the new observation.
 
-No credential or secret columns exist. Source aliases, release/deprecation
-records, claims, bundles, and conflicts have schema representation but no new
-application services in this step; later authorized steps may add ports without
-changing the domain's dependency direction.
+No credential or secret columns exist. Source aliases, deprecation records,
+bundles, and conflicts retain schema representation for later authorized
+application behavior.
 
 ## Deferred behavior
 

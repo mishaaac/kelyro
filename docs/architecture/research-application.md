@@ -39,12 +39,14 @@ Persistence is divided by aggregate or durable output:
 | `SourceRepository` | Stable source identities, canonical locators, and source metadata. |
 | `SnapshotRepository` | Immutable fetch snapshots ordered by `fetched_at`. |
 | `EvidenceRepository` | Immutable evidence tied to a source and snapshot. |
+| `ClaimRepository` | Structured claims with validated source/evidence relationships. |
 | `CitationRepository` | Immutable `citation-v1` references and evidence-scoped reads. |
 | `ProvenanceRepository` | Immutable bounded claim graphs and latest trace lookup. |
 | `ResearchRunRepository` | Research requests and one or more runs for each request. |
 | `TrustRegistryRepository` | Authority profiles and versioned trust decisions. |
 | `SourceRegistryRepository` | Reviewed source-family entries with deterministic list/show access. |
 | `ReleaseRepository` | Evidence-backed `TechnologyRelease` records with compatible `ReleaseRecord` naming. |
+| `ReleaseIngestionRepository` | Atomic Evidence/Claim/release/status batches produced by release discovery. |
 | `FreshnessRepository` | Versioned freshness outputs and due-state queries. |
 | `VerificationRepository` | Immutable verification results by claim. |
 | `DriftRepository` | Immutable drift reports. |
@@ -53,10 +55,9 @@ Persistence is divided by aggregate or durable output:
 
 There is deliberately no `ResearchRepository` mega-interface. `Repositories`
 is only a wiring struct for adapters and tests; services receive the individual
-ports they need. No transaction abstraction is introduced in this step because
-the initial services perform single-record operations. A later atomic use case
-must introduce a transaction boundary based on concrete consistency needs, not
-speculation.
+ports they need. Step 20 adds one purpose-specific atomic port for the concrete
+multi-record consistency need of release-note ingestion; it does not turn the
+bundle into a generic Unit of Work.
 
 Singular reads return `not_found` when absent. Collection reads return an empty,
 deterministically ordered slice. Immutable records use `Create` or `Append`, so
@@ -79,7 +80,9 @@ from entering domain or services:
   bytes plus transport-neutral `FetchMetadata`; the privacy-gated service marks
   the result origin as `live` or `cache`.
 - `ReleaseLookupProvider` accepts a validated technology/channel query and
-  returns release candidates for later evidence and verification work.
+  returns metadata candidates; Step 20 additionally defines the network-free
+  `ReleaseNotesProvider` parser boundary over already privacy-gated fetched
+  bytes.
 - `SearchCache`, `SourceFetchCache`, and `ReleaseLookupCache` expose explicitly
   offline fallback reads and cannot be confused with their live counterparts.
 - `SourceNormalizer` converts fetched bytes into a `NormalizedSource` without
@@ -93,9 +96,10 @@ the deterministic `SourceNormalizer`, and Step 11 completes the vendor-neutral
 search contract with a static network-free provider. Step 12 adds the pure
 `query-planner-v1` producer for query text, desired kind, authority threshold,
 and execution priority; callers add request ID, result limit, and target-version
-options when mapping a plan item into these discovery contracts. A production
-search adapter, cache encoding, release discovery, and separate metadata
-extraction remain unimplemented.
+options when mapping a plan item into these discovery contracts. Step 20 adds
+JSON and Atom release-feed adapters without a vendor dependency. A production
+search adapter, cache encoding, and separate metadata extraction remain
+unimplemented.
 `MaximumBytes` is enforced by the fetch adapter as a request-specific limit
 below the transport's configured global ceiling. A safe redirect may change
 the returned locator without changing `SourceID`.
@@ -128,6 +132,10 @@ The initial services are deliberately thin:
   versioned deadlines, reasons, and priorities, and
   `FreshnessRecordFromSchedule` combines matching outputs;
 - `ReleaseIntelligenceService` records and reads release facts;
+- `ReleaseDiscoveryService` orders Authority Profile sources, requires accepted
+  Trust Decisions, captures feeds through the privacy boundary, deduplicates
+  releases, selects stable/preview families, and atomically ingests bounded
+  release-note Evidence and version-scoped Claims;
 - `DriftService` records and reads drift reports;
 - `ImpactService` records and reads impact reports.
 
@@ -136,7 +144,7 @@ dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
 implement Trust Policy, authority matching, query execution orchestration,
-evidence extraction, verification rules, release discovery,
+general-purpose evidence extraction, verification rules,
 conflict resolution, drift detection, or impact analysis. Those remain future
 versioned policies and orchestration steps.
 
@@ -144,6 +152,12 @@ Step 19 keeps these ports stable through the `ReleaseRecord` alias while adding
 the explicit `TechnologyRelease` entity and deterministic
 `VersionIdentifier` classification. It introduces no provider, precedence, or
 discovery behavior.
+
+Step 20 permits lifecycle-only release status updates so a newly discovered
+stable can supersede the prior current record. All other release identity,
+source, version, channel, chronology, and verification fields remain immutable.
+The full policy is in
+[release-discovery-v1.md](release-discovery-v1.md).
 
 ## Error taxonomy
 
@@ -176,7 +190,7 @@ mutex-protected maps. It provides:
 
 - deterministic ordering for collection and latest-record queries;
 - classified invalid, not-found, conflict, and cancellation errors;
-- source/snapshot/evidence/citation, source/release, source/verification, and
+- source/snapshot/evidence/claim/citation, source/release, source/verification, and
   drift/impact relationship checks;
 - defensive copies for pointer, slice, and byte fields so callers cannot mutate
   stored state through returned values;
@@ -188,7 +202,7 @@ in Step 03.
 
 ## Deferred boundaries
 
-The current boundary does not add search/release providers, credentials,
-background work, evidence extraction, source bundles, public research commands,
+The current boundary does not add a live search provider, credentials,
+background work, general evidence extraction, source bundles, public research commands,
 curriculum compilation, or student-state mutations. The Student Core remains
 offline and unchanged.

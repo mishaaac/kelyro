@@ -172,6 +172,39 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 	if list, err := repositories.Evidence.ListBySnapshot(ctx, snapshot2.ID); err != nil || len(list) != 1 || list[0].ID != evidence.ID {
 		t.Fatalf("evidence list=(%+v,%v)", list, err)
 	}
+	topic, err := research.NewResearchTopic("Example API", "software", "Example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	confidence, err := research.NewClaimConfidence(.8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim := research.Claim{
+		ID: researchTestClaimID(t, "claim.release"), Topic: topic, Statement: "The API changed.",
+		Type: research.ClaimVersionChange, Scope: "release notes", VersionScope: &version,
+		StatusScope: research.ClaimStatusStable, Confidence: confidence,
+		SourceIDs: []research.SourceID{source.ID}, EvidenceIDs: []research.ID{evidence.ID}, CreatedAt: snapshot2.FetchedAt,
+	}
+	if err := repositories.Claims.Append(ctx, claim); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Claims.Get(ctx, claim.ID); err != nil || !reflect.DeepEqual(got, claim) {
+		t.Fatalf("claim roundtrip=(%+v,%v), want %+v", got, err, claim)
+	}
+	rollbackEvidence := evidence
+	rollbackEvidence.ID = researchTestID(t, "evidence.rollback")
+	rollbackClaim := claim
+	rollbackClaim.ID = researchTestClaimID(t, "claim.rollback")
+	rollbackClaim.EvidenceIDs = []research.ID{researchTestID(t, "evidence.missing")}
+	if err := repositories.ReleaseIngestion.Commit(ctx, application.ReleaseIngestionBatch{
+		Evidence: []research.Evidence{rollbackEvidence}, Claims: []research.Claim{rollbackClaim},
+	}); !errors.Is(err, application.ErrNotFound) {
+		t.Fatalf("release ingestion rollback error=%v, want not found", err)
+	}
+	if _, err := repositories.Evidence.Get(ctx, rollbackEvidence.ID); !errors.Is(err, application.ErrNotFound) {
+		t.Fatalf("release ingestion retained partial evidence: %v", err)
+	}
 	deepLocator := researchTestLocator(t, "https://example.com/docs#section-2")
 	citation := research.Citation{
 		ID: researchTestID(t, "citation.1"), SourceID: source.ID, SnapshotID: snapshot2.ID,
@@ -295,6 +328,13 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 		t.Fatalf("release roundtrip=(%+v,%v)", got, err)
 	} else if got.Version.Scheme() != research.VersionSemantic {
 		t.Fatalf("release version scheme=%q, want semantic", got.Version.Scheme())
+	}
+	release.Status = research.ReleaseSuperseded
+	if err := repositories.Releases.Update(ctx, release); err != nil {
+		t.Fatalf("update release status: %v", err)
+	}
+	if got, err := repositories.Releases.Get(ctx, release.ID); err != nil || got.Status != research.ReleaseSuperseded {
+		t.Fatalf("updated release=(%+v,%v)", got, err)
 	}
 
 	next := researchTestTimestamp(t, fixedTime.Add(time.Hour))
