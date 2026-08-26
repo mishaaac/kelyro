@@ -20,6 +20,9 @@ func (repository *researchCitationRepository) Append(ctx context.Context, citati
 	if err := citation.Validate(); err != nil {
 		return researchInvalid(operation, err)
 	}
+	if citation.TemporalAlgorithmVersion != research.SourceTemporalPolicyV1 {
+		return researchInvalid(operation, errors.New("new citations must use source-temporal-policy-v1"))
+	}
 	source, err := (&researchSourceRepository{repository.executor, repository.timeout}).Get(ctx, citation.SourceID)
 	if err != nil {
 		return err
@@ -54,11 +57,12 @@ func (repository *researchCitationRepository) Append(ctx context.Context, citati
 		deepLabel = citation.DeepLink.Label
 	}
 	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO citations
-(id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,deep_link_label,snapshot_date,last_verified,link_strategy,section,version_scope,algorithm_version)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, citation.ID.String(), citation.SourceID.String(), citation.SnapshotID.String(),
+(id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,deep_link_label,snapshot_date,last_verified,link_strategy,section,version_scope,algorithm_version,temporal_scope,temporal_warning,temporal_algorithm_version)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, citation.ID.String(), citation.SourceID.String(), citation.SnapshotID.String(),
 		citation.EvidenceID.String(), citation.Title, citation.Locator.String(), deepLocator, deepLabel,
 		timestampText(citation.SnapshotDate), timestampText(citation.LastVerified), string(citation.LinkStrategy),
-		citation.Section, optionalVersionText(citation.VersionScope), citation.AlgorithmVersion)
+		citation.Section, optionalVersionText(citation.VersionScope), citation.AlgorithmVersion,
+		string(citation.TemporalScope), citation.TemporalWarning, citation.TemporalAlgorithmVersion)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -107,14 +111,16 @@ func (repository *researchCitationRepository) ListByEvidence(ctx context.Context
 	return result, nil
 }
 
-const citationSelect = `SELECT id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,deep_link_label,snapshot_date,last_verified,link_strategy,section,version_scope,algorithm_version FROM citations`
+const citationSelect = `SELECT id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,deep_link_label,snapshot_date,last_verified,link_strategy,section,version_scope,algorithm_version,temporal_scope,temporal_warning,temporal_algorithm_version FROM citations`
 
 func scanResearchCitation(row rowScanner, operation string) (research.Citation, error) {
 	var idValue, sourceValue, snapshotValue, evidenceValue, title, locatorValue string
 	var deepLocator, deepLabel, version sql.NullString
 	var snapshotDateValue, lastVerifiedValue, strategy, section, algorithm string
+	var temporalScope, temporalWarning, temporalAlgorithm string
 	if err := row.Scan(&idValue, &sourceValue, &snapshotValue, &evidenceValue, &title, &locatorValue,
-		&deepLocator, &deepLabel, &snapshotDateValue, &lastVerifiedValue, &strategy, &section, &version, &algorithm); err != nil {
+		&deepLocator, &deepLabel, &snapshotDateValue, &lastVerifiedValue, &strategy, &section, &version, &algorithm,
+		&temporalScope, &temporalWarning, &temporalAlgorithm); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.Citation{}, researchNotFound(operation)
 		}
@@ -165,7 +171,8 @@ func scanResearchCitation(row rowScanner, operation string) (research.Citation, 
 		Title: title, Locator: locator, DeepLink: deepLink,
 		LinkStrategy: research.CitationLinkStrategy(strategy), Section: section,
 		SnapshotDate: snapshotDate, VersionScope: versionScope, LastVerified: lastVerified,
-		AlgorithmVersion: algorithm,
+		AlgorithmVersion: algorithm, TemporalScope: research.SourceTemporalScope(temporalScope),
+		TemporalWarning: temporalWarning, TemporalAlgorithmVersion: temporalAlgorithm,
 	}
 	if err := result.Validate(); err != nil {
 		return research.Citation{}, researchPersistence(operation, fmt.Errorf("invalid stored citation: %w", err))

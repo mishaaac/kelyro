@@ -34,10 +34,11 @@ func TestSourceAndImmutableSnapshotRequireTraceableMetadata(t *testing.T) {
 	updatedAt := mustTimestamp(t, 10)
 	version := mustVersion(t, "go1.25")
 	source := Source{
-		ID:      mustSourceID(t, "spec"),
-		Kind:    SourceSpecification,
-		Locator: mustLocator(t, "spec"),
-		Version: &version,
+		ID:            mustSourceID(t, "spec"),
+		Kind:          SourceSpecification,
+		Locator:       mustLocator(t, "spec"),
+		Version:       &version,
+		TemporalScope: SourceTemporalCurrent,
 		Metadata: SourceMetadata{
 			Title: "Language specification", Publisher: "Example standards body",
 			Language: "en", PublishedAt: &publishedAt, UpdatedAt: &updatedAt,
@@ -68,6 +69,37 @@ func TestSourceAndImmutableSnapshotRequireTraceableMetadata(t *testing.T) {
 	snapshot.SourceID = SourceID{}
 	if err := snapshot.Validate(); err == nil {
 		t.Fatal("SourceSnapshot.Validate() accepted missing source identity")
+	}
+}
+
+func TestSourceTemporalScopesRequireExplicitVersionForVersionBound(t *testing.T) {
+	t.Parallel()
+	for _, scope := range []SourceTemporalScope{
+		SourceTemporalCurrent, SourceTemporalHistorical,
+		SourceTemporalVersionBound, SourceTemporalArchived,
+	} {
+		if err := scope.Validate(); err != nil {
+			t.Errorf("%q.Validate() error = %v", scope, err)
+		}
+	}
+	if err := SourceTemporalScope("oldish").Validate(); err == nil {
+		t.Fatal("SourceTemporalScope.Validate() accepted unknown scope")
+	}
+	source := Source{
+		ID: mustSourceID(t, "version-bound"), Kind: SourceOfficialDocumentation,
+		Locator: mustLocator(t, "version-bound"), TemporalScope: SourceTemporalVersionBound,
+		Metadata: SourceMetadata{Title: "Old reference"}, CreatedAt: mustTimestamp(t, 10),
+	}
+	if err := source.Validate(); err == nil {
+		t.Fatal("Source.Validate() accepted a version-bound source without version")
+	}
+	version := mustVersion(t, "1.0")
+	source.Version = &version
+	if err := source.Validate(); err != nil {
+		t.Fatalf("version-bound Source.Validate() error = %v", err)
+	}
+	if warning, err := source.TemporalScope.Warning(source.Version); err != nil || warning == "" {
+		t.Fatalf("version-bound warning = (%q, %v)", warning, err)
 	}
 }
 

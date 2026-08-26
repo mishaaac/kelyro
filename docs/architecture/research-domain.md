@@ -75,7 +75,16 @@ paper                   book_reference       other
 ```
 
 Source classification does not imply trust. An official resource is still
-evaluated in context by a later, versioned trust policy.
+evaluated in context by the separate, versioned trust policy.
+
+Step 22 adds the independent temporal scopes `current`, `historical`,
+`version_bound`, and `archived`. A version-bound source requires an opaque
+version. The pure `source-temporal-policy-v1` model decides only whether a
+source is current guidance, exact-version authority, historical context, or not
+applicable. Non-current sources always carry deterministic warnings when cited
+or bundled; exact old-version authority is preserved without treating it as
+current guidance. The full contract is documented in
+[historical-sources-v1.md](historical-sources-v1.md).
 
 `SourceSnapshot` records one immutable fetch identity, the source and locator
 used, `fetched_at`, and transport-neutral `FetchMetadata`. It contains metadata
@@ -169,13 +178,17 @@ scope, and explicit `last_verified`. A more specific `DeepLink` is included only
 when an explicit stable anchor or verified source-code permalink is available;
 otherwise the canonical source locator remains available with the hint.
 `ValidateCitationRelationships` checks source, snapshot, evidence, title,
-canonical locator, snapshot date, version, and chronology consistency. The full
-contract is documented in
+canonical locator, snapshot date, version, temporal scope/warning, and
+chronology consistency. Step 22 adds the separate immutable
+`source-temporal-policy-v1` annotation without changing deep-link selection. The
+full citation contract is documented in
 [citations-deep-links-v1.md](citations-deep-links-v1.md).
 
-`SourceBundle` groups claim and source identities for a research run. This step
-defines only identity, topic, purpose, target version, state, and verification
-time. Deterministic serialization, hashing, conflict assembly, and compiler
+`SourceBundle` groups claim identities and temporally scoped source references
+for a research run. Each source reference preserves its scope, optional version,
+and required warning. Version-bound members must match the target version, and a
+current-usage bundle containing non-current material cannot be `ready` without
+caveats. Deterministic serialization, hashing, conflict assembly, and compiler
 eligibility are later responsibilities.
 
 ## Query planning

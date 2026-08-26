@@ -17,6 +17,9 @@ func (repository citationRepository) Append(ctx context.Context, citation resear
 	if err := citation.Validate(); err != nil {
 		return invalid(operation, err)
 	}
+	if citation.TemporalAlgorithmVersion != research.SourceTemporalPolicyV1 {
+		return invalid(operation, errRelationship("new citations must use source-temporal-policy-v1"))
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	if _, exists := repository.store.citations[citation.ID]; exists {

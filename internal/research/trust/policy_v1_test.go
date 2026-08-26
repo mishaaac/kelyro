@@ -254,9 +254,10 @@ func trustTestSource(t *testing.T, kind research.SourceKind) research.Source {
 		t.Fatal(err)
 	}
 	return research.Source{
-		ID:      id,
-		Kind:    kind,
-		Locator: locator,
+		ID:            id,
+		Kind:          kind,
+		Locator:       locator,
+		TemporalScope: research.SourceTemporalCurrent,
 		Metadata: research.SourceMetadata{
 			Title:       "Source " + string(kind),
 			Publisher:   "Example Authority",

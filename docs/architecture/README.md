@@ -106,6 +106,11 @@ multi-source inference distinction, append-only status history, and legacy
 migration behavior are documented in
 [deprecation-intelligence-v1.md](deprecation-intelligence-v1.md).
 
+The explicit current, historical, version-bound, and archived source scopes;
+exact-version authority rule; durable citation warnings; temporally typed bundle
+members; and legacy migration behavior are documented in
+[historical-sources-v1.md](historical-sources-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

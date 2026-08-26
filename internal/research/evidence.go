@@ -309,19 +309,22 @@ func (strategy CitationLinkStrategy) Validate() error {
 }
 
 type Citation struct {
-	ID               ID
-	SourceID         SourceID
-	SnapshotID       ID
-	EvidenceID       ID
-	Title            string
-	Locator          SourceLocator
-	DeepLink         *DeepLink
-	LinkStrategy     CitationLinkStrategy
-	Section          string
-	SnapshotDate     Timestamp
-	VersionScope     *SourceVersion
-	LastVerified     Timestamp
-	AlgorithmVersion string
+	ID                       ID
+	SourceID                 SourceID
+	SnapshotID               ID
+	EvidenceID               ID
+	Title                    string
+	Locator                  SourceLocator
+	DeepLink                 *DeepLink
+	LinkStrategy             CitationLinkStrategy
+	Section                  string
+	SnapshotDate             Timestamp
+	VersionScope             *SourceVersion
+	TemporalScope            SourceTemporalScope
+	TemporalWarning          string
+	LastVerified             Timestamp
+	AlgorithmVersion         string
+	TemporalAlgorithmVersion string
 }
 
 func (citation Citation) Validate() error {
@@ -383,6 +386,25 @@ func (citation Citation) Validate() error {
 			return fmt.Errorf("citation version scope: %w", err)
 		}
 	}
+	if err := citation.TemporalScope.Validate(); err != nil {
+		return err
+	}
+	wantTemporalWarning, err := citation.TemporalScope.Warning(citation.VersionScope)
+	if err != nil {
+		return err
+	}
+	switch citation.TemporalAlgorithmVersion {
+	case SourceTemporalPolicyV1:
+		if citation.TemporalWarning != wantTemporalWarning {
+			return fmt.Errorf("citation temporal warning does not match scope")
+		}
+	case SourceTemporalLegacyCurrent:
+		if citation.TemporalScope != SourceTemporalCurrent || citation.TemporalWarning != "" {
+			return fmt.Errorf("legacy citation temporal metadata must be current without warning")
+		}
+	default:
+		return fmt.Errorf("invalid citation temporal algorithm version %q", citation.TemporalAlgorithmVersion)
+	}
 	if err := validateTimestamp("citation last verified", citation.LastVerified); err != nil {
 		return err
 	}
@@ -440,6 +462,18 @@ func ValidateCitationRelationships(
 	if !sameOptionalSourceVersion(citation.VersionScope, source.Version) {
 		return fmt.Errorf("citation version scope does not match source")
 	}
+	if citation.TemporalScope != source.TemporalScope {
+		return fmt.Errorf("citation temporal scope does not match source")
+	}
+	if citation.TemporalAlgorithmVersion == SourceTemporalPolicyV1 {
+		warning, err := source.TemporalScope.Warning(source.Version)
+		if err != nil {
+			return err
+		}
+		if citation.TemporalWarning != warning {
+			return fmt.Errorf("citation temporal warning does not match source")
+		}
+	}
 	return nil
 }
 
@@ -468,8 +502,57 @@ func (state SourceBundleState) Validate() error {
 	}
 }
 
-// SourceBundle groups traceable identities only. Serialization, hashing, and
-// compiler eligibility are reserved for later steps.
+// SourceBundleSource preserves the temporal meaning of a source at bundle
+// assembly time. Later reclassification of Source does not rewrite old bundles.
+type SourceBundleSource struct {
+	SourceID      SourceID
+	TemporalScope SourceTemporalScope
+	VersionScope  *SourceVersion
+	Warning       string
+}
+
+func NewSourceBundleSource(source Source) (SourceBundleSource, error) {
+	if err := source.Validate(); err != nil {
+		return SourceBundleSource{}, err
+	}
+	warning, err := source.TemporalScope.Warning(source.Version)
+	if err != nil {
+		return SourceBundleSource{}, err
+	}
+	result := SourceBundleSource{
+		SourceID: source.ID, TemporalScope: source.TemporalScope,
+		VersionScope: cloneOptionalSourceVersion(source.Version), Warning: warning,
+	}
+	if err := result.Validate(); err != nil {
+		return SourceBundleSource{}, err
+	}
+	return result, nil
+}
+
+func (source SourceBundleSource) Validate() error {
+	if err := source.SourceID.Validate(); err != nil {
+		return err
+	}
+	if err := source.TemporalScope.Validate(); err != nil {
+		return err
+	}
+	if source.VersionScope != nil {
+		if err := source.VersionScope.Validate(); err != nil {
+			return err
+		}
+	}
+	warning, err := source.TemporalScope.Warning(source.VersionScope)
+	if err != nil {
+		return err
+	}
+	if source.Warning != warning {
+		return fmt.Errorf("source bundle temporal warning does not match scope")
+	}
+	return nil
+}
+
+// SourceBundle groups traceable identities and preserves source temporal
+// scopes. Serialization, hashing, and compiler eligibility remain Step 25.
 type SourceBundle struct {
 	ID            ID
 	RunID         ID
@@ -477,7 +560,7 @@ type SourceBundle struct {
 	Purpose       ResearchPurpose
 	TargetVersion *SourceVersion
 	ClaimIDs      []ClaimID
-	SourceIDs     []SourceID
+	Sources       []SourceBundleSource
 	State         SourceBundleState
 	VerifiedAt    Timestamp
 }
@@ -503,13 +586,43 @@ func (bundle SourceBundle) Validate() error {
 	if err := validateClaimIDs("source bundle claims", bundle.ClaimIDs, 1); err != nil {
 		return err
 	}
-	if err := validateSourceIDs("source bundle sources", bundle.SourceIDs, 1); err != nil {
-		return err
+	if len(bundle.Sources) == 0 {
+		return fmt.Errorf("source bundle sources requires at least 1 source")
+	}
+	seenSources := make(map[SourceID]struct{}, len(bundle.Sources))
+	requiresCurrentCaveat := false
+	for index, source := range bundle.Sources {
+		if err := source.Validate(); err != nil {
+			return fmt.Errorf("source bundle source %d: %w", index, err)
+		}
+		if _, exists := seenSources[source.SourceID]; exists {
+			return fmt.Errorf("source bundle sources contains duplicate source id %q", source.SourceID)
+		}
+		seenSources[source.SourceID] = struct{}{}
+		if source.TemporalScope == SourceTemporalVersionBound {
+			if bundle.TargetVersion == nil || *source.VersionScope != *bundle.TargetVersion {
+				return fmt.Errorf("version-bound source does not match source bundle target version")
+			}
+		}
+		if bundle.Purpose == PurposeCurrentUsage && source.TemporalScope != SourceTemporalCurrent {
+			requiresCurrentCaveat = true
+		}
 	}
 	if err := bundle.State.Validate(); err != nil {
 		return err
 	}
+	if requiresCurrentCaveat && bundle.State == BundleReady {
+		return fmt.Errorf("current guidance bundle with non-current sources requires caveats")
+	}
 	return validateTimestamp("source bundle verified at", bundle.VerifiedAt)
+}
+
+func cloneOptionalSourceVersion(version *SourceVersion) *SourceVersion {
+	if version == nil {
+		return nil
+	}
+	clone := *version
+	return &clone
 }
 
 func containsID(ids []ID, target ID) bool {

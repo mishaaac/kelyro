@@ -27,7 +27,8 @@ func TestEvidenceClaimProvenanceAndCitationFormTraceableChain(t *testing.T) {
 	}
 	source := Source{
 		ID: sourceID, Kind: SourceSpecification, Locator: mustLocator(t, "spec"),
-		Metadata: SourceMetadata{Title: "Language specification"}, CreatedAt: mustTimestamp(t, 8),
+		TemporalScope: SourceTemporalCurrent,
+		Metadata:      SourceMetadata{Title: "Language specification"}, CreatedAt: mustTimestamp(t, 8),
 	}
 	snapshot := SourceSnapshot{
 		ID: snapshotID, SourceID: sourceID, Locator: source.Locator, FetchedAt: mustTimestamp(t, 10),
@@ -80,7 +81,8 @@ func TestEvidenceClaimProvenanceAndCitationFormTraceableChain(t *testing.T) {
 		Locator: mustLocator(t, "spec"), DeepLink: &deepLink,
 		LinkStrategy: CitationSpecification, Section: "§Interface types",
 		SnapshotDate: mustTimestamp(t, 10), LastVerified: mustTimestamp(t, 12),
-		AlgorithmVersion: CitationAlgorithmV1,
+		TemporalScope: SourceTemporalCurrent, AlgorithmVersion: CitationAlgorithmV1,
+		TemporalAlgorithmVersion: SourceTemporalPolicyV1,
 	}
 	if err := citation.Validate(); err != nil {
 		t.Fatalf("Citation.Validate() error = %v", err)
@@ -251,8 +253,9 @@ func TestSourceBundleRequiresClaimsSourcesAndValidState(t *testing.T) {
 	bundle := SourceBundle{
 		ID: mustID(t, "bundle.interfaces"), RunID: mustID(t, "run.interfaces"),
 		Topic: topic, Purpose: PurposeConceptDefinition,
-		ClaimIDs:  []ClaimID{mustClaimID(t, "interfaces.definition")},
-		SourceIDs: []SourceID{mustSourceID(t, "spec")}, State: BundleReady,
+		ClaimIDs:   []ClaimID{mustClaimID(t, "interfaces.definition")},
+		Sources:    []SourceBundleSource{{SourceID: mustSourceID(t, "spec"), TemporalScope: SourceTemporalCurrent}},
+		State:      BundleReady,
 		VerifiedAt: mustTimestamp(t, 12),
 	}
 	if err := bundle.Validate(); err != nil {
@@ -261,5 +264,29 @@ func TestSourceBundleRequiresClaimsSourcesAndValidState(t *testing.T) {
 	bundle.State = SourceBundleState("pretty")
 	if err := bundle.Validate(); err == nil {
 		t.Fatal("SourceBundle.Validate() accepted invalid state")
+	}
+}
+
+func TestSourceBundleDistinguishesConflictingCurrentAndHistoricalSources(t *testing.T) {
+	t.Parallel()
+	topic, _ := NewResearchTopic("HTTP behavior", "software", "Fixture")
+	oldVersion := mustVersion(t, "1.0")
+	warning, _ := SourceTemporalHistorical.Warning(&oldVersion)
+	bundle := SourceBundle{
+		ID: mustID(t, "bundle.temporal-conflict"), RunID: mustID(t, "run.temporal-conflict"),
+		Topic: topic, Purpose: PurposeCurrentUsage,
+		ClaimIDs: []ClaimID{mustClaimID(t, "behavior.current"), mustClaimID(t, "behavior.old")},
+		Sources: []SourceBundleSource{
+			{SourceID: mustSourceID(t, "docs.current"), TemporalScope: SourceTemporalCurrent},
+			{SourceID: mustSourceID(t, "docs.historical"), TemporalScope: SourceTemporalHistorical, VersionScope: &oldVersion, Warning: warning},
+		},
+		State: BundleConflicted, VerifiedAt: mustTimestamp(t, 12),
+	}
+	if err := bundle.Validate(); err != nil {
+		t.Fatalf("conflicted temporal bundle Validate() error = %v", err)
+	}
+	bundle.State = BundleReady
+	if err := bundle.Validate(); err == nil || !strings.Contains(err.Error(), "requires caveats") {
+		t.Fatalf("current bundle with historical source error = %v", err)
 	}
 }

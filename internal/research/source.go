@@ -2,6 +2,11 @@ package research
 
 import "fmt"
 
+const (
+	SourceTemporalPolicyV1      = "source-temporal-policy-v1"
+	SourceTemporalLegacyCurrent = "source-temporal-legacy-current"
+)
+
 type SourceKind string
 
 const (
@@ -32,6 +37,58 @@ func (kind SourceKind) Validate() error {
 		return nil
 	default:
 		return fmt.Errorf("invalid source kind %q", kind)
+	}
+}
+
+// SourceTemporalScope records how a source may be applied over time. It is
+// independent from authority: an archived source can still be primary evidence
+// for the exact historical version it documents.
+type SourceTemporalScope string
+
+const (
+	SourceTemporalCurrent      SourceTemporalScope = "current"
+	SourceTemporalHistorical   SourceTemporalScope = "historical"
+	SourceTemporalVersionBound SourceTemporalScope = "version_bound"
+	SourceTemporalArchived     SourceTemporalScope = "archived"
+)
+
+func (scope SourceTemporalScope) Validate() error {
+	switch scope {
+	case SourceTemporalCurrent, SourceTemporalHistorical,
+		SourceTemporalVersionBound, SourceTemporalArchived:
+		return nil
+	default:
+		return fmt.Errorf("invalid source temporal scope %q", scope)
+	}
+}
+
+// Warning returns the immutable v1 annotation required when a non-current
+// source is cited or included in a source bundle.
+func (scope SourceTemporalScope) Warning(version *SourceVersion) (string, error) {
+	if err := scope.Validate(); err != nil {
+		return "", err
+	}
+	versionText := ""
+	if version != nil {
+		if err := version.Validate(); err != nil {
+			return "", err
+		}
+		versionText = fmt.Sprintf(" for version %q", version.String())
+	}
+	switch scope {
+	case SourceTemporalCurrent:
+		return "", nil
+	case SourceTemporalHistorical:
+		return "Historical source" + versionText + "; do not treat as current guidance.", nil
+	case SourceTemporalVersionBound:
+		if version == nil {
+			return "", fmt.Errorf("version-bound source requires a version")
+		}
+		return "Version-bound source" + versionText + "; verify applicability outside this version.", nil
+	case SourceTemporalArchived:
+		return "Archived source" + versionText + "; use only for historical or version-specific guidance.", nil
+	default:
+		panic("validated temporal scope is unreachable")
 	}
 }
 
@@ -69,12 +126,13 @@ func (metadata SourceMetadata) Validate() error {
 // Source is the stable identity and classification of an external resource.
 // Its content and fetch history live in immutable SourceSnapshots.
 type Source struct {
-	ID        SourceID
-	Kind      SourceKind
-	Locator   SourceLocator
-	Version   *SourceVersion
-	Metadata  SourceMetadata
-	CreatedAt Timestamp
+	ID            SourceID
+	Kind          SourceKind
+	Locator       SourceLocator
+	Version       *SourceVersion
+	TemporalScope SourceTemporalScope
+	Metadata      SourceMetadata
+	CreatedAt     Timestamp
 }
 
 func (source Source) Validate() error {
@@ -91,6 +149,12 @@ func (source Source) Validate() error {
 		if err := source.Version.Validate(); err != nil {
 			return err
 		}
+	}
+	if err := source.TemporalScope.Validate(); err != nil {
+		return err
+	}
+	if source.TemporalScope == SourceTemporalVersionBound && source.Version == nil {
+		return fmt.Errorf("version-bound source requires a version")
 	}
 	if err := source.Metadata.Validate(); err != nil {
 		return err

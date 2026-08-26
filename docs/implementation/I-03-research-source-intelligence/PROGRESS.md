@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 22
-Last completed step: 21
+Current step: 23
+Last completed step: 22
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1633,4 +1633,89 @@ Release: unreleased
   deprecation, pero debe añadir scopes temporales de sources/citations/bundles
   sin reclasificar evidencia actual silenciosamente.
 - No implementar historical source handling, Conflict Resolver ni pasos
+  posteriores antes de su autorización independiente.
+
+## Step 22 — Historical Source handling
+
+Status: completed
+Date: 2026-08-26
+Release: unreleased
+
+### Delivered
+
+- Alcance temporal explícito en cada `Source`: `current`, `historical`,
+  `version_bound` y `archived`; `version_bound` requiere una versión opaca
+  concreta.
+- Política pura y determinista `source-temporal-policy-v1`, aislada en
+  `internal/research/temporal`, que clasifica cada uso como current guidance,
+  exact-version authority, historical context o not applicable.
+- Warnings deterministas para todo scope no-current. Documentación archivada y
+  material histórico nunca se presentan silenciosamente como guía actual, pero
+  old release notes pueden ser autoridad para el comportamiento de su versión
+  exacta.
+- `citation-v1` conserva ahora scope, warning y algoritmo temporal sin mezclar
+  esa decisión con su estrategia de deep link. Las relaciones validan source,
+  versión y anotación temporal exactas.
+- `SourceBundleSource` captura ID, scope, versión y warning. Los miembros
+  version-bound deben coincidir con el target del bundle y un bundle de
+  `current_usage` con material no-current no puede quedar `ready` sin caveats.
+- Clasificación explícita a través de `SourceService`/`SourceRepository`, con
+  adapters de memoria y SQLite. Reclasificar una source no reescribe snapshots,
+  Evidence ni citations previas.
+- Migration SQLite forward-only v32 para scopes de sources/citations,
+  annotations de citation y scopes de source bundle items. Filas previas se
+  conservan como current; citations legacy reciben
+  `source-temporal-legacy-current` y no pueden insertarse como registros nuevos.
+- Contrato, matriz de aplicabilidad, persistencia, compatibilidad y límites
+  documentados en `docs/architecture/historical-sources-v1.md`, con domain,
+  application, persistence, citations e índice arquitectónico sincronizados.
+
+### Decisions
+
+- Temporal scope es independiente de kind, registry status, authority, trust y
+  freshness. Un warning limita aplicabilidad; no degrada por sí mismo la
+  autoridad histórica de una fuente oficial.
+- V1 compara versiones solo por igualdad exacta. No inventa orden, rangos de
+  compatibilidad ni equivalencias entre esquemas opacos.
+- Un source no-current solo recibe `version_authority` para purpose
+  `version_behavior` con target exacto. En current usage queda como historical
+  context con warning o not applicable si existe mismatch conocido.
+- Citations y miembros de bundles capturan la clasificación al crearse para que
+  una reclasificación posterior de Source no cambie silenciosamente outputs
+  históricos.
+- El estado `conflicted` del bundle solo preserva una discrepancia visible; no
+  decide qué Claim gana. No se implementó el Conflict Resolver del Paso 23.
+- No se añadió networking, parsing, verificación multi-source, drift,
+  Curriculum Compiler ni ninguna mutación de Student Core.
+
+### Verification
+
+- Tests de dominio para los cuatro scopes, requisito de versión y warnings.
+- Tests de `source-temporal-policy-v1` para archived docs, old release notes con
+  target exacto/mismatched y separación current/historical.
+- Tests de citations y bundles para annotations durables, caveats obligatorios
+  y conflicto current vs historical.
+- Tests de aplicación y memoria para clasificación explícita y persistencia de
+  una citation archivada.
+- Tests SQLite de migration v32, defaults legacy, constraints/triggers,
+  reclassification y round-trip de citation archivada sin reescribir la previa.
+- `GOCACHE=/tmp/kelyro-i03-step22-target-gocache go test ./internal/research/... ./internal/storage/sqlite`.
+- `GOCACHE=/tmp/kelyro-i03-step22-verify-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step22-verify-gocache go vet ./...`.
+- Cross-compile de todos los test binaries de Research y SQLite para Windows y
+  Darwin con `CGO_ENABLED=0` y `go test -c`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 227.672 s.
+- La primera ejecución paralela de tests/vet globales agotó la cuota de `/tmp`;
+  se limpiaron únicamente caches aisladas de este paso y las pasadas
+  secuenciales posteriores, incluido el quality gate, terminaron sin fallos.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 23 es el siguiente paso pendiente y requiere autorización explícita.
+- Conflict Detection & Resolver v1 podrá consumir scopes, warnings y bundles
+  temporalmente tipados, pero debe mantener la decisión versionada y explicable.
+- No implementar Conflict Resolver, Multi-source Verification ni pasos
   posteriores antes de su autorización independiente.

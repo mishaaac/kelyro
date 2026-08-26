@@ -80,12 +80,18 @@ func GenerateV1(request Request) (research.Citation, error) {
 		copy := *request.Source.Version
 		version = &copy
 	}
+	temporalWarning, err := request.Source.TemporalScope.Warning(request.Source.Version)
+	if err != nil {
+		return research.Citation{}, err
+	}
 	citation := research.Citation{
 		ID: request.ID, SourceID: request.Source.ID, SnapshotID: request.Snapshot.ID,
 		EvidenceID: request.Evidence.ID, Title: request.Source.Metadata.Title,
 		Locator: request.Source.Locator, DeepLink: deepLink, LinkStrategy: strategy,
 		Section: section, SnapshotDate: request.Snapshot.FetchedAt, VersionScope: version,
+		TemporalScope: request.Source.TemporalScope, TemporalWarning: temporalWarning,
 		LastVerified: request.LastVerified, AlgorithmVersion: research.CitationAlgorithmV1,
+		TemporalAlgorithmVersion: research.SourceTemporalPolicyV1,
 	}
 	if err := research.ValidateCitationRelationships(citation, request.Source, request.Snapshot, request.Evidence); err != nil {
 		return research.Citation{}, err

@@ -35,10 +35,10 @@ func (repository *researchSourceRepository) Create(ctx context.Context, source r
 		}
 	}
 	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO sources
-(id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at)
-VALUES (?,?,?,?,?,?,?,?,?,?)`, source.ID.String(), string(source.Kind), source.Locator.String(), optionalVersionText(source.Version),
+(id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at,temporal_scope)
+VALUES (?,?,?,?,?,?,?,?,?,?,?)`, source.ID.String(), string(source.Kind), source.Locator.String(), optionalVersionText(source.Version),
 		source.Metadata.Title, source.Metadata.Publisher, source.Metadata.Language, optionalTimestampText(source.Metadata.PublishedAt),
-		optionalTimestampText(source.Metadata.UpdatedAt), timestampText(source.CreatedAt))
+		optionalTimestampText(source.Metadata.UpdatedAt), timestampText(source.CreatedAt), string(source.TemporalScope))
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -55,7 +55,7 @@ func (repository *researchSourceRepository) Get(ctx context.Context, id research
 		return research.Source{}, err
 	}
 	defer cancel()
-	return scanResearchSource(repository.executor.QueryRowContext(opCtx, `SELECT id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at FROM sources WHERE id=?`, id.String()), operation)
+	return scanResearchSource(repository.executor.QueryRowContext(opCtx, researchSourceSelect+` WHERE id=?`, id.String()), operation)
 }
 
 func (repository *researchSourceRepository) FindByLocator(ctx context.Context, locator research.SourceLocator) (research.Source, error) {
@@ -68,7 +68,7 @@ func (repository *researchSourceRepository) FindByLocator(ctx context.Context, l
 		return research.Source{}, err
 	}
 	defer cancel()
-	return scanResearchSource(repository.executor.QueryRowContext(opCtx, `SELECT id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at FROM sources WHERE locator=?`, locator.String()), operation)
+	return scanResearchSource(repository.executor.QueryRowContext(opCtx, researchSourceSelect+` WHERE locator=?`, locator.String()), operation)
 }
 
 func (repository *researchSourceRepository) List(ctx context.Context) ([]research.Source, error) {
@@ -78,7 +78,7 @@ func (repository *researchSourceRepository) List(ctx context.Context) ([]researc
 		return nil, err
 	}
 	defer cancel()
-	rows, err := repository.executor.QueryContext(opCtx, `SELECT id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at FROM sources ORDER BY id`)
+	rows, err := repository.executor.QueryContext(opCtx, researchSourceSelect+` ORDER BY id`)
 	if err != nil {
 		return nil, researchPersistence(operation, err)
 	}
@@ -97,10 +97,45 @@ func (repository *researchSourceRepository) List(ctx context.Context) ([]researc
 	return result, nil
 }
 
+func (repository *researchSourceRepository) SetTemporalScope(ctx context.Context, id research.SourceID, scope research.SourceTemporalScope) error {
+	const operation = "set SQLite source temporal scope"
+	if err := id.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	if err := scope.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	source, err := repository.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	source.TemporalScope = scope
+	if err := source.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	result, err := repository.executor.ExecContext(opCtx, `UPDATE sources SET temporal_scope=? WHERE id=?`, string(scope), id.String())
+	if err != nil {
+		return researchPersistence(operation, err)
+	}
+	if affected, affectedErr := result.RowsAffected(); affectedErr != nil {
+		return researchPersistence(operation, affectedErr)
+	} else if affected == 0 {
+		return researchNotFound(operation)
+	}
+	return nil
+}
+
+const researchSourceSelect = `SELECT id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at,temporal_scope FROM sources`
+
 func scanResearchSource(row rowScanner, operation string) (research.Source, error) {
-	var idValue, kind, locatorValue, title, publisher, language, created string
+	var idValue, kind, locatorValue, title, publisher, language, created, temporalScope string
 	var version, published, updated sql.NullString
-	if err := row.Scan(&idValue, &kind, &locatorValue, &version, &title, &publisher, &language, &published, &updated, &created); err != nil {
+	if err := row.Scan(&idValue, &kind, &locatorValue, &version, &title, &publisher, &language, &published, &updated, &created, &temporalScope); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.Source{}, researchNotFound(operation)
 		}
@@ -130,7 +165,7 @@ func scanResearchSource(row rowScanner, operation string) (research.Source, erro
 	if err != nil {
 		return research.Source{}, researchPersistence(operation, err)
 	}
-	source := research.Source{ID: id, Kind: research.SourceKind(kind), Locator: locator, Version: versionValue, Metadata: research.SourceMetadata{Title: title, Publisher: publisher, Language: language, PublishedAt: publishedAt, UpdatedAt: updatedAt}, CreatedAt: createdAt}
+	source := research.Source{ID: id, Kind: research.SourceKind(kind), Locator: locator, Version: versionValue, TemporalScope: research.SourceTemporalScope(temporalScope), Metadata: research.SourceMetadata{Title: title, Publisher: publisher, Language: language, PublishedAt: publishedAt, UpdatedAt: updatedAt}, CreatedAt: createdAt}
 	if err := source.Validate(); err != nil {
 		return research.Source{}, researchPersistence(operation, fmt.Errorf("invalid stored source: %w", err))
 	}

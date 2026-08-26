@@ -62,6 +62,16 @@ func TestResearchAndSourceServicesUseNarrowMemoryRepositories(t *testing.T) {
 	if err != nil || len(listed) != 1 || listed[0].ID != source.ID {
 		t.Fatalf("SourceService.List() = (%+v, %v)", listed, err)
 	}
+	if err := sourceService.ClassifyTemporalScope(ctx, source.ID, research.SourceTemporalArchived); err != nil {
+		t.Fatalf("ClassifyTemporalScope(archived) error = %v", err)
+	}
+	classified, err := sourceService.Get(ctx, source.ID)
+	if err != nil || classified.TemporalScope != research.SourceTemporalArchived {
+		t.Fatalf("classified source = (%+v, %v)", classified, err)
+	}
+	if err := sourceService.ClassifyTemporalScope(ctx, source.ID, research.SourceTemporalVersionBound); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("version-bound source without version error = %v, want invalid_state", err)
+	}
 }
 
 func TestSourceRegistryServicePreservesEntriesAndRejectsDuplicateDomains(t *testing.T) {
@@ -456,6 +466,9 @@ func (repository failingSourceRepository) FindByLocator(context.Context, researc
 func (repository failingSourceRepository) List(context.Context) ([]research.Source, error) {
 	return nil, repository.err
 }
+func (repository failingSourceRepository) SetTemporalScope(context.Context, research.SourceID, research.SourceTemporalScope) error {
+	return repository.err
+}
 
 type searchProviderStub struct {
 	results []application.SearchResult
@@ -493,7 +506,8 @@ func testSource(t *testing.T, suffix string) research.Source {
 	t.Helper()
 	return research.Source{
 		ID: testSourceID(t, suffix), Kind: research.SourceOfficialDocumentation,
-		Locator: testLocator(t, suffix), Metadata: research.SourceMetadata{Title: "Fixture " + suffix},
+		Locator: testLocator(t, suffix), TemporalScope: research.SourceTemporalCurrent,
+		Metadata:  research.SourceMetadata{Title: "Fixture " + suffix},
 		CreatedAt: testTimestamp(t, 9),
 	}
 }

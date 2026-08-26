@@ -52,6 +52,18 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO claims (id,topic_subject,statement,claim_type,confidence,evidence_ids_json,created_at) VALUES ('claim.legacy','Legacy topic','Legacy claim','historical',0.5,'["evidence.legacy"]',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO research_topics (request_id,subject,purpose,requested_at) VALUES ('request.legacy','Legacy topic','version_behavior',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO research_runs (id,request_id,status,started_at) VALUES ('run.legacy','request.legacy','running',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO source_bundles (id,run_id,topic_subject,purpose,state,verified_at) VALUES ('bundle.legacy','run.legacy','Legacy topic','version_behavior','ready',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handle.Exec(`INSERT INTO source_bundle_items (bundle_id,item_type,item_id,position) VALUES ('bundle.legacy','claim','claim.legacy',0),('bundle.legacy','source','source.legacy',0)`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := handle.Exec(`INSERT INTO citations (id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,snapshot_date,last_verified) VALUES ('citation.legacy','source.legacy','snapshot.legacy','evidence.legacy','Legacy source','https://example.test/legacy','https://example.test/legacy#section',?,?)`, fixedTime.Format(timestampFormat), fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
@@ -71,8 +83,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 31 {
-		t.Fatalf("schema=(%d,%v), want 31", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 32 {
+		t.Fatalf("schema=(%d,%v), want 32", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -133,6 +145,36 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO deprecation_records (id,subject,status,source_ids_json,evidence_ids_json,verified_at,determination,algorithm_version) VALUES ('deprecation.false-multi','API','deprecated','["source.legacy"]','["evidence.legacy"]',?,'multi_source_strong_inference','deprecation-intelligence-v1')`, fixedTime.Format(timestampFormat)); err == nil {
 		t.Fatal("v31 accepted single-source multi-source inference")
 	}
+	legacySourceID, _ := research.NewSourceID("source.legacy")
+	legacySource, err := database.Repositories().Research.Sources.Get(context.Background(), legacySourceID)
+	if err != nil || legacySource.TemporalScope != research.SourceTemporalCurrent {
+		t.Fatalf("v32 legacy source scope = (%+v, %v)", legacySource, err)
+	}
+	legacyCitationID, _ := research.NewID("citation.legacy")
+	legacyCitation, err := database.Repositories().Research.Citations.Get(context.Background(), legacyCitationID)
+	if err != nil || legacyCitation.TemporalScope != research.SourceTemporalCurrent || legacyCitation.TemporalWarning != "" ||
+		legacyCitation.TemporalAlgorithmVersion != research.SourceTemporalLegacyCurrent {
+		t.Fatalf("v32 legacy citation scope = (%+v, %v)", legacyCitation, err)
+	}
+	var claimItemScope, sourceItemScope sql.NullString
+	if err := handle.QueryRow(`SELECT temporal_scope FROM source_bundle_items WHERE bundle_id='bundle.legacy' AND item_type='claim'`).Scan(&claimItemScope); err != nil {
+		t.Fatal(err)
+	}
+	if err := handle.QueryRow(`SELECT temporal_scope FROM source_bundle_items WHERE bundle_id='bundle.legacy' AND item_type='source'`).Scan(&sourceItemScope); err != nil {
+		t.Fatal(err)
+	}
+	if claimItemScope.Valid || !sourceItemScope.Valid || sourceItemScope.String != string(research.SourceTemporalCurrent) {
+		t.Fatalf("v32 bundle item scopes = claim %+v, source %+v", claimItemScope, sourceItemScope)
+	}
+	if _, err := handle.Exec(`UPDATE sources SET temporal_scope='version_bound' WHERE id='source.legacy'`); err == nil {
+		t.Fatal("v32 accepted version-bound source without version")
+	}
+	if _, err := handle.Exec(`UPDATE citations SET temporal_scope='historical' WHERE id='citation.legacy'`); err == nil {
+		t.Fatal("v32 accepted historical citation without warning")
+	}
+	if _, err := handle.Exec(`UPDATE source_bundle_items SET temporal_scope=NULL WHERE bundle_id='bundle.legacy' AND item_type='source'`); err == nil {
+		t.Fatal("v32 accepted source bundle item without temporal scope")
+	}
 }
 
 func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
@@ -143,7 +185,7 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 	published := researchTestTimestamp(t, fixedTime.Add(-24*time.Hour))
 	updated := researchTestTimestamp(t, fixedTime.Add(-time.Hour))
 	version := researchTestVersion(t, "1.2")
-	source := research.Source{ID: researchTestSourceID(t, "source.docs"), Kind: research.SourceOfficialDocumentation, Locator: researchTestLocator(t, "https://example.com/docs"), Version: &version, Metadata: research.SourceMetadata{Title: "Example docs", Publisher: "Example", Language: "en", PublishedAt: &published, UpdatedAt: &updated}, CreatedAt: created}
+	source := research.Source{ID: researchTestSourceID(t, "source.docs"), Kind: research.SourceOfficialDocumentation, Locator: researchTestLocator(t, "https://example.com/docs"), Version: &version, TemporalScope: research.SourceTemporalCurrent, Metadata: research.SourceMetadata{Title: "Example docs", Publisher: "Example", Language: "en", PublishedAt: &published, UpdatedAt: &updated}, CreatedAt: created}
 	if err := repositories.Sources.Create(ctx, source); err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +272,9 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 		DeepLink:     &research.DeepLink{Locator: deepLocator, Label: "Section 2"},
 		LinkStrategy: research.CitationURLAnchor, Section: "Guide > Section 2",
 		SnapshotDate: snapshot2.FetchedAt, VersionScope: &version,
-		LastVerified: snapshot2.FetchedAt, AlgorithmVersion: research.CitationAlgorithmV1,
+		TemporalScope: source.TemporalScope, LastVerified: snapshot2.FetchedAt,
+		AlgorithmVersion:         research.CitationAlgorithmV1,
+		TemporalAlgorithmVersion: research.SourceTemporalPolicyV1,
 	}
 	if err := repositories.Citations.Append(ctx, citation); err != nil {
 		t.Fatal(err)
@@ -243,6 +287,31 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 	}
 	if err := repositories.Citations.Append(ctx, citation); !errors.Is(err, application.ErrConflict) {
 		t.Fatalf("duplicate citation error=%v", err)
+	}
+	if err := repositories.Sources.SetTemporalScope(ctx, source.ID, research.SourceTemporalArchived); err != nil {
+		t.Fatalf("set archived source scope: %v", err)
+	}
+	if got, err := repositories.Sources.Get(ctx, source.ID); err != nil || got.TemporalScope != research.SourceTemporalArchived {
+		t.Fatalf("archived source=(%+v,%v)", got, err)
+	}
+	archivedCitation := citation
+	archivedCitation.ID = researchTestID(t, "citation.archived")
+	archivedCitation.TemporalScope = research.SourceTemporalArchived
+	archivedCitation.TemporalWarning, err = research.SourceTemporalArchived.Warning(&version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Citations.Append(ctx, archivedCitation); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Citations.Get(ctx, archivedCitation.ID); err != nil || !reflect.DeepEqual(got, archivedCitation) {
+		t.Fatalf("archived citation roundtrip=(%+v,%v), want %+v", got, err, archivedCitation)
+	}
+	if got, err := repositories.Citations.Get(ctx, citation.ID); err != nil || got.TemporalScope != research.SourceTemporalCurrent {
+		t.Fatalf("source reclassification rewrote prior citation=(%+v,%v)", got, err)
+	}
+	if err := repositories.Sources.SetTemporalScope(ctx, source.ID, research.SourceTemporalVersionBound); err != nil {
+		t.Fatalf("set version-bound source scope: %v", err)
 	}
 
 	if err := repositories.Sources.Create(ctx, source); !errors.Is(err, application.ErrConflict) {
@@ -299,7 +368,7 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 		t.Fatalf("changed request error=%v", err)
 	}
 
-	source := research.Source{ID: researchTestSourceID(t, "source.registry"), Kind: research.SourceSpecification, Locator: researchTestLocator(t, "https://example.com/spec"), Metadata: research.SourceMetadata{Title: "Specification"}, CreatedAt: at}
+	source := research.Source{ID: researchTestSourceID(t, "source.registry"), Kind: research.SourceSpecification, Locator: researchTestLocator(t, "https://example.com/spec"), TemporalScope: research.SourceTemporalCurrent, Metadata: research.SourceMetadata{Title: "Specification"}, CreatedAt: at}
 	if err := repositories.Sources.Create(ctx, source); err != nil {
 		t.Fatal(err)
 	}

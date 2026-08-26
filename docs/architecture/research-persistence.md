@@ -5,10 +5,11 @@ database. Step 05 adds forward-only migration v24 for topic-aware authority
 profiles, Step 06 adds v25 for the Trusted Source Registry, Step 13 adds v26
 for structured Evidence context and Claim scopes, and Step 14 adds v27 for
 bounded claim provenance graphs. Step 15 adds v28 for stable citation metadata
-and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints.
-Step 17 adds v30 for refresh scheduling metadata. The 22 migrations that
-shipped Student Core and migrations v23–v30 remain
-unchanged, and an I-02 database is upgraded
+and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints,
+Step 17 adds v30 for refresh scheduling metadata, Step 21 adds v31 for versioned
+deprecation conclusions, and Step 22 adds v32 for source temporal scopes. The 22
+migrations that shipped Student Core and migrations v23–v31 remain unchanged,
+and an I-02 database is upgraded
 without rewriting its learning state.
 
 ## Adapter boundary
@@ -95,6 +96,15 @@ inferred evidence. New repository writes accept only
 `deprecation-intelligence-v1`. SQLite rejects mismatched legacy/v1 markers and
 single-source rows labeled as multi-source inference.
 
+Migration 32 adds the closed `current`/`historical`/`version_bound`/`archived`
+scope to sources and citations. Version-bound rows require a version. Citations
+also store their deterministic warning and temporal algorithm marker; prior
+rows remain readable as conservative current records with
+`source-temporal-legacy-current`, while new repository writes require
+`source-temporal-policy-v1`. Source bundle source items are backfilled as
+current, claim items retain null scope, and insert/update triggers preserve that
+typed distinction.
+
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and
 opaque classification is reconstructed deterministically after reads. Existing
@@ -113,6 +123,12 @@ ID exists, Evidence belongs to a declared source, and every declared source has
 supporting Evidence. Reads return exact-subject history ordered by verification
 time and stable ID; later removed/legacy records do not overwrite earlier
 deprecated guidance.
+
+Step 22 permits an explicit source-scope update after validating the complete
+stored source, including the version required by `version_bound`. It does not
+rewrite immutable snapshots, Evidence, citations, or bundle item annotations.
+The citation repository persists new temporal annotations only after validating
+the full source/snapshot/evidence relationship.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.

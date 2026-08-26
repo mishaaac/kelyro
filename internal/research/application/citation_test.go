@@ -77,3 +77,46 @@ func TestCitationServiceClassifiesMissingRelationshipsAndDependencies(t *testing
 		t.Fatalf("missing dependency error = %v, want unavailable", err)
 	}
 }
+
+func TestCitationServicePersistsHistoricalScopeAndWarning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repositories := memory.New().Repositories()
+	source := testSource(t, "historical-citation")
+	version := testVersion(t, "1.0")
+	source.Version = &version
+	source.TemporalScope = research.SourceTemporalArchived
+	snapshot := testSnapshot(t, source, "historical-citation", 10)
+	excerpt := "Behavior documented for the archived version."
+	evidence := research.Evidence{
+		ID: testID(t, "evidence.historical-citation"), SourceID: source.ID, SnapshotID: snapshot.ID,
+		Location: "Archived reference", Excerpt: excerpt,
+		ExcerptHash: research.CanonicalEvidenceExcerptHashV1(excerpt),
+		ExtractedAt: testTimestamp(t, 11), ExtractorVersion: fixtureVersion,
+	}
+	if err := repositories.Sources.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Snapshots.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Evidence.Append(ctx, evidence); err != nil {
+		t.Fatal(err)
+	}
+	service := application.NewCitationService(repositories.Sources, repositories.Snapshots, repositories.Evidence, repositories.Citations)
+	generated, err := service.Generate(ctx, application.GenerateCitationRequest{
+		ID: testID(t, "citation.historical"), SourceID: source.ID,
+		SnapshotID: snapshot.ID, EvidenceID: evidence.ID, LastVerified: testTimestamp(t, 12),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generated.TemporalScope != research.SourceTemporalArchived || generated.TemporalWarning == "" ||
+		generated.TemporalAlgorithmVersion != research.SourceTemporalPolicyV1 {
+		t.Fatalf("historical citation = %+v", generated)
+	}
+	loaded, err := service.Get(ctx, generated.ID)
+	if err != nil || loaded.TemporalScope != generated.TemporalScope || loaded.TemporalWarning != generated.TemporalWarning {
+		t.Fatalf("loaded historical citation = (%+v, %v)", loaded, err)
+	}
+}

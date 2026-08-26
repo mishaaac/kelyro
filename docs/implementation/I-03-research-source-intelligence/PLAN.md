@@ -1710,7 +1710,7 @@ feat(research): add deprecation and legacy intelligence
 
 ## Paso 22 — Implementar Historical Source handling
 
-- [ ] Paso 22 completado
+- [x] Paso 22 completado
 
 ### Objetivo
 
@@ -3201,7 +3201,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 19 — Release model
 - [x] Paso 20 — Release discovery
 - [x] Paso 21 — Deprecation
-- [ ] Paso 22 — Historical sources
+- [x] Paso 22 — Historical sources
 - [ ] Paso 23 — Conflict Resolver
 - [ ] Paso 24 — Multi-source Verification
 - [ ] Paso 25 — Source Bundle

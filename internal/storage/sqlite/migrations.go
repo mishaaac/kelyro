@@ -1485,6 +1485,20 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE INDEX deprecation_records_subject_history_idx ON deprecation_records (subject, verified_at, id)`,
 		},
 	},
+	{
+		version: 32,
+		name:    "historical source temporal scopes",
+		statements: []string{
+			`ALTER TABLE sources ADD COLUMN temporal_scope TEXT NOT NULL DEFAULT 'current' CHECK (temporal_scope IN ('current','historical','version_bound','archived')) CHECK (temporal_scope <> 'version_bound' OR version IS NOT NULL)`,
+			`ALTER TABLE citations ADD COLUMN temporal_scope TEXT NOT NULL DEFAULT 'current' CHECK (temporal_scope IN ('current','historical','version_bound','archived')) CHECK (temporal_scope <> 'version_bound' OR version_scope IS NOT NULL)`,
+			`ALTER TABLE citations ADD COLUMN temporal_warning TEXT NOT NULL DEFAULT '' CHECK ((temporal_scope = 'current' AND temporal_warning = '') OR (temporal_scope <> 'current' AND length(trim(temporal_warning)) > 0))`,
+			`ALTER TABLE citations ADD COLUMN temporal_algorithm_version TEXT NOT NULL DEFAULT 'source-temporal-legacy-current' CHECK ((temporal_algorithm_version = 'source-temporal-legacy-current' AND temporal_scope = 'current' AND temporal_warning = '') OR temporal_algorithm_version = 'source-temporal-policy-v1')`,
+			`ALTER TABLE source_bundle_items ADD COLUMN temporal_scope TEXT CHECK (temporal_scope IS NULL OR temporal_scope IN ('current','historical','version_bound','archived'))`,
+			`UPDATE source_bundle_items SET temporal_scope='current' WHERE item_type='source'`,
+			`CREATE TRIGGER source_bundle_item_temporal_insert_guard BEFORE INSERT ON source_bundle_items WHEN (NEW.item_type='source' AND NEW.temporal_scope IS NULL) OR (NEW.item_type='claim' AND NEW.temporal_scope IS NOT NULL) BEGIN SELECT RAISE(ABORT, 'invalid source bundle temporal scope'); END`,
+			`CREATE TRIGGER source_bundle_item_temporal_update_guard BEFORE UPDATE ON source_bundle_items WHEN (NEW.item_type='source' AND NEW.temporal_scope IS NULL) OR (NEW.item_type='claim' AND NEW.temporal_scope IS NOT NULL) BEGIN SELECT RAISE(ABORT, 'invalid source bundle temporal scope'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

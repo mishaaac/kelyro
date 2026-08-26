@@ -15,14 +15,17 @@ A generated `Citation` preserves:
 - a required bounded section, heading, path, or line hint;
 - the exact snapshot fetch time;
 - the source's optional opaque version scope;
+- the source's temporal scope and deterministic applicability warning;
 - the explicit last-verification time; and
-- the immutable `citation-v1` algorithm identifier.
+- the immutable `citation-v1` deep-link algorithm identifier plus the separate
+  `source-temporal-policy-v1` annotation identifier.
 
 The section hint is required even when a deep link exists and is capped at 2
 KiB of valid UTF-8; a deep-link label has the same bound. `last_verified` cannot
 predate either the snapshot or the evidence extraction. Relationship validation
 also checks the exact source,
-snapshot, evidence, title, canonical locator, snapshot date, and version scope.
+snapshot, evidence, title, canonical locator, snapshot date, version scope,
+temporal scope, and warning.
 
 `snapshot_date`, source publication/update dates, `last_verified`, and future
 Freshness outputs are distinct values. Step 15 does not calculate Freshness.
@@ -70,10 +73,19 @@ rows keep their locator and receive conservative metadata defaults; existing
 deep links are classified as generic URL anchors without inventing a more
 specific semantic strategy.
 
+Step 22 migration v32 adds citation temporal scope, warning, and algorithm
+marker. Existing rows are readable as conservative current citations with the
+explicit `source-temporal-legacy-current` marker; repositories accept only
+`source-temporal-policy-v1` for new citations. Citation generation copies the
+source's temporal classification at that moment, so a later source
+reclassification cannot silently rewrite an existing citation.
+
 ## Boundaries
 
 Step 15 adds no network access, anchor discovery, HTML parsing, evidence
 extraction, verification algorithm, Freshness calculation, Source Bundle
 assembly, CLI/TUI presentation, curriculum compilation, or Student Core
 mutation. Discovery metadata remains a candidate and cannot become a citation
-without a persisted source, snapshot, and evidence relationship.
+without a persisted source, snapshot, and evidence relationship. Temporal
+annotation does not resolve conflicting current and historical Claims; that is
+reserved for the Step 23 Conflict Resolver.

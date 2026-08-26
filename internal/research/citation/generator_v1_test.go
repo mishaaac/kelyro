@@ -36,8 +36,38 @@ func TestGenerateV1SelectsStableAnchorStrategyBySourceKind(t *testing.T) {
 				t.Fatalf("citation = %+v, want strategy %q with anchor", got, test.strategy)
 			}
 			if got.Locator != request.Source.Locator || got.Section != request.Target.Section ||
-				got.AlgorithmVersion != research.CitationAlgorithmV1 {
+				got.AlgorithmVersion != research.CitationAlgorithmV1 ||
+				got.TemporalScope != research.SourceTemporalCurrent || got.TemporalWarning != "" ||
+				got.TemporalAlgorithmVersion != research.SourceTemporalPolicyV1 {
 				t.Fatalf("citation metadata = %+v", got)
+			}
+		})
+	}
+}
+
+func TestGenerateV1AnnotatesArchivedAndVersionBoundSources(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		kind  research.SourceKind
+		scope research.SourceTemporalScope
+	}{
+		{"archived docs", research.SourceOfficialDocumentation, research.SourceTemporalArchived},
+		{"old release notes", research.SourceReleaseNotes, research.SourceTemporalVersionBound},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := fixtureRequest(t, test.kind, "https://archive.example.test/reference")
+			version := mustVersion(t, "1.0")
+			request.Source.Version = &version
+			request.Source.TemporalScope = test.scope
+			got, err := citation.GenerateV1(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.TemporalScope != test.scope || got.TemporalWarning == "" ||
+				got.VersionScope == nil || got.VersionScope.String() != "1.0" {
+				t.Fatalf("temporal citation = %+v", got)
 			}
 		})
 	}
@@ -134,7 +164,8 @@ func fixtureRequest(t *testing.T, kind research.SourceKind, locatorValue string)
 		ID: citationID,
 		Source: research.Source{
 			ID: sourceID, Kind: kind, Locator: locator,
-			Metadata: research.SourceMetadata{Title: "Fixture reference"}, CreatedAt: created,
+			TemporalScope: research.SourceTemporalCurrent,
+			Metadata:      research.SourceMetadata{Title: "Fixture reference"}, CreatedAt: created,
 		},
 		Snapshot: research.SourceSnapshot{
 			ID: snapshotID, SourceID: sourceID, Locator: locator, FetchedAt: fetched,

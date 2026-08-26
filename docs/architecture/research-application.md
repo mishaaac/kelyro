@@ -36,7 +36,7 @@ Persistence is divided by aggregate or durable output:
 
 | Port | Responsibility |
 | --- | --- |
-| `SourceRepository` | Stable source identities, canonical locators, and source metadata. |
+| `SourceRepository` | Stable source identities, canonical locators, metadata, and explicit temporal-scope classification. |
 | `SnapshotRepository` | Immutable fetch snapshots ordered by `fetched_at`. |
 | `EvidenceRepository` | Immutable evidence tied to a source and snapshot. |
 | `ClaimRepository` | Structured claims with validated source/evidence relationships. |
@@ -119,7 +119,8 @@ The initial services are deliberately thin:
   metadata, and appends a new immutable observation;
 - `ReleaseLookupService` applies it to live/cached release lookups without
   persisting candidates automatically;
-- `SourceService` registers sources and records snapshots for known sources;
+- `SourceService` registers sources, records snapshots for known sources, and
+  explicitly classifies their temporal scope;
 - `SourceRegistryService` saves and queries reviewed registry entries;
 - `ProvenanceService` records, traces, and exports validated claim graphs;
 - `CitationService` loads a source/snapshot/evidence chain, generates one
@@ -173,6 +174,14 @@ require at least two distinct sources and confidence `>= 0.8` for every Claim.
 This admission rule is not the general multi-source verification algorithm
 reserved for Step 24. The full contract is in
 [deprecation-intelligence-v1.md](deprecation-intelligence-v1.md).
+
+Step 22 exposes temporal reclassification through `SourceService` and the
+`SourceRepository` port. The service validates the stable source identity and
+closed scope; the repository additionally enforces that `version_bound` has an
+existing source version. The pure applicability decision remains in
+`internal/research/temporal`, while `CitationService` copies the source scope and
+deterministic warning into each new immutable citation. The full contract is in
+[historical-sources-v1.md](historical-sources-v1.md).
 
 ## Error taxonomy
 

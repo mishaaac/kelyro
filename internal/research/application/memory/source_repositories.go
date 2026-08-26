@@ -83,6 +83,31 @@ func (repository sourceRepository) List(ctx context.Context) ([]research.Source,
 	return result, nil
 }
 
+func (repository sourceRepository) SetTemporalScope(ctx context.Context, id research.SourceID, scope research.SourceTemporalScope) error {
+	const operation = "set memory source temporal scope"
+	if err := contextError(operation, ctx); err != nil {
+		return err
+	}
+	if err := id.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := scope.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	source, exists := repository.store.sources[id]
+	if !exists {
+		return notFound(operation)
+	}
+	source.TemporalScope = scope
+	if err := source.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	repository.store.sources[id] = cloneSource(source)
+	return nil
+}
+
 type snapshotRepository struct{ store *Store }
 
 func (repository snapshotRepository) Append(ctx context.Context, snapshot research.SourceSnapshot) error {

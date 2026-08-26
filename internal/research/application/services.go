@@ -248,6 +248,20 @@ func (service *sourceService) LatestSnapshot(ctx context.Context, sourceID resea
 	return snapshot, repositoryError(operation, err)
 }
 
+func (service *sourceService) ClassifyTemporalScope(ctx context.Context, sourceID research.SourceID, scope research.SourceTemporalScope) error {
+	const operation = "classify source temporal scope"
+	if err := sourceID.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := scope.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := requireDependency(operation, "source repository", service.sources); err != nil {
+		return err
+	}
+	return repositoryError(operation, service.sources.SetTemporalScope(ctx, sourceID, scope))
+}
+
 type sourceRegistryService struct{ repository SourceRegistryRepository }
 
 func NewSourceRegistryService(repository SourceRegistryRepository) SourceRegistryService {
