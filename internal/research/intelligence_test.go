@@ -32,9 +32,11 @@ func TestFreshnessReleaseAndDeprecationVocabularyValidatesState(t *testing.T) {
 	deprecatedIn := mustVersion(t, "2.0")
 	deprecation := DeprecationRecord{
 		ID: mustID(t, "deprecation.api"), Subject: "Legacy API",
-		Status: DeprecationDeprecated, DeprecatedIn: &deprecatedIn, Replacement: "Current API",
+		Status: DeprecationDeprecated, Determination: DeprecationExplicitEvidence,
+		DeprecatedIn: &deprecatedIn, Replacement: "Current API",
 		SourceIDs:   []SourceID{mustSourceID(t, "deprecation-notice")},
 		EvidenceIDs: []ID{mustID(t, "evidence.deprecation")}, VerifiedAt: mustTimestamp(t, 11),
+		AlgorithmVersion: DeprecationIntelligenceAlgorithmV1,
 	}
 	if err := deprecation.Validate(); err != nil {
 		t.Fatalf("DeprecationRecord.Validate() error = %v", err)
@@ -42,6 +44,37 @@ func TestFreshnessReleaseAndDeprecationVocabularyValidatesState(t *testing.T) {
 	deprecation.EvidenceIDs = nil
 	if err := deprecation.Validate(); err == nil {
 		t.Fatal("DeprecationRecord.Validate() accepted no evidence")
+	}
+}
+
+func TestDeprecationDeterminationRequiresVersionedExplicitOrMultiSourceEvidence(t *testing.T) {
+	t.Parallel()
+	base := DeprecationRecord{
+		ID: mustID(t, "deprecation.fixture"), Subject: "Old practice",
+		Status: DeprecationLegacy, Determination: DeprecationMultiSourceStrongInference,
+		SourceIDs:   []SourceID{mustSourceID(t, "source.one"), mustSourceID(t, "source.two")},
+		EvidenceIDs: []ID{mustID(t, "evidence.one"), mustID(t, "evidence.two")},
+		VerifiedAt:  mustTimestamp(t, 12), AlgorithmVersion: DeprecationIntelligenceAlgorithmV1,
+	}
+	if err := base.Validate(); err != nil {
+		t.Fatalf("multi-source record Validate() error = %v", err)
+	}
+	oneSource := base
+	oneSource.SourceIDs = oneSource.SourceIDs[:1]
+	if err := oneSource.Validate(); err == nil {
+		t.Fatal("DeprecationRecord.Validate() accepted single-source strong inference")
+	}
+	legacy := base
+	legacy.Determination = DeprecationLegacyUnclassified
+	legacy.AlgorithmVersion = DeprecationLegacyAlgorithm
+	legacy.SourceIDs = legacy.SourceIDs[:1]
+	legacy.EvidenceIDs = legacy.EvidenceIDs[:1]
+	if err := legacy.Validate(); err != nil {
+		t.Fatalf("legacy record Validate() error = %v", err)
+	}
+	legacy.AlgorithmVersion = DeprecationIntelligenceAlgorithmV1
+	if err := legacy.Validate(); err == nil {
+		t.Fatal("DeprecationRecord.Validate() accepted unclassified v1 determination")
 	}
 }
 

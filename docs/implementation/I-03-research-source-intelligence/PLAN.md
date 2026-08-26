@@ -1665,7 +1665,7 @@ feat(releases): discover releases and release notes
 
 ## Paso 21 — Implementar Deprecation & Legacy Intelligence
 
-- [ ] Paso 21 completado
+- [x] Paso 21 completado
 
 ### Objetivo
 
@@ -3200,7 +3200,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 18 — Resource Quality
 - [ ] Paso 19 — Release model
 - [x] Paso 20 — Release discovery
-- [ ] Paso 21 — Deprecation
+- [x] Paso 21 — Deprecation
 - [ ] Paso 22 — Historical sources
 - [ ] Paso 23 — Conflict Resolver
 - [ ] Paso 24 — Multi-source Verification

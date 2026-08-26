@@ -1476,6 +1476,15 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`ALTER TABLE freshness_state ADD COLUMN scheduling_json TEXT NOT NULL DEFAULT '{"verification_reason":"ttl_expired","priority":"normal","algorithm_version":"refresh-scheduling-v1"}' CHECK (json_valid(scheduling_json) AND json_type(scheduling_json) = 'object' AND length(CAST(scheduling_json AS BLOB)) <= 256 AND json_remove(scheduling_json,'$.verification_reason','$.priority','$.algorithm_version') = '{}' AND COALESCE(json_extract(scheduling_json,'$.verification_reason') IN ('ttl_expired','new_release_detected','source_changed','conflict_unresolved','security_sensitive','manual_request'),0) AND COALESCE(json_extract(scheduling_json,'$.priority') IN ('normal','high','critical'),0) AND COALESCE(json_extract(scheduling_json,'$.algorithm_version') = 'refresh-scheduling-v1',0))`,
 		},
 	},
+	{
+		version: 31,
+		name:    "versioned deprecation intelligence",
+		statements: []string{
+			`ALTER TABLE deprecation_records ADD COLUMN determination TEXT NOT NULL DEFAULT 'legacy_unclassified' CHECK (determination IN ('explicit_evidence','multi_source_strong_inference','legacy_unclassified'))`,
+			`ALTER TABLE deprecation_records ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'deprecation-unversioned-legacy' CHECK ((algorithm_version = 'deprecation-intelligence-v1' AND determination IN ('explicit_evidence','multi_source_strong_inference')) OR (algorithm_version = 'deprecation-unversioned-legacy' AND determination = 'legacy_unclassified')) CHECK (determination <> 'multi_source_strong_inference' OR (json_array_length(source_ids_json) >= 2 AND json_array_length(evidence_ids_json) >= 2))`,
+			`CREATE INDEX deprecation_records_subject_history_idx ON deprecation_records (subject, verified_at, id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

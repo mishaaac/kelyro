@@ -28,6 +28,7 @@ type Store struct {
 	registryEntries map[research.ID]research.SourceRegistryEntry
 	decisions       map[research.SourceID][]research.TrustDecision
 	releases        map[research.ID]research.ReleaseRecord
+	deprecations    map[research.ID]research.DeprecationRecord
 	freshness       map[research.ID]application.FreshnessRecord
 	verification    map[research.ID]research.VerificationResult
 	drift           map[research.ID]research.DriftReport
@@ -50,6 +51,7 @@ func New() *Store {
 		registryEntries: make(map[research.ID]research.SourceRegistryEntry),
 		decisions:       make(map[research.SourceID][]research.TrustDecision),
 		releases:        make(map[research.ID]research.ReleaseRecord),
+		deprecations:    make(map[research.ID]research.DeprecationRecord),
 		freshness:       make(map[research.ID]application.FreshnessRecord),
 		verification:    make(map[research.ID]research.VerificationResult),
 		drift:           make(map[research.ID]research.DriftReport),
@@ -71,6 +73,7 @@ func (store *Store) Repositories() application.Repositories {
 		SourceRegistry:   sourceRegistryRepository{store},
 		Releases:         releaseRepository{store},
 		ReleaseIngestion: releaseIngestionRepository{store},
+		Deprecations:     deprecationRepository{store},
 		Freshness:        freshnessRepository{store},
 		Verification:     verificationRepository{store},
 		Drift:            driftRepository{store},
@@ -209,6 +212,24 @@ func cloneRelease(record research.ReleaseRecord) research.ReleaseRecord {
 	clone.SourceIDs = append([]research.SourceID(nil), record.SourceIDs...)
 	clone.ReleasedAt = cloneTimestamp(record.ReleasedAt)
 	return clone
+}
+
+func cloneDeprecation(record research.DeprecationRecord) research.DeprecationRecord {
+	clone := record
+	clone.IntroducedIn = cloneVersion(record.IntroducedIn)
+	clone.DeprecatedIn = cloneVersion(record.DeprecatedIn)
+	clone.RemovedIn = cloneVersion(record.RemovedIn)
+	clone.SourceIDs = append([]research.SourceID(nil), record.SourceIDs...)
+	clone.EvidenceIDs = append([]research.ID(nil), record.EvidenceIDs...)
+	return clone
+}
+
+func cloneVersion(version *research.SourceVersion) *research.SourceVersion {
+	if version == nil {
+		return nil
+	}
+	clone := *version
+	return &clone
 }
 
 func cloneClaim(claim research.Claim) research.Claim {

@@ -101,6 +101,11 @@ adapters, deterministic current-stable/preview policy, duplicate handling, and
 atomic version-scoped release-notes ingestion are documented in
 [release-discovery-v1.md](release-discovery-v1.md).
 
+The evidence-linked deprecation assessment policy, explicit versus
+multi-source inference distinction, append-only status history, and legacy
+migration behavior are documented in
+[deprecation-intelligence-v1.md](deprecation-intelligence-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

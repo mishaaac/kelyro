@@ -58,6 +58,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO freshness_state (subject_id,state,score,last_verified_at,next_verify_at,algorithm_version) VALUES ('claim.legacy','aging',0.6,?,?,?)`, fixedTime.Format(timestampFormat), fixedTime.Add(time.Hour).Format(timestampFormat), research.FreshnessAlgorithmV1); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO deprecation_records (id,subject,status,source_ids_json,evidence_ids_json,verified_at) VALUES ('deprecation.legacy','Legacy API','deprecated','["source.legacy"]','["evidence.legacy"]',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if err := database.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrate I-03: %v", err)
 	}
@@ -68,8 +71,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 30 {
-		t.Fatalf("schema=(%d,%v), want 30", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 31 {
+		t.Fatalf("schema=(%d,%v), want 31", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -114,6 +117,21 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`UPDATE freshness_state SET scheduling_json='{}' WHERE subject_id='claim.legacy'`); err == nil {
 		t.Fatal("v30 accepted incomplete scheduling metadata JSON")
+	}
+	legacyDeprecationID, _ := research.NewID("deprecation.legacy")
+	legacyDeprecation, err := database.Repositories().Research.Deprecations.Get(context.Background(), legacyDeprecationID)
+	if err != nil || legacyDeprecation.Determination != research.DeprecationLegacyUnclassified ||
+		legacyDeprecation.AlgorithmVersion != research.DeprecationLegacyAlgorithm {
+		t.Fatalf("v31 legacy deprecation = (%+v, %v)", legacyDeprecation, err)
+	}
+	if _, err := handle.Exec(`UPDATE deprecation_records SET determination='absence_from_docs' WHERE id='deprecation.legacy'`); err == nil {
+		t.Fatal("v31 accepted invalid deprecation determination")
+	}
+	if _, err := handle.Exec(`UPDATE deprecation_records SET algorithm_version='deprecation-intelligence-v1' WHERE id='deprecation.legacy'`); err == nil {
+		t.Fatal("v31 accepted a v1 algorithm with legacy-unclassified determination")
+	}
+	if _, err := handle.Exec(`INSERT INTO deprecation_records (id,subject,status,source_ids_json,evidence_ids_json,verified_at,determination,algorithm_version) VALUES ('deprecation.false-multi','API','deprecated','["source.legacy"]','["evidence.legacy"]',?,'multi_source_strong_inference','deprecation-intelligence-v1')`, fixedTime.Format(timestampFormat)); err == nil {
+		t.Fatal("v31 accepted single-source multi-source inference")
 	}
 }
 
@@ -335,6 +353,38 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	}
 	if got, err := repositories.Releases.Get(ctx, release.ID); err != nil || got.Status != research.ReleaseSuperseded {
 		t.Fatalf("updated release=(%+v,%v)", got, err)
+	}
+	deprecationSnapshot := research.SourceSnapshot{
+		ID: researchTestID(t, "snapshot.deprecation"), SourceID: source.ID, Locator: source.Locator,
+		FetchedAt: at, Fetch: research.FetchMetadata{StatusCode: 200, ContentType: "text/html", ContentHash: "sha256:deprecation", ContentLength: 64, FetchVersion: "fetch/v1"},
+	}
+	if err := repositories.Snapshots.Append(ctx, deprecationSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	deprecationExcerpt := "Old API is deprecated."
+	deprecationEvidence := research.Evidence{
+		ID: researchTestID(t, "evidence.deprecation"), SourceID: source.ID, SnapshotID: deprecationSnapshot.ID,
+		Location: "deprecations", Excerpt: deprecationExcerpt,
+		ExcerptHash: research.CanonicalEvidenceExcerptHashV1(deprecationExcerpt), ExtractedAt: at, ExtractorVersion: "extract/v1",
+	}
+	if err := repositories.Evidence.Append(ctx, deprecationEvidence); err != nil {
+		t.Fatal(err)
+	}
+	deprecatedIn := researchTestVersion(t, "2.0.0")
+	deprecation := research.DeprecationRecord{
+		ID: researchTestID(t, "deprecation.api"), Subject: "Old API", Status: research.DeprecationDeprecated,
+		Determination: research.DeprecationExplicitEvidence, DeprecatedIn: &deprecatedIn,
+		SourceIDs: []research.SourceID{source.ID}, EvidenceIDs: []research.ID{deprecationEvidence.ID}, VerifiedAt: at,
+		AlgorithmVersion: research.DeprecationIntelligenceAlgorithmV1,
+	}
+	if err := repositories.Deprecations.Append(ctx, deprecation); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Deprecations.Get(ctx, deprecation.ID); err != nil || !reflect.DeepEqual(got, deprecation) {
+		t.Fatalf("deprecation roundtrip=(%+v,%v), want %+v", got, err, deprecation)
+	}
+	if history, err := repositories.Deprecations.ListBySubject(ctx, deprecation.Subject); err != nil || len(history) != 1 || !reflect.DeepEqual(history[0], deprecation) {
+		t.Fatalf("deprecation history=(%+v,%v)", history, err)
 	}
 
 	next := researchTestTimestamp(t, fixedTime.Add(time.Hour))

@@ -24,6 +24,7 @@ func newResearchRepositories(target executor, timeout time.Duration) application
 		SourceRegistry:   &researchSourceRegistryRepository{target, timeout},
 		Releases:         &researchReleaseRepository{target, timeout},
 		ReleaseIngestion: &researchReleaseIngestionRepository{target, timeout},
+		Deprecations:     &researchDeprecationRepository{target, timeout},
 		Freshness:        &researchFreshnessRepository{target, timeout},
 		Verification:     &researchVerificationRepository{target, timeout},
 		Drift:            &researchDriftRepository{target, timeout},
@@ -44,6 +45,7 @@ var (
 	_ application.SourceRegistryRepository   = (*researchSourceRegistryRepository)(nil)
 	_ application.ReleaseRepository          = (*researchReleaseRepository)(nil)
 	_ application.ReleaseIngestionRepository = (*researchReleaseIngestionRepository)(nil)
+	_ application.DeprecationRepository      = (*researchDeprecationRepository)(nil)
 	_ application.FreshnessRepository        = (*researchFreshnessRepository)(nil)
 	_ application.VerificationRepository     = (*researchVerificationRepository)(nil)
 	_ application.DriftRepository            = (*researchDriftRepository)(nil)

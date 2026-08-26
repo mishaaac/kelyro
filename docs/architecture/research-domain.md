@@ -219,8 +219,15 @@ Step 20 adds deterministic precedence, stable/preview separation, deduplication,
 and literal version-scoped release-note Claims through
 [release-discovery-v1.md](release-discovery-v1.md). It does not authorize an
 upgrade or curriculum mutation.
-`DeprecationRecord` likewise requires sources and evidence; absence from
-documentation is not represented as a deprecation.
+Step 21 completes `DeprecationRecord` with an immutable algorithm version and a
+closed determination: explicit evidence, multi-source strong inference, or a
+migration-only legacy-unclassified marker. V1 records require sources and
+Evidence; inferred records require at least two distinct sources. The record
+keeps optional introduced/deprecated/removed versions and replacement text,
+while append-only records preserve the guidance that applied before a later
+status. Absence from documentation is not represented as a valid signal. The
+full contract is documented in
+[deprecation-intelligence-v1.md](deprecation-intelligence-v1.md).
 
 `Conflict`, `VerificationResult`, `DriftReport`, and `ImpactReport` preserve
 explicit states and affected relationships. This vocabulary does not resolve

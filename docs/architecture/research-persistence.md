@@ -7,7 +7,7 @@ for structured Evidence context and Claim scopes, and Step 14 adds v27 for
 bounded claim provenance graphs. Step 15 adds v28 for stable citation metadata
 and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints.
 Step 17 adds v30 for refresh scheduling metadata. The 22 migrations that
-shipped Student Core and migrations v23–v29 remain
+shipped Student Core and migrations v23–v30 remain
 unchanged, and an I-02 database is upgraded
 without rewriting its learning state.
 
@@ -23,8 +23,9 @@ Repository behavior matches the deterministic memory adapter:
   `conflict`, and invalid relationships are `invalid_state`;
 - source locator and stable source identity are independently unique;
 - request identity is immutable and may own multiple research runs;
-- snapshots, evidence, citations, verification results, drift reports, and
-  impact reports are append-only through their ports;
+- snapshots, evidence, citations, deprecation conclusions, verification
+  results, drift reports, and impact reports are append-only through their
+  ports;
 - provenance graphs are append-only and latest lookup is deterministic by
   claim, recording time, and stable graph ID;
 - authority profiles, freshness state, and cache entries use explicit upsert
@@ -86,6 +87,14 @@ to `freshness_state`. Existing scheduled rows are conservatively read as normal
 TTL deadlines; unscheduled rows remain unscheduled. Due reads order critical,
 high, and normal records before applying deadline and stable-ID tie breakers.
 
+Migration 31 adds a closed determination and algorithm version to
+`deprecation_records`, plus an index for exact-subject chronological history.
+Existing rows are conservatively marked `legacy_unclassified` with
+`deprecation-unversioned-legacy`; they are never rewritten as explicit or
+inferred evidence. New repository writes accept only
+`deprecation-intelligence-v1`. SQLite rejects mismatched legacy/v1 markers and
+single-source rows labeled as multi-source inference.
+
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and
 opaque classification is reconstructed deterministically after reads. Existing
@@ -97,6 +106,13 @@ supporting Evidence. `ReleaseIngestionRepository` commits new Evidence, Claims,
 release rows, and lifecycle-only status updates atomically. A release status may
 change from current to superseded; its identity and all other fields remain
 immutable.
+
+Step 21 activates the existing deprecation table through an append-only
+repository. Each write verifies that all declared sources exist, every Evidence
+ID exists, Evidence belongs to a declared source, and every declared source has
+supporting Evidence. Reads return exact-subject history ordered by verification
+time and stable ID; later removed/legacy records do not overwrite earlier
+deprecated guidance.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
@@ -135,9 +151,8 @@ observation appends a new row; the service never updates an earlier row. A
 of the snapshot it revalidated, while its status, fetch time, and fetch version
 record the new observation.
 
-No credential or secret columns exist. Source aliases, deprecation records,
-bundles, and conflicts retain schema representation for later authorized
-application behavior.
+No credential or secret columns exist. Source aliases, bundles, and conflicts
+retain schema representation for later authorized application behavior.
 
 ## Deferred behavior
 

@@ -3,11 +3,13 @@ package research
 import "fmt"
 
 const (
-	FreshnessAlgorithmV1         = "freshness-v1"
-	RefreshSchedulingAlgorithmV1 = "refresh-scheduling-v1"
-	MinimumFreshnessTTLDays      = 1
-	MaximumFreshnessTTLDays      = 3650
-	MaximumFreshnessTTLHints     = 64
+	FreshnessAlgorithmV1               = "freshness-v1"
+	RefreshSchedulingAlgorithmV1       = "refresh-scheduling-v1"
+	DeprecationIntelligenceAlgorithmV1 = "deprecation-intelligence-v1"
+	DeprecationLegacyAlgorithm         = "deprecation-unversioned-legacy"
+	MinimumFreshnessTTLDays            = 1
+	MaximumFreshnessTTLDays            = 3650
+	MaximumFreshnessTTLHints           = 64
 )
 
 type FreshnessState string
@@ -213,17 +215,40 @@ func (status DeprecationStatus) Validate() error {
 	}
 }
 
+// DeprecationDetermination makes the evidentiary basis of a deprecation
+// conclusion visible. LegacyUnclassified is reserved for records written
+// before the Step 21 algorithm existed; new assessments must never use it.
+type DeprecationDetermination string
+
+const (
+	DeprecationExplicitEvidence           DeprecationDetermination = "explicit_evidence"
+	DeprecationMultiSourceStrongInference DeprecationDetermination = "multi_source_strong_inference"
+	DeprecationLegacyUnclassified         DeprecationDetermination = "legacy_unclassified"
+)
+
+func (determination DeprecationDetermination) Validate() error {
+	switch determination {
+	case DeprecationExplicitEvidence, DeprecationMultiSourceStrongInference,
+		DeprecationLegacyUnclassified:
+		return nil
+	default:
+		return fmt.Errorf("invalid deprecation determination %q", determination)
+	}
+}
+
 type DeprecationRecord struct {
-	ID           ID
-	Subject      string
-	Status       DeprecationStatus
-	IntroducedIn *SourceVersion
-	DeprecatedIn *SourceVersion
-	RemovedIn    *SourceVersion
-	Replacement  string
-	SourceIDs    []SourceID
-	EvidenceIDs  []ID
-	VerifiedAt   Timestamp
+	ID               ID
+	Subject          string
+	Status           DeprecationStatus
+	Determination    DeprecationDetermination
+	IntroducedIn     *SourceVersion
+	DeprecatedIn     *SourceVersion
+	RemovedIn        *SourceVersion
+	Replacement      string
+	SourceIDs        []SourceID
+	EvidenceIDs      []ID
+	VerifiedAt       Timestamp
+	AlgorithmVersion string
 }
 
 func (record DeprecationRecord) Validate() error {
@@ -234,6 +259,9 @@ func (record DeprecationRecord) Validate() error {
 		return err
 	}
 	if err := record.Status.Validate(); err != nil {
+		return err
+	}
+	if err := record.Determination.Validate(); err != nil {
 		return err
 	}
 	for _, item := range []struct {
@@ -259,7 +287,28 @@ func (record DeprecationRecord) Validate() error {
 	if err := validateIDs("deprecation evidence", record.EvidenceIDs, 1); err != nil {
 		return err
 	}
-	return validateTimestamp("deprecation verified at", record.VerifiedAt)
+	if err := validateTimestamp("deprecation verified at", record.VerifiedAt); err != nil {
+		return err
+	}
+	switch record.AlgorithmVersion {
+	case DeprecationIntelligenceAlgorithmV1:
+		if record.Determination == DeprecationLegacyUnclassified {
+			return fmt.Errorf("deprecation-intelligence-v1 cannot be legacy unclassified")
+		}
+		if record.Determination == DeprecationMultiSourceStrongInference && len(record.SourceIDs) < 2 {
+			return fmt.Errorf("multi-source strong inference requires at least 2 sources")
+		}
+		if record.Determination == DeprecationMultiSourceStrongInference && len(record.EvidenceIDs) < 2 {
+			return fmt.Errorf("multi-source strong inference requires at least 2 evidence records")
+		}
+	case DeprecationLegacyAlgorithm:
+		if record.Determination != DeprecationLegacyUnclassified {
+			return fmt.Errorf("legacy deprecation record must be legacy unclassified")
+		}
+	default:
+		return fmt.Errorf("invalid deprecation algorithm version %q", record.AlgorithmVersion)
+	}
+	return nil
 }
 
 type ConflictType string

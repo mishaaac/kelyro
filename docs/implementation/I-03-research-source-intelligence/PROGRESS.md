@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 21
-Last completed step: 20
+Current step: 22
+Last completed step: 21
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1549,3 +1549,88 @@ Release: unreleased
   evidence y Claims existentes sin cambiar la política de current stable.
 - No implementar deprecation, historical sources ni pasos posteriores antes de
   su autorización independiente.
+
+## Step 21 — Deprecation & Legacy Intelligence
+
+Status: completed
+Date: 2026-08-26
+Release: unreleased
+
+### Delivered
+
+- Política determinista `deprecation-intelligence-v1` para conclusiones
+  `deprecated`, `removed`, `legacy`, `historical_only` y `superseded` sobre
+  prácticas, APIs o versiones generales.
+- Señales estructuradas vinculadas a Claim, Evidence y source con dos caminos
+  cerrados: statement explícito o strong inference; la ausencia en docs no es
+  un tipo de señal válido.
+- Validación completa de la cadena persistida `Claim → Evidence → Source`, del
+  tipo `deprecation`, de la cronología frente al clock inyectado y del acuerdo
+  exacto de status, versiones conocidas y replacement entre señales.
+- Admisión de inferencia fuerte únicamente con al menos dos sources distintos y
+  confidence `>= 0.8` en cada Claim, marcada durablemente como
+  `multi_source_strong_inference` y separada de evidencia explícita.
+- `DeprecationRecord` versionado con determination explícita, versions
+  introduced/deprecated/removed opcionales, replacement opcional, Evidence,
+  sources y `verified_at`.
+- Repository port append-only, servicio de assessment/get/history y adapters
+  deterministas de memoria y SQLite con copias defensivas y orden estable por
+  subject, verificación e ID.
+- Migration SQLite forward-only v31 para determination, algorithm version e
+  índice de historial. Filas previas se conservan como
+  `legacy_unclassified`/`deprecation-unversioned-legacy` sin inventar su base
+  evidentiary.
+- Contrato, admission policy, persistencia, compatibilidad y límites
+  documentados en `docs/architecture/deprecation-intelligence-v1.md`, con
+  domain, application, persistence e índice arquitectónico sincronizados.
+
+### Decisions
+
+- El servicio consume señales estructuradas; no parsea keywords ni interpreta
+  prosa. El productor de la señal debe asociar su conclusión a Evidence
+  literal acotada y tratar el contenido externo como datos no confiables.
+- Todos los signals de un assessment deben ser homogéneos y concordar. Una
+  discrepancia se rechaza como invalid state; el Paso 21 no anticipa ni oculta
+  el Conflict Resolver reservado al Paso 23.
+- El threshold y la corroboración por source son una admission policy local de
+  deprecation-v1, no producen VerificationResult ni implementan el algoritmo
+  general Multi-source Verification del Paso 24.
+- Los registros son inmutables: una transición posterior de deprecated a
+  removed/legacy se agrega al historial y nunca sobrescribe la guidance que
+  aplicaba a versiones anteriores.
+- V1 no exige ni inventa versiones o replacement ausentes. La identidad de
+  versión continúa siendo opaca y general; tampoco se intenta ordenar esquemas
+  que no son comparables.
+- Deprecation Intelligence no modifica TechnologyRelease, no auto-upgradea ni
+  recompila curriculum y no toca Student Core.
+- No se implementó source temporal scope ni clasificación current/historical/
+  version-bound/archived, reservada al Paso 22.
+
+### Verification
+
+- Tests de dominio para determinations, algorithm version, compatibilidad
+  legacy y mínimo multi-source/evidence.
+- Tests de aplicación para statement explícito, replacement opcional,
+  inferencia fuerte corroborada, threshold de confidence, single-source,
+  ausencia en docs, señales mixtas/discrepantes, claims no-deprecation,
+  ownership de versiones e historial deprecated → removed.
+- Tests SQLite de migration v31, defaults legacy no inventados, constraints de
+  marker/version y multi-source, round-trip y subject history.
+- `GOCACHE=/tmp/kelyro-i03-step21-target2-gocache go test ./internal/research/... ./internal/storage/sqlite`.
+- `GOCACHE=/tmp/kelyro-i03-step21-full-gocache go test ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step21-full-gocache go vet ./...`.
+- Cross-compile de todos los test binaries de Research y SQLite para Windows y
+  Darwin con `CGO_ENABLED=0` y `go test -c`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 198.661 s.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 22 es el siguiente paso pendiente y requiere autorización explícita.
+- Historical Source handling podrá reutilizar el historial inmutable de
+  deprecation, pero debe añadir scopes temporales de sources/citations/bundles
+  sin reclasificar evidencia actual silenciosamente.
+- No implementar historical source handling, Conflict Resolver ni pasos
+  posteriores antes de su autorización independiente.

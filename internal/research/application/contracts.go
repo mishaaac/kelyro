@@ -94,6 +94,14 @@ type ReleaseIngestionRepository interface {
 	Commit(context.Context, ReleaseIngestionBatch) error
 }
 
+// DeprecationRepository is append-only so later removed/legacy conclusions do
+// not erase the guidance that applied to earlier versions.
+type DeprecationRepository interface {
+	Append(context.Context, research.DeprecationRecord) error
+	Get(context.Context, research.ID) (research.DeprecationRecord, error)
+	ListBySubject(context.Context, string) ([]research.DeprecationRecord, error)
+}
+
 // FreshnessRecord persists freshness-v1 output and, when scheduled, the
 // independently versioned refresh-scheduling-v1 metadata.
 type FreshnessRecord struct {
@@ -219,6 +227,7 @@ type Repositories struct {
 	SourceRegistry   SourceRegistryRepository
 	Releases         ReleaseRepository
 	ReleaseIngestion ReleaseIngestionRepository
+	Deprecations     DeprecationRepository
 	Freshness        FreshnessRepository
 	Verification     VerificationRepository
 	Drift            DriftRepository
@@ -553,6 +562,145 @@ type ReleaseDiscoveryResult struct {
 
 type ReleaseDiscoveryService interface {
 	Discover(context.Context, ResearchMode, ReleaseDiscoveryRequest) (ReleaseDiscoveryResult, error)
+}
+
+const (
+	MinimumDeprecationStrongInferenceConfidence = 0.8
+	MaximumDeprecationSignals                   = 32
+)
+
+// DeprecationSignalKind is deliberately closed: absence from documentation is
+// not a signal and cannot be represented as valid input.
+type DeprecationSignalKind string
+
+const (
+	DeprecationSignalExplicitStatement DeprecationSignalKind = "explicit_statement"
+	DeprecationSignalStrongInference   DeprecationSignalKind = "strong_inference"
+)
+
+func (kind DeprecationSignalKind) Validate() error {
+	switch kind {
+	case DeprecationSignalExplicitStatement, DeprecationSignalStrongInference:
+		return nil
+	default:
+		return fmt.Errorf("invalid deprecation signal kind %q", kind)
+	}
+}
+
+// DeprecationSignal references one structured deprecation claim and one of its
+// evidence excerpts. The application service resolves and validates the full
+// claim -> evidence -> source relationship before recording a conclusion.
+type DeprecationSignal struct {
+	Kind         DeprecationSignalKind
+	ClaimID      research.ClaimID
+	EvidenceID   research.ID
+	SourceID     research.SourceID
+	Status       research.DeprecationStatus
+	IntroducedIn *research.SourceVersion
+	DeprecatedIn *research.SourceVersion
+	RemovedIn    *research.SourceVersion
+	Replacement  string
+}
+
+func (signal DeprecationSignal) Validate() error {
+	if err := signal.Kind.Validate(); err != nil {
+		return err
+	}
+	if err := signal.ClaimID.Validate(); err != nil {
+		return err
+	}
+	if err := signal.EvidenceID.Validate(); err != nil {
+		return fmt.Errorf("deprecation signal evidence: %w", err)
+	}
+	if err := signal.SourceID.Validate(); err != nil {
+		return err
+	}
+	return validateDeprecationConclusion(signal.Status, signal.IntroducedIn, signal.DeprecatedIn, signal.RemovedIn, signal.Replacement)
+}
+
+type DeprecationAssessmentRequest struct {
+	Subject string
+	Signals []DeprecationSignal
+}
+
+func (request DeprecationAssessmentRequest) Validate() error {
+	if err := requireText("deprecation subject", request.Subject); err != nil {
+		return err
+	}
+	if len(request.Signals) == 0 || len(request.Signals) > MaximumDeprecationSignals {
+		return fmt.Errorf("deprecation signals must contain between 1 and %d entries", MaximumDeprecationSignals)
+	}
+	seen := make(map[string]struct{}, len(request.Signals))
+	var kind DeprecationSignalKind
+	for index, signal := range request.Signals {
+		if err := signal.Validate(); err != nil {
+			return fmt.Errorf("deprecation signal %d: %w", index, err)
+		}
+		if index == 0 {
+			kind = signal.Kind
+		} else if signal.Kind != kind {
+			return fmt.Errorf("deprecation assessment cannot mix explicit and inferred signals")
+		}
+		if index > 0 && !sameDeprecationConclusion(request.Signals[0], signal) {
+			return fmt.Errorf("deprecation signals disagree on status, versions, or replacement")
+		}
+		key := signal.ClaimID.String() + "\x00" + signal.EvidenceID.String() + "\x00" + signal.SourceID.String()
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("deprecation assessment contains a duplicate signal")
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+func validateDeprecationConclusion(
+	status research.DeprecationStatus,
+	introducedIn, deprecatedIn, removedIn *research.SourceVersion,
+	replacement string,
+) error {
+	if err := status.Validate(); err != nil {
+		return err
+	}
+	for _, item := range []struct {
+		name    string
+		version *research.SourceVersion
+	}{
+		{"introduced version", introducedIn},
+		{"deprecated version", deprecatedIn},
+		{"removed version", removedIn},
+	} {
+		if item.version != nil {
+			if err := item.version.Validate(); err != nil {
+				return fmt.Errorf("%s: %w", item.name, err)
+			}
+		}
+	}
+	return validateOptionalText("deprecation replacement", replacement)
+}
+
+func sameDeprecationConclusion(left, right DeprecationSignal) bool {
+	return left.Status == right.Status &&
+		optionalVersionEqual(left.IntroducedIn, right.IntroducedIn) &&
+		optionalVersionEqual(left.DeprecatedIn, right.DeprecatedIn) &&
+		optionalVersionEqual(left.RemovedIn, right.RemovedIn) &&
+		left.Replacement == right.Replacement
+}
+
+func optionalVersionEqual(left, right *research.SourceVersion) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+type DeprecationAssessmentResult struct {
+	Record research.DeprecationRecord
+}
+
+type DeprecationIntelligenceService interface {
+	Assess(context.Context, DeprecationAssessmentRequest) (DeprecationAssessmentResult, error)
+	Get(context.Context, research.ID) (research.DeprecationRecord, error)
+	History(context.Context, string) ([]research.DeprecationRecord, error)
 }
 
 type NormalizedSource struct {

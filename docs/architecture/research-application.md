@@ -47,6 +47,7 @@ Persistence is divided by aggregate or durable output:
 | `SourceRegistryRepository` | Reviewed source-family entries with deterministic list/show access. |
 | `ReleaseRepository` | Evidence-backed `TechnologyRelease` records with compatible `ReleaseRecord` naming. |
 | `ReleaseIngestionRepository` | Atomic Evidence/Claim/release/status batches produced by release discovery. |
+| `DeprecationRepository` | Append-only, evidence-linked deprecation conclusions and subject history. |
 | `FreshnessRepository` | Versioned freshness outputs and due-state queries. |
 | `VerificationRepository` | Immutable verification results by claim. |
 | `DriftRepository` | Immutable drift reports. |
@@ -136,6 +137,10 @@ The initial services are deliberately thin:
   Trust Decisions, captures feeds through the privacy boundary, deduplicates
   releases, selects stable/preview families, and atomically ingests bounded
   release-note Evidence and version-scoped Claims;
+- `DeprecationIntelligenceService` validates structured deprecation signals
+  against their Claim/Evidence/Source chain, applies the versioned explicit or
+  multi-source inference admission policy, appends the conclusion, and reads
+  exact subject history;
 - `DriftService` records and reads drift reports;
 - `ImpactService` records and reads impact reports.
 
@@ -158,6 +163,16 @@ stable can supersede the prior current record. All other release identity,
 source, version, channel, chronology, and verification fields remain immutable.
 The full policy is in
 [release-discovery-v1.md](release-discovery-v1.md).
+
+Step 21 does not parse prose or infer from missing documentation. Signal
+producers must classify a bounded observation as an explicit statement or a
+strong inference and attach one deprecation Claim, Evidence ID, source, status,
+and optional version/replacement fields. All signals in one assessment must
+agree. The service checks the stored relationships; inferred conclusions also
+require at least two distinct sources and confidence `>= 0.8` for every Claim.
+This admission rule is not the general multi-source verification algorithm
+reserved for Step 24. The full contract is in
+[deprecation-intelligence-v1.md](deprecation-intelligence-v1.md).
 
 ## Error taxonomy
 
@@ -190,8 +205,9 @@ mutex-protected maps. It provides:
 
 - deterministic ordering for collection and latest-record queries;
 - classified invalid, not-found, conflict, and cancellation errors;
-- source/snapshot/evidence/claim/citation, source/release, source/verification, and
-  drift/impact relationship checks;
+- source/snapshot/evidence/claim/citation, source/release,
+  source/deprecation/evidence, source/verification, and drift/impact
+  relationship checks;
 - defensive copies for pointer, slice, and byte fields so callers cannot mutate
   stored state through returned values;
 - support for multiple runs belonging to one immutable request.
