@@ -1469,6 +1469,13 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`ALTER TABLE authority_profiles ADD COLUMN freshness_ttl_hints_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(freshness_ttl_hints_json) AND json_type(freshness_ttl_hints_json) = 'array' AND json_array_length(freshness_ttl_hints_json) <= 64)`,
 		},
 	},
+	{
+		version: 30,
+		name:    "refresh scheduling metadata",
+		statements: []string{
+			`ALTER TABLE freshness_state ADD COLUMN scheduling_json TEXT NOT NULL DEFAULT '{"verification_reason":"ttl_expired","priority":"normal","algorithm_version":"refresh-scheduling-v1"}' CHECK (json_valid(scheduling_json) AND json_type(scheduling_json) = 'object' AND length(CAST(scheduling_json AS BLOB)) <= 256 AND json_remove(scheduling_json,'$.verification_reason','$.priority','$.algorithm_version') = '{}' AND COALESCE(json_extract(scheduling_json,'$.verification_reason') IN ('ttl_expired','new_release_detected','source_changed','conflict_unresolved','security_sensitive','manual_request'),0) AND COALESCE(json_extract(scheduling_json,'$.priority') IN ('normal','high','critical'),0) AND COALESCE(json_extract(scheduling_json,'$.algorithm_version') = 'refresh-scheduling-v1',0))`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

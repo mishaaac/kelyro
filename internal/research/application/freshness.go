@@ -29,3 +29,26 @@ func FreshnessRecordFromAssessment(subjectID research.ID, assessment freshness.A
 	}
 	return record, nil
 }
+
+// FreshnessRecordFromSchedule combines matching, independently versioned
+// freshness and scheduling outputs for persistence and due-list queries.
+func FreshnessRecordFromSchedule(subjectID research.ID, assessment freshness.Assessment, schedule freshness.Schedule) (FreshnessRecord, error) {
+	record, err := FreshnessRecordFromAssessment(subjectID, assessment)
+	if err != nil {
+		return FreshnessRecord{}, err
+	}
+	if err := schedule.Validate(); err != nil {
+		return FreshnessRecord{}, fmt.Errorf("freshness schedule: %w", err)
+	}
+	if !schedule.LastVerifiedAt.Time().Equal(record.LastVerifiedAt.Time()) {
+		return FreshnessRecord{}, fmt.Errorf("freshness schedule uses a different last verification")
+	}
+	record.NextVerifyAt = &schedule.NextVerifyAt
+	record.VerificationReason = schedule.Reason
+	record.Priority = schedule.Priority
+	record.SchedulingAlgorithmVersion = schedule.AlgorithmVersion
+	if err := record.Validate(); err != nil {
+		return FreshnessRecord{}, err
+	}
+	return record, nil
+}

@@ -17,6 +17,7 @@ import (
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/update"
 )
 
@@ -1374,12 +1375,41 @@ func TestRunnerParsesAndRendersSourceRegistryCommands(t *testing.T) {
 			t.Fatalf("trace command = %+v", service.commands)
 		}
 	})
+	t.Run("stale", func(t *testing.T) {
+		last, _ := research.NewTimestamp(time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC))
+		dueAt, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+		score, _ := research.NewFreshnessScore(.4)
+		record := researchapp.FreshnessRecord{
+			SubjectID: cliID(t, "claim.cli-stale"), State: research.FreshnessStale, Score: score,
+			LastVerifiedAt: last, NextVerifyAt: &dueAt, VerificationReason: research.VerificationManualRequest,
+			Priority: research.VerificationPriorityCritical, AlgorithmVersion: research.FreshnessAlgorithmV1,
+			SchedulingAlgorithmVersion: research.RefreshSchedulingAlgorithmV1,
+		}
+		service := &fakeService{result: app.Result{StaleSources: []researchapp.FreshnessRecord{record}}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "stale"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "claim.cli-stale [critical]") || !strings.Contains(stdout.String(), "manual_request") {
+			t.Fatalf("stale = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].SourceRegistryOperation != "stale" {
+			t.Fatalf("stale command = %+v", service.commands)
+		}
+	})
 	for _, args := range [][]string{{"sources"}, {"sources", "registry"}, {"sources", "registry", "show"}, {"sources", "registry", "delete", "id"}, {"sources", "trace"}} {
 		var stderr bytes.Buffer
 		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
 			t.Fatalf("Run(%v) code = %d, want usage; stderr=%q", args, code, stderr.String())
 		}
 	}
+}
+
+func cliID(t *testing.T, value string) research.ID {
+	t.Helper()
+	result, err := research.NewID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
 }
 
 func cliProvenanceGraph(t *testing.T) research.ProvenanceGraph {

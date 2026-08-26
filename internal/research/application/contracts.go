@@ -73,16 +73,18 @@ type ReleaseRepository interface {
 	ListByTechnology(context.Context, research.ID) ([]research.ReleaseRecord, error)
 }
 
-// FreshnessRecord is persisted policy output. freshness-v1 owns the scoring
-// formula; this boundary preserves a known last verification and its versioned
-// result without calculating refresh scheduling.
+// FreshnessRecord persists freshness-v1 output and, when scheduled, the
+// independently versioned refresh-scheduling-v1 metadata.
 type FreshnessRecord struct {
-	SubjectID        research.ID
-	State            research.FreshnessState
-	Score            research.FreshnessScore
-	LastVerifiedAt   research.Timestamp
-	NextVerifyAt     *research.Timestamp
-	AlgorithmVersion string
+	SubjectID                  research.ID
+	State                      research.FreshnessState
+	Score                      research.FreshnessScore
+	LastVerifiedAt             research.Timestamp
+	NextVerifyAt               *research.Timestamp
+	VerificationReason         research.VerificationReason
+	Priority                   research.VerificationPriority
+	AlgorithmVersion           string
+	SchedulingAlgorithmVersion string
 }
 
 func (record FreshnessRecord) Validate() error {
@@ -105,6 +107,17 @@ func (record FreshnessRecord) Validate() error {
 		if record.NextVerifyAt.Before(record.LastVerifiedAt) {
 			return fmt.Errorf("freshness next verification precedes last verification")
 		}
+		if err := record.VerificationReason.Validate(); err != nil {
+			return err
+		}
+		if err := record.Priority.Validate(); err != nil {
+			return err
+		}
+		if record.SchedulingAlgorithmVersion != research.RefreshSchedulingAlgorithmV1 {
+			return fmt.Errorf("freshness scheduling algorithm version must be %q", research.RefreshSchedulingAlgorithmV1)
+		}
+	} else if record.VerificationReason != "" || record.Priority != "" || record.SchedulingAlgorithmVersion != "" {
+		return fmt.Errorf("unscheduled freshness cannot contain scheduling metadata")
 	}
 	return requireText("freshness algorithm version", record.AlgorithmVersion)
 }
@@ -674,11 +687,13 @@ type ProvenanceService interface {
 	Export(context.Context, research.ClaimID) ([]byte, error)
 }
 
-// SourceRegistryStore scopes read-only source registry/provenance commands and
-// the underlying workspace database lifetime without exposing SQLite.
+// SourceRegistryStore scopes read-only source registry, provenance, and stale
+// schedule commands plus the underlying workspace database lifetime without
+// exposing SQLite.
 type SourceRegistryStore interface {
 	Registry() SourceRegistryService
 	Provenance() ProvenanceService
+	Freshness() FreshnessService
 	Close() error
 }
 

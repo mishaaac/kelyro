@@ -55,6 +55,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO citations (id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,snapshot_date,last_verified) VALUES ('citation.legacy','source.legacy','snapshot.legacy','evidence.legacy','Legacy source','https://example.test/legacy','https://example.test/legacy#section',?,?)`, fixedTime.Format(timestampFormat), fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO freshness_state (subject_id,state,score,last_verified_at,next_verify_at,algorithm_version) VALUES ('claim.legacy','aging',0.6,?,?,?)`, fixedTime.Format(timestampFormat), fixedTime.Add(time.Hour).Format(timestampFormat), research.FreshnessAlgorithmV1); err != nil {
+		t.Fatal(err)
+	}
 	if err := database.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrate I-03: %v", err)
 	}
@@ -65,8 +68,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 29 {
-		t.Fatalf("schema=(%d,%v), want 29", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 30 {
+		t.Fatalf("schema=(%d,%v), want 30", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -101,6 +104,16 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`UPDATE authority_profiles SET freshness_ttl_hints_json='{}' WHERE id='authority.legacy'`); err == nil {
 		t.Fatal("v29 accepted non-array freshness TTL hints")
+	}
+	var verificationReason, verificationPriority, schedulingAlgorithm string
+	if err := handle.QueryRow(`SELECT json_extract(scheduling_json,'$.verification_reason'),json_extract(scheduling_json,'$.priority'),json_extract(scheduling_json,'$.algorithm_version') FROM freshness_state WHERE subject_id='claim.legacy'`).Scan(&verificationReason, &verificationPriority, &schedulingAlgorithm); err != nil {
+		t.Fatal(err)
+	}
+	if verificationReason != string(research.VerificationTTLExpired) || verificationPriority != string(research.VerificationPriorityNormal) || schedulingAlgorithm != research.RefreshSchedulingAlgorithmV1 {
+		t.Fatalf("v30 schedule defaults = (%q,%q,%q)", verificationReason, verificationPriority, schedulingAlgorithm)
+	}
+	if _, err := handle.Exec(`UPDATE freshness_state SET scheduling_json='{}' WHERE subject_id='claim.legacy'`); err == nil {
+		t.Fatal("v30 accepted incomplete scheduling metadata JSON")
 	}
 }
 
@@ -284,11 +297,30 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 
 	next := researchTestTimestamp(t, fixedTime.Add(time.Hour))
 	score, _ := research.NewFreshnessScore(.8)
-	freshness := application.FreshnessRecord{SubjectID: researchTestID(t, source.ID.String()), State: research.FreshnessFresh, Score: score, LastVerifiedAt: at, NextVerifyAt: &next, AlgorithmVersion: research.FreshnessAlgorithmV1}
+	freshness := application.FreshnessRecord{
+		SubjectID: researchTestID(t, source.ID.String()), State: research.FreshnessFresh, Score: score,
+		LastVerifiedAt: at, NextVerifyAt: &next, VerificationReason: research.VerificationTTLExpired,
+		Priority: research.VerificationPriorityNormal, AlgorithmVersion: research.FreshnessAlgorithmV1,
+		SchedulingAlgorithmVersion: research.RefreshSchedulingAlgorithmV1,
+	}
 	if err := repositories.Freshness.Save(ctx, freshness); err != nil {
 		t.Fatal(err)
 	}
-	if due, err := repositories.Freshness.ListDue(ctx, next); err != nil || len(due) != 1 || !reflect.DeepEqual(due[0], freshness) {
+	critical := freshness
+	critical.SubjectID = researchTestID(t, "claim.critical")
+	critical.VerificationReason = research.VerificationManualRequest
+	critical.Priority = research.VerificationPriorityCritical
+	if err := repositories.Freshness.Save(ctx, critical); err != nil {
+		t.Fatal(err)
+	}
+	futureAt := researchTestTimestamp(t, next.Time().Add(time.Hour))
+	future := freshness
+	future.SubjectID = researchTestID(t, "claim.future")
+	future.NextVerifyAt = &futureAt
+	if err := repositories.Freshness.Save(ctx, future); err != nil {
+		t.Fatal(err)
+	}
+	if due, err := repositories.Freshness.ListDue(ctx, next); err != nil || len(due) != 2 || !reflect.DeepEqual(due[0], critical) || !reflect.DeepEqual(due[1], freshness) {
 		t.Fatalf("freshness due=(%+v,%v)", due, err)
 	}
 

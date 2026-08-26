@@ -124,7 +124,9 @@ The initial services are deliberately thin:
   the pure `internal/research/freshness` model produces `freshness-v1`
   assessments with an injected clock and no adapter dependency, while
   `FreshnessRecordFromAssessment` maps only known-verification results without
-  calculating `next_verify_at`;
+  calculating `next_verify_at`; `refresh-scheduling-v1` separately derives
+  versioned deadlines, reasons, and priorities, and
+  `FreshnessRecordFromSchedule` combines matching outputs;
 - `ReleaseIntelligenceService` records and reads release facts;
 - `DriftService` records and reads drift reports;
 - `ImpactService` records and reads impact reports.

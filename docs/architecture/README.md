@@ -83,6 +83,10 @@ The versioned evidence-age formula, Authority Profile TTL precedence, release
 cadence cap, temporal invalidation triggers, state boundaries, and score are
 documented in [freshness-v1.md](freshness-v1.md).
 
+The versioned next-verification policy, trigger precedence, priorities,
+deterministic due ordering, persistence, and read-only stale command are
+documented in [refresh-scheduling-v1.md](refresh-scheduling-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

@@ -1448,7 +1448,7 @@ feat(freshness): add versioned evidence freshness model
 
 ## Paso 17 — Implementar Last Verified y Refresh Scheduling
 
-- [ ] Paso 17 completado
+- [x] Paso 17 completado
 
 ### Objetivo
 
@@ -3196,7 +3196,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 14 — Provenance
 - [x] Paso 15 — Citations/Deep Links
 - [x] Paso 16 — Freshness
-- [ ] Paso 17 — Verification scheduling
+- [x] Paso 17 — Verification scheduling
 - [ ] Paso 18 — Resource Quality
 - [ ] Paso 19 — Release model
 - [ ] Paso 20 — Release discovery

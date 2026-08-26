@@ -94,8 +94,10 @@ triggers, missing verification, and the selected age band.
 
 The existing `FreshnessRecord`/repository stores versioned known-verification
 outputs. `unknown` can be evaluated in memory without fabricating the required
-`last_verified_at` persistence field. Step 17 owns next-verification scheduling;
-Step 16 does not populate or interpret `next_verify_at`.
+`last_verified_at` persistence field. Step 17 adds the separate
+`refresh-scheduling-v1` policy and may combine a known assessment with its
+versioned schedule; `freshness-v1` itself still does not populate or interpret
+`next_verify_at`.
 
 Forward-only SQLite migration v29 adds bounded
 `freshness_ttl_hints_json` to Authority Profiles. Existing profiles receive an
@@ -109,3 +111,6 @@ it does not discover releases or compare opaque versions. It does not fetch
 sources, verify claims, resolve conflicts, schedule refreshes, scan for drift,
 compile curriculum, mutate Student Core, or infer that an undocumented fact is
 absent.
+
+Refresh scheduling is specified separately in
+[refresh-scheduling-v1.md](refresh-scheduling-v1.md).

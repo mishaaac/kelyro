@@ -58,6 +58,9 @@ func (repository freshnessRepository) ListDue(ctx context.Context, asOf research
 		}
 	}
 	sort.Slice(result, func(i, j int) bool {
+		if result[i].Priority.Rank() != result[j].Priority.Rank() {
+			return result[i].Priority.Rank() < result[j].Priority.Rank()
+		}
 		if result[i].NextVerifyAt.Time().Equal(result[j].NextVerifyAt.Time()) {
 			return result[i].SubjectID.String() < result[j].SubjectID.String()
 		}

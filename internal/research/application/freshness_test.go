@@ -42,3 +42,27 @@ func TestFreshnessRecordFromAssessmentRejectsUnknownWithoutInventingTimestamp(t 
 		t.Fatalf("unknown conversion error = %v", err)
 	}
 }
+
+func TestFreshnessRecordFromSchedulePreservesVersionedSchedulingMetadata(t *testing.T) {
+	last := testTimestamp(t, 10)
+	evaluated := testTimestamp(t, 12)
+	score := testFreshnessScore(t, .8)
+	assessment := freshness.Assessment{
+		State: research.FreshnessFresh, Score: score, EvaluatedAt: evaluated,
+		LastVerifiedAt: &last, EffectiveTTLDays: 90, AlgorithmVersion: research.FreshnessAlgorithmV1,
+		Reasons: []freshness.Reason{{Code: freshness.ReasonAgeFresh, Detail: "Fixture age is fresh."}},
+	}
+	schedule, err := freshness.ScheduleV1(freshness.SchedulingInput{Assessment: assessment, ManualRequest: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := application.FreshnessRecordFromSchedule(testID(t, "claim.scheduled"), assessment, schedule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.NextVerifyAt == nil || !record.NextVerifyAt.Time().Equal(evaluated.Time()) ||
+		record.VerificationReason != research.VerificationManualRequest || record.Priority != research.VerificationPriorityCritical ||
+		record.SchedulingAlgorithmVersion != research.RefreshSchedulingAlgorithmV1 {
+		t.Fatalf("FreshnessRecordFromSchedule() = %+v", record)
+	}
+}

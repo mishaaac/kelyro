@@ -19,6 +19,7 @@ import (
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/version"
 )
@@ -64,7 +65,7 @@ Commands:
   time     Show intentional active study time
   reviews  Show scheduled or currently due reviews
   streak   Show study consistency without affecting progress
-  sources  Inspect the trusted source registry
+  sources  Inspect source registry, provenance, and stale evidence
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -176,6 +177,7 @@ Source registry commands:
   kelyro sources registry list
   kelyro sources registry show <id>
   kelyro sources trace <claim-id>
+  kelyro sources stale
 
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
@@ -444,6 +446,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatReviews(*result.Reviews))
 	} else if result.Streak != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatStreak(*result.Streak))
+	} else if result.StaleSources != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatStaleSources(result.StaleSources))
 	} else if result.SourceRegistryEntry != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatSourceRegistryEntry(*result.SourceRegistryEntry))
 	} else if result.SourceRegistryEntries != nil && !invocation.quiet {
@@ -1538,6 +1542,10 @@ func parse(args []string) (invocation, error) {
 }
 
 func parseSourcesArguments(result *invocation) error {
+	if len(result.arguments) == 1 && result.arguments[0] == "stale" {
+		result.sourceRegistryOperation = "stale"
+		return nil
+	}
 	if len(result.arguments) == 2 && result.arguments[0] == "trace" {
 		id, err := research.NewClaimID(result.arguments[1])
 		if err != nil {
@@ -1560,7 +1568,20 @@ func parseSourcesArguments(result *invocation) error {
 		result.sourceRegistryID = id
 		return nil
 	}
-	return fmt.Errorf("sources requires registry list, registry show <id>, or trace <claim-id>")
+	return fmt.Errorf("sources requires registry list, registry show <id>, trace <claim-id>, or stale")
+}
+
+func formatStaleSources(records []researchapp.FreshnessRecord) string {
+	lines := []string{"Sources and claims due for reverification"}
+	if len(records) == 0 {
+		return strings.Join(append(lines, "Nothing is currently due."), "\n")
+	}
+	for _, record := range records {
+		lines = append(lines, fmt.Sprintf("- %s [%s] — %s — due %s — last verified %s",
+			record.SubjectID, record.Priority, record.VerificationReason,
+			record.NextVerifyAt.Time().Format(time.RFC3339), record.LastVerifiedAt.Time().Format(time.RFC3339)))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatSourceRegistryEntries(entries []research.SourceRegistryEntry) string {

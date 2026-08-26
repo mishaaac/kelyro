@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -21,12 +22,16 @@ func (repository *researchFreshnessRepository) Save(ctx context.Context, record 
 	if err := record.Validate(); err != nil {
 		return researchInvalid(operation, err)
 	}
+	schedulingJSON, err := encodeRefreshScheduling(record)
+	if err != nil {
+		return researchInvalid(operation, err)
+	}
 	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
 	if err != nil {
 		return err
 	}
 	defer cancel()
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO freshness_state (subject_id,state,score,last_verified_at,next_verify_at,algorithm_version) VALUES (?,?,?,?,?,?) ON CONFLICT(subject_id) DO UPDATE SET state=excluded.state,score=excluded.score,last_verified_at=excluded.last_verified_at,next_verify_at=excluded.next_verify_at,algorithm_version=excluded.algorithm_version`, record.SubjectID.String(), string(record.State), record.Score.Value(), timestampText(record.LastVerifiedAt), optionalTimestampText(record.NextVerifyAt), record.AlgorithmVersion)
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO freshness_state (subject_id,state,score,last_verified_at,next_verify_at,algorithm_version,scheduling_json) VALUES (?,?,?,?,?,?,?) ON CONFLICT(subject_id) DO UPDATE SET state=excluded.state,score=excluded.score,last_verified_at=excluded.last_verified_at,next_verify_at=excluded.next_verify_at,algorithm_version=excluded.algorithm_version,scheduling_json=excluded.scheduling_json`, record.SubjectID.String(), string(record.State), record.Score.Value(), timestampText(record.LastVerifiedAt), optionalTimestampText(record.NextVerifyAt), record.AlgorithmVersion, schedulingJSON)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -42,7 +47,7 @@ func (repository *researchFreshnessRepository) Get(ctx context.Context, id resea
 		return application.FreshnessRecord{}, err
 	}
 	defer cancel()
-	return scanFreshness(repository.executor.QueryRowContext(opCtx, `SELECT subject_id,state,score,last_verified_at,next_verify_at,algorithm_version FROM freshness_state WHERE subject_id=?`, id.String()), operation)
+	return scanFreshness(repository.executor.QueryRowContext(opCtx, `SELECT subject_id,state,score,last_verified_at,next_verify_at,algorithm_version,scheduling_json FROM freshness_state WHERE subject_id=?`, id.String()), operation)
 }
 func (repository *researchFreshnessRepository) ListDue(ctx context.Context, asOf research.Timestamp) ([]application.FreshnessRecord, error) {
 	const operation = "list SQLite freshness due"
@@ -54,7 +59,7 @@ func (repository *researchFreshnessRepository) ListDue(ctx context.Context, asOf
 		return nil, err
 	}
 	defer cancel()
-	rows, err := repository.executor.QueryContext(opCtx, `SELECT subject_id,state,score,last_verified_at,next_verify_at,algorithm_version FROM freshness_state WHERE next_verify_at IS NOT NULL AND next_verify_at<=? ORDER BY next_verify_at,subject_id`, timestampText(asOf))
+	rows, err := repository.executor.QueryContext(opCtx, `SELECT subject_id,state,score,last_verified_at,next_verify_at,algorithm_version,scheduling_json FROM freshness_state WHERE next_verify_at IS NOT NULL AND next_verify_at<=? ORDER BY CASE json_extract(scheduling_json,'$.priority') WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,next_verify_at,subject_id`, timestampText(asOf))
 	if err != nil {
 		return nil, researchPersistence(operation, err)
 	}
@@ -76,7 +81,8 @@ func scanFreshness(row rowScanner, operation string) (application.FreshnessRecor
 	var subjectValue, state, lastVerified, algorithm string
 	var score float64
 	var next sql.NullString
-	if err := row.Scan(&subjectValue, &state, &score, &lastVerified, &next, &algorithm); err != nil {
+	var schedulingJSON string
+	if err := row.Scan(&subjectValue, &state, &score, &lastVerified, &next, &algorithm, &schedulingJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return application.FreshnessRecord{}, researchNotFound(operation)
 		}
@@ -98,11 +104,65 @@ func scanFreshness(row rowScanner, operation string) (application.FreshnessRecor
 	if err != nil {
 		return application.FreshnessRecord{}, researchPersistence(operation, err)
 	}
-	item := application.FreshnessRecord{SubjectID: subjectID, State: research.FreshnessState(state), Score: freshnessScore, LastVerifiedAt: lastVerifiedAt, NextVerifyAt: nextVerifyAt, AlgorithmVersion: algorithm}
+	scheduling, err := decodeRefreshScheduling(schedulingJSON)
+	if err != nil {
+		return application.FreshnessRecord{}, researchPersistence(operation, err)
+	}
+	item := application.FreshnessRecord{
+		SubjectID: subjectID, State: research.FreshnessState(state), Score: freshnessScore,
+		LastVerifiedAt: lastVerifiedAt, NextVerifyAt: nextVerifyAt,
+		AlgorithmVersion: algorithm,
+	}
+	if nextVerifyAt != nil {
+		item.VerificationReason = scheduling.VerificationReason
+		item.Priority = scheduling.Priority
+		item.SchedulingAlgorithmVersion = scheduling.AlgorithmVersion
+	}
 	if err := item.Validate(); err != nil {
 		return application.FreshnessRecord{}, researchPersistence(operation, err)
 	}
 	return item, nil
+}
+
+type refreshSchedulingJSON struct {
+	VerificationReason research.VerificationReason   `json:"verification_reason"`
+	Priority           research.VerificationPriority `json:"priority"`
+	AlgorithmVersion   string                        `json:"algorithm_version"`
+}
+
+func encodeRefreshScheduling(record application.FreshnessRecord) (string, error) {
+	metadata := refreshSchedulingJSON{
+		VerificationReason: research.VerificationTTLExpired,
+		Priority:           research.VerificationPriorityNormal,
+		AlgorithmVersion:   research.RefreshSchedulingAlgorithmV1,
+	}
+	if record.NextVerifyAt != nil {
+		metadata.VerificationReason = record.VerificationReason
+		metadata.Priority = record.Priority
+		metadata.AlgorithmVersion = record.SchedulingAlgorithmVersion
+	}
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		return "", fmt.Errorf("encode refresh schedule: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func decodeRefreshScheduling(encoded string) (refreshSchedulingJSON, error) {
+	var metadata refreshSchedulingJSON
+	if err := json.Unmarshal([]byte(encoded), &metadata); err != nil {
+		return refreshSchedulingJSON{}, fmt.Errorf("decode refresh schedule: %w", err)
+	}
+	if err := metadata.VerificationReason.Validate(); err != nil {
+		return refreshSchedulingJSON{}, err
+	}
+	if err := metadata.Priority.Validate(); err != nil {
+		return refreshSchedulingJSON{}, err
+	}
+	if metadata.AlgorithmVersion != research.RefreshSchedulingAlgorithmV1 {
+		return refreshSchedulingJSON{}, fmt.Errorf("invalid refresh scheduling algorithm %q", metadata.AlgorithmVersion)
+	}
+	return metadata, nil
 }
 
 type researchVerificationRepository struct {

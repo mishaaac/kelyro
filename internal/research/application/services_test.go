@@ -199,13 +199,29 @@ func TestIntelligenceServicesPersistOnlyValidatedPolicyOutputs(t *testing.T) {
 	freshness := application.FreshnessRecord{
 		SubjectID: testID(t, "claim.release"), State: research.FreshnessAging,
 		Score: testFreshnessScore(t, 0.6), LastVerifiedAt: testTimestamp(t, 10),
-		NextVerifyAt: &dueAt, AlgorithmVersion: research.FreshnessAlgorithmV1,
+		NextVerifyAt: &dueAt, VerificationReason: research.VerificationTTLExpired,
+		Priority: research.VerificationPriorityNormal, AlgorithmVersion: research.FreshnessAlgorithmV1,
+		SchedulingAlgorithmVersion: research.RefreshSchedulingAlgorithmV1,
 	}
 	if err := freshnessService.Save(ctx, freshness); err != nil {
 		t.Fatalf("FreshnessService.Save() error = %v", err)
 	}
+	critical := freshness
+	critical.SubjectID = testID(t, "claim.manual")
+	critical.VerificationReason = research.VerificationManualRequest
+	critical.Priority = research.VerificationPriorityCritical
+	if err := freshnessService.Save(ctx, critical); err != nil {
+		t.Fatalf("FreshnessService.Save(critical) error = %v", err)
+	}
+	futureAt := testTimestamp(t, 13)
+	future := freshness
+	future.SubjectID = testID(t, "claim.future")
+	future.NextVerifyAt = &futureAt
+	if err := freshnessService.Save(ctx, future); err != nil {
+		t.Fatalf("FreshnessService.Save(future) error = %v", err)
+	}
 	due, err := freshnessService.Due(ctx, dueAt)
-	if err != nil || len(due) != 1 || due[0].SubjectID != freshness.SubjectID {
+	if err != nil || len(due) != 2 || due[0].SubjectID != critical.SubjectID || due[1].SubjectID != freshness.SubjectID {
 		t.Fatalf("FreshnessService.Due() = (%+v, %v)", due, err)
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 )
 
 func (service *Service) executeSourceRegistry(ctx context.Context, command Command) (result Result, err error) {
@@ -46,6 +47,21 @@ func (service *Service) executeSourceRegistry(ctx context.Context, command Comma
 		}
 		graph, traceErr := store.Provenance().Trace(ctx, command.ProvenanceClaimID)
 		result.ProvenanceGraph, err = &graph, traceErr
+	case "stale":
+		if store.Freshness() == nil {
+			return Result{}, errors.New("freshness service is unavailable")
+		}
+		if service.researchClock == nil {
+			return Result{}, errors.New("research clock is unavailable")
+		}
+		asOf, timestampErr := research.NewTimestamp(service.researchClock().UTC())
+		if timestampErr != nil {
+			return Result{}, fmt.Errorf("research clock: %w", timestampErr)
+		}
+		result.StaleSources, err = store.Freshness().Due(ctx, asOf)
+		if result.StaleSources == nil {
+			result.StaleSources = make([]researchapp.FreshnessRecord, 0)
+		}
 	default:
 		return Result{}, fmt.Errorf("unsupported source registry operation %q", command.SourceRegistryOperation)
 	}

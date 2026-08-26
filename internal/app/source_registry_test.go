@@ -18,6 +18,7 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	registry := researchapp.NewSourceRegistryService(memory.New().Repositories().SourceRegistry)
 	provenanceStore := memory.New()
 	provenance := researchapp.NewProvenanceService(provenanceStore.Repositories().Provenance)
+	freshness := researchapp.NewFreshnessService(provenanceStore.Repositories().Freshness)
 	entry := appRegistryEntry(t)
 	if err := registry.Save(ctx, entry); err != nil {
 		t.Fatal(err)
@@ -26,8 +27,22 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	if err := provenance.Record(ctx, graph); err != nil {
 		t.Fatal(err)
 	}
-	factory := &fakeSourceRegistryStoreFactory{registry: registry, provenance: provenance}
-	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).WithResearchStores(factory)
+	lastVerified, _ := research.NewTimestamp(time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC))
+	dueAt, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+	score, _ := research.NewFreshnessScore(.4)
+	staleRecord := researchapp.FreshnessRecord{
+		SubjectID: graph.Nodes[len(graph.Nodes)-1].ID, State: research.FreshnessStale, Score: score,
+		LastVerifiedAt: lastVerified, NextVerifyAt: &dueAt, VerificationReason: research.VerificationManualRequest,
+		Priority: research.VerificationPriorityCritical, AlgorithmVersion: research.FreshnessAlgorithmV1,
+		SchedulingAlgorithmVersion: research.RefreshSchedulingAlgorithmV1,
+	}
+	if err := freshness.Save(ctx, staleRecord); err != nil {
+		t.Fatal(err)
+	}
+	factory := &fakeSourceRegistryStoreFactory{registry: registry, provenance: provenance, freshness: freshness}
+	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
+		WithResearchStores(factory).
+		WithResearchClock(func() time.Time { return time.Date(2026, 8, 25, 10, 0, 0, 0, time.UTC) })
 	listed, err := service.Execute(ctx, Command{Action: ActionSources, Workspace: root, SourceRegistryOperation: "list"})
 	if err != nil || len(listed.SourceRegistryEntries) != 1 || listed.SourceRegistryEntries[0].ID != entry.ID {
 		t.Fatalf("registry list = (%+v, %v)", listed, err)
@@ -40,7 +55,11 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	if err != nil || traced.ProvenanceGraph == nil || traced.ProvenanceGraph.ID != graph.ID {
 		t.Fatalf("provenance trace = (%+v, %v)", traced, err)
 	}
-	if factory.openRoot != root || factory.closed != 3 {
+	due, err := service.Execute(ctx, Command{Action: ActionSources, Workspace: root, SourceRegistryOperation: "stale"})
+	if err != nil || len(due.StaleSources) != 1 || due.StaleSources[0].SubjectID != staleRecord.SubjectID {
+		t.Fatalf("stale sources = (%+v, %v)", due.StaleSources, err)
+	}
+	if factory.openRoot != root || factory.closed != 4 {
 		t.Fatalf("registry factory root=%q closed=%d", factory.openRoot, factory.closed)
 	}
 }
@@ -48,18 +67,20 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 type fakeSourceRegistryStoreFactory struct {
 	registry   researchapp.SourceRegistryService
 	provenance researchapp.ProvenanceService
+	freshness  researchapp.FreshnessService
 	openRoot   string
 	closed     int
 }
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{registry: factory.registry, provenance: factory.provenance, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{registry: factory.registry, provenance: factory.provenance, freshness: factory.freshness, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
 	registry   researchapp.SourceRegistryService
 	provenance researchapp.ProvenanceService
+	freshness  researchapp.FreshnessService
 	close      func()
 }
 
@@ -68,6 +89,9 @@ func (store *fakeSourceRegistryStore) Registry() researchapp.SourceRegistryServi
 }
 func (store *fakeSourceRegistryStore) Provenance() researchapp.ProvenanceService {
 	return store.provenance
+}
+func (store *fakeSourceRegistryStore) Freshness() researchapp.FreshnessService {
+	return store.freshness
 }
 func (store *fakeSourceRegistryStore) Close() error {
 	store.close()

@@ -3,10 +3,11 @@ package research
 import "fmt"
 
 const (
-	FreshnessAlgorithmV1     = "freshness-v1"
-	MinimumFreshnessTTLDays  = 1
-	MaximumFreshnessTTLDays  = 3650
-	MaximumFreshnessTTLHints = 64
+	FreshnessAlgorithmV1         = "freshness-v1"
+	RefreshSchedulingAlgorithmV1 = "refresh-scheduling-v1"
+	MinimumFreshnessTTLDays      = 1
+	MaximumFreshnessTTLDays      = 3650
+	MaximumFreshnessTTLHints     = 64
 )
 
 type FreshnessState string
@@ -24,6 +25,59 @@ func (state FreshnessState) Validate() error {
 		return nil
 	default:
 		return fmt.Errorf("invalid freshness state %q", state)
+	}
+}
+
+// VerificationReason explains why a source or claim is next scheduled for
+// re-verification. TTLExpired also names a future TTL deadline before it is due.
+type VerificationReason string
+
+const (
+	VerificationTTLExpired         VerificationReason = "ttl_expired"
+	VerificationNewRelease         VerificationReason = "new_release_detected"
+	VerificationSourceChanged      VerificationReason = "source_changed"
+	VerificationConflictUnresolved VerificationReason = "conflict_unresolved"
+	VerificationSecuritySensitive  VerificationReason = "security_sensitive"
+	VerificationManualRequest      VerificationReason = "manual_request"
+)
+
+func (reason VerificationReason) Validate() error {
+	switch reason {
+	case VerificationTTLExpired, VerificationNewRelease, VerificationSourceChanged,
+		VerificationConflictUnresolved, VerificationSecuritySensitive, VerificationManualRequest:
+		return nil
+	default:
+		return fmt.Errorf("invalid verification reason %q", reason)
+	}
+}
+
+type VerificationPriority string
+
+const (
+	VerificationPriorityNormal   VerificationPriority = "normal"
+	VerificationPriorityHigh     VerificationPriority = "high"
+	VerificationPriorityCritical VerificationPriority = "critical"
+)
+
+func (priority VerificationPriority) Validate() error {
+	switch priority {
+	case VerificationPriorityNormal, VerificationPriorityHigh, VerificationPriorityCritical:
+		return nil
+	default:
+		return fmt.Errorf("invalid verification priority %q", priority)
+	}
+}
+
+func (priority VerificationPriority) Rank() int {
+	switch priority {
+	case VerificationPriorityCritical:
+		return 0
+	case VerificationPriorityHigh:
+		return 1
+	case VerificationPriorityNormal:
+		return 2
+	default:
+		return 3
 	}
 }
 

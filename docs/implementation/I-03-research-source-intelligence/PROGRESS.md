@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 17
-Last completed step: 16
+Current step: 18
+Last completed step: 17
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1239,4 +1239,82 @@ Release: unreleased
   `FreshnessRepository` existente sin alterar `freshness-v1` ni fabricar una
   fecha de verificación para evidencias `unknown`.
 - No implementar scheduling ni pasos posteriores antes de su autorización
+  independiente.
+
+## Step 17 — Last Verified and Refresh Scheduling v1
+
+Status: completed
+Date: 2026-08-26
+Release: unreleased
+
+### Delivered
+
+- Política pura y versionada `refresh-scheduling-v1` que consume un
+  `freshness-v1` conocido y calcula `last_verified_at`, `next_verify_at`, razón
+  de verificación y prioridad sin I/O ni background daemon.
+- Deadline TTL exacto desde la última verificación y triggers inmediatos para
+  nueva release, source changed, conflicto no resuelto, contenido sensible de
+  seguridad y solicitud manual.
+- Precedencia determinista entre triggers y prioridades cerradas
+  `normal`/`high`/`critical`, con manual y security en critical, eventos de
+  cambio/conflicto en high y TTL en normal.
+- `FreshnessRecordFromSchedule` que exige que Freshness y Schedule compartan la
+  misma fecha real de última verificación, conservando separadas las versiones
+  de ambos algoritmos.
+- Memory y SQLite `ListDue` ordenados por prioridad, deadline e ID estable, sin
+  incluir schedules futuros y disponibles completamente offline.
+- Migración forward-only v30 con metadata JSON acotada y validada para reason,
+  priority y `refresh-scheduling-v1`, compatible con filas Step 16 no agendadas
+  y con schedules legacy conservadoramente clasificados como TTL normal.
+- Wiring workspace-local y comando read-only `kelyro sources stale`, con clock
+  inyectable y output de subject, prioridad, razón, deadline y last verified.
+- Contrato, triggers, precedencia, persistencia, orden de cola, CLI y límites
+  documentados en `docs/architecture/refresh-scheduling-v1.md` y referencias
+  arquitectónicas sincronizadas.
+
+### Decisions
+
+- El scheduler usa el `EvaluatedAt` validado del assessment como instante de
+  vencimiento para eventos; no consulta otro clock ni fabrica timestamps.
+- Nueva release y source changed se derivan de reason codes ya validados por
+  `freshness-v1`; conflicto, security y manual son señales explícitas del
+  scheduler.
+- `unknown` no es agendable porque carece de `last_verified_at`; un caller debe
+  obtener una verificación real antes de persistir scheduling state.
+- Cuando coinciden triggers se conserva una razón primaria por precedencia
+  explícita; no se depende del orden de inputs ni se oculta la prioridad.
+- La metadata v30 se guarda como un objeto JSON cerrado de máximo 256 bytes en
+  una sola migración aditiva. Esto mantiene constraints fuertes y evita el
+  coste repetido de múltiples alteraciones de esquema en cada workspace/test.
+- `kelyro sources stale` solo inspecciona el estado local: no habilita red, no
+  ejecuta refresh y no inicia daemon, timer, goroutine ni automatización.
+- No se implementaron Resource Quality, release discovery, Conflict Resolver,
+  live refresh, Curriculum Compiler ni cambios funcionales de Student Core.
+
+### Verification
+
+- Tests de scheduler para due, not due, TTL exacto, release trigger, source
+  changed, conflicto, security, manual trigger, precedencia y `unknown`.
+- Tests de mapping application, due filtering/prioridad en memoria y SQLite,
+  migración v30/backfill, JSON inválido, round-trip, app wiring y CLI render.
+- Tests dirigidos y vet de Research, SQLite, `researchdb`, app y CLI.
+- `GOCACHE=/tmp/kelyro-i03-step17-full-gocache go test ./...` y
+  `GOCACHE=/tmp/kelyro-i03-step17-full-gocache go vet ./...` fuera del sandbox
+  para permitir listeners locales deterministas de `httptest`.
+- Race dirigido de SQLite con `GOMAXPROCS=2`, completado en 578.652 s dentro
+  del timeout estándar.
+- Cross-build tests Linux-hosted para Windows y Darwin de los paquetes
+  afectados con `CGO_ENABLED=0`.
+- Quality gate completo con `GOMAXPROCS=2`, cache aislada y
+  `go run ./tools/quality all`, incluyendo tests, E2E, vet,
+  `go test -race ./...`, build y smokes de CLI; la pasada final de SQLite race
+  completó en 467.932 s.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 18 es el siguiente paso pendiente y requiere autorización explícita.
+- Resource Quality podrá consumir sources/evidence existentes sin confundir
+  utilidad pedagógica con autoridad, Freshness o scheduling priority.
+- No implementar Resource Quality ni pasos posteriores antes de su autorización
   independiente.

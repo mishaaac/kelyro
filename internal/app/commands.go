@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/artifacts"
 	artifactmarkdown "github.com/mishaaac/kelyro/internal/artifacts/markdown"
@@ -145,6 +146,7 @@ type Result struct {
 	SourceRegistryEntry   *research.SourceRegistryEntry
 	SourceRegistryEntries []research.SourceRegistryEntry
 	ProvenanceGraph       *research.ProvenanceGraph
+	StaleSources          []researchapp.FreshnessRecord
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -169,6 +171,7 @@ type Service struct {
 	updates          update.Checker
 	profiles         learningapp.ProfileStoreFactory
 	researchStores   researchapp.SourceRegistryStoreFactory
+	researchClock    func() time.Time
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
 }
@@ -203,10 +206,16 @@ func (service *Service) WithResearchStores(stores researchapp.SourceRegistryStor
 	return service
 }
 
+// WithResearchClock replaces the clock used to evaluate stale schedules.
+func (service *Service) WithResearchClock(clock func() time.Time) *Service {
+	service.researchClock = clock
+	return service
+}
+
 // NewService creates the application service with explicit infrastructure
 // dependencies.
 func NewService(workspaces workspace.Service, currentDirectory func() (string, error)) *Service {
-	return &Service{workspaces: workspaces, currentDirectory: currentDirectory}
+	return &Service{workspaces: workspaces, currentDirectory: currentDirectory, researchClock: time.Now}
 }
 
 // WithConfig attaches the configuration persistence adapter used by config

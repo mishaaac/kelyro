@@ -6,7 +6,8 @@ profiles, Step 06 adds v25 for the Trusted Source Registry, Step 13 adds v26
 for structured Evidence context and Claim scopes, and Step 14 adds v27 for
 bounded claim provenance graphs. Step 15 adds v28 for stable citation metadata
 and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints.
-The 22 migrations that shipped Student Core and migrations v23–v28 remain
+Step 17 adds v30 for refresh scheduling metadata. The 22 migrations that
+shipped Student Core and migrations v23–v29 remain
 unchanged, and an I-02 database is upgraded
 without rewriting its learning state.
 
@@ -78,6 +79,12 @@ evidence/ID index provides deterministic `ListByEvidence` reads.
 Migration 29 adds a bounded JSON array of `freshness-v1` TTL hints to Authority
 Profiles. Existing profiles receive an empty array; repository reads validate
 each claim/source selector and its 1–3,650 day TTL through the domain contract.
+
+Migration 30 adds one bounded, checked scheduling JSON object containing the
+verification reason, priority, and immutable `refresh-scheduling-v1` identifier
+to `freshness_state`. Existing scheduled rows are conservatively read as normal
+TTL deadlines; unscheduled rows remain unscheduled. Due reads order critical,
+high, and normal records before applying deadline and stable-ID tie breakers.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
