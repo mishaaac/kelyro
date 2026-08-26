@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 19
-Last completed step: 18
+Current step: 20
+Last completed step: 19
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1394,3 +1394,79 @@ Release: unreleased
   existentes sin mezclar lifecycle/version status con Resource Quality.
 - No implementar release discovery ni pasos posteriores antes de su
   autorización independiente.
+
+## Step 19 — Release Intelligence Model
+
+Status: completed
+Date: 2026-08-26
+Release: unreleased
+
+### Delivered
+
+- Entidad explícita `TechnologyRelease` para technology ID, version,
+  released-at opcional, channel, lifecycle status, source IDs y verified-at,
+  manteniendo `ReleaseRecord` como alias compatible con los ports existentes.
+- Abstracción `VersionIdentifier`, compatible con `SourceVersion`, que conserva
+  el texto exacto y clasifica determinísticamente `semantic`, `date_based` u
+  `opaque` sin imponer SemVer.
+- Parser estricto SemVer 2.0.0 para major/minor/patch, prerelease y build
+  metadata, incluidos límites `uint64` y rechazo de ceros iniciales donde la
+  especificación no los permite.
+- Versiones calendáricas validadas en formatos `YYYY-MM-DD`, `YYYY.MM.DD`,
+  `YYYYMMDD`, `YYYY-MM` y `YYYY.MM`, con precisión month/day explícita y fechas
+  gregorianas reales.
+- Fallback opaco lossless para esquemas generales como `go1.25`, `R2026a`,
+  nombres de distribución, ediciones y cualquier identidad no SemVer/date.
+- Channels cerrados stable/preview/beta/rc/experimental/nightly/unknown y
+  lifecycle statuses current/superseded/legacy/eol/unknown.
+- Invariante temporal que rechaza un `released_at` posterior a `verified_at`
+  sin inventar una fecha cuando la fuente no la establece.
+- Contrato completo documentado en
+  `docs/architecture/release-intelligence-model.md`, con domain, application,
+  persistence e índice arquitectónico sincronizados.
+
+### Decisions
+
+- La clasificación sigue precedencia SemVer estricto, fecha soportada y opaque.
+  Los formatos de fecha usan mes/día con cero inicial para evitar ambigüedad con
+  un SemVer válido.
+- `NewVersionIdentifier` acepta cualquier identidad textual válida y conserva
+  esquemas desconocidos como opaque; los constructores estrictos semantic/date
+  permiten exigir uno de esos esquemas cuando el caller sí lo conoce.
+- Build metadata forma parte de la identidad SemVer conservada, aunque una
+  futura comparación de precedencia deba ignorarla según SemVer.
+- Channel y lifecycle status permanecen independientes: preview describe canal
+  de distribución, mientras legacy/EOL describen ciclo de vida.
+- No se añadió migration: `release_records.version` de v23 ya conserva el texto
+  exacto y la clasificación se reconstruye determinísticamente al leer.
+- No se implementaron comparación/precedencia, current-stable selection,
+  duplicate release policy, provider adapters, discovery, release-notes
+  ingestion, auto-upgrade, Curriculum Compiler ni cambios de Student Core.
+
+### Verification
+
+- Tests de SemVer estable y prerelease/build, máximos `uint64`, ceros iniciales,
+  semantic inválido, fechas válidas/invalidas, month/day precision y opaque.
+- Tests de TechnologyRelease semantic/date/non-semver, stable/preview, enums
+  cerrados y cronología release/verification.
+- Round-trips de clasificación semantic en SQLite y date-based en el fake de
+  memoria/application, sin cambio de schema.
+- Tests y vet dirigidos de Research domain/application, SQLite y `researchdb`.
+- Cross-build tests Linux-hosted de Research para Windows y Darwin con
+  `CGO_ENABLED=0`.
+- `GOCACHE=/tmp/kelyro-i03-step19-quality-gocache go test ./...` fuera del
+  sandbox para permitir listeners locales deterministas de `httptest`.
+- `GOCACHE=/tmp/kelyro-i03-step19-quality-gocache go vet ./...`.
+- Quality gate final con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache aislada y
+  `go run ./tools/quality all`, incluyendo tests, E2E, vet, race, build y
+  smokes de CLI; SQLite race completó en 443.142 s.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 20 es el siguiente paso pendiente y requiere autorización explícita.
+- Release Discovery deberá permanecer detrás de provider adapters, respetar
+  `privacy.allow_network`, producir snapshots/evidence y no depender solo de
+  GitHub.
+- No implementar discovery, release-notes ingestion ni pasos posteriores antes
+  de su autorización independiente.

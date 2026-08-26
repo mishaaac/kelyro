@@ -45,6 +45,89 @@ func TestFreshnessReleaseAndDeprecationVocabularyValidatesState(t *testing.T) {
 	}
 }
 
+func TestTechnologyReleaseSupportsStablePreviewAndNonSemverIdentities(t *testing.T) {
+	t.Parallel()
+	releasedAt := mustTimestamp(t, 8)
+	verifiedAt := mustTimestamp(t, 9)
+	tests := []struct {
+		name    string
+		version string
+		channel ReleaseChannel
+		scheme  VersionScheme
+	}{
+		{"stable semantic", "1.25.0", ReleaseStable, VersionSemantic},
+		{"preview semantic", "1.26.0-rc.1", ReleasePreview, VersionSemantic},
+		{"stable date based", "2026.08", ReleaseStable, VersionDateBased},
+		{"stable non semver", "go1.25", ReleaseStable, VersionOpaque},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			version, err := NewVersionIdentifier(test.version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			release := TechnologyRelease{
+				ID: mustID(t, "release.fixture"), TechnologyID: mustID(t, "technology.runtime"),
+				Version: version, Channel: test.channel, Status: ReleaseCurrent,
+				SourceIDs:  []SourceID{mustSourceID(t, "release-notes")},
+				ReleasedAt: &releasedAt, VerifiedAt: verifiedAt,
+			}
+			if err := release.Validate(); err != nil {
+				t.Fatalf("TechnologyRelease.Validate() error = %v", err)
+			}
+			if release.Version.Scheme() != test.scheme {
+				t.Fatalf("version scheme = %q, want %q", release.Version.Scheme(), test.scheme)
+			}
+		})
+	}
+}
+
+func TestTechnologyReleaseRejectsReleaseDateAfterVerification(t *testing.T) {
+	t.Parallel()
+	releasedAt := mustTimestamp(t, 10)
+	version, err := NewVersionIdentifier("1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := TechnologyRelease{
+		ID: mustID(t, "release.future"), TechnologyID: mustID(t, "technology.runtime"),
+		Version: version, Channel: ReleaseStable, Status: ReleaseCurrent,
+		SourceIDs:  []SourceID{mustSourceID(t, "release-notes")},
+		ReleasedAt: &releasedAt, VerifiedAt: mustTimestamp(t, 9),
+	}
+	if err := release.Validate(); err == nil {
+		t.Fatal("TechnologyRelease.Validate accepted release date after verification")
+	}
+}
+
+func TestTechnologyReleaseChannelAndStatusVocabularyIsClosed(t *testing.T) {
+	t.Parallel()
+	channels := []ReleaseChannel{
+		ReleaseStable, ReleasePreview, ReleaseBeta, ReleaseRC,
+		ReleaseExperimental, ReleaseNightly, ReleaseChannelUnknown,
+	}
+	for _, channel := range channels {
+		if err := channel.Validate(); err != nil {
+			t.Fatalf("ReleaseChannel(%q).Validate() error = %v", channel, err)
+		}
+	}
+	statuses := []ReleaseStatus{
+		ReleaseCurrent, ReleaseSuperseded, ReleaseLegacy, ReleaseEOL,
+		ReleaseStatusUnknown,
+	}
+	for _, status := range statuses {
+		if err := status.Validate(); err != nil {
+			t.Fatalf("ReleaseStatus(%q).Validate() error = %v", status, err)
+		}
+	}
+	if err := ReleaseChannel("canary").Validate(); err == nil {
+		t.Fatal("ReleaseChannel.Validate accepted unknown channel")
+	}
+	if err := ReleaseStatus("maintained").Validate(); err == nil {
+		t.Fatal("ReleaseStatus.Validate accepted unknown status")
+	}
+}
+
 func TestFreshnessTTLHintValidatesSelectorsAndInclusiveBounds(t *testing.T) {
 	t.Parallel()
 	claimType := ClaimSecurity

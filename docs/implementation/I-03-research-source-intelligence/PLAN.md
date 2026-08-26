@@ -1557,7 +1557,7 @@ feat(sources): add resource quality scoring v1
 
 ## Paso 19 — Implementar Release Intelligence Model
 
-- [ ] Paso 19 completado
+- [x] Paso 19 completado
 
 ### Objetivo
 

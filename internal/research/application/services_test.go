@@ -232,6 +232,8 @@ func TestIntelligenceServicesPersistOnlyValidatedPolicyOutputs(t *testing.T) {
 	}
 	if releases, err := releaseService.List(ctx, release.TechnologyID); err != nil || len(releases) != 1 {
 		t.Fatalf("ReleaseIntelligenceService.List() = (%+v, %v)", releases, err)
+	} else if releases[0].Version.Scheme() != research.VersionDateBased {
+		t.Fatalf("release version scheme = %q, want date_based", releases[0].Version.Scheme())
 	}
 
 	driftService := application.NewDriftService(repositories.Drift)

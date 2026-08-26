@@ -219,7 +219,7 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := researchTestVersion(t, "1.24")
+	target := researchTestVersion(t, "1.24.0")
 	request := research.ResearchRequest{ID: researchTestID(t, "request.1"), Topic: topic, Purpose: research.PurposeCurrentUsage, TargetVersion: &target, RequestedAt: at}
 	run := research.ResearchRun{ID: researchTestID(t, "run.1"), RequestID: request.ID, Status: research.ResearchRunRunning, StartedAt: at}
 	if err := repositories.Runs.Create(ctx, request, run); err != nil {
@@ -293,6 +293,8 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	}
 	if got, err := repositories.Releases.Get(ctx, release.ID); err != nil || !reflect.DeepEqual(got, release) {
 		t.Fatalf("release roundtrip=(%+v,%v)", got, err)
+	} else if got.Version.Scheme() != research.VersionSemantic {
+		t.Fatalf("release version scheme=%q, want semantic", got.Version.Scheme())
 	}
 
 	next := researchTestTimestamp(t, fixedTime.Add(time.Hour))

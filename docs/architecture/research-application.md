@@ -44,7 +44,7 @@ Persistence is divided by aggregate or durable output:
 | `ResearchRunRepository` | Research requests and one or more runs for each request. |
 | `TrustRegistryRepository` | Authority profiles and versioned trust decisions. |
 | `SourceRegistryRepository` | Reviewed source-family entries with deterministic list/show access. |
-| `ReleaseRepository` | Evidence-backed technology release records. |
+| `ReleaseRepository` | Evidence-backed `TechnologyRelease` records with compatible `ReleaseRecord` naming. |
 | `FreshnessRepository` | Versioned freshness outputs and due-state queries. |
 | `VerificationRepository` | Immutable verification results by claim. |
 | `DriftRepository` | Immutable drift reports. |
@@ -139,6 +139,11 @@ implement Trust Policy, authority matching, query execution orchestration,
 evidence extraction, verification rules, release discovery,
 conflict resolution, drift detection, or impact analysis. Those remain future
 versioned policies and orchestration steps.
+
+Step 19 keeps these ports stable through the `ReleaseRecord` alias while adding
+the explicit `TechnologyRelease` entity and deterministic
+`VersionIdentifier` classification. It introduces no provider, precedence, or
+discovery behavior.
 
 ## Error taxonomy
 

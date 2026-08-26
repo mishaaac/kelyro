@@ -143,8 +143,9 @@ func normalizeLocator(value string) (string, error) {
 	return parsed.String(), nil
 }
 
-// SourceVersion is an opaque, non-empty version identity. It deliberately does
-// not require SemVer because many source ecosystems use different schemes.
+// SourceVersion is a non-empty version identity shared by source scopes and
+// technology releases. Classification is available through VersionIdentifier
+// without requiring every ecosystem to use SemVer.
 type SourceVersion string
 
 func NewSourceVersion(value string) (SourceVersion, error) {
@@ -159,6 +160,14 @@ func (version SourceVersion) String() string { return string(version) }
 
 func (version SourceVersion) Validate() error {
 	return requireText("source version", string(version))
+}
+
+// VersionIdentifier names the release-oriented view of SourceVersion. The
+// alias preserves the opaque source-version contract and its persisted text.
+type VersionIdentifier = SourceVersion
+
+func NewVersionIdentifier(value string) (VersionIdentifier, error) {
+	return NewSourceVersion(value)
 }
 
 // ResearchTopic describes a subject without assuming that the domain is

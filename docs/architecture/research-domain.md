@@ -46,9 +46,10 @@ a domain syntax boundary, not the SSRF policy: address resolution, private-host
 blocking, redirect checks, and other network security belong to the hardened
 HTTP adapter steps.
 
-`SourceVersion` is opaque and non-empty. SemVer is not required because release
-and documentation ecosystems may use date versions, revisions, editions, or
-other schemes.
+`SourceVersion` is non-empty and remains compatible with opaque ecosystems.
+Its release-oriented alias `VersionIdentifier` classifies strict SemVer,
+supported date-based forms, and opaque fallbacks without rewriting identity or
+requiring SemVer for documentation, revisions, editions, or other schemes.
 
 ## Domain-general topics
 
@@ -207,10 +208,14 @@ accessibility, and noise inputs. It recommends a resource use without reading
 or changing authority, trust, freshness, or scheduling state. The complete
 policy is documented in [resource-quality-v1.md](resource-quality-v1.md).
 
-`ReleaseRecord` supports opaque versions, stable/preview/beta/RC/experimental/
-nightly/unknown channels, and current/superseded/legacy/EOL/unknown lifecycle
-states. A release requires evidence-bearing source identities and a verification
-time. `DeprecationRecord` likewise requires sources and evidence; absence from
+`TechnologyRelease` (with the compatible `ReleaseRecord` alias) supports
+semantic, date-based, and opaque version identities;
+stable/preview/beta/RC/experimental/nightly/unknown channels; and
+current/superseded/legacy/EOL/unknown lifecycle states. A release requires
+evidence-bearing source identities and a verification time, and a known release
+date cannot follow verification. The complete contract is documented in
+[release-intelligence-model.md](release-intelligence-model.md).
+`DeprecationRecord` likewise requires sources and evidence; absence from
 documentation is not represented as a deprecation.
 
 `Conflict`, `VerificationResult`, `DriftReport`, and `ImpactReport` preserve

@@ -147,10 +147,10 @@ func (status ReleaseStatus) Validate() error {
 	}
 }
 
-type ReleaseRecord struct {
+type TechnologyRelease struct {
 	ID           ID
 	TechnologyID ID
-	Version      SourceVersion
+	Version      VersionIdentifier
 	Channel      ReleaseChannel
 	Status       ReleaseStatus
 	SourceIDs    []SourceID
@@ -158,7 +158,7 @@ type ReleaseRecord struct {
 	VerifiedAt   Timestamp
 }
 
-func (record ReleaseRecord) Validate() error {
+func (record TechnologyRelease) Validate() error {
 	if err := record.ID.Validate(); err != nil {
 		return fmt.Errorf("release record: %w", err)
 	}
@@ -183,8 +183,15 @@ func (record ReleaseRecord) Validate() error {
 	if err := validateTimestamp("release verified at", record.VerifiedAt); err != nil {
 		return err
 	}
+	if record.ReleasedAt != nil && record.ReleasedAt.After(record.VerifiedAt) {
+		return fmt.Errorf("release date follows verification")
+	}
 	return nil
 }
+
+// ReleaseRecord preserves the Step 01/application port name while callers
+// migrate to the explicit TechnologyRelease entity.
+type ReleaseRecord = TechnologyRelease
 
 type DeprecationStatus string
 

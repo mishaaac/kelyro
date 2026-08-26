@@ -86,6 +86,11 @@ to `freshness_state`. Existing scheduled rows are conservatively read as normal
 TTL deadlines; unscheduled rows remain unscheduled. Due reads order critical,
 high, and normal records before applying deadline and stable-ID tie breakers.
 
+Step 19 requires no migration. The v23 `release_records.version` text preserves
+the exact `VersionIdentifier`; strict semantic, supported date-based, and
+opaque classification is reconstructed deterministically after reads. Existing
+release rows therefore remain compatible without a scheme backfill.
+
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
 Small ordered identity collections and versioned reason records that do not

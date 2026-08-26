@@ -92,6 +92,10 @@ recommended-use precedence, explainability contract, and strict separation
 from authority and freshness are documented in
 [resource-quality-v1.md](resource-quality-v1.md).
 
+The SemVer/date/opaque version identity, technology release entity, lifecycle
+vocabulary, chronology, and existing persistence/application compatibility are
+documented in [release-intelligence-model.md](release-intelligence-model.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).
