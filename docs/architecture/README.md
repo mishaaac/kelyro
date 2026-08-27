@@ -126,6 +126,11 @@ roles, conservative freshness aggregation, lifecycle-state precedence,
 canonical JSON/hash contract, and legacy persistence behavior are documented in
 [source-bundles-v1.md](source-bundles-v1.md).
 
+The bounded student-facing resource selector, reviewed quality/trust/freshness
+inputs, reading-level and access ranking, duplicate suppression, diversity
+bonuses, and mandatory community/paywall/staleness disclosure are documented in
+[further-reading-selection-v1.md](further-reading-selection-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

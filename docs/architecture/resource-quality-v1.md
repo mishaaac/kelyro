@@ -89,6 +89,14 @@ exact algorithm version, rejects unknown or duplicate reasons, and requires
 one reason for every dimension plus the matching terminal reason. Returned
 reason slices are caller-owned.
 
+## Further Reading consumer
+
+Step 26 consumes assessments whose recommended use is `further_reading` or
+`example` in the separate `further-reading-selection-v1` policy. That selector
+also evaluates reviewed trust, freshness, reading level, access, duplication,
+and diversity. It does not rewrite this score or allow authority to promote a
+resource assessed only as `evidence` into student reading material.
+
 ## Boundaries
 
 Step 18 adds no repository, migration, network path, CLI/TUI command, or

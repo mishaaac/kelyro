@@ -28,9 +28,10 @@ value objects and relationship invariants, while no application-service seams
 exist yet to justify more boundaries. Later steps may extract packages only
 when dependencies and cohesive use cases make the split real.
 
-`internal/research` depends only on the Go standard library. In particular, it
-does not import Bubble Tea, SQLite, `net/http`, GitHub adapters, AI providers,
-the learning domain, or operating-system packages.
+`internal/research` and its pure policy subpackages depend only on the Go
+standard library and other Research domain packages. In particular, they do
+not import Bubble Tea, SQLite, `net/http`, GitHub adapters, AI providers, the
+learning domain, or operating-system packages.
 
 ## Stable identities and locators
 
@@ -224,6 +225,15 @@ accuracy-confidence, clarity, specificity, depth, maintainability, examples,
 accessibility, and noise inputs. It recommends a resource use without reading
 or changing authority, trust, freshness, or scheduling state. The complete
 policy is documented in [resource-quality-v1.md](resource-quality-v1.md).
+
+Step 26 composes those reviewed quality results with Trust Decisions,
+`freshness-v1`, `source-temporal-policy-v1`, explicit reading level, access,
+community status, organization, and duplicate annotations through the pure
+`further-reading-selection-v1` policy. It produces at most seven diverse,
+student-facing references plus explicit exclusions and mandatory disclosure
+labels/warnings; it neither turns reading material into Evidence nor compiles
+curriculum. The complete contract is documented in
+[further-reading-selection-v1.md](further-reading-selection-v1.md).
 
 `TechnologyRelease` (with the compatible `ReleaseRecord` alias) supports
 semantic, date-based, and opaque version identities;

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 26
-Last completed step: 25
+Current step: 27
+Last completed step: 26
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1990,3 +1990,82 @@ Release: unreleased
 - El Paso 26 es el siguiente paso pendiente y requiere autorización explícita.
 - No implementar Further Reading ni pasos posteriores antes de su autorización
   independiente.
+
+## Step 26 — Further Reading Selection
+
+Status: completed
+Date: 2026-08-27
+Release: unreleased
+
+### Delivered
+
+- Política pura, offline y versionada `further-reading-selection-v1` para
+  escoger recursos útiles para estudiantes sin convertirlos en Evidence ni
+  alterar Source Bundles.
+- Siete categorías cerradas: official deep dive, tutorial, interactive
+  resource, reference, community explanation, video supplement y source code;
+  reading levels introductory/intermediate/advanced y acceso
+  open/registration/paywalled/unknown explícitos.
+- Admisión conservadora sobre Trust Decision accepted/supplement y assessments
+  `resource-quality-v1` recomendados como further reading/example, con
+  applicability de `source-temporal-policy-v1` y exclusiones explicables.
+- Ranking determinista que pondera quality, reading-level fit, freshness,
+  authority, access y temporal scope sin permitir que autoridad sustituya
+  utilidad pedagógica.
+- Deduplicación mediante clave revisada explícita y selección greedy con bonuses
+  acotados por categoría y organización; organizaciones desconocidas no reciben
+  diversidad inventada.
+- Límite obligatorio de hasta siete seleccionados y 128 candidatos, con reason
+  cerrado para cada candidato válido no elegido y desempate final por Source ID.
+- Labels y warnings student-visible para community, registration/paywall,
+  acceso desconocido, tutorial/resource stale, freshness unknown, material
+  histórico, nivel superior al target y organización desconocida.
+- Contrato, fórmula, orden, disclosures, límites y separación de
+  responsabilidades documentados en
+  `docs/architecture/further-reading-selection-v1.md`, con índice, dominio y
+  Resource Quality sincronizados.
+
+### Decisions
+
+- Reading selection consume evaluaciones revisadas; no infiere reading level,
+  paywall, ownership, duplicación semántica ni community status leyendo
+  contenido externo.
+- Quality conserva el mayor peso. Una primary source tier A evaluada únicamente
+  como `evidence` no se promueve automáticamente a lectura; `example` sí puede
+  entrar como material pedagógico.
+- Trust `requires_verification`/`rejected` y versiones no aplicables se excluyen;
+  historical y stale pueden conservar valor contextual, pero nunca pierden sus
+  warnings.
+- Paywall no implica rechazo automático: el resultado conserva simultáneamente
+  access, label y warning para que una presentación no lo oculte.
+- Duplicación usa una clave aportada por revisión; el algoritmo no compara prosa
+  arbitraria ni hashes de contenido para inventar equivalencia.
+- `interactive_resource` es una categoría de lectura revisada y no añade el
+  source kind ni discovery especializado Playground reservado al Paso 27.
+- No se añadieron repositories, migration SQLite, network calls, CLI/TUI,
+  Curriculum Compiler ni cambios de Student Core/mastery.
+
+### Verification
+
+- Tests de selección para labels community/paywall, warning dedicado de stale
+  tutorial, reading level superior, primary evidence no promovida, trust
+  rejected, versión incompatible e historical warning.
+- Tests de determinismo bajo reordenamiento, diversidad de categoría/
+  organización, deduplicación revisada, reading-level fit, límites y community
+  label obligatorio.
+- `GOCACHE=/tmp/kelyro-i03-step26-research-gocache go test ./internal/research/...`.
+- `GOCACHE=/tmp/kelyro-i03-step26-research-vet-gocache go vet ./internal/research/...`.
+- `GOCACHE=/tmp/kelyro-i03-step26-full-gocache go test ./...` y
+  `go vet ./...`.
+- Cross-compile del test binary de `internal/research/furtherreading` para
+  Windows amd64 y Darwin amd64/arm64 con `CGO_ENABLED=0` y `go test -c`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 302.530 s.
+- `gofmt` aplicado a los archivos Go nuevos y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 27 es el siguiente paso pendiente y requiere autorización explícita.
+- No implementar Playground, Package Reference/Standards especializados ni
+  pasos posteriores antes de su autorización independiente.

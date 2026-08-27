@@ -1932,7 +1932,7 @@ feat(research): add versioned source bundles
 
 ## Paso 26 — Implementar Further Reading Selection
 
-- [ ] Paso 26 completado
+- [x] Paso 26 completado
 
 ### Objetivo
 
