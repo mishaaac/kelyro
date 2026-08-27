@@ -73,11 +73,21 @@ official_documentation  specification       standard
 release_notes           official_blog       package_reference
 official_tutorial       source_code          issue_tracker
 community_article       community_forum      video
-paper                   book_reference       other
+playground              paper                book_reference
+other
 ```
 
 Source classification does not imply trust. An official resource is still
 evaluated in context by the separate, versioned trust policy.
+
+Step 27 adds `playground` and completes domain-general specialized metadata for
+Playground, Package Reference, and Standard sources. The closed
+`specialized-source-metadata-v1` union records explicit runtime, affiliation,
+shareable URL, package/module, symbol, canonical docs, source-code link,
+standards body, standard ID, revision, lifecycle status, and official locator
+fields without assuming one ecosystem. Unknown optional versions/revisions and
+links remain absent rather than invented. The complete contract is documented
+in [specialized-technical-sources-v1.md](specialized-technical-sources-v1.md).
 
 Step 22 adds the independent temporal scopes `current`, `historical`,
 `version_bound`, and `archived`. A version-bound source requires an opaque

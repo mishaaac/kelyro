@@ -164,6 +164,32 @@ func TestPolicyV1PackageAPIPrefersReferenceOverTutorial(t *testing.T) {
 	}
 }
 
+func TestPolicyV1UsesExplicitPlaygroundAffiliationWithoutMakingItPrimary(t *testing.T) {
+	t.Parallel()
+	official := trustTestInput(t, research.SourceOther)
+	official.Source.Kind = research.SourcePlayground
+	official.Source.Specialization = playgroundSpecialization(t, research.SourceAffiliationOfficial)
+	community := official
+	community.Source.Specialization = playgroundSpecialization(t, research.SourceAffiliationCommunity)
+
+	officialDecision, err := (PolicyV1{}).Evaluate(official)
+	if err != nil {
+		t.Fatal(err)
+	}
+	communityDecision, err := (PolicyV1{}).Evaluate(community)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if officialDecision.Tier != research.AuthorityTierB || officialDecision.State != research.TrustAccepted {
+		t.Fatalf("official playground decision = (%s,%s)", officialDecision.State, officialDecision.Tier)
+	}
+	if communityDecision.Tier != research.AuthorityTierD || communityDecision.State != research.TrustAcceptedSupplement {
+		t.Fatalf("community playground decision = (%s,%s)", communityDecision.State, communityDecision.Tier)
+	}
+	assertReason(t, officialDecision, "authority.playground_official")
+	assertReason(t, communityDecision, "authority.playground_community")
+}
+
 func TestPolicyV1IsDeterministicAndRejectsInvalidInput(t *testing.T) {
 	input := trustTestInput(t, research.SourceStandard)
 	first, err := (PolicyV1{}).Evaluate(input)
@@ -275,6 +301,20 @@ func trustTestTopic(t *testing.T) research.ResearchTopic {
 		t.Fatal(err)
 	}
 	return topic
+}
+
+func playgroundSpecialization(t *testing.T, affiliation research.SourceAffiliation) *research.SourceSpecialization {
+	t.Helper()
+	locator, err := research.NewSourceLocator("https://example.com/playground/share/fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &research.SourceSpecialization{
+		Kind: research.SourcePlayground, AlgorithmVersion: research.SpecializedSourceMetadataV1,
+		Playground: &research.PlaygroundDetails{
+			Interactive: true, LanguageRuntime: "Portable runtime", Affiliation: affiliation, ShareableLocator: locator,
+		},
+	}
 }
 
 func trustTestTimestamp(t *testing.T, value time.Time) research.Timestamp {

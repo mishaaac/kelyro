@@ -49,7 +49,7 @@ the claim and source defaults:
 
 | Source kind | Default days |
 | --- | ---: |
-| release notes, issue tracker, community forum | 30 |
+| release notes, issue tracker, community forum, playground | 30 |
 | official blog, community article, video | 60 |
 | package reference, source code, other | 90 |
 | official documentation, official tutorial | 120 |

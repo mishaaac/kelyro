@@ -9,10 +9,10 @@ and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints,
 Step 17 adds v30 for refresh scheduling metadata, Step 21 adds v31 for versioned
 deprecation conclusions, Step 22 adds v32 for source temporal scopes, and Step
 23 adds v33 for versioned conflict outcomes, Step 24 adds v34 for multi-source
-verification outputs, and Step 25 adds v35 for versioned Source Bundles. The 22
-migrations that shipped Student Core and migrations v23–v34 remain unchanged,
-and an I-02 database is upgraded
-without rewriting its learning state.
+verification outputs, Step 25 adds v35 for versioned Source Bundles, and Step
+27 adds v36 for specialized technical source metadata. The 22 migrations that
+shipped Student Core and migrations v23–v35 remain unchanged, and an I-02
+database is upgraded without rewriting its learning state.
 
 ## Adapter boundary
 
@@ -134,6 +134,15 @@ and stable ID. Existing rows remain readable as
 `source-bundle-unversioned-legacy` with unknown freshness and no invented role,
 canonical JSON, or hash.
 
+Migration 36 adds nullable `specialized_kind`, bounded canonical metadata JSON,
+and an index to `sources`. Existing sources receive null/empty values and remain
+unchanged. Package Reference and Standard use their existing physical kinds;
+Playground uses the legacy physical `other` kind plus the specialized marker so
+the migration remains additive and does not rebuild the heavily referenced
+sources table. Adapter reads validate and reverse that projection. Constraints
+reject metadata without a recognized specialized kind, non-object or oversize
+JSON, and inconsistent physical/specialized kind pairs.
+
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and
 opaque classification is reconstructed deterministically after reads. Existing
@@ -164,6 +173,11 @@ The adapter verifies run, Claim, source membership, and conflict identities,
 then checks indexed metadata against the parsed canonical JSON on reads.
 Run-history reads are deterministic. The 256 KiB representation stores only
 identities and bounded annotations, never source bodies or Evidence excerpts.
+
+Step 27 writes a Source and its optional specialization in one row, preserving
+the existing repository transaction boundary. Canonical metadata is capped at
+8 KiB and revalidated on every read. Legacy Package Reference and Standard rows
+without details remain readable; Playground requires complete v1 metadata.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.

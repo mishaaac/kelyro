@@ -22,6 +22,7 @@ const (
 	SourceCommunityArticle      SourceKind = "community_article"
 	SourceCommunityForum        SourceKind = "community_forum"
 	SourceVideo                 SourceKind = "video"
+	SourcePlayground            SourceKind = "playground"
 	SourcePaper                 SourceKind = "paper"
 	SourceBookReference         SourceKind = "book_reference"
 	SourceOther                 SourceKind = "other"
@@ -33,7 +34,7 @@ func (kind SourceKind) Validate() error {
 		SourceReleaseNotes, SourceOfficialBlog, SourcePackageReference,
 		SourceOfficialTutorial, SourceCode, SourceIssueTracker,
 		SourceCommunityArticle, SourceCommunityForum, SourceVideo,
-		SourcePaper, SourceBookReference, SourceOther:
+		SourcePlayground, SourcePaper, SourceBookReference, SourceOther:
 		return nil
 	default:
 		return fmt.Errorf("invalid source kind %q", kind)
@@ -126,13 +127,14 @@ func (metadata SourceMetadata) Validate() error {
 // Source is the stable identity and classification of an external resource.
 // Its content and fetch history live in immutable SourceSnapshots.
 type Source struct {
-	ID            SourceID
-	Kind          SourceKind
-	Locator       SourceLocator
-	Version       *SourceVersion
-	TemporalScope SourceTemporalScope
-	Metadata      SourceMetadata
-	CreatedAt     Timestamp
+	ID             SourceID
+	Kind           SourceKind
+	Locator        SourceLocator
+	Version        *SourceVersion
+	TemporalScope  SourceTemporalScope
+	Metadata       SourceMetadata
+	Specialization *SourceSpecialization
+	CreatedAt      Timestamp
 }
 
 func (source Source) Validate() error {
@@ -157,6 +159,9 @@ func (source Source) Validate() error {
 		return fmt.Errorf("version-bound source requires a version")
 	}
 	if err := source.Metadata.Validate(); err != nil {
+		return err
+	}
+	if err := validateSourceSpecialization(source); err != nil {
 		return err
 	}
 	return validateTimestamp("source created at", source.CreatedAt)

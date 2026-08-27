@@ -131,6 +131,11 @@ inputs, reading-level and access ranking, duplicate suppression, diversity
 bonuses, and mandatory community/paywall/staleness disclosure are documented in
 [further-reading-selection-v1.md](further-reading-selection-v1.md).
 
+The domain-general Playground, Package Reference, and Standards metadata
+union, canonical bounded encoding, trust/freshness integration, and additive
+SQLite compatibility projection are documented in
+[specialized-technical-sources-v1.md](specialized-technical-sources-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

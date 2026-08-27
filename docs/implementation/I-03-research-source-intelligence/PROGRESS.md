@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 27
-Last completed step: 26
+Current step: 28
+Last completed step: 27
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2069,3 +2069,77 @@ Release: unreleased
 - El Paso 27 es el siguiente paso pendiente y requiere autorización explícita.
 - No implementar Playground, Package Reference/Standards especializados ni
   pasos posteriores antes de su autorización independiente.
+
+## Step 27 — Specialized Playground, Package Reference and Standards sources
+
+Status: completed
+Date: 2026-08-27
+Release: unreleased
+
+### Delivered
+
+- Contrato de dominio cerrado y versionado `specialized-source-metadata-v1`
+  para representar Playground, Package Reference y Standards sin supuestos de
+  lenguaje o ecosistema.
+- Playground registra interactividad, language/runtime, versión opcional,
+  afiliación official/community y locator compartible; el nuevo source kind
+  `playground` exige siempre metadata especializada válida.
+- Package Reference registra package/module, symbol y versión opcionales,
+  canonical docs y source code link opcional; Standards registra standards
+  body, standard ID, revision opcional, estado cerrado y official locator.
+- Validación relacional entre `Source` y su especialización, clon defensivo en
+  application memory y codec JSON canónico, estricto y acotado a 8192 bytes.
+- Trust Policy distingue Playground official (tier B) de community (tier D),
+  Freshness aplica un TTL por defecto de 30 días y Further Reading exige
+  Playground para `interactive_resource` y coherencia del label community.
+- Migración forward-only SQLite v36 con columnas y constraints especializados;
+  Playground usa una proyección física compatible `other` más
+  `specialized_kind=playground`, revertida y validada por el adapter.
+- Round-trip persistente y compatibilidad con filas legacy sin inventar
+  metadata especializada; payloads malformados producen error de persistencia.
+- Contrato y decisiones documentados en
+  `docs/architecture/specialized-technical-sources-v1.md`, con índices y
+  documentos de dominio, aplicación, persistencia, trust, freshness y further
+  reading sincronizados.
+
+### Decisions
+
+- Package Reference y Standards admiten metadata ausente sólo para fuentes
+  legacy; cuando existe, debe ser completa, canónica y del mismo kind.
+- Canonical docs de Package Reference y official locator de Standards deben
+  coincidir con `Source.Locator`; no se duplican identidades contradictorias.
+- Versiones, revisiones, symbols y source code links son opcionales para no
+  inventar datos que una fuente no declara; `unknown` es un estado explícito de
+  Standards.
+- La migración no modifica el CHECK histórico de `sources.kind`: la proyección
+  de Playground preserva migraciones publicadas y sigue siendo atómica en la
+  misma fila.
+- No se añadió discovery de red, Community Resource Policy, query planner
+  especializado, CLI/TUI, Curriculum Compiler ni cambios de Student Core o
+  mastery.
+
+### Verification
+
+- Tests de validación y JSON canónico con ejemplos domain-general de Python,
+  TypeScript e IETF, incluyendo vocabularios cerrados, relaciones de locators y
+  mismatch de kinds/versiones.
+- Tests de clon defensivo, trust official/community, freshness, Further Reading,
+  constraints de migración, compatibilidad legacy y round-trip SQLite de los
+  tres tipos especializados.
+- `GOCACHE=/tmp/kelyro-i03-step27-target2-gocache go test
+  ./internal/research/... ./internal/storage/sqlite` y `go vet` dirigido.
+- `GOCACHE=/tmp/kelyro-i03-step27-full-gocache go test ./...` y
+  `go vet ./...`.
+- Cross-compile con `CGO_ENABLED=0` de los test binaries relevantes para
+  Windows amd64 y Darwin amd64/arm64.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI.
+- Auditoría sin hardcode de Go en el contrato especializado, `gofmt` aplicado y
+  `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 28 es el siguiente paso pendiente y requiere autorización explícita.
+- No implementar Community Resource Policy ni pasos posteriores antes de su
+  autorización independiente.

@@ -38,9 +38,10 @@ and forum kinds, and the `community_explanation` category, must carry the
 explicit community marker. Video and other kinds can also be marked community
 when that status was reviewed.
 
-Step 26 does not add the specialized Playground discovery behavior reserved
-for Step 27. An already classified resource can be reviewed as
-`interactive_resource` without changing `SourceKind` or initiating discovery.
+Step 27 requires `interactive_resource` to reference a specialized Playground
+source. Its reviewed official/community affiliation must agree with the
+candidate community marker, preserving the mandatory community label. The
+selector still does not initiate discovery or execute the Playground.
 
 ## Eligibility
 

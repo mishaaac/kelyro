@@ -125,6 +125,9 @@ func cloneSource(source research.Source) research.Source {
 	}
 	clone.Metadata.PublishedAt = cloneTimestamp(source.Metadata.PublishedAt)
 	clone.Metadata.UpdatedAt = cloneTimestamp(source.Metadata.UpdatedAt)
+	if source.Specialization != nil {
+		clone.Specialization = source.Specialization.Clone()
+	}
 	return clone
 }
 

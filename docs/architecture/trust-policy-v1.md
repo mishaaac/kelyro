@@ -41,6 +41,12 @@ The base authority order is:
 - D: community articles/forums and videos;
 - E: unclassified or other sources.
 
+Step 27 extends this mapping for the new Playground kind using its reviewed
+specialized affiliation: official Playground is B and community Playground is
+D. The policy emits `authority.playground_official` or
+`authority.playground_community`. A Playground remains supporting material;
+interactivity never promotes it to normative or primary evidence.
+
 Use cases refine that order:
 
 - language specifications rank specifications/standards A and official
@@ -103,6 +109,7 @@ stability.<value>
 corroboration.<value>
 metadata.complete | metadata.incomplete
 authority.historical_primary
+authority.playground_official | authority.playground_community
 security.independent_corroboration_required
 registry.<status>
 registry.authority_hint

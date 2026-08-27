@@ -2,7 +2,7 @@ package research
 
 import "testing"
 
-func TestAllInitialSourceKindsAreValid(t *testing.T) {
+func TestAllSourceKindsAreValid(t *testing.T) {
 	t.Parallel()
 
 	kinds := []SourceKind{
@@ -10,7 +10,7 @@ func TestAllInitialSourceKindsAreValid(t *testing.T) {
 		SourceReleaseNotes, SourceOfficialBlog, SourcePackageReference,
 		SourceOfficialTutorial, SourceCode, SourceIssueTracker,
 		SourceCommunityArticle, SourceCommunityForum, SourceVideo,
-		SourcePaper, SourceBookReference, SourceOther,
+		SourcePlayground, SourcePaper, SourceBookReference, SourceOther,
 	}
 	seen := make(map[SourceKind]struct{}, len(kinds))
 	for _, kind := range kinds {

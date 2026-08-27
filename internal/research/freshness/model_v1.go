@@ -284,7 +284,7 @@ func defaultClaimTTLDays(claimType research.ClaimType) int {
 
 func defaultSourceTTLDays(kind research.SourceKind) int {
 	switch kind {
-	case research.SourceReleaseNotes, research.SourceIssueTracker, research.SourceCommunityForum:
+	case research.SourceReleaseNotes, research.SourceIssueTracker, research.SourceCommunityForum, research.SourcePlayground:
 		return 30
 	case research.SourceOfficialBlog, research.SourceCommunityArticle, research.SourceVideo:
 		return 60

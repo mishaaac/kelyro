@@ -1546,6 +1546,15 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE INDEX source_bundles_run_history_idx ON source_bundles (run_id, verified_at, id)`,
 		},
 	},
+	{
+		version: 36,
+		name:    "specialized technical source metadata",
+		statements: []string{
+			`ALTER TABLE sources ADD COLUMN specialized_kind TEXT CHECK (specialized_kind IS NULL OR specialized_kind IN ('playground','package_reference','standard'))`,
+			`ALTER TABLE sources ADD COLUMN specialized_metadata_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(specialized_metadata_json AS BLOB)) <= 8192 AND ((specialized_kind IS NULL AND specialized_metadata_json = '') OR (specialized_kind IS NOT NULL AND json_valid(specialized_metadata_json) AND json_type(specialized_metadata_json) = 'object')) AND (specialized_kind IS NULL OR (specialized_kind = 'playground' AND kind = 'other') OR specialized_kind = kind))`,
+			`CREATE INDEX sources_specialized_kind_idx ON sources (specialized_kind, id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

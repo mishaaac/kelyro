@@ -43,6 +43,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO sources (id,kind,locator,title,created_at) VALUES ('source.legacy','other','https://example.test/legacy','Legacy source',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO sources (id,kind,locator,title,created_at) VALUES ('source.legacy-standard','standard','https://example.test/legacy-standard','Legacy standard',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := handle.Exec(`INSERT INTO source_snapshots (id,source_id,locator,fetched_at,status_code,content_type,content_hash,content_length,fetch_version) VALUES ('snapshot.legacy','source.legacy','https://example.test/legacy',?,200,'text/plain','sha256:legacy',6,'fetch/v1')`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
@@ -90,8 +93,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 35 {
-		t.Fatalf("schema=(%d,%v), want 35", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 36 {
+		t.Fatalf("schema=(%d,%v), want 36", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -221,6 +224,102 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`UPDATE source_bundle_items SET source_role='historical' WHERE bundle_id='bundle.legacy' AND item_type='source'`); err == nil {
 		t.Fatal("v35 accepted historical role for a current source item")
+	}
+	var specializedKind sql.NullString
+	var specializedJSON string
+	if err := handle.QueryRow(`SELECT specialized_kind,specialized_metadata_json FROM sources WHERE id='source.legacy'`).Scan(&specializedKind, &specializedJSON); err != nil {
+		t.Fatal(err)
+	}
+	if specializedKind.Valid || specializedJSON != "" || legacySource.Specialization != nil {
+		t.Fatalf("v36 invented legacy specialized source metadata: kind=%+v JSON=%q source=%+v", specializedKind, specializedJSON, legacySource)
+	}
+	legacyStandardID, _ := research.NewSourceID("source.legacy-standard")
+	legacyStandard, err := database.Repositories().Research.Sources.Get(context.Background(), legacyStandardID)
+	if err != nil || legacyStandard.Kind != research.SourceStandard || legacyStandard.Specialization != nil {
+		t.Fatalf("v36 legacy standard = (%+v, %v)", legacyStandard, err)
+	}
+	if _, err := handle.Exec(`UPDATE sources SET specialized_kind='playground' WHERE id='source.legacy'`); err == nil {
+		t.Fatal("v36 accepted specialized kind without bounded metadata")
+	}
+	if _, err := handle.Exec(`INSERT INTO sources (id,kind,locator,title,created_at) VALUES ('source.raw-playground','playground','https://example.test/playground','Playground',?)`, fixedTime.Format(timestampFormat)); err == nil {
+		t.Fatal("v36 bypassed the specialized playground storage projection")
+	}
+}
+
+func TestSpecializedTechnicalSourcesRoundTripSQLite(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	repository := database.Repositories().Research.Sources
+	ctx := context.Background()
+	created := researchTestTimestamp(t, fixedTime)
+
+	playgroundVersion := researchTestVersion(t, "python-3.14")
+	playgroundLocator := researchTestLocator(t, "https://play.example.test/python")
+	playgroundShare := researchTestLocator(t, "https://play.example.test/python/share/abc")
+	playground := research.Source{
+		ID: researchTestSourceID(t, "source.playground"), Kind: research.SourcePlayground,
+		Locator: playgroundLocator, Version: &playgroundVersion, TemporalScope: research.SourceTemporalVersionBound,
+		Metadata: research.SourceMetadata{Title: "Python playground"}, CreatedAt: created,
+		Specialization: &research.SourceSpecialization{
+			Kind: research.SourcePlayground, AlgorithmVersion: research.SpecializedSourceMetadataV1,
+			Playground: &research.PlaygroundDetails{
+				Interactive: true, LanguageRuntime: "Python runtime", Version: &playgroundVersion,
+				Affiliation: research.SourceAffiliationOfficial, ShareableLocator: playgroundShare,
+			},
+		},
+	}
+	packageVersion := researchTestVersion(t, "8.1")
+	packageLocator := researchTestLocator(t, "https://packages.example.test/portable-client")
+	packageCode := researchTestLocator(t, "https://code.example.test/portable-client")
+	packageReference := research.Source{
+		ID: researchTestSourceID(t, "source.package"), Kind: research.SourcePackageReference,
+		Locator: packageLocator, Version: &packageVersion, TemporalScope: research.SourceTemporalVersionBound,
+		Metadata: research.SourceMetadata{Title: "Portable client API"}, CreatedAt: created,
+		Specialization: &research.SourceSpecialization{
+			Kind: research.SourcePackageReference, AlgorithmVersion: research.SpecializedSourceMetadataV1,
+			PackageReference: &research.PackageReferenceDetails{
+				PackageModule: "portable-client", Symbol: "Client.Connect", Version: &packageVersion,
+				CanonicalDocsLocator: packageLocator, SourceCodeLocator: &packageCode,
+			},
+		},
+	}
+	revision := researchTestVersion(t, "2022")
+	standardLocator := researchTestLocator(t, "https://standards.example.test/rfc-9110")
+	standard := research.Source{
+		ID: researchTestSourceID(t, "source.standard"), Kind: research.SourceStandard,
+		Locator: standardLocator, Version: &revision, TemporalScope: research.SourceTemporalCurrent,
+		Metadata: research.SourceMetadata{Title: "HTTP Semantics"}, CreatedAt: created,
+		Specialization: &research.SourceSpecialization{
+			Kind: research.SourceStandard, AlgorithmVersion: research.SpecializedSourceMetadataV1,
+			Standard: &research.StandardDetails{
+				StandardsBody: "IETF", StandardID: "RFC 9110", Revision: &revision,
+				Status: research.StandardActive, OfficialLocator: standardLocator,
+			},
+		},
+	}
+
+	for _, source := range []research.Source{playground, packageReference, standard} {
+		if err := repository.Create(ctx, source); err != nil {
+			t.Fatalf("Create(%s) error = %v", source.ID, err)
+		}
+		got, err := repository.Get(ctx, source.ID)
+		if err != nil || !reflect.DeepEqual(got, source) {
+			t.Fatalf("specialized source roundtrip %s = (%+v, %v), want %+v", source.ID, got, err, source)
+		}
+	}
+
+	var storedKind, specializedKind, encoded string
+	if err := database.sql.QueryRowContext(ctx, `SELECT kind,specialized_kind,specialized_metadata_json FROM sources WHERE id=?`, playground.ID.String()).Scan(&storedKind, &specializedKind, &encoded); err != nil {
+		t.Fatal(err)
+	}
+	if storedKind != string(research.SourceOther) || specializedKind != string(research.SourcePlayground) || !strings.Contains(encoded, research.SpecializedSourceMetadataV1) {
+		t.Fatalf("playground storage projection = (%q,%q,%q)", storedKind, specializedKind, encoded)
+	}
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO sources (id,kind,locator,title,created_at,temporal_scope,specialized_kind,specialized_metadata_json) VALUES ('source.invalid-specialized','other','https://invalid.example.test/playground','Invalid',?,'current','playground','{}')`, timestampText(created)); err != nil {
+		t.Fatal(err)
+	}
+	invalidID, _ := research.NewSourceID("source.invalid-specialized")
+	if _, err := repository.Get(ctx, invalidID); !errors.Is(err, application.ErrPersistenceFailure) {
+		t.Fatalf("invalid specialized metadata read error = %v, want persistence_failure", err)
 	}
 }
 

@@ -92,6 +92,7 @@ func TestModelV1CombinesClaimAndSourceDefaultTTLs(t *testing.T) {
 	}{
 		{"security claim caps a long-lived source", research.ClaimSecurity, research.SourceBookReference, 14},
 		{"release notes cap a definition", research.ClaimDefinition, research.SourceReleaseNotes, 30},
+		{"interactive playground is rechecked frequently", research.ClaimDefinition, research.SourcePlayground, 30},
 		{"historical book reference", research.ClaimHistorical, research.SourceBookReference, 365},
 	}
 	for _, test := range tests {

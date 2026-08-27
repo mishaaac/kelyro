@@ -36,7 +36,7 @@ Persistence is divided by aggregate or durable output:
 
 | Port | Responsibility |
 | --- | --- |
-| `SourceRepository` | Stable source identities, canonical locators, metadata, and explicit temporal-scope classification. |
+| `SourceRepository` | Stable source identities, canonical locators, metadata, optional specialized technical details, and explicit temporal-scope classification. |
 | `SnapshotRepository` | Immutable fetch snapshots ordered by `fetched_at`. |
 | `EvidenceRepository` | Immutable evidence tied to a source and snapshot. |
 | `ClaimRepository` | Structured claims with validated source/evidence relationships. |
@@ -216,6 +216,13 @@ records. Missing Evidence, verification, or Claim freshness becomes explicit
 complete hand-off contract is in
 [source-bundles-v1.md](source-bundles-v1.md).
 
+Step 27 keeps the `SourceRepository`/`SourceService` ports stable while Source
+gains optional `specialized-source-metadata-v1` details. Memory and SQLite
+adapters preserve the closed Playground/Package Reference/Standard union and
+return defensive deep copies. No new external provider or network path is
+introduced. The complete contract is in
+[specialized-technical-sources-v1.md](specialized-technical-sources-v1.md).
+
 ## Error taxonomy
 
 Every error crossing the application boundary has one stable kind:
@@ -251,8 +258,8 @@ mutex-protected maps. It provides:
   source/deprecation/evidence, source/verification, claim/source/conflict, and
   run/claim/source/conflict/bundle, and drift/impact
   relationship checks;
-- defensive copies for pointer, slice, and byte fields so callers cannot mutate
-  stored state through returned values;
+- defensive copies for pointer, slice, byte, and nested specialized-source
+  fields so callers cannot mutate stored state through returned values;
 - support for multiple runs belonging to one immutable request.
 
 The fake is a test adapter, not a persistence format, cache implementation, or

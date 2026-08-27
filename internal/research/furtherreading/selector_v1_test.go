@@ -166,6 +166,41 @@ func TestSelectV1ValidatesBoundsAndExplicitCommunityLabel(t *testing.T) {
 	}
 }
 
+func TestInteractiveReadingCategoryRequiresSpecializedPlayground(t *testing.T) {
+	t.Parallel()
+	candidate := readingCandidate(t, "interactive", research.SourceOther, CategoryInteractiveResource)
+	input := selectionInput(candidate)
+	if _, err := SelectV1(input); err == nil || !strings.Contains(err.Error(), "playground") {
+		t.Fatalf("generic interactive resource error = %v", err)
+	}
+	candidate.Source.Kind = research.SourcePlayground
+	shareable, err := research.NewSourceLocator("https://example.com/interactive/share/abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate.Source.Specialization = &research.SourceSpecialization{
+		Kind: research.SourcePlayground, AlgorithmVersion: research.SpecializedSourceMetadataV1,
+		Playground: &research.PlaygroundDetails{
+			Interactive: true, LanguageRuntime: "Portable runtime",
+			Affiliation: research.SourceAffiliationOfficial, ShareableLocator: shareable,
+		},
+	}
+	candidate.Freshness = freshnessAssessment(t, research.SourcePlayground, 5)
+	selection, err := SelectV1(selectionInput(candidate))
+	if err != nil || len(selection.Items) != 1 || selection.Items[0].Category != CategoryInteractiveResource {
+		t.Fatalf("playground selection = (%+v, %v)", selection, err)
+	}
+	candidate.Source.Specialization.Playground.Affiliation = research.SourceAffiliationCommunity
+	if _, err := SelectV1(selectionInput(candidate)); err == nil || !strings.Contains(err.Error(), "community label") {
+		t.Fatalf("unlabeled community playground error = %v", err)
+	}
+	candidate.Community = true
+	selection, err = SelectV1(selectionInput(candidate))
+	if err != nil || !containsLabel(selection.Items[0].Labels, LabelCommunity) {
+		t.Fatalf("community playground selection = (%+v, %v)", selection, err)
+	}
+}
+
 func selectionInput(candidates ...Candidate) Input {
 	return Input{
 		Purpose: research.PurposeCurrentUsage, TargetReadingLevel: ReadingIntermediate,

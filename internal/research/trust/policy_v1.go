@@ -170,7 +170,7 @@ func (PolicyV1) Evaluate(input Input) (research.TrustDecision, error) {
 		return research.TrustDecision{}, err
 	}
 
-	tier := registryAdjustedTier(input, authorityTier(input.UseCase, input.Source.Kind))
+	tier := registryAdjustedTier(input, authorityTier(input.UseCase, input.Source))
 	reasons := dimensionReasons(input, tier)
 	state, outcomeReason := decide(input, tier, metadataComplete(input))
 	reasons = append(reasons, outcomeReason)
@@ -189,7 +189,8 @@ func (PolicyV1) Evaluate(input Input) (research.TrustDecision, error) {
 	return decision, nil
 }
 
-func authorityTier(useCase UseCase, kind research.SourceKind) research.AuthorityTier {
+func authorityTier(useCase UseCase, source research.Source) research.AuthorityTier {
+	kind := source.Kind
 	switch useCase {
 	case UseCaseLanguageSpecification:
 		switch kind {
@@ -239,6 +240,12 @@ func authorityTier(useCase UseCase, kind research.SourceKind) research.Authority
 	case research.SourceIssueTracker, research.SourcePaper, research.SourceBookReference:
 		return research.AuthorityTierC
 	case research.SourceCommunityArticle, research.SourceCommunityForum, research.SourceVideo:
+		return research.AuthorityTierD
+	case research.SourcePlayground:
+		if source.Specialization != nil && source.Specialization.Playground != nil &&
+			source.Specialization.Playground.Affiliation == research.SourceAffiliationOfficial {
+			return research.AuthorityTierB
+		}
 		return research.AuthorityTierD
 	default:
 		return research.AuthorityTierE
@@ -328,6 +335,10 @@ func dimensionReasons(input Input, tier research.AuthorityTier) []research.Trust
 	}
 	if input.UseCase == UseCaseHistoricalBehavior && input.Source.Kind == research.SourceReleaseNotes {
 		reasons = append(reasons, reason("authority.historical_primary", "Release notes are primary evidence for historical behavior."))
+	}
+	if input.Source.Kind == research.SourcePlayground {
+		affiliation := input.Source.Specialization.Playground.Affiliation
+		reasons = append(reasons, reason("authority.playground_"+string(affiliation), "Playground affiliation is explicit specialized metadata; interactivity does not make it primary evidence."))
 	}
 	if input.UseCase == UseCaseSecurityAdvisory && input.Corroboration != CorroborationIndependent {
 		reasons = append(reasons, reason("security.independent_corroboration_required", "Security guidance requires vendor or normative evidence plus independent recognized support."))

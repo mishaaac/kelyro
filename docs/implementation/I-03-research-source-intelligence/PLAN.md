@@ -1972,7 +1972,7 @@ feat(sources): select curated further reading
 
 ## Paso 27 — Añadir source kinds especializados: Playground, Package Reference y Standards
 
-- [ ] Paso 27 completado
+- [x] Paso 27 completado
 
 ### Objetivo
 
@@ -3206,7 +3206,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 24 — Multi-source Verification
 - [x] Paso 25 — Source Bundle
 - [ ] Paso 26 — Further Reading
-- [ ] Paso 27 — Playground/Package/Standards
+- [x] Paso 27 — Playground/Package/Standards
 - [ ] Paso 28 — Community Resources
 - [ ] Paso 29 — Video Supplements
 - [ ] Paso 30 — Source Diversity

@@ -74,6 +74,41 @@ func TestResearchAndSourceServicesUseNarrowMemoryRepositories(t *testing.T) {
 	}
 }
 
+func TestMemorySourceRepositoryDefensivelyCopiesSpecializedMetadata(t *testing.T) {
+	t.Parallel()
+	repositories := memory.New().Repositories()
+	service := application.NewSourceService(repositories.Sources, repositories.Snapshots)
+	version := testVersion(t, "runtime-2")
+	shareable := testLocator(t, "playground/share/abc")
+	source := research.Source{
+		ID: testSourceID(t, "playground"), Kind: research.SourcePlayground,
+		Locator: testLocator(t, "playground"), Version: &version,
+		TemporalScope: research.SourceTemporalVersionBound,
+		Metadata:      research.SourceMetadata{Title: "Interactive runtime"},
+		Specialization: &research.SourceSpecialization{
+			Kind: research.SourcePlayground, AlgorithmVersion: research.SpecializedSourceMetadataV1,
+			Playground: &research.PlaygroundDetails{
+				Interactive: true, LanguageRuntime: "Portable runtime", Version: &version,
+				Affiliation: research.SourceAffiliationCommunity, ShareableLocator: shareable,
+			},
+		},
+		CreatedAt: testTimestamp(t, 9),
+	}
+	if err := service.Register(context.Background(), source); err != nil {
+		t.Fatal(err)
+	}
+	source.Specialization.Playground.LanguageRuntime = "mutated caller input"
+	loaded, err := service.Get(context.Background(), source.ID)
+	if err != nil || loaded.Specialization.Playground.LanguageRuntime != "Portable runtime" {
+		t.Fatalf("first specialized source read = (%+v, %v)", loaded, err)
+	}
+	loaded.Specialization.Playground.LanguageRuntime = "mutated returned value"
+	again, err := service.Get(context.Background(), source.ID)
+	if err != nil || again.Specialization.Playground.LanguageRuntime != "Portable runtime" {
+		t.Fatalf("second specialized source read = (%+v, %v)", again, err)
+	}
+}
+
 func TestSourceRegistryServicePreservesEntriesAndRejectsDuplicateDomains(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

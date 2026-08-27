@@ -166,11 +166,20 @@ func (candidate Candidate) Validate() error {
 	if isCommunityKind(candidate.Source.Kind) && !candidate.Community {
 		return fmt.Errorf("community source kind must be explicitly labeled")
 	}
+	if candidate.Source.Kind == research.SourcePlayground {
+		communityPlayground := candidate.Source.Specialization.Playground.Affiliation == research.SourceAffiliationCommunity
+		if candidate.Community != communityPlayground {
+			return fmt.Errorf("playground community label must match its reviewed affiliation")
+		}
+	}
 	if candidate.Category == CategoryCommunityExplanation && !candidate.Community {
 		return fmt.Errorf("community explanation must be explicitly labeled")
 	}
 	if candidate.Category == CategoryVideoSupplement && candidate.Source.Kind != research.SourceVideo {
 		return fmt.Errorf("video supplement requires a video source")
+	}
+	if candidate.Category == CategoryInteractiveResource && candidate.Source.Kind != research.SourcePlayground {
+		return fmt.Errorf("interactive resource requires a playground source")
 	}
 	if candidate.Category == CategorySourceCode && candidate.Source.Kind != research.SourceCode {
 		return fmt.Errorf("source code reading requires a source code source")
