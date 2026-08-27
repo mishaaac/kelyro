@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 24
-Last completed step: 23
+Current step: 25
+Last completed step: 24
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1812,3 +1812,98 @@ Release: unreleased
   independencia organizacional sin alterar el historial del resolver.
 - No implementar Multi-Source Verification, Source Bundle ni pasos posteriores
   antes de su autorización independiente.
+
+## Step 24 — Multi-Source Verification
+
+Status: completed
+Date: 2026-08-27
+Release: unreleased
+
+### Delivered
+
+- Política pura y versionada `multi-source-verification-v1` para evaluar el set
+  completo de fuentes declarado por cada Claim, con requisitos cerrados para
+  definiciones/requisitos normativos, recomendaciones de producción, seguridad,
+  técnicas comunitarias y soporte general.
+- `VerificationResult` completado con requirement, reason codes, confidence,
+  algorithm version y las cuatro métricas exigidas: source count, independent
+  organization count, authority distribution y scope consistency.
+- `VerificationService.Verify` reemplaza el recording arbitrario: carga Claim,
+  Sources, últimas Trust Decisions, ownership/status revisado del Source
+  Registry y conflictos append-only; luego ejecuta la policy y persiste un
+  resultado inmutable. `Get` y `Latest` conservan lectura offline.
+- Independencia organizacional derivada exclusivamente del Registry: domains,
+  mirrors o páginas con la misma organización normalizada cuentan una vez y un
+  ownership desconocido no se inventa como organización independiente.
+- Integración temporal/versionada y de conflictos: observaciones fuera de scope
+  quedan visibles pero no soportan la Claim; el último conflicto por par puede
+  producir `conflicted` o `rejected` sin reejecutar ni alterar el resolver v1.
+- Adapters memory/SQLite endurecidos para exigir que el source set del resultado
+  coincida exactamente con `Claim.SourceIDs`, con copias defensivas y orden
+  determinista.
+- Migration SQLite forward-only v34 para requirement, métricas, reason codes y
+  algorithm version. Filas previas permanecen
+  `verification-unversioned-legacy` con clasificación y métricas conservadoras,
+  sin inventar corroboración.
+- Contrato, reglas, métricas, confianza, persistencia, compatibilidad y límites
+  documentados en `docs/architecture/multi-source-verification-v1.md`, con
+  domain, application, persistence e índice arquitectónico sincronizados.
+
+### Decisions
+
+- `definition` y `requirement` admiten una única primary source solo cuando su
+  última Trust Decision es accepted tier A/B; recomendaciones alcanzan
+  `verified` con dos fuentes fuertes de organizaciones independientes y una
+  fuente fuerte queda como `verified_with_caveat`.
+- Claims de seguridad exigen authority tier A en specification, standard,
+  official documentation o source code. Cantidad de fuentes comunitarias no
+  sustituye esa autoridad.
+- Claims `example` modelan la técnica comunitaria del Paso 24 y requieren dos
+  fuentes accepted de organizaciones independientes. El resto usa soporte
+  general conservador.
+- Authority distribution incluye todas las fuentes y conserva `unknown` cuando
+  no hay Trust Decision. Solo fuentes accepted y scope-consistent participan en
+  corroboración y conteo organizacional.
+- `blocked`/`deprecated` Registry status o TrustDecision rejected no soportan la
+  Claim. No se infiere una tier desde el kind, locator, título o contenido.
+- Version-bound requiere match exacto; historical/archived soporta una Claim
+  histórica o la versión exacta. Scope inconsistency nunca se oculta.
+- El historial Conflict se reduce al último resultado por par canónico: un
+  unresolved visible prevalece como `conflicted`; perder una resolución visible
+  produce `rejected`.
+- Confidence es Claim confidence limitada por status (`0.95`, `0.75`, `0.40`,
+  `0.30`, `0.10`); no es truth probability ni reemplaza Trust, freshness o
+  conflict confidence.
+- No se añadieron network calls, Source Bundles, Curriculum Compiler, cambios de
+  Student Core/mastery ni comportamiento de pasos posteriores.
+
+### Verification
+
+- Tests de política para primary source normativa, recomendaciones fuertes
+  independientes y same-organization, autoridad de seguridad, corroboración
+  comunitaria, trust/organization desconocidos, scope inconsistente y conflictos
+  unresolved/resolved.
+- Tests de aplicación/memoria para orquestación persistida, ownership de dos
+  organizaciones, mirrors del mismo publisher, copias defensivas, Get/Latest y
+  consumo posterior de conflicto visible.
+- Tests SQLite para migration v34, defaults legacy conservadores, constraints,
+  source-set integrity y round-trip completo de requirement/métricas/reasons.
+- `GOCACHE=/tmp/kelyro-i03-step24-target1-gocache go test ./internal/research/... ./internal/storage/sqlite` y vet focalizado.
+- `GOCACHE=/tmp/kelyro-i03-step24-full-gocache go test ./...` fuera del sandbox
+  para permitir listeners loopback deterministas de `httptest`.
+- `GOCACHE=/tmp/kelyro-i03-step24-full-gocache go vet ./...`.
+- Cross-compile de todos los test binaries de Research y SQLite para Windows y
+  Darwin con `CGO_ENABLED=0` y `go test -c`.
+- Quality gate final completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 265.443 s.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 25 es el siguiente paso pendiente y requiere autorización explícita.
+- Source Bundle podrá consumir Claims, Evidence, provenance y resultados de
+  verification ya persistidos, pero debe definir su propia lifecycle policy sin
+  reinterpretar ni sobrescribir `multi-source-verification-v1`.
+- No implementar Source Bundle ni pasos posteriores antes de su autorización
+  independiente.

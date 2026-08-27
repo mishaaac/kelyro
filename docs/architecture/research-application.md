@@ -126,7 +126,9 @@ The initial services are deliberately thin:
 - `ProvenanceService` records, traces, and exports validated claim graphs;
 - `CitationService` loads a source/snapshot/evidence chain, generates one
   deterministic stable citation, and exposes offline citation reads;
-- `VerificationService` records and retrieves verification results;
+- `VerificationService` loads a Claim's complete stored source/trust/registry/
+  conflict context, applies `multi-source-verification-v1`, appends the
+  immutable result, and exposes offline result reads;
 - `FreshnessService` stores already-computed, versioned freshness outputs;
   the pure `internal/research/freshness` model produces `freshness-v1`
   assessments with an injected clock and no adapter dependency, while
@@ -155,9 +157,9 @@ dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
 implement Trust Policy, authority matching, query execution orchestration,
-general-purpose evidence extraction, multi-source verification rules, conflict
-candidate discovery, drift detection, or impact analysis. Those remain future
-versioned policies and orchestration steps.
+general-purpose evidence extraction, conflict candidate discovery, drift
+detection, or impact analysis. Those remain future versioned policies and
+orchestration steps.
 
 Step 19 keeps these ports stable through the `ReleaseRecord` alias while adding
 the explicit `TechnologyRelease` entity and deterministic
@@ -194,6 +196,13 @@ selected declared sources, accepted latest trust decisions, and a valid clock;
 it never reads external content. Pair ordering is canonicalized by Claim ID so
 stable identity and output do not depend on request order. The full policy is
 in [conflict-resolver-v1.md](conflict-resolver-v1.md).
+
+Step 24 replaces the raw verification-recording surface with
+`VerificationService.Verify`. It assesses every declared Claim source, treats
+missing reviewed trust/organization as unknown, counts organizations through
+the Source Registry, and consumes the latest visible outcome for each conflict
+pair without rerunning conflict resolution. The complete policy is in
+[multi-source-verification-v1.md](multi-source-verification-v1.md).
 
 ## Error taxonomy
 

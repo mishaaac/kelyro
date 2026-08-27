@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/mishaaac/kelyro/internal/research"
@@ -84,6 +85,13 @@ func (repository verificationRepository) Append(ctx context.Context, result rese
 	if _, exists := repository.store.verification[result.ID]; exists {
 		return conflict(operation)
 	}
+	claim, exists := repository.store.claims[result.ClaimID]
+	if !exists {
+		return notFound(operation)
+	}
+	if !sameSourceIDSet(claim.SourceIDs, result.SourceIDs) {
+		return invalid(operation, fmt.Errorf("verification sources do not match claim sources"))
+	}
 	for _, sourceID := range result.SourceIDs {
 		if _, exists := repository.store.sources[sourceID]; !exists {
 			return notFound(operation)
@@ -91,6 +99,22 @@ func (repository verificationRepository) Append(ctx context.Context, result rese
 	}
 	repository.store.verification[result.ID] = cloneVerification(result)
 	return nil
+}
+
+func sameSourceIDSet(left, right []research.SourceID) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[research.SourceID]struct{}, len(left))
+	for _, sourceID := range left {
+		seen[sourceID] = struct{}{}
+	}
+	for _, sourceID := range right {
+		if _, exists := seen[sourceID]; !exists {
+			return false
+		}
+	}
+	return true
 }
 
 func (repository verificationRepository) Get(ctx context.Context, id research.ID) (research.VerificationResult, error) {

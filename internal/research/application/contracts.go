@@ -1022,7 +1022,8 @@ type SourceRegistryStoreFactory interface {
 }
 
 type VerificationService interface {
-	Record(context.Context, research.VerificationResult) error
+	Verify(context.Context, research.ClaimID) (research.VerificationResult, error)
+	Get(context.Context, research.ID) (research.VerificationResult, error)
 	Latest(context.Context, research.ClaimID) (research.VerificationResult, error)
 }
 

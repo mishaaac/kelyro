@@ -49,7 +49,7 @@ For every signal, the service loads the Claim and Evidence and requires:
 
 The confidence threshold and distinct-source rule are a narrow v1 admission
 policy. They do not produce a `VerificationResult` and are not a substitute for
-the multi-source verification algorithm reserved for Step 24.
+the general `multi-source-verification-v1` Claim algorithm.
 
 ## Output and history
 

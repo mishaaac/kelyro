@@ -211,7 +211,10 @@ func TestConflictAndVerificationRepresentResolvedAndUnresolvedOutcomes(t *testin
 	verification := VerificationResult{
 		ID: mustID(t, "verification.behavior"), ClaimID: claims[0],
 		Status: VerificationVerifiedCaveat, SourceIDs: []SourceID{mustSourceID(t, "spec")},
-		Confidence: mustConfidence(t, 0.8), VerifiedAt: mustTimestamp(t, 12),
+		Requirement: VerificationRequirementLegacy,
+		ReasonCodes: []ClaimVerificationReason{VerificationReasonLegacyUnclassified},
+		Confidence:  mustConfidence(t, 0.8), VerifiedAt: mustTimestamp(t, 12),
+		AlgorithmVersion: VerificationLegacyAlgorithm,
 	}
 	if err := verification.Validate(); err != nil {
 		t.Fatalf("VerificationResult.Validate() error = %v", err)
@@ -219,6 +222,40 @@ func TestConflictAndVerificationRepresentResolvedAndUnresolvedOutcomes(t *testin
 	verification.Status = VerificationStatus("maybe")
 	if err := verification.Validate(); err == nil {
 		t.Fatal("VerificationResult.Validate() accepted invalid status")
+	}
+}
+
+func TestMultiSourceVerificationResultRequiresVersionedMetricsAndReasons(t *testing.T) {
+	t.Parallel()
+	result := VerificationResult{
+		ID: mustID(t, "verification.multi-source"), ClaimID: mustClaimID(t, "recommendation.production"),
+		Status: VerificationVerified, Requirement: VerificationRequirementProduction,
+		SourceIDs: []SourceID{mustSourceID(t, "docs"), mustSourceID(t, "operations")},
+		Metrics: VerificationMetrics{
+			SourceCount: 2, IndependentOrganizationCount: 2, ScopeConsistent: true,
+			AuthorityDistribution: VerificationAuthorityDistribution{TierA: 1, TierB: 1},
+		},
+		ReasonCodes: []ClaimVerificationReason{VerificationReasonIndependentSupport},
+		Confidence:  mustConfidence(t, 0.9), VerifiedAt: mustTimestamp(t, 12),
+		AlgorithmVersion: MultiSourceVerificationAlgorithmV1,
+	}
+	if err := result.Validate(); err != nil {
+		t.Fatalf("VerificationResult.Validate() error = %v", err)
+	}
+	invalidDistribution := result
+	invalidDistribution.Metrics.AuthorityDistribution.TierB = 0
+	if err := invalidDistribution.Validate(); err == nil {
+		t.Fatal("VerificationResult.Validate() accepted incomplete authority distribution")
+	}
+	duplicateReason := result
+	duplicateReason.ReasonCodes = append(duplicateReason.ReasonCodes, VerificationReasonIndependentSupport)
+	if err := duplicateReason.Validate(); err == nil {
+		t.Fatal("VerificationResult.Validate() accepted duplicate reasons")
+	}
+	legacyRequirement := result
+	legacyRequirement.Requirement = VerificationRequirementLegacy
+	if err := legacyRequirement.Validate(); err == nil {
+		t.Fatal("VerificationResult.Validate() accepted legacy requirement for v1")
 	}
 }
 

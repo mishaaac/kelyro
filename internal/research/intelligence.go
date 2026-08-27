@@ -432,6 +432,11 @@ func (conflict Conflict) Validate() error {
 type VerificationStatus string
 
 const (
+	MultiSourceVerificationAlgorithmV1 = "multi-source-verification-v1"
+	VerificationLegacyAlgorithm        = "verification-unversioned-legacy"
+)
+
+const (
 	VerificationVerified       VerificationStatus = "verified"
 	VerificationVerifiedCaveat VerificationStatus = "verified_with_caveat"
 	VerificationInsufficient   VerificationStatus = "insufficient_evidence"
@@ -449,13 +454,119 @@ func (status VerificationStatus) Validate() error {
 	}
 }
 
+type ClaimVerificationRequirement string
+
+const (
+	VerificationRequirementNormativePrimary ClaimVerificationRequirement = "normative_primary"
+	VerificationRequirementProduction       ClaimVerificationRequirement = "production_recommendation"
+	VerificationRequirementSecurity         ClaimVerificationRequirement = "security_authority"
+	VerificationRequirementCommunity        ClaimVerificationRequirement = "community_corroboration"
+	VerificationRequirementGeneral          ClaimVerificationRequirement = "general_support"
+	VerificationRequirementLegacy           ClaimVerificationRequirement = "legacy_unclassified"
+)
+
+func (requirement ClaimVerificationRequirement) Validate() error {
+	switch requirement {
+	case VerificationRequirementNormativePrimary, VerificationRequirementProduction,
+		VerificationRequirementSecurity, VerificationRequirementCommunity,
+		VerificationRequirementGeneral, VerificationRequirementLegacy:
+		return nil
+	default:
+		return fmt.Errorf("invalid claim verification requirement %q", requirement)
+	}
+}
+
+type ClaimVerificationReason string
+
+const (
+	VerificationReasonPrimarySourceSufficient ClaimVerificationReason = "primary_source_sufficient"
+	VerificationReasonIndependentSupport      ClaimVerificationReason = "independent_support"
+	VerificationReasonSingleStrongSource      ClaimVerificationReason = "single_strong_source"
+	VerificationReasonSecurityAuthority       ClaimVerificationReason = "security_authority_present"
+	VerificationReasonSecurityAuthorityAbsent ClaimVerificationReason = "security_authority_absent"
+	VerificationReasonCorroborationMissing    ClaimVerificationReason = "corroboration_missing"
+	VerificationReasonSameOrganization        ClaimVerificationReason = "same_organization"
+	VerificationReasonOrganizationUnknown     ClaimVerificationReason = "organization_unknown"
+	VerificationReasonScopeInconsistent       ClaimVerificationReason = "scope_inconsistent"
+	VerificationReasonUnresolvedConflict      ClaimVerificationReason = "unresolved_conflict"
+	VerificationReasonLosesResolvedConflict   ClaimVerificationReason = "loses_resolved_conflict"
+	VerificationReasonSourcesRejected         ClaimVerificationReason = "sources_rejected"
+	VerificationReasonWeakSupport             ClaimVerificationReason = "weak_support"
+	VerificationReasonLegacyUnclassified      ClaimVerificationReason = "legacy_unclassified"
+)
+
+func (reason ClaimVerificationReason) Validate() error {
+	switch reason {
+	case VerificationReasonPrimarySourceSufficient, VerificationReasonIndependentSupport,
+		VerificationReasonSingleStrongSource, VerificationReasonSecurityAuthority,
+		VerificationReasonSecurityAuthorityAbsent, VerificationReasonCorroborationMissing,
+		VerificationReasonSameOrganization, VerificationReasonOrganizationUnknown,
+		VerificationReasonScopeInconsistent, VerificationReasonUnresolvedConflict,
+		VerificationReasonLosesResolvedConflict, VerificationReasonSourcesRejected,
+		VerificationReasonWeakSupport, VerificationReasonLegacyUnclassified:
+		return nil
+	default:
+		return fmt.Errorf("invalid claim verification reason %q", reason)
+	}
+}
+
+// VerificationAuthorityDistribution preserves reviewed TrustDecision tiers and
+// explicitly counts sources without a decision instead of inventing a tier.
+type VerificationAuthorityDistribution struct {
+	TierA   int
+	TierB   int
+	TierC   int
+	TierD   int
+	TierE   int
+	Unknown int
+}
+
+func (distribution VerificationAuthorityDistribution) Validate(sourceCount int) error {
+	counts := []int{
+		distribution.TierA, distribution.TierB, distribution.TierC,
+		distribution.TierD, distribution.TierE, distribution.Unknown,
+	}
+	total := 0
+	for _, count := range counts {
+		if count < 0 {
+			return fmt.Errorf("verification authority distribution contains a negative count")
+		}
+		total += count
+	}
+	if total != sourceCount {
+		return fmt.Errorf("verification authority distribution totals %d, want %d", total, sourceCount)
+	}
+	return nil
+}
+
+type VerificationMetrics struct {
+	SourceCount                  int
+	IndependentOrganizationCount int
+	AuthorityDistribution        VerificationAuthorityDistribution
+	ScopeConsistent              bool
+}
+
+func (metrics VerificationMetrics) Validate(expectedSourceCount int) error {
+	if metrics.SourceCount != expectedSourceCount {
+		return fmt.Errorf("verification source count is %d, want %d", metrics.SourceCount, expectedSourceCount)
+	}
+	if metrics.IndependentOrganizationCount < 0 || metrics.IndependentOrganizationCount > metrics.SourceCount {
+		return fmt.Errorf("verification independent organization count is invalid")
+	}
+	return metrics.AuthorityDistribution.Validate(metrics.SourceCount)
+}
+
 type VerificationResult struct {
-	ID         ID
-	ClaimID    ClaimID
-	Status     VerificationStatus
-	SourceIDs  []SourceID
-	Confidence ClaimConfidence
-	VerifiedAt Timestamp
+	ID               ID
+	ClaimID          ClaimID
+	Status           VerificationStatus
+	Requirement      ClaimVerificationRequirement
+	SourceIDs        []SourceID
+	Metrics          VerificationMetrics
+	ReasonCodes      []ClaimVerificationReason
+	Confidence       ClaimConfidence
+	VerifiedAt       Timestamp
+	AlgorithmVersion string
 }
 
 func (result VerificationResult) Validate() error {
@@ -474,7 +585,46 @@ func (result VerificationResult) Validate() error {
 	if err := result.Confidence.Validate(); err != nil {
 		return fmt.Errorf("verification confidence: %w", err)
 	}
-	return validateTimestamp("claim verified at", result.VerifiedAt)
+	if err := validateTimestamp("claim verified at", result.VerifiedAt); err != nil {
+		return err
+	}
+	if err := result.Requirement.Validate(); err != nil {
+		return err
+	}
+	if len(result.ReasonCodes) == 0 {
+		return fmt.Errorf("claim verification reasons are empty")
+	}
+	seenReasons := make(map[ClaimVerificationReason]struct{}, len(result.ReasonCodes))
+	for _, reason := range result.ReasonCodes {
+		if err := reason.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seenReasons[reason]; exists {
+			return fmt.Errorf("claim verification contains duplicate reason %q", reason)
+		}
+		seenReasons[reason] = struct{}{}
+	}
+	switch result.AlgorithmVersion {
+	case MultiSourceVerificationAlgorithmV1:
+		if result.Requirement == VerificationRequirementLegacy {
+			return fmt.Errorf("multi-source-verification-v1 cannot be legacy unclassified")
+		}
+		if _, exists := seenReasons[VerificationReasonLegacyUnclassified]; exists {
+			return fmt.Errorf("multi-source-verification-v1 cannot contain a legacy reason")
+		}
+		return result.Metrics.Validate(len(result.SourceIDs))
+	case VerificationLegacyAlgorithm:
+		if result.Requirement != VerificationRequirementLegacy || len(result.ReasonCodes) != 1 ||
+			result.ReasonCodes[0] != VerificationReasonLegacyUnclassified {
+			return fmt.Errorf("legacy verification result must remain unclassified")
+		}
+		if result.Metrics != (VerificationMetrics{}) {
+			return fmt.Errorf("legacy verification result cannot contain invented metrics")
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid verification algorithm version %q", result.AlgorithmVersion)
+	}
 }
 
 type DriftType string

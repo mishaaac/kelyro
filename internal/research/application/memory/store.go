@@ -255,6 +255,7 @@ func cloneFreshness(record application.FreshnessRecord) application.FreshnessRec
 func cloneVerification(result research.VerificationResult) research.VerificationResult {
 	clone := result
 	clone.SourceIDs = append([]research.SourceID(nil), result.SourceIDs...)
+	clone.ReasonCodes = append([]research.ClaimVerificationReason(nil), result.ReasonCodes...)
 	return clone
 }
 

@@ -1512,6 +1512,19 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE INDEX source_conflicts_detected_idx ON source_conflicts (detected_at, id)`,
 		},
 	},
+	{
+		version: 34,
+		name:    "versioned multi-source verification",
+		statements: []string{
+			`ALTER TABLE verification_results ADD COLUMN requirement TEXT NOT NULL DEFAULT 'legacy_unclassified' CHECK (requirement IN ('normative_primary','production_recommendation','security_authority','community_corroboration','general_support','legacy_unclassified'))`,
+			`ALTER TABLE verification_results ADD COLUMN source_count INTEGER NOT NULL DEFAULT 0 CHECK (source_count >= 0)`,
+			`ALTER TABLE verification_results ADD COLUMN independent_organization_count INTEGER NOT NULL DEFAULT 0 CHECK (independent_organization_count BETWEEN 0 AND source_count)`,
+			`ALTER TABLE verification_results ADD COLUMN authority_distribution_json TEXT NOT NULL DEFAULT '{"tier_a":0,"tier_b":0,"tier_c":0,"tier_d":0,"tier_e":0,"unknown":0}' CHECK (json_valid(authority_distribution_json) AND json_type(authority_distribution_json) = 'object' AND json_remove(authority_distribution_json,'$.tier_a','$.tier_b','$.tier_c','$.tier_d','$.tier_e','$.unknown') = '{}' AND COALESCE(json_extract(authority_distribution_json,'$.tier_a') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_b') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_c') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_d') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_e') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.unknown') >= 0,0))`,
+			`ALTER TABLE verification_results ADD COLUMN scope_consistent INTEGER NOT NULL DEFAULT 0 CHECK (scope_consistent IN (0,1))`,
+			`ALTER TABLE verification_results ADD COLUMN reason_codes_json TEXT NOT NULL DEFAULT '["legacy_unclassified"]' CHECK (json_valid(reason_codes_json) AND json_type(reason_codes_json) = 'array' AND json_array_length(reason_codes_json) > 0)`,
+			`ALTER TABLE verification_results ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'verification-unversioned-legacy' CHECK (algorithm_version IN ('multi-source-verification-v1','verification-unversioned-legacy')) CHECK ((algorithm_version = 'verification-unversioned-legacy' AND requirement = 'legacy_unclassified' AND source_count = 0 AND independent_organization_count = 0 AND authority_distribution_json = '{"tier_a":0,"tier_b":0,"tier_c":0,"tier_d":0,"tier_e":0,"unknown":0}' AND scope_consistent = 0 AND reason_codes_json = '["legacy_unclassified"]') OR (algorithm_version = 'multi-source-verification-v1' AND requirement <> 'legacy_unclassified' AND source_count = json_array_length(source_ids_json) AND source_count = COALESCE(json_extract(authority_distribution_json,'$.tier_a'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_b'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_c'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_d'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_e'),-1) + COALESCE(json_extract(authority_distribution_json,'$.unknown'),-1) AND reason_codes_json <> '["legacy_unclassified"]'))`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

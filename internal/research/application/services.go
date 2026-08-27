@@ -342,35 +342,6 @@ func (service *provenanceService) Export(ctx context.Context, claimID research.C
 	return encoded, nil
 }
 
-type verificationService struct{ repository VerificationRepository }
-
-func NewVerificationService(repository VerificationRepository) VerificationService {
-	return &verificationService{repository: repository}
-}
-
-func (service *verificationService) Record(ctx context.Context, result research.VerificationResult) error {
-	const operation = "record verification result"
-	if err := result.Validate(); err != nil {
-		return invalid(operation, err)
-	}
-	if err := requireDependency(operation, "verification repository", service.repository); err != nil {
-		return err
-	}
-	return repositoryError(operation, service.repository.Append(ctx, result))
-}
-
-func (service *verificationService) Latest(ctx context.Context, claimID research.ClaimID) (research.VerificationResult, error) {
-	const operation = "get latest verification result"
-	if err := claimID.Validate(); err != nil {
-		return research.VerificationResult{}, invalid(operation, err)
-	}
-	if err := requireDependency(operation, "verification repository", service.repository); err != nil {
-		return research.VerificationResult{}, err
-	}
-	result, err := service.repository.LatestByClaim(ctx, claimID)
-	return result, repositoryError(operation, err)
-}
-
 type freshnessService struct{ repository FreshnessRepository }
 
 func NewFreshnessService(repository FreshnessRepository) FreshnessService {

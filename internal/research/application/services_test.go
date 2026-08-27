@@ -195,15 +195,6 @@ func TestIntelligenceServicesPersistOnlyValidatedPolicyOutputs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	verificationService := application.NewVerificationService(repositories.Verification)
-	verification := testVerification(t, source.ID)
-	if err := verificationService.Record(ctx, verification); err != nil {
-		t.Fatalf("VerificationService.Record() error = %v", err)
-	}
-	if latest, err := verificationService.Latest(ctx, verification.ClaimID); err != nil || latest.ID != verification.ID {
-		t.Fatalf("VerificationService.Latest() = (%+v, %v)", latest, err)
-	}
-
 	freshnessService := application.NewFreshnessService(repositories.Freshness)
 	dueAt := testTimestamp(t, 12)
 	freshness := application.FreshnessRecord{
@@ -521,15 +512,6 @@ func testSnapshot(t *testing.T, source research.Source, suffix string, hour int)
 			StatusCode: 200, ContentType: "text/html", ContentHash: "sha256:" + suffix,
 			ContentLength: 100, FetchVersion: fixtureVersion,
 		},
-	}
-}
-
-func testVerification(t *testing.T, sourceID research.SourceID) research.VerificationResult {
-	t.Helper()
-	return research.VerificationResult{
-		ID: testID(t, "verification.release"), ClaimID: testClaimID(t, "release.current"),
-		Status: research.VerificationVerified, SourceIDs: []research.SourceID{sourceID},
-		Confidence: testConfidence(t, 0.9), VerifiedAt: testTimestamp(t, 11),
 	}
 }
 

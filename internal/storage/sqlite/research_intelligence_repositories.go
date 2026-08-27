@@ -179,6 +179,25 @@ func (repository *researchVerificationRepository) Append(ctx context.Context, re
 	if err != nil {
 		return err
 	}
+	authorityJSON, err := encodeJSON(operation, verificationAuthorityJSON{
+		TierA:   result.Metrics.AuthorityDistribution.TierA,
+		TierB:   result.Metrics.AuthorityDistribution.TierB,
+		TierC:   result.Metrics.AuthorityDistribution.TierC,
+		TierD:   result.Metrics.AuthorityDistribution.TierD,
+		TierE:   result.Metrics.AuthorityDistribution.TierE,
+		Unknown: result.Metrics.AuthorityDistribution.Unknown,
+	})
+	if err != nil {
+		return err
+	}
+	reasonValues := make([]string, len(result.ReasonCodes))
+	for index, reason := range result.ReasonCodes {
+		reasonValues[index] = string(reason)
+	}
+	reasonsJSON, err := encodeJSON(operation, reasonValues)
+	if err != nil {
+		return err
+	}
 	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
 	if err != nil {
 		return err
@@ -191,16 +210,42 @@ func (repository *researchVerificationRepository) Append(ctx context.Context, re
 	if exists {
 		return researchConflict(operation)
 	}
+	exists, err = recordExists(opCtx, repository.executor, "claims", "id", result.ClaimID.String())
+	if err != nil {
+		return researchPersistence(operation, err)
+	}
+	if !exists {
+		return researchNotFound(operation)
+	}
 	for _, sourceID := range result.SourceIDs {
-		exists, err = recordExists(opCtx, repository.executor, "sources", "id", sourceID.String())
+		var membership int
+		err = repository.executor.QueryRowContext(opCtx,
+			`SELECT COUNT(*) FROM claim_sources WHERE claim_id=? AND source_id=?`,
+			result.ClaimID.String(), sourceID.String(),
+		).Scan(&membership)
 		if err != nil {
 			return researchPersistence(operation, err)
 		}
-		if !exists {
-			return researchNotFound(operation)
+		if membership != 1 {
+			return researchInvalid(operation, errors.New("verification source is not declared by claim"))
 		}
 	}
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO verification_results (id,claim_id,status,source_ids_json,confidence,verified_at) VALUES (?,?,?,?,?,?)`, result.ID.String(), result.ClaimID.String(), string(result.Status), encoded, result.Confidence.Value(), timestampText(result.VerifiedAt))
+	var claimSourceCount int
+	if err := repository.executor.QueryRowContext(opCtx,
+		`SELECT COUNT(*) FROM claim_sources WHERE claim_id=?`, result.ClaimID.String(),
+	).Scan(&claimSourceCount); err != nil {
+		return researchPersistence(operation, err)
+	}
+	if claimSourceCount != len(result.SourceIDs) {
+		return researchInvalid(operation, errors.New("verification sources do not match claim sources"))
+	}
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO verification_results
+(id,claim_id,status,source_ids_json,confidence,verified_at,requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		result.ID.String(), result.ClaimID.String(), string(result.Status), encoded,
+		result.Confidence.Value(), timestampText(result.VerifiedAt), string(result.Requirement),
+		result.Metrics.SourceCount, result.Metrics.IndependentOrganizationCount,
+		authorityJSON, result.Metrics.ScopeConsistent, reasonsJSON, result.AlgorithmVersion)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -221,12 +266,22 @@ func (repository *researchVerificationRepository) get(ctx context.Context, opera
 		return research.VerificationResult{}, err
 	}
 	defer cancel()
-	return scanVerification(repository.executor.QueryRowContext(opCtx, `SELECT id,claim_id,status,source_ids_json,confidence,verified_at FROM verification_results `+suffix, value), operation)
+	return scanVerification(repository.executor.QueryRowContext(opCtx, verificationSelect+` `+suffix, value), operation)
 }
+
+const verificationSelect = `SELECT id,claim_id,status,source_ids_json,confidence,verified_at,
+requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version
+FROM verification_results`
+
 func scanVerification(row rowScanner, operation string) (research.VerificationResult, error) {
-	var idValue, claimValue, status, sourcesJSON, verified string
+	var idValue, claimValue, status, sourcesJSON, verified, requirement string
+	var authorityJSON, reasonsJSON, algorithm string
 	var confidence float64
-	if err := row.Scan(&idValue, &claimValue, &status, &sourcesJSON, &confidence, &verified); err != nil {
+	var sourceCount, organizationCount int
+	var scopeConsistent bool
+	if err := row.Scan(&idValue, &claimValue, &status, &sourcesJSON, &confidence, &verified,
+		&requirement, &sourceCount, &organizationCount, &authorityJSON, &scopeConsistent,
+		&reasonsJSON, &algorithm); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.VerificationResult{}, researchNotFound(operation)
 		}
@@ -256,11 +311,45 @@ func scanVerification(row rowScanner, operation string) (research.VerificationRe
 	if err != nil {
 		return research.VerificationResult{}, researchPersistence(operation, err)
 	}
-	item := research.VerificationResult{ID: id, ClaimID: claimID, Status: research.VerificationStatus(status), SourceIDs: sourceIDs, Confidence: score, VerifiedAt: verifiedAt}
+	var authority verificationAuthorityJSON
+	if err := decodeJSON(authorityJSON, &authority); err != nil {
+		return research.VerificationResult{}, researchPersistence(operation, err)
+	}
+	var reasonValues []string
+	if err := decodeJSON(reasonsJSON, &reasonValues); err != nil {
+		return research.VerificationResult{}, researchPersistence(operation, err)
+	}
+	reasons := make([]research.ClaimVerificationReason, len(reasonValues))
+	for index, value := range reasonValues {
+		reasons[index] = research.ClaimVerificationReason(value)
+	}
+	item := research.VerificationResult{
+		ID: id, ClaimID: claimID, Status: research.VerificationStatus(status),
+		Requirement: research.ClaimVerificationRequirement(requirement), SourceIDs: sourceIDs,
+		Metrics: research.VerificationMetrics{
+			SourceCount: sourceCount, IndependentOrganizationCount: organizationCount,
+			AuthorityDistribution: research.VerificationAuthorityDistribution{
+				TierA: authority.TierA, TierB: authority.TierB, TierC: authority.TierC,
+				TierD: authority.TierD, TierE: authority.TierE, Unknown: authority.Unknown,
+			},
+			ScopeConsistent: scopeConsistent,
+		},
+		ReasonCodes: reasons, Confidence: score, VerifiedAt: verifiedAt,
+		AlgorithmVersion: algorithm,
+	}
 	if err := item.Validate(); err != nil {
 		return research.VerificationResult{}, researchPersistence(operation, err)
 	}
 	return item, nil
+}
+
+type verificationAuthorityJSON struct {
+	TierA   int `json:"tier_a"`
+	TierB   int `json:"tier_b"`
+	TierC   int `json:"tier_c"`
+	TierD   int `json:"tier_d"`
+	TierE   int `json:"tier_e"`
+	Unknown int `json:"unknown"`
 }
 
 type researchDriftRepository struct {

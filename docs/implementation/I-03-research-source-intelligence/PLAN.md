@@ -1825,7 +1825,7 @@ feat(verification): add source conflict resolver v1
 
 ## Paso 24 — Implementar Multi-Source Verification
 
-- [ ] Paso 24 completado
+- [x] Paso 24 completado
 
 ### Objetivo
 
@@ -3203,7 +3203,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 21 — Deprecation
 - [x] Paso 22 — Historical sources
 - [ ] Paso 23 — Conflict Resolver
-- [ ] Paso 24 — Multi-source Verification
+- [x] Paso 24 — Multi-source Verification
 - [ ] Paso 25 — Source Bundle
 - [ ] Paso 26 — Further Reading
 - [ ] Paso 27 — Playground/Package/Standards
@@ -3277,12 +3277,12 @@ No asumir número de versión. Usar SemVer real del repositorio.
 
 ## Verification
 
-- [ ] Multi-source verification
+- [x] Multi-source verification
 - [ ] Source diversity
 - [ ] Conflict detection
 - [ ] Conflict Resolver v1
 - [ ] Unresolved conflict state
-- [ ] Claim confidence
+- [x] Claim confidence
 
 ## Freshness
 
@@ -3360,8 +3360,8 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Release status distingue stable/preview/experimental/legacy
 - [ ] Deprecation requiere evidence
 - [ ] Conflict no se oculta
-- [ ] Multi-source verification funciona
-- [ ] Same organization no cuenta automáticamente como múltiples fuentes independientes
+- [x] Multi-source verification funciona
+- [x] Same organization no cuenta automáticamente como múltiples fuentes independientes
 - [ ] Resource quality separado de authority
 - [ ] Community resources etiquetados
 - [ ] Video es supplementary por defecto

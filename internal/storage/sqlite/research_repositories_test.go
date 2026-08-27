@@ -55,6 +55,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO source_conflicts (id,conflict_type,claim_ids_json,resolution,unresolved,detected_at) VALUES ('conflict.legacy','direct_contradiction','["claim.legacy","claim.other"]','',1,?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO verification_results (id,claim_id,status,source_ids_json,confidence,verified_at) VALUES ('verification.legacy','claim.legacy','verified_with_caveat','["source.legacy"]',0.5,?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := handle.Exec(`INSERT INTO research_topics (request_id,subject,purpose,requested_at) VALUES ('request.legacy','Legacy topic','version_behavior',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
@@ -86,8 +89,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 33 {
-		t.Fatalf("schema=(%d,%v), want 33", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 34 {
+		t.Fatalf("schema=(%d,%v), want 34", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -189,6 +192,21 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`INSERT INTO source_conflicts (id,conflict_type,claim_ids_json,resolution,unresolved,detected_at,confidence,reason,algorithm_version) VALUES ('conflict.too-many','direct_contradiction','["claim.one","claim.two","claim.three"]','',1,?,0.5,'Needs review.','conflict-resolver-v1')`, fixedTime.Format(timestampFormat)); err == nil {
 		t.Fatal("v33 accepted more than two claims for resolver v1")
+	}
+	legacyVerificationID, _ := research.NewID("verification.legacy")
+	legacyVerification, err := database.Repositories().Research.Verification.Get(context.Background(), legacyVerificationID)
+	if err != nil || legacyVerification.AlgorithmVersion != research.VerificationLegacyAlgorithm ||
+		legacyVerification.Requirement != research.VerificationRequirementLegacy ||
+		len(legacyVerification.ReasonCodes) != 1 ||
+		legacyVerification.ReasonCodes[0] != research.VerificationReasonLegacyUnclassified ||
+		legacyVerification.Metrics != (research.VerificationMetrics{}) {
+		t.Fatalf("v34 legacy verification = (%+v, %v)", legacyVerification, err)
+	}
+	if _, err := handle.Exec(`UPDATE verification_results SET algorithm_version='multi-source-verification-v1' WHERE id='verification.legacy'`); err == nil {
+		t.Fatal("v34 accepted v1 algorithm with legacy metrics")
+	}
+	if _, err := handle.Exec(`INSERT INTO verification_results (id,claim_id,status,source_ids_json,confidence,verified_at,requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version) VALUES ('verification.bad-metrics','claim.legacy','verified','["source.legacy"]',0.8,?,'general_support',1,1,'{"tier_a":0,"tier_b":0,"tier_c":0,"tier_d":0,"tier_e":0,"unknown":0}',1,'["independent_support"]','multi-source-verification-v1')`, fixedTime.Format(timestampFormat)); err == nil {
+		t.Fatal("v34 accepted authority distribution that does not total source count")
 	}
 }
 
@@ -501,13 +519,6 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	}
 
 	confidence, _ := research.NewClaimConfidence(.9)
-	verification := research.VerificationResult{ID: researchTestID(t, "verification.1"), ClaimID: researchTestClaimID(t, "claim.1"), Status: research.VerificationVerified, SourceIDs: []research.SourceID{source.ID}, Confidence: confidence, VerifiedAt: at}
-	if err := repositories.Verification.Append(ctx, verification); err != nil {
-		t.Fatal(err)
-	}
-	if got, err := repositories.Verification.LatestByClaim(ctx, verification.ClaimID); err != nil || !reflect.DeepEqual(got, verification) {
-		t.Fatalf("verification roundtrip=(%+v,%v)", got, err)
-	}
 	claimOne := research.Claim{
 		ID: researchTestClaimID(t, "claim.conflict.one"), Topic: topic, Statement: "The feature is required.",
 		Type: research.ClaimRequirement, Scope: "HTTP caching", StatusScope: research.ClaimStatusStable,
@@ -521,6 +532,23 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 		if err := repositories.Claims.Append(ctx, claim); err != nil {
 			t.Fatal(err)
 		}
+	}
+	verification := research.VerificationResult{
+		ID: researchTestID(t, "verification.1"), ClaimID: claimOne.ID,
+		Status: research.VerificationVerified, Requirement: research.VerificationRequirementNormativePrimary,
+		SourceIDs: []research.SourceID{source.ID},
+		Metrics: research.VerificationMetrics{
+			SourceCount: 1, IndependentOrganizationCount: 0, ScopeConsistent: true,
+			AuthorityDistribution: research.VerificationAuthorityDistribution{TierA: 1},
+		},
+		ReasonCodes: []research.ClaimVerificationReason{research.VerificationReasonPrimarySourceSufficient},
+		Confidence:  confidence, VerifiedAt: at, AlgorithmVersion: research.MultiSourceVerificationAlgorithmV1,
+	}
+	if err := repositories.Verification.Append(ctx, verification); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Verification.LatestByClaim(ctx, verification.ClaimID); err != nil || !reflect.DeepEqual(got, verification) {
+		t.Fatalf("verification roundtrip=(%+v,%v)", got, err)
 	}
 	winnerClaim, winnerSource := claimOne.ID, source.ID
 	conflict := research.Conflict{

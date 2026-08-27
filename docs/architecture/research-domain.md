@@ -251,8 +251,11 @@ incompatible Claim pair by temporal, version, scope, recommendation, and
 authority precedence. It keeps unresolved equal-authority contradictions
 visible. The complete contract is documented in
 [conflict-resolver-v1.md](conflict-resolver-v1.md). Multi-source verification,
-semantic drift detection, and curriculum impact remain in later dedicated
-steps.
+implemented by `multi-source-verification-v1`, adds a Claim requirement,
+versioned reason codes, source/organization/authority/scope metrics, confidence,
+and an immutable algorithm ID to `VerificationResult`. Its full contract is in
+[multi-source-verification-v1.md](multi-source-verification-v1.md). Semantic
+drift detection and curriculum impact remain in later dedicated steps.
 
 ## Temporal and enum invariants
 

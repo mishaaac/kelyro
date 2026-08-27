@@ -8,8 +8,9 @@ bounded claim provenance graphs. Step 15 adds v28 for stable citation metadata
 and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints,
 Step 17 adds v30 for refresh scheduling metadata, Step 21 adds v31 for versioned
 deprecation conclusions, Step 22 adds v32 for source temporal scopes, and Step
-23 adds v33 for versioned conflict outcomes. The 22 migrations that shipped
-Student Core and migrations v23–v32 remain unchanged,
+23 adds v33 for versioned conflict outcomes, and Step 24 adds v34 for
+multi-source verification outputs. The 22 migrations that shipped Student
+Core and migrations v23–v33 remain unchanged,
 and an I-02 database is upgraded
 without rewriting its learning state.
 
@@ -114,6 +115,14 @@ paired, require a winning scope when a winner exists, and prohibit winners on
 unresolved records. The adapter additionally checks both Claim identities and
 the winning `claim_sources` relationship before append, and lists per-Claim
 history deterministically by detection time and stable ID.
+
+Migration 34 extends `verification_results` with the Claim requirement, source
+and independent-organization counts, checked authority distribution, scope
+consistency, reason codes, and algorithm version. Existing rows remain
+conservative `verification-unversioned-legacy` records with zero, non-invented
+metrics. New `multi-source-verification-v1` rows require the source count to
+match both the JSON source IDs and authority total. The adapter also requires
+the persisted source set to equal the stored Claim source set.
 
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and

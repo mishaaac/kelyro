@@ -4,7 +4,8 @@ Step 23 implements `conflict-resolver-v1` as a pure, deterministic policy in
 `internal/research/conflict` plus an application service and append-only
 repository. It classifies two incompatible Claims and produces a durable,
 explainable outcome. It does not hide the losing Claim, change Evidence, or
-produce the multi-source verification result reserved for Step 24.
+produce the multi-source verification result; `multi-source-verification-v1`
+consumes its latest visible pairwise outcomes separately.
 
 ## Input boundary
 
