@@ -173,6 +173,14 @@ type ConflictRepository interface {
 	ListByClaim(context.Context, research.ClaimID) ([]research.Conflict, error)
 }
 
+// SourceBundleRepository is append-only. A later assembly produces a new
+// immutable bundle rather than mutating the hand-off seen by I-04.
+type SourceBundleRepository interface {
+	Append(context.Context, research.SourceBundle) error
+	Get(context.Context, research.ID) (research.SourceBundle, error)
+	ListByRun(context.Context, research.ID) ([]research.SourceBundle, error)
+}
+
 type DriftRepository interface {
 	Append(context.Context, research.DriftReport) error
 	Get(context.Context, research.ID) (research.DriftReport, error)
@@ -241,6 +249,7 @@ type Repositories struct {
 	Freshness        FreshnessRepository
 	Verification     VerificationRepository
 	Conflicts        ConflictRepository
+	Bundles          SourceBundleRepository
 	Drift            DriftRepository
 	Impact           ImpactRepository
 	Cache            ResearchCacheRepository
@@ -1025,6 +1034,38 @@ type VerificationService interface {
 	Verify(context.Context, research.ClaimID) (research.VerificationResult, error)
 	Get(context.Context, research.ID) (research.VerificationResult, error)
 	Latest(context.Context, research.ClaimID) (research.VerificationResult, error)
+}
+
+type AssembleSourceBundleRequest struct {
+	RunID    research.ID
+	ClaimIDs []research.ClaimID
+}
+
+func (request AssembleSourceBundleRequest) Validate() error {
+	if err := request.RunID.Validate(); err != nil {
+		return fmt.Errorf("source bundle run: %w", err)
+	}
+	if len(request.ClaimIDs) == 0 || len(request.ClaimIDs) > research.MaximumSourceBundleItems {
+		return fmt.Errorf("source bundle claim count must be between 1 and %d", research.MaximumSourceBundleItems)
+	}
+	seen := make(map[research.ClaimID]struct{}, len(request.ClaimIDs))
+	for _, claimID := range request.ClaimIDs {
+		if err := claimID.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seen[claimID]; exists {
+			return fmt.Errorf("source bundle request repeats claim %q", claimID)
+		}
+		seen[claimID] = struct{}{}
+	}
+	return nil
+}
+
+type SourceBundleService interface {
+	Assemble(context.Context, AssembleSourceBundleRequest) (research.SourceBundle, error)
+	Get(context.Context, research.ID) (research.SourceBundle, error)
+	Export(context.Context, research.ID) ([]byte, error)
+	ListForRun(context.Context, research.ID) ([]research.SourceBundle, error)
 }
 
 type ConflictObservationRef struct {

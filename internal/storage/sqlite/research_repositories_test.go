@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -89,8 +90,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 34 {
-		t.Fatalf("schema=(%d,%v), want 34", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 35 {
+		t.Fatalf("schema=(%d,%v), want 35", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -207,6 +208,19 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`INSERT INTO verification_results (id,claim_id,status,source_ids_json,confidence,verified_at,requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version) VALUES ('verification.bad-metrics','claim.legacy','verified','["source.legacy"]',0.8,?,'general_support',1,1,'{"tier_a":0,"tier_b":0,"tier_c":0,"tier_d":0,"tier_e":0,"unknown":0}',1,'["independent_support"]','multi-source-verification-v1')`, fixedTime.Format(timestampFormat)); err == nil {
 		t.Fatal("v34 accepted authority distribution that does not total source count")
+	}
+	legacyBundleID, _ := research.NewID("bundle.legacy")
+	legacyBundle, err := database.Repositories().Research.Bundles.Get(context.Background(), legacyBundleID)
+	if err != nil || legacyBundle.AlgorithmVersion != research.SourceBundleLegacyAlgorithm ||
+		legacyBundle.ContentHash != "" || legacyBundle.Freshness.State != research.FreshnessUnknown ||
+		len(legacyBundle.Sources) != 1 || legacyBundle.Sources[0].Role != research.BundleSourceUnclassified {
+		t.Fatalf("v35 legacy source bundle = (%+v, %v)", legacyBundle, err)
+	}
+	if _, err := handle.Exec(`UPDATE source_bundles SET algorithm_version='source-bundle-v1' WHERE id='bundle.legacy'`); err == nil {
+		t.Fatal("v35 accepted v1 source bundle without canonical JSON and hash")
+	}
+	if _, err := handle.Exec(`UPDATE source_bundle_items SET source_role='historical' WHERE bundle_id='bundle.legacy' AND item_type='source'`); err == nil {
+		t.Fatal("v35 accepted historical role for a current source item")
 	}
 }
 
@@ -568,6 +582,46 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if list, err := repositories.Conflicts.ListByClaim(ctx, claimTwo.ID); err != nil || len(list) != 1 || !reflect.DeepEqual(list[0], conflict) {
 		t.Fatalf("conflicts by claim=(%+v,%v)", list, err)
 	}
+	bundleVerifiedAt := researchTestTimestamp(t, fixedTime.Add(2*time.Minute))
+	bundle, err := research.SealSourceBundleV1(research.SourceBundle{
+		ID: researchTestID(t, "bundle.sqlite.1"), RunID: run.ID, Topic: topic,
+		Purpose: research.PurposeCurrentUsage, TargetVersion: &target,
+		ClaimIDs: []research.ClaimID{claimOne.ID},
+		Sources: []research.SourceBundleSource{{
+			SourceID: source.ID, Role: research.BundleSourcePrimary, TemporalScope: research.SourceTemporalCurrent,
+		}},
+		ConflictIDs: []research.ID{conflict.ID},
+		Freshness: research.SourceBundleFreshness{
+			State: research.FreshnessFresh, Score: score, LastVerifiedAt: &at,
+			SourceAlgorithms: []string{research.FreshnessAlgorithmV1}, AlgorithmVersion: research.SourceBundleFreshnessV1,
+		},
+		Issues: []research.SourceBundleIssue{research.BundleIssueResolvedConflict}, VerifiedAt: bundleVerifiedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Bundles.Append(ctx, bundle); err != nil {
+		t.Fatal(err)
+	}
+	wantBundleJSON, err := bundle.ExportJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Bundles.Get(ctx, bundle.ID); err != nil || !sourceBundleJSONEqual(got, wantBundleJSON) {
+		t.Fatalf("source bundle roundtrip=(%+v,%v), want %+v", got, err, bundle)
+	}
+	if listed, err := repositories.Bundles.ListByRun(ctx, run.ID); err != nil || len(listed) != 1 || !sourceBundleJSONEqual(listed[0], wantBundleJSON) {
+		t.Fatalf("source bundles by run=(%+v,%v)", listed, err)
+	}
+	if err := repositories.Bundles.Append(ctx, bundle); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate source bundle error=%v, want conflict", err)
+	}
+	if _, err := database.sql.ExecContext(ctx, `UPDATE source_bundles SET summary='changed' WHERE id=?`, bundle.ID.String()); err == nil {
+		t.Fatal("v35 allowed mutation of an immutable source bundle")
+	}
+	if _, err := database.sql.ExecContext(ctx, `UPDATE source_bundle_items SET source_role='supporting' WHERE bundle_id=? AND item_type='source'`, bundle.ID.String()); err == nil {
+		t.Fatal("v35 allowed mutation of an immutable source bundle item")
+	}
 
 	drift := research.DriftReport{ID: researchTestID(t, "drift.1"), OldBundleID: researchTestID(t, "bundle.old"), Type: research.DriftSourceChanged, Severity: research.SeverityImportant, AffectedClaims: []research.ClaimID{verification.ClaimID}, OldEvidence: []research.ID{researchTestID(t, "evidence.old")}, NewEvidence: []research.ID{researchTestID(t, "evidence.new")}, DetectedAt: at}
 	if err := repositories.Drift.Append(ctx, drift); err != nil {
@@ -602,6 +656,11 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if err := repositories.Cache.Put(ctx, entry); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("oversized cache error=%v", err)
 	}
+}
+
+func sourceBundleJSONEqual(bundle research.SourceBundle, want []byte) bool {
+	got, err := bundle.ExportJSON()
+	return err == nil && bytes.Equal(got, want)
 }
 
 func researchTestRegistryEntry(t *testing.T, idValue, domainValue string, status research.RegistryStatus, at research.Timestamp) research.SourceRegistryEntry {

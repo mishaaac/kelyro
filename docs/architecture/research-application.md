@@ -51,6 +51,7 @@ Persistence is divided by aggregate or durable output:
 | `FreshnessRepository` | Versioned freshness outputs and due-state queries. |
 | `VerificationRepository` | Immutable verification results by claim. |
 | `ConflictRepository` | Append-only explainable conflict outcomes and per-Claim history. |
+| `SourceBundleRepository` | Append-only canonical Source Bundles with exact and research-run history reads. |
 | `DriftRepository` | Immutable drift reports. |
 | `ImpactRepository` | Immutable impact reports linked to drift. |
 | `ResearchCacheRepository` | Opaque, bounded cache entries that are never evidence truth. |
@@ -149,6 +150,10 @@ The initial services are deliberately thin:
   accepted TrustDecision tiers, invokes the pure pairwise
   `conflict-resolver-v1` policy, appends the explainable outcome, and exposes
   exact and per-Claim history;
+- `SourceBundleService` loads a completed run and selected Claims, checks every
+  declared Evidence identity, consumes latest verification/conflict/freshness
+  state, classifies source roles, invokes `source-bundle-v1`, appends the
+  immutable result, and exposes offline read/export/history operations;
 - `DriftService` records and reads drift reports;
 - `ImpactService` records and reads impact reports.
 
@@ -204,6 +209,13 @@ the Source Registry, and consumes the latest visible outcome for each conflict
 pair without rerunning conflict resolution. The complete policy is in
 [multi-source-verification-v1.md](multi-source-verification-v1.md).
 
+Step 25 adds the append-only `SourceBundleRepository` and
+`SourceBundleService`. Assembly is entirely offline over persisted Research
+records. Missing Evidence, verification, or Claim freshness becomes explicit
+`incomplete` state; no source content or missing conclusion is invented. The
+complete hand-off contract is in
+[source-bundles-v1.md](source-bundles-v1.md).
+
 ## Error taxonomy
 
 Every error crossing the application boundary has one stable kind:
@@ -237,7 +249,7 @@ mutex-protected maps. It provides:
 - classified invalid, not-found, conflict, and cancellation errors;
 - source/snapshot/evidence/claim/citation, source/release,
   source/deprecation/evidence, source/verification, claim/source/conflict, and
-  drift/impact
+  run/claim/source/conflict/bundle, and drift/impact
   relationship checks;
 - defensive copies for pointer, slice, and byte fields so callers cannot mutate
   stored state through returned values;
@@ -250,6 +262,6 @@ in Step 03.
 ## Deferred boundaries
 
 The current boundary does not add a live search provider, credentials,
-background work, general evidence extraction, source bundles, public research commands,
+background work, general evidence extraction, public research commands,
 curriculum compilation, or student-state mutations. The Student Core remains
 offline and unchanged.

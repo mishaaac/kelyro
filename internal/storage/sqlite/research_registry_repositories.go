@@ -28,6 +28,7 @@ func newResearchRepositories(target executor, timeout time.Duration) application
 		Freshness:        &researchFreshnessRepository{target, timeout},
 		Verification:     &researchVerificationRepository{target, timeout},
 		Conflicts:        &researchConflictRepository{target, timeout},
+		Bundles:          &researchSourceBundleRepository{target, timeout},
 		Drift:            &researchDriftRepository{target, timeout},
 		Impact:           &researchImpactRepository{target, timeout},
 		Cache:            &researchCacheRepository{target, timeout},
@@ -50,6 +51,7 @@ var (
 	_ application.FreshnessRepository        = (*researchFreshnessRepository)(nil)
 	_ application.VerificationRepository     = (*researchVerificationRepository)(nil)
 	_ application.ConflictRepository         = (*researchConflictRepository)(nil)
+	_ application.SourceBundleRepository     = (*researchSourceBundleRepository)(nil)
 	_ application.DriftRepository            = (*researchDriftRepository)(nil)
 	_ application.ImpactRepository           = (*researchImpactRepository)(nil)
 	_ application.ResearchCacheRepository    = (*researchCacheRepository)(nil)

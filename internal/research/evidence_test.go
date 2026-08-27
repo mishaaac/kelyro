@@ -250,15 +250,22 @@ func TestSourceBundleRequiresClaimsSourcesAndValidState(t *testing.T) {
 	t.Parallel()
 
 	topic, _ := NewResearchTopic("Interfaces", "software", "Go")
-	bundle := SourceBundle{
+	score, _ := NewFreshnessScore(1)
+	bundle, err := SealSourceBundleV1(SourceBundle{
 		ID: mustID(t, "bundle.interfaces"), RunID: mustID(t, "run.interfaces"),
 		Topic: topic, Purpose: PurposeConceptDefinition,
-		ClaimIDs:   []ClaimID{mustClaimID(t, "interfaces.definition")},
-		Sources:    []SourceBundleSource{{SourceID: mustSourceID(t, "spec"), TemporalScope: SourceTemporalCurrent}},
-		State:      BundleReady,
+		ClaimIDs: []ClaimID{mustClaimID(t, "interfaces.definition")},
+		Sources:  []SourceBundleSource{{SourceID: mustSourceID(t, "spec"), Role: BundleSourcePrimary, TemporalScope: SourceTemporalCurrent}},
+		Freshness: SourceBundleFreshness{
+			State: FreshnessFresh, Score: score, LastVerifiedAt: timestampPointer(mustTimestamp(t, 11)),
+			SourceAlgorithms: []string{FreshnessAlgorithmV1}, AlgorithmVersion: SourceBundleFreshnessV1,
+		},
 		VerifiedAt: mustTimestamp(t, 12),
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := bundle.Validate(); err != nil {
+	if err = bundle.Validate(); err != nil {
 		t.Fatalf("SourceBundle.Validate() error = %v", err)
 	}
 	bundle.State = SourceBundleState("pretty")
@@ -272,21 +279,33 @@ func TestSourceBundleDistinguishesConflictingCurrentAndHistoricalSources(t *test
 	topic, _ := NewResearchTopic("HTTP behavior", "software", "Fixture")
 	oldVersion := mustVersion(t, "1.0")
 	warning, _ := SourceTemporalHistorical.Warning(&oldVersion)
-	bundle := SourceBundle{
+	score, _ := NewFreshnessScore(0.8)
+	bundle, err := SealSourceBundleV1(SourceBundle{
 		ID: mustID(t, "bundle.temporal-conflict"), RunID: mustID(t, "run.temporal-conflict"),
 		Topic: topic, Purpose: PurposeCurrentUsage,
 		ClaimIDs: []ClaimID{mustClaimID(t, "behavior.current"), mustClaimID(t, "behavior.old")},
 		Sources: []SourceBundleSource{
-			{SourceID: mustSourceID(t, "docs.current"), TemporalScope: SourceTemporalCurrent},
-			{SourceID: mustSourceID(t, "docs.historical"), TemporalScope: SourceTemporalHistorical, VersionScope: &oldVersion, Warning: warning},
+			{SourceID: mustSourceID(t, "docs.current"), Role: BundleSourcePrimary, TemporalScope: SourceTemporalCurrent},
+			{SourceID: mustSourceID(t, "docs.historical"), Role: BundleSourceHistorical, TemporalScope: SourceTemporalHistorical, VersionScope: &oldVersion, Warning: warning},
 		},
-		State: BundleConflicted, VerifiedAt: mustTimestamp(t, 12),
+		ConflictIDs: []ID{mustID(t, "conflict.temporal")},
+		Freshness: SourceBundleFreshness{
+			State: FreshnessFresh, Score: score, LastVerifiedAt: timestampPointer(mustTimestamp(t, 11)),
+			SourceAlgorithms: []string{FreshnessAlgorithmV1}, AlgorithmVersion: SourceBundleFreshnessV1,
+		},
+		Issues:     []SourceBundleIssue{BundleIssueNonCurrentSource, BundleIssueUnresolvedConflict},
+		VerifiedAt: mustTimestamp(t, 12),
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := bundle.Validate(); err != nil {
+	if err = bundle.Validate(); err != nil {
 		t.Fatalf("conflicted temporal bundle Validate() error = %v", err)
 	}
 	bundle.State = BundleReady
-	if err := bundle.Validate(); err == nil || !strings.Contains(err.Error(), "requires caveats") {
+	if err := bundle.Validate(); err == nil || !strings.Contains(err.Error(), "does not match issues") {
 		t.Fatalf("current bundle with historical source error = %v", err)
 	}
 }
+
+func timestampPointer(value Timestamp) *Timestamp { return &value }

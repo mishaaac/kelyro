@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 25
-Last completed step: 24
+Current step: 26
+Last completed step: 25
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1906,4 +1906,87 @@ Release: unreleased
   verification ya persistidos, pero debe definir su propia lifecycle policy sin
   reinterpretar ni sobrescribir `multi-source-verification-v1`.
 - No implementar Source Bundle ni pasos posteriores antes de su autorización
+  independiente.
+
+## Step 25 — Source Bundle
+
+Status: completed
+Date: 2026-08-27
+Release: unreleased
+
+### Delivered
+
+- Contrato inmutable y acotado `source-bundle-v1` con topic, purpose, target
+  version, Research Run, Claims, fuentes primary/supporting/historical,
+  conflictos visibles, freshness agregada, issues cerrados, estado, summary,
+  algoritmo y content hash.
+- JSON canónico machine-readable de hasta 256 KiB y summary human-readable de
+  hasta 8 KiB, sin cuerpos web, documentos completos ni excerpts de Evidence;
+  parse estricto, orden determinista y hash SHA-256 reproducible que detecta
+  cualquier alteración del payload.
+- Ensamblador puro `internal/research/bundle` con clasificación de fuentes a
+  partir de scope temporal y Trust Decision revisada, reducción del último
+  conflicto por par de Claims y agregación conservadora
+  `source-bundle-freshness-v1`.
+- Precedencia explícita de lifecycle: evidencia/verificación/freshness faltante
+  produce `incomplete`; conflicto unresolved produce `conflicted`; material
+  histórico, conflicto resuelto, verification caveat o freshness aging/stale
+  produce `ready_with_caveats`; solo un set sin issues produce `ready`.
+- `SourceBundleService` offline sobre registros persistidos: exige un Research
+  Run completado, carga Claims/Evidence/Sources/Trust/Verification/Conflicts/
+  Freshness, ensambla, persiste y expone Get, Export y history por Run.
+- Puerto append-only y fake de memoria con validación relacional, orden estable
+  y copias defensivas.
+- Migration SQLite forward-only v35 y adapter atómico para canonical JSON/hash,
+  metadata indexada y filas ordenadas Claim/source con role, temporal scope,
+  version y warning congelados.
+- Compatibilidad conservadora: bundles previos siguen legibles como
+  `source-bundle-unversioned-legacy`, con freshness unknown, fuentes
+  unclassified y sin inventar JSON/hash v1.
+- Contrato documentado en `docs/architecture/source-bundles-v1.md`, con domain,
+  application, persistence e índice arquitectónico sincronizados.
+
+### Decisions
+
+- El bundle contiene identidades y annotations suficientes para recuperar
+  Claims/Evidence locales; no duplica Evidence excerpts ni contenido externo.
+- Primary requiere Trust Decision `accepted`, tier A/B y kind normativo/
+  oficial de referencia. `accepted_as_supplement` y los demás kinds permanecen
+  supporting; cantidad o popularidad no eleva autoridad.
+- Archived/historical y version-bound que no coincide con el target quedan en
+  historical. Un version-bound exacto puede participar como primary/supporting.
+- Freshness agrega Claims: usa el score mínimo, el `last_verified_at` más
+  antiguo y el peor state conocido; cualquier Claim sin record vuelve el
+  agregado `unknown` e incompleto.
+- `incomplete` precede a `conflicted` porque un conflicto no convierte un set
+  sin evidencia suficiente en input compilable.
+- El hash cubre toda la representación canónica salvo su propio campo,
+  incluyendo IDs, timestamps, summary, state y versiones de algoritmo.
+- Cada reensamblado crea un registro nuevo; no se reescriben bundles previos ni
+  Trust/Verification/Conflict/Freshness históricos.
+- No se añadieron network calls, Further Reading, Curriculum Compiler, cambios
+  de Student Core/mastery ni comportamiento de pasos posteriores.
+
+### Verification
+
+- Fixtures añadidas para serialización/hash deterministas, tamper detection,
+  missing required Evidence, ensamblado/application/memory y migration v35 con
+  round-trip/legacy compatibility SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step25-target-gocache go test
+  ./internal/research/... ./internal/storage/sqlite`.
+- `GOCACHE=/tmp/kelyro-i03-step25-vet-gocache go vet ./...`.
+- `GOCACHE=/tmp/kelyro-i03-step25-full-gocache go test ./...` fuera del sandbox
+  para permitir listeners loopback deterministas de `httptest`.
+- Cross-compile de todos los test binaries de Research y SQLite para Windows
+  amd64 y Darwin amd64/arm64 con `CGO_ENABLED=0` y `go test -c`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 292.159 s.
+- `gofmt` aplicado a los archivos Go modificados y `git diff --check` sin
+  errores.
+
+### Notes for next session
+
+- El Paso 26 es el siguiente paso pendiente y requiere autorización explícita.
+- No implementar Further Reading ni pasos posteriores antes de su autorización
   independiente.

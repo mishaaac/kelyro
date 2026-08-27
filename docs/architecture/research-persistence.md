@@ -8,9 +8,9 @@ bounded claim provenance graphs. Step 15 adds v28 for stable citation metadata
 and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints,
 Step 17 adds v30 for refresh scheduling metadata, Step 21 adds v31 for versioned
 deprecation conclusions, Step 22 adds v32 for source temporal scopes, and Step
-23 adds v33 for versioned conflict outcomes, and Step 24 adds v34 for
-multi-source verification outputs. The 22 migrations that shipped Student
-Core and migrations v23–v33 remain unchanged,
+23 adds v33 for versioned conflict outcomes, Step 24 adds v34 for multi-source
+verification outputs, and Step 25 adds v35 for versioned Source Bundles. The 22
+migrations that shipped Student Core and migrations v23–v34 remain unchanged,
 and an I-02 database is upgraded
 without rewriting its learning state.
 
@@ -27,8 +27,8 @@ Repository behavior matches the deterministic memory adapter:
 - source locator and stable source identity are independently unique;
 - request identity is immutable and may own multiple research runs;
 - snapshots, evidence, citations, deprecation conclusions, conflict outcomes,
-  verification results, drift reports, and impact reports are append-only through their
-  ports;
+  verification results, Source Bundles, drift reports, and impact reports are
+  append-only through their ports;
 - provenance graphs are append-only and latest lookup is deterministic by
   claim, recording time, and stable graph ID;
 - authority profiles, freshness state, and cache entries use explicit upsert
@@ -124,6 +124,16 @@ metrics. New `multi-source-verification-v1` rows require the source count to
 match both the JSON source IDs and authority total. The adapter also requires
 the persisted source set to equal the stored Claim source set.
 
+Migration 35 activates versioned Source Bundle persistence. It adds the bounded
+human summary, canonical JSON, SHA-256 hash, and algorithm marker to
+`source_bundles`; source item rows gain frozen primary/supporting/historical
+role, optional version scope, and warning. Checked triggers preserve the typed
+Claim/source distinction and prohibit unclassified sources in new v1 bundles.
+An index orders immutable bundle history by research run, verification time,
+and stable ID. Existing rows remain readable as
+`source-bundle-unversioned-legacy` with unknown freshness and no invented role,
+canonical JSON, or hash.
+
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and
 opaque classification is reconstructed deterministically after reads. Existing
@@ -148,6 +158,12 @@ stored source, including the version required by `version_bound`. It does not
 rewrite immutable snapshots, Evidence, citations, or bundle item annotations.
 The citation repository persists new temporal annotations only after validating
 the full source/snapshot/evidence relationship.
+
+Step 25 appends each v1 bundle and its ordered relationship rows atomically.
+The adapter verifies run, Claim, source membership, and conflict identities,
+then checks indexed metadata against the parsed canonical JSON on reads.
+Run-history reads are deterministic. The 256 KiB representation stores only
+identities and bounded annotations, never source bodies or Evidence excerpts.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
@@ -186,8 +202,8 @@ observation appends a new row; the service never updates an earlier row. A
 of the snapshot it revalidated, while its status, fetch time, and fetch version
 record the new observation.
 
-No credential or secret columns exist. Source aliases, bundles, and conflicts
-retain schema representation for later authorized application behavior.
+No credential or secret columns exist. Source aliases and conflicts retain
+schema representation for later authorized application behavior.
 
 ## Deferred behavior
 

@@ -1880,7 +1880,7 @@ feat(verification): add multi-source claim verification
 
 ## Paso 25 — Implementar Source Bundle
 
-- [ ] Paso 25 completado
+- [x] Paso 25 completado
 
 ### Objetivo
 
@@ -3204,7 +3204,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 22 — Historical sources
 - [ ] Paso 23 — Conflict Resolver
 - [x] Paso 24 — Multi-source Verification
-- [ ] Paso 25 — Source Bundle
+- [x] Paso 25 — Source Bundle
 - [ ] Paso 26 — Further Reading
 - [ ] Paso 27 — Playground/Package/Standards
 - [ ] Paso 28 — Community Resources

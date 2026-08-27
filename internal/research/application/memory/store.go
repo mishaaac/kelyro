@@ -32,6 +32,7 @@ type Store struct {
 	freshness       map[research.ID]application.FreshnessRecord
 	verification    map[research.ID]research.VerificationResult
 	conflicts       map[research.ID]research.Conflict
+	bundles         map[research.ID]research.SourceBundle
 	drift           map[research.ID]research.DriftReport
 	impact          map[research.ID]research.ImpactReport
 	cache           map[string]application.CacheEntry
@@ -56,6 +57,7 @@ func New() *Store {
 		freshness:       make(map[research.ID]application.FreshnessRecord),
 		verification:    make(map[research.ID]research.VerificationResult),
 		conflicts:       make(map[research.ID]research.Conflict),
+		bundles:         make(map[research.ID]research.SourceBundle),
 		drift:           make(map[research.ID]research.DriftReport),
 		impact:          make(map[research.ID]research.ImpactReport),
 		cache:           make(map[string]application.CacheEntry),
@@ -79,6 +81,7 @@ func (store *Store) Repositories() application.Repositories {
 		Freshness:        freshnessRepository{store},
 		Verification:     verificationRepository{store},
 		Conflicts:        conflictRepository{store},
+		Bundles:          sourceBundleRepository{store},
 		Drift:            driftRepository{store},
 		Impact:           impactRepository{store},
 		Cache:            cacheRepository{store},
@@ -270,6 +273,23 @@ func cloneConflict(result research.Conflict) research.Conflict {
 		id := *result.WinningSourceID
 		clone.WinningSourceID = &id
 	}
+	return clone
+}
+
+func cloneSourceBundle(bundle research.SourceBundle) research.SourceBundle {
+	clone := bundle
+	clone.TargetVersion = cloneVersion(bundle.TargetVersion)
+	clone.ClaimIDs = append([]research.ClaimID(nil), bundle.ClaimIDs...)
+	clone.Sources = make([]research.SourceBundleSource, len(bundle.Sources))
+	for index, source := range bundle.Sources {
+		clone.Sources[index] = source
+		clone.Sources[index].VersionScope = cloneVersion(source.VersionScope)
+	}
+	clone.ConflictIDs = append([]research.ID(nil), bundle.ConflictIDs...)
+	clone.Freshness.LastVerifiedAt = cloneTimestamp(bundle.Freshness.LastVerifiedAt)
+	clone.Freshness.MissingClaimIDs = append([]research.ClaimID(nil), bundle.Freshness.MissingClaimIDs...)
+	clone.Freshness.SourceAlgorithms = append([]string(nil), bundle.Freshness.SourceAlgorithms...)
+	clone.Issues = append([]research.SourceBundleIssue(nil), bundle.Issues...)
 	return clone
 }
 

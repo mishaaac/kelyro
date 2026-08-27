@@ -1525,6 +1525,27 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`ALTER TABLE verification_results ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'verification-unversioned-legacy' CHECK (algorithm_version IN ('multi-source-verification-v1','verification-unversioned-legacy')) CHECK ((algorithm_version = 'verification-unversioned-legacy' AND requirement = 'legacy_unclassified' AND source_count = 0 AND independent_organization_count = 0 AND authority_distribution_json = '{"tier_a":0,"tier_b":0,"tier_c":0,"tier_d":0,"tier_e":0,"unknown":0}' AND scope_consistent = 0 AND reason_codes_json = '["legacy_unclassified"]') OR (algorithm_version = 'multi-source-verification-v1' AND requirement <> 'legacy_unclassified' AND source_count = json_array_length(source_ids_json) AND source_count = COALESCE(json_extract(authority_distribution_json,'$.tier_a'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_b'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_c'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_d'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_e'),-1) + COALESCE(json_extract(authority_distribution_json,'$.unknown'),-1) AND reason_codes_json <> '["legacy_unclassified"]'))`,
 		},
 	},
+	{
+		version: 35,
+		name:    "versioned source bundles",
+		statements: []string{
+			`ALTER TABLE source_bundles ADD COLUMN summary TEXT NOT NULL DEFAULT 'Legacy source bundle without a canonical v1 summary.' CHECK (length(trim(summary)) > 0 AND length(CAST(summary AS BLOB)) <= 8192)`,
+			`ALTER TABLE source_bundles ADD COLUMN bundle_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(bundle_json AS BLOB)) <= 262144)`,
+			`ALTER TABLE source_bundles ADD COLUMN content_hash TEXT NOT NULL DEFAULT '' CHECK (content_hash = '' OR content_hash GLOB 'sha256:*')`,
+			`ALTER TABLE source_bundles ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'source-bundle-unversioned-legacy' CHECK ((algorithm_version = 'source-bundle-unversioned-legacy' AND bundle_json = '' AND content_hash = '') OR (algorithm_version = 'source-bundle-v1' AND json_valid(bundle_json) AND json_type(bundle_json) = 'object' AND length(content_hash) = 71))`,
+			`ALTER TABLE source_bundle_items ADD COLUMN source_role TEXT CHECK (source_role IS NULL OR source_role IN ('primary','supporting','historical','unclassified'))`,
+			`ALTER TABLE source_bundle_items ADD COLUMN version_scope TEXT`,
+			`ALTER TABLE source_bundle_items ADD COLUMN warning TEXT NOT NULL DEFAULT '' CHECK (length(CAST(warning AS BLOB)) <= 2048)`,
+			`UPDATE source_bundle_items SET source_role='unclassified' WHERE item_type='source'`,
+			`CREATE TRIGGER source_bundle_item_v1_insert_guard BEFORE INSERT ON source_bundle_items WHEN (NEW.item_type='claim' AND (NEW.source_role IS NOT NULL OR NEW.version_scope IS NOT NULL OR NEW.warning <> '')) OR (NEW.item_type='source' AND NEW.source_role IS NULL) OR (NEW.item_type='source' AND NEW.source_role='historical' AND NEW.temporal_scope='current') OR (NEW.item_type='source' AND NEW.source_role<>'historical' AND NEW.temporal_scope IN ('historical','archived')) OR (NEW.item_type='source' AND NEW.source_role='unclassified' AND COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=NEW.bundle_id),'')='source-bundle-v1') BEGIN SELECT RAISE(ABORT, 'invalid versioned source bundle item'); END`,
+			`CREATE TRIGGER source_bundle_item_v1_update_guard BEFORE UPDATE ON source_bundle_items WHEN (NEW.item_type='claim' AND (NEW.source_role IS NOT NULL OR NEW.version_scope IS NOT NULL OR NEW.warning <> '')) OR (NEW.item_type='source' AND NEW.source_role IS NULL) OR (NEW.item_type='source' AND NEW.source_role='historical' AND NEW.temporal_scope='current') OR (NEW.item_type='source' AND NEW.source_role<>'historical' AND NEW.temporal_scope IN ('historical','archived')) OR (NEW.item_type='source' AND NEW.source_role='unclassified' AND COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=NEW.bundle_id),'')='source-bundle-v1') BEGIN SELECT RAISE(ABORT, 'invalid versioned source bundle item'); END`,
+			`CREATE TRIGGER source_bundles_v1_immutable_update BEFORE UPDATE ON source_bundles WHEN OLD.algorithm_version='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 is immutable'); END`,
+			`CREATE TRIGGER source_bundles_v1_immutable_delete BEFORE DELETE ON source_bundles WHEN OLD.algorithm_version='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 is immutable'); END`,
+			`CREATE TRIGGER source_bundle_items_v1_immutable_update BEFORE UPDATE ON source_bundle_items WHEN COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=OLD.bundle_id),'')='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 item is immutable'); END`,
+			`CREATE TRIGGER source_bundle_items_v1_immutable_delete BEFORE DELETE ON source_bundle_items WHEN COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=OLD.bundle_id),'')='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 item is immutable'); END`,
+			`CREATE INDEX source_bundles_run_history_idx ON source_bundles (run_id, verified_at, id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

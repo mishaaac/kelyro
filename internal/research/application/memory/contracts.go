@@ -16,6 +16,7 @@ var (
 	_ application.FreshnessRepository        = freshnessRepository{}
 	_ application.VerificationRepository     = verificationRepository{}
 	_ application.ConflictRepository         = conflictRepository{}
+	_ application.SourceBundleRepository     = sourceBundleRepository{}
 	_ application.DriftRepository            = driftRepository{}
 	_ application.ImpactRepository           = impactRepository{}
 	_ application.ResearchCacheRepository    = cacheRepository{}

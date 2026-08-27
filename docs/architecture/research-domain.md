@@ -185,12 +185,15 @@ chronology consistency. Step 22 adds the separate immutable
 full citation contract is documented in
 [citations-deep-links-v1.md](citations-deep-links-v1.md).
 
-`SourceBundle` groups claim identities and temporally scoped source references
-for a research run. Each source reference preserves its scope, optional version,
-and required warning. Version-bound members must match the target version, and a
-current-usage bundle containing non-current material cannot be `ready` without
-caveats. Deterministic serialization, hashing, conflict assembly, and compiler
-eligibility are later responsibilities.
+`SourceBundle` is completed by Step 25 as the immutable, bounded hand-off from a
+completed research run. `source-bundle-v1` groups Claim identities; classified
+primary, supporting, and historical source references; latest visible conflict
+identities; conservative Claim freshness; issue codes; state; summary; and
+canonical content hash. Exact-target version-bound sources may support the
+bundle; archived, historical, and mismatched version-bound sources remain
+historical with explicit warnings. Deterministic JSON contains identities and
+annotations rather than raw source bodies or Evidence excerpts. The complete
+contract is documented in [source-bundles-v1.md](source-bundles-v1.md).
 
 ## Query planning
 

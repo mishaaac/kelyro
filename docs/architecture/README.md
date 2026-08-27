@@ -121,6 +121,11 @@ authority/scope metrics, conflict consumption, confidence caps, and conservative
 legacy persistence are documented in
 [multi-source-verification-v1.md](multi-source-verification-v1.md).
 
+The immutable Source Bundle hand-off, primary/supporting/historical source
+roles, conservative freshness aggregation, lifecycle-state precedence,
+canonical JSON/hash contract, and legacy persistence behavior are documented in
+[source-bundles-v1.md](source-bundles-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).
