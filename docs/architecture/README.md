@@ -111,6 +111,11 @@ exact-version authority rule; durable citation warnings; temporally typed bundle
 members; and legacy migration behavior are documented in
 [historical-sources-v1.md](historical-sources-v1.md).
 
+The pairwise conflict classification precedence, contextual temporal/version/
+scope/authority rules, explainable resolved and unresolved outcomes, and
+append-only compatibility are documented in
+[conflict-resolver-v1.md](conflict-resolver-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

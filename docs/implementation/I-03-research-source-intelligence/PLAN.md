@@ -1748,7 +1748,7 @@ feat(sources): support historical and version-bound sources
 
 ## Paso 23 — Implementar Conflict Detection & Resolver v1
 
-- [ ] Paso 23 completado
+- [x] Paso 23 completado
 
 ### Objetivo
 

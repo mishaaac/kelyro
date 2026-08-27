@@ -50,6 +50,7 @@ Persistence is divided by aggregate or durable output:
 | `DeprecationRepository` | Append-only, evidence-linked deprecation conclusions and subject history. |
 | `FreshnessRepository` | Versioned freshness outputs and due-state queries. |
 | `VerificationRepository` | Immutable verification results by claim. |
+| `ConflictRepository` | Append-only explainable conflict outcomes and per-Claim history. |
 | `DriftRepository` | Immutable drift reports. |
 | `ImpactRepository` | Immutable impact reports linked to drift. |
 | `ResearchCacheRepository` | Opaque, bounded cache entries that are never evidence truth. |
@@ -142,6 +143,10 @@ The initial services are deliberately thin:
   against their Claim/Evidence/Source chain, applies the versioned explicit or
   multi-source inference admission policy, appends the conclusion, and reads
   exact subject history;
+- `ConflictResolutionService` resolves stored Claim/source references through
+  accepted TrustDecision tiers, invokes the pure pairwise
+  `conflict-resolver-v1` policy, appends the explainable outcome, and exposes
+  exact and per-Claim history;
 - `DriftService` records and reads drift reports;
 - `ImpactService` records and reads impact reports.
 
@@ -150,8 +155,8 @@ dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
 implement Trust Policy, authority matching, query execution orchestration,
-general-purpose evidence extraction, verification rules,
-conflict resolution, drift detection, or impact analysis. Those remain future
+general-purpose evidence extraction, multi-source verification rules, conflict
+candidate discovery, drift detection, or impact analysis. Those remain future
 versioned policies and orchestration steps.
 
 Step 19 keeps these ports stable through the `ReleaseRecord` alias while adding
@@ -182,6 +187,13 @@ existing source version. The pure applicability decision remains in
 `internal/research/temporal`, while `CitationService` copies the source scope and
 deterministic warning into each new immutable citation. The full contract is in
 [historical-sources-v1.md](historical-sources-v1.md).
+
+Step 23 adds the append-only `ConflictRepository` and
+`ConflictResolutionService`. The service requires two stored Claims, their
+selected declared sources, accepted latest trust decisions, and a valid clock;
+it never reads external content. Pair ordering is canonicalized by Claim ID so
+stable identity and output do not depend on request order. The full policy is
+in [conflict-resolver-v1.md](conflict-resolver-v1.md).
 
 ## Error taxonomy
 
@@ -215,7 +227,8 @@ mutex-protected maps. It provides:
 - deterministic ordering for collection and latest-record queries;
 - classified invalid, not-found, conflict, and cancellation errors;
 - source/snapshot/evidence/claim/citation, source/release,
-  source/deprecation/evidence, source/verification, and drift/impact
+  source/deprecation/evidence, source/verification, claim/source/conflict, and
+  drift/impact
   relationship checks;
 - defensive copies for pointer, slice, and byte fields so callers cannot mutate
   stored state through returned values;

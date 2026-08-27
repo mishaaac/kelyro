@@ -1499,6 +1499,19 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE TRIGGER source_bundle_item_temporal_update_guard BEFORE UPDATE ON source_bundle_items WHEN (NEW.item_type='source' AND NEW.temporal_scope IS NULL) OR (NEW.item_type='claim' AND NEW.temporal_scope IS NOT NULL) BEGIN SELECT RAISE(ABORT, 'invalid source bundle temporal scope'); END`,
 		},
 	},
+	{
+		version: 33,
+		name:    "versioned conflict resolver outcomes",
+		statements: []string{
+			`ALTER TABLE source_conflicts ADD COLUMN confidence REAL NOT NULL DEFAULT 0 CHECK (confidence BETWEEN 0 AND 1)`,
+			`ALTER TABLE source_conflicts ADD COLUMN reason TEXT NOT NULL DEFAULT 'Legacy conflict record without a resolver explanation.' CHECK (length(trim(reason)) > 0)`,
+			`ALTER TABLE source_conflicts ADD COLUMN winning_claim_id TEXT`,
+			`ALTER TABLE source_conflicts ADD COLUMN winning_source_id TEXT`,
+			`ALTER TABLE source_conflicts ADD COLUMN winning_scope TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE source_conflicts ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'conflict-unversioned-legacy' CHECK (algorithm_version IN ('conflict-resolver-v1','conflict-unversioned-legacy')) CHECK (algorithm_version <> 'conflict-resolver-v1' OR json_array_length(claim_ids_json) = 2) CHECK ((winning_claim_id IS NULL) = (winning_source_id IS NULL)) CHECK ((winning_claim_id IS NULL AND winning_scope = '') OR (winning_claim_id IS NOT NULL AND length(trim(winning_scope)) > 0)) CHECK (unresolved = 0 OR winning_claim_id IS NULL) CHECK (algorithm_version <> 'conflict-unversioned-legacy' OR winning_claim_id IS NULL)`,
+			`CREATE INDEX source_conflicts_detected_idx ON source_conflicts (detected_at, id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

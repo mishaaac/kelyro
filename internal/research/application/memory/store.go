@@ -31,6 +31,7 @@ type Store struct {
 	deprecations    map[research.ID]research.DeprecationRecord
 	freshness       map[research.ID]application.FreshnessRecord
 	verification    map[research.ID]research.VerificationResult
+	conflicts       map[research.ID]research.Conflict
 	drift           map[research.ID]research.DriftReport
 	impact          map[research.ID]research.ImpactReport
 	cache           map[string]application.CacheEntry
@@ -54,6 +55,7 @@ func New() *Store {
 		deprecations:    make(map[research.ID]research.DeprecationRecord),
 		freshness:       make(map[research.ID]application.FreshnessRecord),
 		verification:    make(map[research.ID]research.VerificationResult),
+		conflicts:       make(map[research.ID]research.Conflict),
 		drift:           make(map[research.ID]research.DriftReport),
 		impact:          make(map[research.ID]research.ImpactReport),
 		cache:           make(map[string]application.CacheEntry),
@@ -76,6 +78,7 @@ func (store *Store) Repositories() application.Repositories {
 		Deprecations:     deprecationRepository{store},
 		Freshness:        freshnessRepository{store},
 		Verification:     verificationRepository{store},
+		Conflicts:        conflictRepository{store},
 		Drift:            driftRepository{store},
 		Impact:           impactRepository{store},
 		Cache:            cacheRepository{store},
@@ -252,6 +255,20 @@ func cloneFreshness(record application.FreshnessRecord) application.FreshnessRec
 func cloneVerification(result research.VerificationResult) research.VerificationResult {
 	clone := result
 	clone.SourceIDs = append([]research.SourceID(nil), result.SourceIDs...)
+	return clone
+}
+
+func cloneConflict(result research.Conflict) research.Conflict {
+	clone := result
+	clone.ClaimIDs = append([]research.ClaimID(nil), result.ClaimIDs...)
+	if result.WinningClaimID != nil {
+		id := *result.WinningClaimID
+		clone.WinningClaimID = &id
+	}
+	if result.WinningSourceID != nil {
+		id := *result.WinningSourceID
+		clone.WinningSourceID = &id
+	}
 	return clone
 }
 

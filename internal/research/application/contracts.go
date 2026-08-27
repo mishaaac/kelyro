@@ -7,6 +7,7 @@ import (
 
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/citation"
+	conflictpolicy "github.com/mishaaac/kelyro/internal/research/conflict"
 )
 
 // Persistence ports are intentionally split by aggregate/use case.
@@ -164,6 +165,14 @@ type VerificationRepository interface {
 	LatestByClaim(context.Context, research.ClaimID) (research.VerificationResult, error)
 }
 
+// ConflictRepository is append-only: a later reassessment must not erase the
+// conflict decision that was visible to an earlier research run.
+type ConflictRepository interface {
+	Append(context.Context, research.Conflict) error
+	Get(context.Context, research.ID) (research.Conflict, error)
+	ListByClaim(context.Context, research.ClaimID) ([]research.Conflict, error)
+}
+
 type DriftRepository interface {
 	Append(context.Context, research.DriftReport) error
 	Get(context.Context, research.ID) (research.DriftReport, error)
@@ -231,6 +240,7 @@ type Repositories struct {
 	Deprecations     DeprecationRepository
 	Freshness        FreshnessRepository
 	Verification     VerificationRepository
+	Conflicts        ConflictRepository
 	Drift            DriftRepository
 	Impact           ImpactRepository
 	Cache            ResearchCacheRepository
@@ -1014,6 +1024,47 @@ type SourceRegistryStoreFactory interface {
 type VerificationService interface {
 	Record(context.Context, research.VerificationResult) error
 	Latest(context.Context, research.ClaimID) (research.VerificationResult, error)
+}
+
+type ConflictObservationRef struct {
+	ClaimID  research.ClaimID
+	SourceID research.SourceID
+}
+
+func (reference ConflictObservationRef) Validate() error {
+	if err := reference.ClaimID.Validate(); err != nil {
+		return err
+	}
+	return reference.SourceID.Validate()
+}
+
+type ConflictAssessmentRequest struct {
+	Relation     conflictpolicy.Relation
+	Observations []ConflictObservationRef
+}
+
+func (request ConflictAssessmentRequest) Validate() error {
+	if err := request.Relation.Validate(); err != nil {
+		return err
+	}
+	if len(request.Observations) != 2 {
+		return fmt.Errorf("conflict assessment requires exactly 2 observations")
+	}
+	for index, observation := range request.Observations {
+		if err := observation.Validate(); err != nil {
+			return fmt.Errorf("conflict observation %d: %w", index, err)
+		}
+	}
+	if request.Observations[0].ClaimID == request.Observations[1].ClaimID {
+		return fmt.Errorf("conflict observations repeat a claim")
+	}
+	return nil
+}
+
+type ConflictResolutionService interface {
+	Assess(context.Context, ConflictAssessmentRequest) (research.Conflict, error)
+	Get(context.Context, research.ID) (research.Conflict, error)
+	ListForClaim(context.Context, research.ClaimID) ([]research.Conflict, error)
 }
 
 type FreshnessService interface {

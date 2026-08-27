@@ -7,8 +7,9 @@ for structured Evidence context and Claim scopes, and Step 14 adds v27 for
 bounded claim provenance graphs. Step 15 adds v28 for stable citation metadata
 and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints,
 Step 17 adds v30 for refresh scheduling metadata, Step 21 adds v31 for versioned
-deprecation conclusions, and Step 22 adds v32 for source temporal scopes. The 22
-migrations that shipped Student Core and migrations v23–v31 remain unchanged,
+deprecation conclusions, Step 22 adds v32 for source temporal scopes, and Step
+23 adds v33 for versioned conflict outcomes. The 22 migrations that shipped
+Student Core and migrations v23–v32 remain unchanged,
 and an I-02 database is upgraded
 without rewriting its learning state.
 
@@ -24,8 +25,8 @@ Repository behavior matches the deterministic memory adapter:
   `conflict`, and invalid relationships are `invalid_state`;
 - source locator and stable source identity are independently unique;
 - request identity is immutable and may own multiple research runs;
-- snapshots, evidence, citations, deprecation conclusions, verification
-  results, drift reports, and impact reports are append-only through their
+- snapshots, evidence, citations, deprecation conclusions, conflict outcomes,
+  verification results, drift reports, and impact reports are append-only through their
   ports;
 - provenance graphs are append-only and latest lookup is deterministic by
   claim, recording time, and stable graph ID;
@@ -105,6 +106,15 @@ rows remain readable as conservative current records with
 current, claim items retain null scope, and insert/update triggers preserve that
 typed distinction.
 
+Migration 33 extends `source_conflicts` with confidence, an explainable reason,
+optional winning Claim/source/scope metadata, and an algorithm version. Existing
+rows are preserved as `conflict-unversioned-legacy` with no invented winner;
+new v1 records use `conflict-resolver-v1`. Constraints keep winner identities
+paired, require a winning scope when a winner exists, and prohibit winners on
+unresolved records. The adapter additionally checks both Claim identities and
+the winning `claim_sources` relationship before append, and lists per-Claim
+history deterministically by detection time and stable ID.
+
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and
 opaque classification is reconstructed deterministically after reads. Existing
@@ -174,5 +184,5 @@ retain schema representation for later authorized application behavior.
 
 Step 03 does not implement Trust Policy, authority matching, network access,
 fetching, parsing, evidence extraction, release discovery,
-conflict resolution, cache eviction, drift detection, impact analysis, CLI/TUI
+conflict candidate discovery, cache eviction, drift detection, impact analysis, CLI/TUI
 surfaces, curriculum compilation, or Student Core mutations.

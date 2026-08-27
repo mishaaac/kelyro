@@ -188,7 +188,9 @@ func TestConflictAndVerificationRepresentResolvedAndUnresolvedOutcomes(t *testin
 	claims := []ClaimID{mustClaimID(t, "behavior.current"), mustClaimID(t, "behavior.old")}
 	conflict := Conflict{
 		ID: mustID(t, "conflict.behavior"), Type: ConflictTemporalMismatch,
-		ClaimIDs: claims, Unresolved: true, DetectedAt: mustTimestamp(t, 11),
+		ClaimIDs: claims, Confidence: mustConfidence(t, 0.5),
+		Reason: "The sources apply to different times.", Unresolved: true,
+		DetectedAt: mustTimestamp(t, 11), AlgorithmVersion: ConflictResolverAlgorithmV1,
 	}
 	if err := conflict.Validate(); err != nil {
 		t.Fatalf("Conflict.Validate() error = %v", err)
@@ -200,6 +202,10 @@ func TestConflictAndVerificationRepresentResolvedAndUnresolvedOutcomes(t *testin
 	conflict.Resolution = "The claims apply to different versions."
 	if err := conflict.Validate(); err != nil {
 		t.Fatalf("resolved Conflict.Validate() error = %v", err)
+	}
+	conflict.ClaimIDs = append(conflict.ClaimIDs, mustClaimID(t, "behavior.third"))
+	if err := conflict.Validate(); err == nil {
+		t.Fatal("Conflict.Validate() accepted more than two claims for resolver v1")
 	}
 
 	verification := VerificationResult{

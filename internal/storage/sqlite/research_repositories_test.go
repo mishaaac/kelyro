@@ -52,6 +52,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO claims (id,topic_subject,statement,claim_type,confidence,evidence_ids_json,created_at) VALUES ('claim.legacy','Legacy topic','Legacy claim','historical',0.5,'["evidence.legacy"]',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO source_conflicts (id,conflict_type,claim_ids_json,resolution,unresolved,detected_at) VALUES ('conflict.legacy','direct_contradiction','["claim.legacy","claim.other"]','',1,?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := handle.Exec(`INSERT INTO research_topics (request_id,subject,purpose,requested_at) VALUES ('request.legacy','Legacy topic','version_behavior',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
@@ -83,8 +86,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 32 {
-		t.Fatalf("schema=(%d,%v), want 32", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 33 {
+		t.Fatalf("schema=(%d,%v), want 33", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -174,6 +177,18 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`UPDATE source_bundle_items SET temporal_scope=NULL WHERE bundle_id='bundle.legacy' AND item_type='source'`); err == nil {
 		t.Fatal("v32 accepted source bundle item without temporal scope")
+	}
+	legacyConflictID, _ := research.NewID("conflict.legacy")
+	legacyConflict, err := database.Repositories().Research.Conflicts.Get(context.Background(), legacyConflictID)
+	if err != nil || legacyConflict.AlgorithmVersion != research.ConflictLegacyAlgorithm ||
+		legacyConflict.Reason == "" || !legacyConflict.Unresolved || legacyConflict.WinningClaimID != nil {
+		t.Fatalf("v33 legacy conflict = (%+v, %v)", legacyConflict, err)
+	}
+	if _, err := handle.Exec(`UPDATE source_conflicts SET winning_claim_id='claim.legacy' WHERE id='conflict.legacy'`); err == nil {
+		t.Fatal("v33 accepted incomplete winning conflict identity")
+	}
+	if _, err := handle.Exec(`INSERT INTO source_conflicts (id,conflict_type,claim_ids_json,resolution,unresolved,detected_at,confidence,reason,algorithm_version) VALUES ('conflict.too-many','direct_contradiction','["claim.one","claim.two","claim.three"]','',1,?,0.5,'Needs review.','conflict-resolver-v1')`, fixedTime.Format(timestampFormat)); err == nil {
+		t.Fatal("v33 accepted more than two claims for resolver v1")
 	}
 }
 
@@ -492,6 +507,38 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	}
 	if got, err := repositories.Verification.LatestByClaim(ctx, verification.ClaimID); err != nil || !reflect.DeepEqual(got, verification) {
 		t.Fatalf("verification roundtrip=(%+v,%v)", got, err)
+	}
+	claimOne := research.Claim{
+		ID: researchTestClaimID(t, "claim.conflict.one"), Topic: topic, Statement: "The feature is required.",
+		Type: research.ClaimRequirement, Scope: "HTTP caching", StatusScope: research.ClaimStatusStable,
+		Confidence: confidence, SourceIDs: []research.SourceID{source.ID},
+		EvidenceIDs: []research.ID{deprecationEvidence.ID}, CreatedAt: at,
+	}
+	claimTwo := claimOne
+	claimTwo.ID = researchTestClaimID(t, "claim.conflict.two")
+	claimTwo.Statement = "The feature is forbidden."
+	for _, claim := range []research.Claim{claimOne, claimTwo} {
+		if err := repositories.Claims.Append(ctx, claim); err != nil {
+			t.Fatal(err)
+		}
+	}
+	winnerClaim, winnerSource := claimOne.ID, source.ID
+	conflict := research.Conflict{
+		ID: researchTestID(t, "conflict.1"), Type: research.ConflictAuthorityMismatch,
+		ClaimIDs:   []research.ClaimID{claimOne.ID, claimTwo.ID},
+		Resolution: "Prefer the normative source within this scope.", Confidence: confidence,
+		Reason:         "The winning source is authoritative for this requirement.",
+		WinningClaimID: &winnerClaim, WinningSourceID: &winnerSource, WinningScope: claimOne.Scope,
+		DetectedAt: at, AlgorithmVersion: research.ConflictResolverAlgorithmV1,
+	}
+	if err := repositories.Conflicts.Append(ctx, conflict); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Conflicts.Get(ctx, conflict.ID); err != nil || !reflect.DeepEqual(got, conflict) {
+		t.Fatalf("conflict roundtrip=(%+v,%v), want %+v", got, err, conflict)
+	}
+	if list, err := repositories.Conflicts.ListByClaim(ctx, claimTwo.ID); err != nil || len(list) != 1 || !reflect.DeepEqual(list[0], conflict) {
+		t.Fatalf("conflicts by claim=(%+v,%v)", list, err)
 	}
 
 	drift := research.DriftReport{ID: researchTestID(t, "drift.1"), OldBundleID: researchTestID(t, "bundle.old"), Type: research.DriftSourceChanged, Severity: research.SeverityImportant, AffectedClaims: []research.ClaimID{verification.ClaimID}, OldEvidence: []research.ID{researchTestID(t, "evidence.old")}, NewEvidence: []research.ID{researchTestID(t, "evidence.new")}, DetectedAt: at}

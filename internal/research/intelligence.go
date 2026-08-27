@@ -314,6 +314,11 @@ func (record DeprecationRecord) Validate() error {
 type ConflictType string
 
 const (
+	ConflictResolverAlgorithmV1 = "conflict-resolver-v1"
+	ConflictLegacyAlgorithm     = "conflict-unversioned-legacy"
+)
+
+const (
 	ConflictDirectContradiction        ConflictType = "direct_contradiction"
 	ConflictVersionMismatch            ConflictType = "version_mismatch"
 	ConflictTemporalMismatch           ConflictType = "temporal_mismatch"
@@ -334,12 +339,18 @@ func (conflictType ConflictType) Validate() error {
 }
 
 type Conflict struct {
-	ID         ID
-	Type       ConflictType
-	ClaimIDs   []ClaimID
-	Resolution string
-	Unresolved bool
-	DetectedAt Timestamp
+	ID               ID
+	Type             ConflictType
+	ClaimIDs         []ClaimID
+	Resolution       string
+	Confidence       ClaimConfidence
+	Reason           string
+	WinningClaimID   *ClaimID
+	WinningSourceID  *SourceID
+	WinningScope     string
+	Unresolved       bool
+	DetectedAt       Timestamp
+	AlgorithmVersion string
 }
 
 func (conflict Conflict) Validate() error {
@@ -352,15 +363,70 @@ func (conflict Conflict) Validate() error {
 	if err := validateClaimIDs("conflict claims", conflict.ClaimIDs, 2); err != nil {
 		return err
 	}
+	if err := conflict.Confidence.Validate(); err != nil {
+		return fmt.Errorf("conflict confidence: %w", err)
+	}
+	if err := requireText("conflict reason", conflict.Reason); err != nil {
+		return err
+	}
+	if err := validateOptionalText("conflict winning scope", conflict.WinningScope); err != nil {
+		return err
+	}
+	if (conflict.WinningClaimID == nil) != (conflict.WinningSourceID == nil) {
+		return fmt.Errorf("conflict winning claim and source must be present together")
+	}
+	if conflict.WinningClaimID == nil && conflict.WinningScope != "" {
+		return fmt.Errorf("conflict winning scope requires a winner")
+	}
+	if conflict.WinningClaimID != nil {
+		if err := requireText("conflict winning scope", conflict.WinningScope); err != nil {
+			return err
+		}
+		if err := conflict.WinningClaimID.Validate(); err != nil {
+			return err
+		}
+		if err := conflict.WinningSourceID.Validate(); err != nil {
+			return err
+		}
+		found := false
+		for _, claimID := range conflict.ClaimIDs {
+			if claimID == *conflict.WinningClaimID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("conflict winning claim is not a conflicting claim")
+		}
+	}
 	if conflict.Unresolved && conflict.Resolution != "" {
 		return fmt.Errorf("unresolved conflict has a resolution")
+	}
+	if conflict.Unresolved && conflict.WinningClaimID != nil {
+		return fmt.Errorf("unresolved conflict cannot have a winner")
 	}
 	if !conflict.Unresolved {
 		if err := requireText("conflict resolution", conflict.Resolution); err != nil {
 			return err
 		}
 	}
-	return validateTimestamp("conflict detected at", conflict.DetectedAt)
+	if err := validateTimestamp("conflict detected at", conflict.DetectedAt); err != nil {
+		return err
+	}
+	switch conflict.AlgorithmVersion {
+	case ConflictResolverAlgorithmV1:
+		if len(conflict.ClaimIDs) != 2 {
+			return fmt.Errorf("conflict-resolver-v1 requires exactly 2 claims")
+		}
+		return nil
+	case ConflictLegacyAlgorithm:
+		if conflict.WinningClaimID != nil || conflict.WinningSourceID != nil || conflict.WinningScope != "" {
+			return fmt.Errorf("legacy conflict cannot contain resolver winner metadata")
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid conflict algorithm version %q", conflict.AlgorithmVersion)
+	}
 }
 
 type VerificationStatus string

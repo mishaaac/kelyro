@@ -15,6 +15,7 @@ var (
 	_ application.ReleaseIngestionRepository = releaseIngestionRepository{}
 	_ application.FreshnessRepository        = freshnessRepository{}
 	_ application.VerificationRepository     = verificationRepository{}
+	_ application.ConflictRepository         = conflictRepository{}
 	_ application.DriftRepository            = driftRepository{}
 	_ application.ImpactRepository           = impactRepository{}
 	_ application.ResearchCacheRepository    = cacheRepository{}

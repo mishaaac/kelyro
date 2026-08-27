@@ -4,7 +4,8 @@ I-03 introduces `internal/research` as Kelyro's transport-, persistence-, and
 presentation-independent vocabulary for research and evidence. The package
 contains domain data and validation. Its `trust` subpackage adds the pure,
 versioned Trust Policy v1, while `queryplanner` adds deterministic discovery
-intent planning; none of these packages searches the web, performs HTTP
+intent planning and `conflict` adds the pairwise deterministic Conflict
+Resolver v1; none of these packages searches the web, performs HTTP
 requests, parses documents, persists records, compiles curriculum, or modifies
 learner state.
 
@@ -243,9 +244,15 @@ full contract is documented in
 [deprecation-intelligence-v1.md](deprecation-intelligence-v1.md).
 
 `Conflict`, `VerificationResult`, `DriftReport`, and `ImpactReport` preserve
-explicit states and affected relationships. This vocabulary does not resolve
-conflicts, corroborate claims, detect semantic drift, or recommend curriculum
-mutations yet. Those algorithms remain in their dedicated, versioned steps.
+explicit states and affected relationships. Step 23 completes `Conflict` with
+confidence, reason, optional winner metadata, and an immutable algorithm ID.
+The pure `conflict-resolver-v1` policy classifies an already-identified
+incompatible Claim pair by temporal, version, scope, recommendation, and
+authority precedence. It keeps unresolved equal-authority contradictions
+visible. The complete contract is documented in
+[conflict-resolver-v1.md](conflict-resolver-v1.md). Multi-source verification,
+semantic drift detection, and curriculum impact remain in later dedicated
+steps.
 
 ## Temporal and enum invariants
 
@@ -266,7 +273,7 @@ The following remain intentionally absent from this step:
 - repositories, units of work, application services, and SQLite schema;
 - network privacy orchestration and HTTP clients;
 - discovery providers and live query execution orchestration;
-- authority-profile matching, quality, freshness, conflict, verification,
+- authority-profile matching, multi-source verification,
   drift, impact, trigger, or cost algorithms;
 - raw-body retention, caches, audit adapters, CLI, and TUI;
 - production curriculum compilation and any mutation of student mastery.

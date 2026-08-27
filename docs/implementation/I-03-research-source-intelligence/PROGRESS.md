@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 23
-Last completed step: 22
+Current step: 24
+Last completed step: 23
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -1719,3 +1719,96 @@ Release: unreleased
   temporalmente tipados, pero debe mantener la decisión versionada y explicable.
 - No implementar Conflict Resolver, Multi-source Verification ni pasos
   posteriores antes de su autorización independiente.
+
+## Step 23 — Conflict Detection & Resolver v1
+
+Status: completed
+Date: 2026-08-26
+Release: unreleased
+
+### Delivered
+
+- Política pura, determinista y pairwise `conflict-resolver-v1` en
+  `internal/research/conflict`, sin I/O, parsing de prosa, networking ni
+  dependencia de providers.
+- Señal semántica cerrada de contradicción o desacuerdo de recomendación: el
+  caller identifica el par incompatible y v1 lo clasifica sin inventar
+  conflictos mediante keywords o inferencia sobre contenido externo.
+- Precedencia explícita para `temporal_mismatch`, `version_mismatch`,
+  `scope_mismatch`, `recommendation_disagreement`, `authority_mismatch` y
+  `direct_contradiction`.
+- `Conflict` completado con confidence, reason, winner Claim/source/scope
+  opcional, unresolved flag y algorithm version, incluyendo compatibilidad
+  conservadora para registros legacy no versionados.
+- Reglas contextuales explicables: current guidance frente a material
+  no-current, separación de versiones/scopes, preferencia normativa limitada y
+  diferencia mínima de dos authority tiers; empates oficiales comparables se
+  conservan unresolved y se escalan.
+- `ConflictResolutionService` con referencias Claim/source, validación de
+  pertenencia, topic compartido, clock y última TrustDecision accepted; el
+  orden del input se canonicaliza por Claim ID antes de producir la identidad
+  estable.
+- `ConflictRepository` append-only con Get e historial por Claim, implementado
+  por los adapters deterministas de memoria y SQLite con copias defensivas,
+  relaciones validadas y orden cronológico estable.
+- Migration SQLite forward-only v33 para confidence, reason, winner metadata,
+  algorithm version e índice temporal. Filas previas se leen como
+  `conflict-unversioned-legacy` sin inventar winner.
+- Contrato, precedencia, reglas, persistencia, compatibilidad y límites
+  documentados en `docs/architecture/conflict-resolver-v1.md`, con domain,
+  application, persistence e índice arquitectónico sincronizados.
+
+### Decisions
+
+- El resolver consume un par ya identificado como incompatible. Detectar
+  contradicción semántica en prosa arbitraria pertenece a un productor
+  estructurado o revisión humana futura; source content continúa siendo datos
+  no confiables, nunca instrucciones.
+- V1 es pairwise para que cada decisión tenga exactamente dos Claims
+  auditables. Un conjunto mayor se expresa como pares append-only; no se crea
+  un ganador global opaco.
+- Temporal, version y applicability scope se evalúan antes de authority. Una
+  fuente globalmente más fuerte no puede borrar silenciosamente guidance
+  válida para otra versión o contexto.
+- Specification/standard solo gana una Claim normativa si su authority tier
+  revisado es al menos tan fuerte. Fuera de esa regla, v1 exige una diferencia
+  mínima de dos tiers y nunca desempata por ID, orden, freshness o score alto.
+- Un conflicto de versiones o scopes puede quedar resuelto sin winner: la
+  resolución consiste en conservar ambos Claims dentro de sus límites.
+- Conflict confidence describe la confianza en clasificación/resolución; no es
+  truth probability, TrustDecision, freshness ni VerificationResult del Paso
+  24.
+- Reassessment agrega historia y no sobreescribe decisiones previas. No se
+  modifican Evidence, Source Bundles, curriculum, Student Core ni mastery.
+
+### Verification
+
+- Tests de dominio/política para autoridad normativa clara, prevención de
+  preferencia automática por label oficial, current vs historical, scopes de
+  versión y contradicción unresolved entre documentos oficiales equivalentes.
+- Tests de aplicación/memoria para resolución persistida, canonicalización,
+  copias defensivas, historial por Claim, TrustDecision rechazada y source no
+  perteneciente al Claim.
+- Tests SQLite de migration v33, default legacy no inventado, constraints de
+  winner, round-trip completo y lookup por Claim.
+- `GOCACHE=/tmp/kelyro-i03-step23-target-final-gocache go test ./internal/research/... ./internal/storage/sqlite`.
+- `GOCACHE=/tmp/kelyro-i03-step23-full-gocache go test ./...` fuera del sandbox
+  para permitir los listeners loopback deterministas de `httptest`; la primera
+  pasada sandboxed solo falló por `socket: operation not permitted`.
+- `GOCACHE=/tmp/kelyro-i03-step23-full-gocache go vet ./...` y vet focalizado
+  final con el cache `step23-target-final`.
+- Cross-compile de todos los test binaries de Research y SQLite para Windows y
+  Darwin con `CGO_ENABLED=0` y `go test -c`.
+- Quality gate final completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 251.510 s.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 24 es el siguiente paso pendiente y requiere autorización explícita.
+- Multi-Source Verification podrá consumir conflictos v1 visibles y sus
+  Claims/sources, pero debe implementar su propia policy de corroboración e
+  independencia organizacional sin alterar el historial del resolver.
+- No implementar Multi-Source Verification, Source Bundle ni pasos posteriores
+  antes de su autorización independiente.
