@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/platform"
 )
 
 type program interface {
@@ -24,6 +25,13 @@ type Runner struct {
 	output     io.Writer
 	lookupEnv  func(string) (string, bool)
 	newProgram programFactory
+	platform   platform.Platform
+}
+
+// WithPlatform attaches the native URL opener used by source detail views.
+func (runner Runner) WithPlatform(native platform.Platform) Runner {
+	runner.platform = native
+	return runner
 }
 
 // NewRunner creates a real terminal runner with injectable streams.
@@ -57,6 +65,7 @@ func (runner Runner) Run(ctx context.Context, command app.Command) (runErr error
 		noColor = true
 	}
 	model := NewModel(ctx, runner.service, command, noColor)
+	model.platform = runner.platform
 	program := runner.newProgram(
 		model,
 		tea.WithContext(ctx),

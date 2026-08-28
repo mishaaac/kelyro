@@ -19,6 +19,7 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	provenanceStore := memory.New()
 	provenance := researchapp.NewProvenanceService(provenanceStore.Repositories().Provenance)
 	freshness := researchapp.NewFreshnessService(provenanceStore.Repositories().Freshness)
+	trust := researchapp.NewTrustDecisionService(provenanceStore.Repositories().TrustRegistry)
 	sources := researchapp.NewSourceService(provenanceStore.Repositories().Sources, provenanceStore.Repositories().Snapshots)
 	source := appSource(t)
 	if err := sources.Register(ctx, source); err != nil {
@@ -44,7 +45,18 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	if err := freshness.Save(ctx, staleRecord); err != nil {
 		t.Fatal(err)
 	}
-	factory := &fakeSourceRegistryStoreFactory{sources: sources, registry: registry, provenance: provenance, freshness: freshness}
+	sourceSubjectID, _ := research.NewID(source.ID.String())
+	sourceFreshness := researchapp.FreshnessRecord{SubjectID: sourceSubjectID, State: research.FreshnessAging, Score: score,
+		LastVerifiedAt: lastVerified, AlgorithmVersion: research.FreshnessAlgorithmV1}
+	if err := freshness.Save(ctx, sourceFreshness); err != nil {
+		t.Fatal(err)
+	}
+	decision := research.TrustDecision{SourceID: source.ID, State: research.TrustAccepted, Tier: research.AuthorityTierA,
+		Reasons: []research.TrustReason{{Code: "primary", Detail: "Normative fixture."}}, Policy: "trust-policy-v1", EvaluatedAt: lastVerified}
+	if err := provenanceStore.Repositories().TrustRegistry.SaveDecision(ctx, decision); err != nil {
+		t.Fatal(err)
+	}
+	factory := &fakeSourceRegistryStoreFactory{sources: sources, registry: registry, trust: trust, provenance: provenance, freshness: freshness}
 	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
 		WithResearchStores(factory).
 		WithResearchClock(func() time.Time { return time.Date(2026, 8, 25, 10, 0, 0, 0, time.UTC) })
@@ -69,10 +81,14 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 		t.Fatalf("source list = (%+v, %v)", listedSources.Sources, err)
 	}
 	shownSource, err := service.Execute(ctx, Command{Action: ActionSources, Workspace: root, SourceRegistryOperation: "source-show", SourceID: source.ID})
-	if err != nil || shownSource.Source == nil || shownSource.Source.Source.ID != source.ID {
+	if err != nil || shownSource.Source == nil || shownSource.Source.Source.ID != source.ID || shownSource.Source.TrustDecision == nil || shownSource.Source.Freshness == nil {
 		t.Fatalf("source show = (%+v, %v)", shownSource.Source, err)
 	}
-	if factory.openRoot != root || factory.closed != 6 {
+	transparent, err := service.Execute(ctx, Command{Action: ActionSources, Workspace: root, SourceRegistryOperation: "transparency"})
+	if err != nil || len(transparent.SourceTransparency) != 1 || transparent.SourceTransparency[0].TrustDecision == nil || transparent.SourceTransparency[0].Freshness == nil {
+		t.Fatalf("source transparency = (%+v, %v)", transparent.SourceTransparency, err)
+	}
+	if factory.openRoot != root || factory.closed != 7 {
 		t.Fatalf("registry factory root=%q closed=%d", factory.openRoot, factory.closed)
 	}
 }
@@ -80,6 +96,7 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 type fakeSourceRegistryStoreFactory struct {
 	sources    researchapp.SourceService
 	registry   researchapp.SourceRegistryService
+	trust      researchapp.TrustDecisionService
 	provenance researchapp.ProvenanceService
 	freshness  researchapp.FreshnessService
 	costs      researchapp.ResearchCostService
@@ -93,12 +110,13 @@ type fakeSourceRegistryStoreFactory struct {
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, registry: factory.registry, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
 	sources    researchapp.SourceService
 	registry   researchapp.SourceRegistryService
+	trust      researchapp.TrustDecisionService
 	provenance researchapp.ProvenanceService
 	freshness  researchapp.FreshnessService
 	costs      researchapp.ResearchCostService
@@ -113,6 +131,9 @@ func (store *fakeSourceRegistryStore) Registry() researchapp.SourceRegistryServi
 	return store.registry
 }
 func (store *fakeSourceRegistryStore) Sources() researchapp.SourceService { return store.sources }
+func (store *fakeSourceRegistryStore) TrustDecisions() researchapp.TrustDecisionService {
+	return store.trust
+}
 func (store *fakeSourceRegistryStore) Provenance() researchapp.ProvenanceService {
 	return store.provenance
 }

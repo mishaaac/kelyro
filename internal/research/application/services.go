@@ -290,6 +290,24 @@ func NewSourceRegistryService(repository SourceRegistryRepository) SourceRegistr
 	return &sourceRegistryService{repository: repository}
 }
 
+type trustDecisionService struct{ repository TrustRegistryRepository }
+
+func NewTrustDecisionService(repository TrustRegistryRepository) TrustDecisionService {
+	return &trustDecisionService{repository: repository}
+}
+
+func (service *trustDecisionService) Latest(ctx context.Context, sourceID research.SourceID) (research.TrustDecision, error) {
+	const operation = "get latest source trust decision"
+	if err := sourceID.Validate(); err != nil {
+		return research.TrustDecision{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "trust registry repository", service.repository); err != nil {
+		return research.TrustDecision{}, err
+	}
+	decision, err := service.repository.LatestDecision(ctx, sourceID)
+	return decision, repositoryError(operation, err)
+}
+
 func (service *sourceRegistryService) Save(ctx context.Context, entry research.SourceRegistryEntry) error {
 	const operation = "save source registry entry"
 	if err := entry.Validate(); err != nil {

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 36
-Last completed step: 35
+Current step: 37
+Last completed step: 36
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2723,3 +2723,72 @@ Release: unreleased
   Transparency views en TUI.
 - Un provider live futuro debe entrar por `SearchProvider`, consultar el network
   gate y Cost Control antes de cada operación, y mantener cache/evidence offline.
+
+## Step 36 — Source Transparency TUI
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Seis vistas terminales para Research, Sources, Source detail, Claim detail,
+  Conflicts y Freshness, accesibles desde Home mediante `R` y navegables sin
+  extender el payload publicado de sesión de Student Core.
+- Proyección application de transparencia que combina Source, último snapshot,
+  decisión de trust/authority persistida y freshness persistida detrás de
+  servicios estrechos; ausencia de evaluación se muestra como `unknown` y no se
+  infiere autoridad a partir de `official` ni del source kind.
+- Source detail muestra kind, authority, freshness, last verified, warning
+  histórico/archived/version-bound, version scope y locator compacto sin query
+  parameters; el locator HTTP(S) completo solo se usa al abrirlo.
+- Claim detail reutiliza el provenance graph durable seleccionado desde un
+  conflicto; Conflicts permite elegir claim y Freshness presenta el schedule
+  persistido actualmente due sin recalcular algoritmos en TUI.
+- Toda lectura se ejecuta como `tea.Cmd` y actualiza el modelo mediante mensajes
+  tipados; `View()` no hace I/O, no reabre SQLite y no dispara discovery/fetch
+  por render. Las listas largas mantienen visible la selección.
+- Adapter `platformos` cross-platform para `platform.Platform`, con apertura
+  HTTP(S) sin shell mediante `xdg-open`, `open` o `rundll32.exe`, validación de
+  scheme/host/credentials y errores retryable visibles en Source detail.
+- Contrato y límites documentados en
+  `docs/architecture/research-source-transparency-tui-v1.md` y enlazados desde
+  el índice de arquitectura.
+
+### Decisions
+
+- La autoridad visible siempre procede de la última `TrustDecision` persistida;
+  la TUI no ejecuta Trust Policy ni concede autoridad implícita a fuentes
+  oficiales. Freshness mantiene la misma semántica conservadora.
+- El nuevo `TrustDecisionService` es un read boundary propiedad de application;
+  la TUI no accede al repository ni a SQLite y `researchdb` conserva el wiring
+  explícito.
+- Research views son estado de inspección efímero: `Esc` vuelve a su padre y
+  `h` a Home, sin migrar ni modificar session state de Foundation/Student Core.
+- Las URLs visibles omiten query y fragment para evitar locators enormes o
+  tracking noise; la apertura conserva el locator validado completo detrás de
+  Platform.
+- No se añadió provider, fetch automático, migration, Update Scan, Drift,
+  Curriculum Compiler ni mutación de Student Core/mastery.
+
+### Verification
+
+- Tests TUI de navegación y carga asíncrona de las seis vistas, autoridad y
+  freshness conocidas/desconocidas, warnings históricos, version scope,
+  provenance de claims, schedule due, apertura/fallo del browser, render sin
+  I/O, ancho de terminal y selección visible en listas largas.
+- Test application de proyección Source + TrustDecision + Freshness persistidos
+  y cierre del store; tests de `platformos` para Linux/macOS/Windows, rechazo de
+  esquemas inseguros/credentials y fallo de opener.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step36-gocache go test ./...`.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step36-gocache go vet ./...`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache y
+  `GOTMPDIR` neutral bajo `/home/mishaaac`: tests, E2E, vet, race, build y
+  smokes CLI; SQLite race completó en 488.348 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 37 es el siguiente paso pendiente y requiere autorización explícita.
+- Update Scan deberá comparar evidencia almacenada con señales actuales detrás
+  de adapters y respetar `privacy.allow_network`; no fue iniciado en Step 36.

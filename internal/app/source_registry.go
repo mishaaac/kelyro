@@ -27,6 +27,8 @@ func (service *Service) executeSourceRegistry(ctx context.Context, command Comma
 		}
 	}()
 	switch command.SourceRegistryOperation {
+	case "transparency":
+		result.SourceTransparency, err = sourceTransparency(ctx, store)
 	case "sources-list":
 		if store.Sources() == nil {
 			return Result{}, errors.New("source service is unavailable")
@@ -43,12 +45,9 @@ func (service *Service) executeSourceRegistry(ctx context.Context, command Comma
 		if getErr != nil {
 			return Result{}, getErr
 		}
-		view := SourceCLIView{Source: source}
-		snapshot, snapshotErr := store.Sources().LatestSnapshot(ctx, command.SourceID)
-		if snapshotErr == nil {
-			view.LatestSnapshot = &snapshot
-		} else if !errors.Is(snapshotErr, researchapp.ErrNotFound) {
-			return Result{}, snapshotErr
+		view, viewErr := sourceTransparencyDetail(ctx, store, source, true)
+		if viewErr != nil {
+			return Result{}, viewErr
 		}
 		result.Source = &view
 	case "conflicts":
@@ -101,4 +100,58 @@ func (service *Service) executeSourceRegistry(ctx context.Context, command Comma
 		return Result{}, err
 	}
 	return result, nil
+}
+
+func sourceTransparency(ctx context.Context, store researchapp.SourceRegistryStore) ([]SourceCLIView, error) {
+	if store.Sources() == nil {
+		return nil, errors.New("source service is unavailable")
+	}
+	sources, err := store.Sources().List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]SourceCLIView, 0, len(sources))
+	for _, source := range sources {
+		view, viewErr := sourceTransparencyDetail(ctx, store, source, false)
+		if viewErr != nil {
+			return nil, viewErr
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+func sourceTransparencyDetail(ctx context.Context, store researchapp.SourceRegistryStore, source research.Source, includeSnapshot bool) (SourceCLIView, error) {
+	view := SourceCLIView{Source: source}
+	if includeSnapshot {
+		snapshot, err := store.Sources().LatestSnapshot(ctx, source.ID)
+		if err == nil {
+			view.LatestSnapshot = &snapshot
+		} else if !errors.Is(err, researchapp.ErrNotFound) {
+			return SourceCLIView{}, err
+		}
+	}
+	if store.TrustDecisions() == nil {
+		return SourceCLIView{}, errors.New("trust decision service is unavailable")
+	}
+	decision, err := store.TrustDecisions().Latest(ctx, source.ID)
+	if err == nil {
+		view.TrustDecision = &decision
+	} else if !errors.Is(err, researchapp.ErrNotFound) {
+		return SourceCLIView{}, err
+	}
+	if store.Freshness() == nil {
+		return SourceCLIView{}, errors.New("freshness service is unavailable")
+	}
+	subjectID, idErr := research.NewID(source.ID.String())
+	if idErr != nil {
+		return SourceCLIView{}, idErr
+	}
+	freshnessRecord, err := store.Freshness().Get(ctx, subjectID)
+	if err == nil {
+		view.Freshness = &freshnessRecord
+	} else if !errors.Is(err, researchapp.ErrNotFound) {
+		return SourceCLIView{}, err
+	}
+	return view, nil
 }

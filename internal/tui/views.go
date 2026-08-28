@@ -51,6 +51,18 @@ func (model Model) viewLines(width int) []string {
 			lines = model.streakView(width)
 		case screenOnboarding:
 			lines = model.onboardingView(width)
+		case screenResearch:
+			lines = model.researchView(width)
+		case screenSources:
+			lines = model.sourcesView(width)
+		case screenSourceDetail:
+			lines = model.sourceDetailView(width)
+		case screenClaimDetail:
+			lines = model.claimDetailView(width)
+		case screenConflicts:
+			lines = model.conflictsView(width)
+		case screenFreshness:
+			lines = model.freshnessView(width)
 		default:
 			lines = model.homeView(width)
 		}
@@ -82,8 +94,12 @@ func (model Model) homeView(width int) []string {
 			next = "Nothing urgent"
 		}
 		lines = append(lines, truncate("Next: "+next, width))
-		lines = append(lines, "", fmt.Sprintf("Mastery required: %.0f%%", dashboardMasteryThreshold(model.dashboard)*100))
-		lines = append(lines, fmt.Sprintf("Streak: %d %s", model.dashboard.Streak.CurrentStreak.Value, streakDayWord(model.dashboard.Streak.CurrentStreak.Value)))
+		if width <= 30 {
+			lines = append(lines, "", fmt.Sprintf("Mastery %.0f%% · Streak %dd", dashboardMasteryThreshold(model.dashboard)*100, model.dashboard.Streak.CurrentStreak.Value))
+		} else {
+			lines = append(lines, "", fmt.Sprintf("Mastery required: %.0f%%", dashboardMasteryThreshold(model.dashboard)*100))
+			lines = append(lines, fmt.Sprintf("Streak: %d %s", model.dashboard.Streak.CurrentStreak.Value, streakDayWord(model.dashboard.Streak.CurrentStreak.Value)))
+		}
 		lines = append(lines, "Study this week: "+formatStudyDuration(model.dashboard.StudyTime.Week.Value))
 	}
 	if model.dashboardLoading {
@@ -96,7 +112,7 @@ func (model Model) homeView(width int) []string {
 		}
 	}
 	lines = append(lines, "")
-	lines = append(lines, shortcutLines(width, "[Enter] Today", "[r] Roadmap", "[p] Progress", "[c] Concept", "[v] Reviews", "[h] History", "[g] Goal", "[o] Profile", "[f] Refresh", "[s] Setup", "[d] Doctor", "[C] Config", "[k] Streak", "[q] Quit")...)
+	lines = append(lines, shortcutLines(width, "[Enter] Today", "[r] Roadmap", "[p] Progress", "[c] Concept", "[v] Reviews", "[h] History", "[g] Goal", "[o] Profile", "[R] Research", "[f] Refresh", "[s] Setup", "[d] Doctor", "[C] Config", "[k] Streak", "[q] Quit")...)
 	return lines
 }
 

@@ -32,6 +32,8 @@ type ResearchCLIView struct {
 type SourceCLIView struct {
 	Source         research.Source
 	LatestSnapshot *research.SourceSnapshot
+	TrustDecision  *research.TrustDecision
+	Freshness      *researchapp.FreshnessRecord
 }
 
 func (service *Service) startResearchTopic(ctx context.Context, command Command, store researchapp.SourceRegistryStore) (ResearchCLIView, error) {

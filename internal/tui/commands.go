@@ -9,6 +9,9 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
+	"github.com/mishaaac/kelyro/internal/platform"
+	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -174,6 +177,99 @@ func loadHistoryCmd(ctx context.Context, service Service, base app.Command) tea.
 			return historyLoadFailedMsg{err: fmt.Errorf("study history was not returned")}
 		}
 		return historyLoadedMsg{history: *result.History}
+	}
+}
+
+func loadResearchCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionResearch, Workspace: base.Workspace, ResearchOperation: "stats"})
+		if err != nil {
+			return researchLoadFailedMsg{err: err}
+		}
+		if result.ResearchCostStats == nil {
+			return researchLoadFailedMsg{err: fmt.Errorf("research summary was not returned")}
+		}
+		return researchLoadedMsg{stats: *result.ResearchCostStats}
+	}
+}
+
+func loadSourcesCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionSources, Workspace: base.Workspace, SourceRegistryOperation: "transparency"})
+		if err != nil {
+			return sourcesLoadFailedMsg{err: err}
+		}
+		if result.SourceTransparency == nil {
+			result.SourceTransparency = make([]app.SourceCLIView, 0)
+		}
+		return sourcesLoadedMsg{sources: result.SourceTransparency}
+	}
+}
+
+func loadSourceDetailCmd(ctx context.Context, service Service, base app.Command, sourceID research.SourceID) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionSources, Workspace: base.Workspace, SourceRegistryOperation: "source-show", SourceID: sourceID})
+		if err != nil {
+			return sourceDetailLoadFailedMsg{err: err}
+		}
+		if result.Source == nil {
+			return sourceDetailLoadFailedMsg{err: fmt.Errorf("source detail was not returned")}
+		}
+		return sourceDetailLoadedMsg{source: *result.Source}
+	}
+}
+
+func openSourceURLCmd(ctx context.Context, native platform.Platform, locator research.SourceLocator) tea.Cmd {
+	return func() tea.Msg {
+		if native == nil {
+			return sourceURLOpenFailedMsg{err: fmt.Errorf("platform URL opener is unavailable")}
+		}
+		if err := ctx.Err(); err != nil {
+			return sourceURLOpenFailedMsg{err: err}
+		}
+		if err := native.OpenURL(locator.String()); err != nil {
+			return sourceURLOpenFailedMsg{err: err}
+		}
+		return sourceURLOpenedMsg{}
+	}
+}
+
+func loadConflictsCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionSources, Workspace: base.Workspace, SourceRegistryOperation: "conflicts"})
+		if err != nil {
+			return conflictsLoadFailedMsg{err: err}
+		}
+		if result.SourceConflicts == nil {
+			result.SourceConflicts = make([]research.Conflict, 0)
+		}
+		return conflictsLoadedMsg{conflicts: result.SourceConflicts}
+	}
+}
+
+func loadClaimCmd(ctx context.Context, service Service, base app.Command, claimID research.ClaimID) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionSources, Workspace: base.Workspace, SourceRegistryOperation: "trace", ProvenanceClaimID: claimID})
+		if err != nil {
+			return claimLoadFailedMsg{err: err}
+		}
+		if result.ProvenanceGraph == nil {
+			return claimLoadFailedMsg{err: fmt.Errorf("claim provenance was not returned")}
+		}
+		return claimLoadedMsg{graph: *result.ProvenanceGraph}
+	}
+}
+
+func loadFreshnessCmd(ctx context.Context, service Service, base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		result, err := service.Execute(ctx, app.Command{Action: app.ActionSources, Workspace: base.Workspace, SourceRegistryOperation: "stale"})
+		if err != nil {
+			return freshnessLoadFailedMsg{err: err}
+		}
+		if result.StaleSources == nil {
+			result.StaleSources = make([]researchapp.FreshnessRecord, 0)
+		}
+		return freshnessLoadedMsg{records: result.StaleSources}
 	}
 }
 

@@ -43,4 +43,4 @@ evidence, bundles, and cache remain inspectable while network access is off.
 - CLI output contains bounded metadata, identifiers, counts, and hashes only.
 - Unresolved conflicts are ordered deterministically by detection time and ID.
 - The CLI does not compile curriculum, mutate mastery, launch a scheduler, or
-  implement the Source Transparency TUI reserved for Step 36.
+  implement live discovery in the absence of a configured provider.

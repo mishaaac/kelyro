@@ -28,6 +28,7 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		return nil, err
 	}
 	registry := application.NewSourceRegistryService(database.Repositories().Research.SourceRegistry)
+	trust := application.NewTrustDecisionService(database.Repositories().Research.TrustRegistry)
 	sources := application.NewSourceService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots)
 	provenance := application.NewProvenanceService(database.Repositories().Research.Provenance)
 	freshness := application.NewFreshnessService(database.Repositories().Research.Freshness)
@@ -36,13 +37,14 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	triggers := application.NewResearchTriggerService(database.Repositories().Research.TriggerQueue)
 	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, registry: registry, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers}, nil
+	return &store{database: database, sources: sources, registry: registry, trust: trust, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers}, nil
 }
 
 type store struct {
 	database   *sqlite.Database
 	sources    application.SourceService
 	registry   application.SourceRegistryService
+	trust      application.TrustDecisionService
 	provenance application.ProvenanceService
 	freshness  application.FreshnessService
 	research   application.ResearchService
@@ -54,6 +56,7 @@ type store struct {
 
 func (store *store) Sources() application.SourceService               { return store.sources }
 func (store *store) Registry() application.SourceRegistryService      { return store.registry }
+func (store *store) TrustDecisions() application.TrustDecisionService { return store.trust }
 func (store *store) Provenance() application.ProvenanceService        { return store.provenance }
 func (store *store) Freshness() application.FreshnessService          { return store.freshness }
 func (store *store) Research() application.ResearchService            { return store.research }

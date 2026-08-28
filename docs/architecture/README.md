@@ -269,3 +269,8 @@ documented in
 The human-first Research/Sources commands, durable manual query planning,
 bundle-derived status output, privacy behavior, and no-provider boundary are
 documented in [research-cli-v1.md](research-cli-v1.md).
+
+The terminal Research, Sources, Source/Claim detail, Conflicts, and Freshness
+views; persisted authority/freshness projection; compact URL policy; and native
+browser-opening boundary are documented in
+[research-source-transparency-tui-v1.md](research-source-transparency-tui-v1.md).

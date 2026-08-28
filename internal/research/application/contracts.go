@@ -1166,6 +1166,12 @@ type SourceRegistryService interface {
 	List(context.Context) ([]research.SourceRegistryEntry, error)
 }
 
+// TrustDecisionService exposes persisted trust evaluations without allowing
+// presentation adapters to reach through to the registry repository.
+type TrustDecisionService interface {
+	Latest(context.Context, research.SourceID) (research.TrustDecision, error)
+}
+
 type ProvenanceService interface {
 	Record(context.Context, research.ProvenanceGraph) error
 	Trace(context.Context, research.ClaimID) (research.ProvenanceGraph, error)
@@ -1177,6 +1183,7 @@ type ProvenanceService interface {
 type SourceRegistryStore interface {
 	Sources() SourceService
 	Registry() SourceRegistryService
+	TrustDecisions() TrustDecisionService
 	Provenance() ProvenanceService
 	Freshness() FreshnessService
 	Research() ResearchService

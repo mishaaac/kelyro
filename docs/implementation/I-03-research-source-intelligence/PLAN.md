@@ -2370,7 +2370,7 @@ feat(cli): expose Research and Source Intelligence commands
 
 ## Paso 36 — Implementar Source Transparency views en TUI
 
-- [ ] Paso 36 completado
+- [x] Paso 36 completado
 
 ### Objetivo
 

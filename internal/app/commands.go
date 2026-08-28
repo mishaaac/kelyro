@@ -158,6 +158,7 @@ type Result struct {
 	ResearchCostStats     *researchapp.ResearchCostStats
 	ResearchView          *ResearchCLIView
 	Sources               []research.Source
+	SourceTransparency    []SourceCLIView
 	Source                *SourceCLIView
 	SourceConflicts       []research.Conflict
 }
