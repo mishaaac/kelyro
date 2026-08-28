@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 34
-Last completed step: 33
+Current step: 35
+Last completed step: 34
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2595,3 +2595,67 @@ Release: unreleased
 - El Paso 34 está autorizado a continuación por el usuario.
 - Trigger Policy debe producir decisión y queue metadata únicamente; no añadir
   scheduler externo ni iniciar todavía el workflow CLI del Paso 35.
+
+## Step 34 — Research Trigger Policies
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Policy determinista `research-trigger-v1` con ocho causas cerradas: manual,
+  missing evidence, freshness expired, new technology release, deprecation,
+  unresolved conflict, future curriculum compile request y security refresh.
+- Combinación estable de todas las causas aplicables, sin ocultar señales
+  secundarias, con prioridades critical/high/normal explícitas.
+- Expiración determinista cuando freshness es stale o `as_of >= next_verify_at`;
+  ausencia de evidencia se decide únicamente desde count cero y ninguna
+  ausencia de señal se convierte en un hecho inventado.
+- `ResearchQueueItem` durable con request completo, triggers, priority, dedupe
+  key lógico, timestamps, estado y algorithm version.
+- Deduplicación de un único item `queued` por tópico/purpose/target version;
+  una evaluación repetida retorna la metadata original y una transición
+  terminal permite una nueva cola futura.
+- Transiciones explícitas `queued → dispatched|cancelled`, sin mutar identidad,
+  request, causas, priority ni algoritmo.
+- Migration forward-only v40, adapter SQLite y fake memory con orden critical,
+  high, normal, timestamp e ID estable.
+- Contrato y frontera no-scheduler documentados en
+  `docs/architecture/research-trigger-policy-v1.md`.
+
+### Decisions
+
+- Trigger Policy decide y persiste metadata; no crea goroutines, timers,
+  workers, jobs externos ni network calls.
+- Manual y security refresh son critical; deprecation, unresolved conflict y
+  new release son high; freshness, missing evidence y future compile son normal
+  salvo que coexistan con una señal más fuerte.
+- El dedupe key excluye IDs y timestamps y conserva subject/domain/technology,
+  purpose y target version, para converger requests equivalentes sin impedir
+  reinvestigación después de dispatch/cancel.
+- Una evaluación duplicada conserva los triggers/prioridad del item ya queued;
+  no reescribe silenciosamente por qué se tomó la decisión original.
+- No se añadió scheduler, provider, CLI de tópico, Curriculum Compiler ni
+  cambios de Student Core/mastery.
+
+### Verification
+
+- Tests de los ocho triggers combinados en orden estable, no-trigger para
+  evidencia suficiente/fresh y boundary exacto de expiración.
+- Tests de dedupe independiente de IDs/timestamps, prioridad, clones defensivos,
+  dispatch, cancel, requeue y rechazo de transiciones inválidas.
+- Test SQLite de persistencia, dedupe activo, round-trip terminal y orden de
+  cola critical antes de normal.
+- `go test ./...`, `go vet ./...` y `git diff --check` con caches reutilizables
+  fuera de tmpfs.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache y
+  `GOTMPDIR` bajo `/home/mishaaac`: tests, E2E, vet, race, build y smokes CLI;
+  SQLite race completó en 466.037 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 35 está autorizado a continuación por el usuario.
+- El CLI debe reutilizar los servicios/policies existentes, respetar privacy y
+  Cost Control, y no implementar todavía las vistas TUI del Paso 36.

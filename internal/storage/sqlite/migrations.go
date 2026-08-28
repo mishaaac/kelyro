@@ -1656,6 +1656,34 @@ WHEN EXISTS (
 ) BEGIN SELECT RAISE(ABORT, 'research cost budget exceeded'); END`,
 		},
 	},
+	{
+		version: 40,
+		name:    "research trigger policy queue",
+		statements: []string{
+			`CREATE TABLE research_trigger_queue (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    request_id TEXT NOT NULL CHECK (length(trim(request_id)) > 0),
+    subject TEXT NOT NULL CHECK (length(trim(subject)) > 0),
+    domain TEXT NOT NULL DEFAULT '',
+    technology TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL CHECK (purpose IN ('concept_definition','current_usage','version_behavior','release_status','deprecation_check','prerequisite_research','production_practice','security_guidance')),
+    target_version TEXT,
+    requested_at TEXT NOT NULL CHECK (requested_at GLOB '*Z'),
+    triggers_json TEXT NOT NULL CHECK (json_valid(triggers_json) AND json_type(triggers_json)='array' AND json_array_length(triggers_json) BETWEEN 1 AND 8),
+    priority TEXT NOT NULL CHECK (priority IN ('normal','high','critical')),
+    dedupe_key TEXT NOT NULL CHECK (dedupe_key GLOB 'trigger:*' AND length(dedupe_key)=72),
+    status TEXT NOT NULL CHECK (status IN ('queued','dispatched','cancelled')),
+    queued_at TEXT NOT NULL CHECK (queued_at GLOB '*Z'),
+    status_changed_at TEXT,
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version='research-trigger-v1'),
+    CHECK ((status='queued' AND status_changed_at IS NULL) OR (status<>'queued' AND status_changed_at GLOB '*Z')),
+    CHECK (queued_at >= requested_at),
+    CHECK (status_changed_at IS NULL OR status_changed_at >= queued_at)
+)`,
+			`CREATE UNIQUE INDEX research_trigger_queue_active_dedupe_idx ON research_trigger_queue (dedupe_key) WHERE status='queued'`,
+			`CREATE INDEX research_trigger_queue_order_idx ON research_trigger_queue (status,priority,queued_at,id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

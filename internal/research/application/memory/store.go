@@ -37,6 +37,7 @@ type Store struct {
 	impact          map[research.ID]research.ImpactReport
 	cache           map[string]application.CacheEntry
 	costEvents      map[research.ID][]costEvent
+	triggerQueue    map[research.ID]research.ResearchQueueItem
 }
 
 func New() *Store {
@@ -63,6 +64,7 @@ func New() *Store {
 		impact:          make(map[research.ID]research.ImpactReport),
 		cache:           make(map[string]application.CacheEntry),
 		costEvents:      make(map[research.ID][]costEvent),
+		triggerQueue:    make(map[research.ID]research.ResearchQueueItem),
 	}
 }
 
@@ -76,6 +78,7 @@ func (store *Store) Repositories() application.Repositories {
 		Provenance:       provenanceRepository{store},
 		Runs:             researchRunRepository{store},
 		Costs:            researchCostRepository{store},
+		TriggerQueue:     researchTriggerQueueRepository{store},
 		TrustRegistry:    trustRegistryRepository{store},
 		SourceRegistry:   sourceRegistryRepository{store},
 		Releases:         releaseRepository{store},
@@ -173,6 +176,14 @@ func cloneRun(run research.ResearchRun) research.ResearchRun {
 		}
 		clone.Cost = &cost
 	}
+	return clone
+}
+
+func cloneResearchQueueItem(item research.ResearchQueueItem) research.ResearchQueueItem {
+	clone := item
+	clone.Request = cloneRequest(item.Request)
+	clone.Triggers = append([]research.ResearchTrigger(nil), item.Triggers...)
+	clone.StatusChangedAt = cloneTimestamp(item.StatusChangedAt)
 	return clone
 }
 

@@ -95,8 +95,9 @@ func (store *fakeSourceRegistryStore) Provenance() researchapp.ProvenanceService
 func (store *fakeSourceRegistryStore) Freshness() researchapp.FreshnessService {
 	return store.freshness
 }
-func (store *fakeSourceRegistryStore) Research() researchapp.ResearchService  { return nil }
-func (store *fakeSourceRegistryStore) Costs() researchapp.ResearchCostService { return store.costs }
+func (store *fakeSourceRegistryStore) Research() researchapp.ResearchService        { return nil }
+func (store *fakeSourceRegistryStore) Costs() researchapp.ResearchCostService       { return store.costs }
+func (store *fakeSourceRegistryStore) Triggers() researchapp.ResearchTriggerService { return nil }
 func (store *fakeSourceRegistryStore) Close() error {
 	store.close()
 	return nil

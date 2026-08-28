@@ -96,8 +96,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 39 {
-		t.Fatalf("schema=(%d,%v), want 39", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 40 {
+		t.Fatalf("schema=(%d,%v), want 40", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {

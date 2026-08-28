@@ -260,3 +260,8 @@ query-plan protections, and concurrent-write behavior are documented in
 The provider-neutral budgets, cache-first/sufficiency decisions, atomic SQLite
 ledger, explicit stop reasons, and `research stats` view are documented in
 [research-cost-control-v1.md](research-cost-control-v1.md).
+
+The eight deterministic research/research-refresh triggers, priority,
+deduplication, durable queue metadata, and explicit no-scheduler boundary are
+documented in
+[research-trigger-policy-v1.md](research-trigger-policy-v1.md).

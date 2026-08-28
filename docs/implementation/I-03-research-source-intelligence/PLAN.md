@@ -2269,7 +2269,7 @@ feat(research): add bounded research cost controls
 
 ## Paso 34 — Implementar Research Trigger Policies
 
-- [ ] Paso 34 completado
+- [x] Paso 34 completado
 
 ### Objetivo
 

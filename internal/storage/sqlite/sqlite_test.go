@@ -103,6 +103,7 @@ func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 		"research_cost_events",
 		"research_runs",
 		"research_topics",
+		"research_trigger_queue",
 		"retention_state",
 		"review_items",
 		"review_schedule",

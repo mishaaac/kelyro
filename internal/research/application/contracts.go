@@ -9,6 +9,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/research/citation"
 	conflictpolicy "github.com/mishaaac/kelyro/internal/research/conflict"
 	"github.com/mishaaac/kelyro/internal/research/diversity"
+	triggerpolicy "github.com/mishaaac/kelyro/internal/research/trigger"
 )
 
 // Persistence ports are intentionally split by aggregate/use case.
@@ -126,6 +127,13 @@ type ResearchCostRepository interface {
 	RecordCacheSavings(context.Context, CostReservation) error
 	Metadata(context.Context, research.ID) (research.ResearchCostMetadata, error)
 	Stats(context.Context, research.Timestamp) (ResearchCostStats, error)
+}
+
+type ResearchTriggerQueueRepository interface {
+	Enqueue(context.Context, research.ResearchQueueItem) (research.ResearchQueueItem, error)
+	Get(context.Context, research.ID) (research.ResearchQueueItem, error)
+	ListQueued(context.Context) ([]research.ResearchQueueItem, error)
+	Update(context.Context, research.ResearchQueueItem) error
 }
 
 type TrustRegistryRepository interface {
@@ -308,6 +316,7 @@ type Repositories struct {
 	Provenance       ProvenanceRepository
 	Runs             ResearchRunRepository
 	Costs            ResearchCostRepository
+	TriggerQueue     ResearchTriggerQueueRepository
 	TrustRegistry    TrustRegistryRepository
 	SourceRegistry   SourceRegistryRepository
 	Releases         ReleaseRepository
@@ -1065,6 +1074,14 @@ type ResearchCostService interface {
 	Stats(context.Context, research.Timestamp) (ResearchCostStats, error)
 }
 
+type ResearchTriggerService interface {
+	Evaluate(context.Context, triggerpolicy.Input) (triggerpolicy.Decision, error)
+	Get(context.Context, research.ID) (research.ResearchQueueItem, error)
+	Queued(context.Context) ([]research.ResearchQueueItem, error)
+	MarkDispatched(context.Context, research.ID, research.Timestamp) (research.ResearchQueueItem, error)
+	Cancel(context.Context, research.ID, research.Timestamp) (research.ResearchQueueItem, error)
+}
+
 type DiscoveryService interface {
 	Search(context.Context, ResearchMode, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
@@ -1162,6 +1179,7 @@ type SourceRegistryStore interface {
 	Freshness() FreshnessService
 	Research() ResearchService
 	Costs() ResearchCostService
+	Triggers() ResearchTriggerService
 	Close() error
 }
 

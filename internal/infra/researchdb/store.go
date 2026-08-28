@@ -32,7 +32,8 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	freshness := application.NewFreshnessService(database.Repositories().Research.Freshness)
 	researchService := application.NewResearchService(database.Repositories().Research.Runs)
 	costs := application.NewResearchCostService(database.Repositories().Research.Costs)
-	return &store{database: database, registry: registry, provenance: provenance, freshness: freshness, research: researchService, costs: costs}, nil
+	triggers := application.NewResearchTriggerService(database.Repositories().Research.TriggerQueue)
+	return &store{database: database, registry: registry, provenance: provenance, freshness: freshness, research: researchService, costs: costs, triggers: triggers}, nil
 }
 
 type store struct {
@@ -42,13 +43,15 @@ type store struct {
 	freshness  application.FreshnessService
 	research   application.ResearchService
 	costs      application.ResearchCostService
+	triggers   application.ResearchTriggerService
 }
 
-func (store *store) Registry() application.SourceRegistryService { return store.registry }
-func (store *store) Provenance() application.ProvenanceService   { return store.provenance }
-func (store *store) Freshness() application.FreshnessService     { return store.freshness }
-func (store *store) Research() application.ResearchService       { return store.research }
-func (store *store) Costs() application.ResearchCostService      { return store.costs }
+func (store *store) Registry() application.SourceRegistryService  { return store.registry }
+func (store *store) Provenance() application.ProvenanceService    { return store.provenance }
+func (store *store) Freshness() application.FreshnessService      { return store.freshness }
+func (store *store) Research() application.ResearchService        { return store.research }
+func (store *store) Costs() application.ResearchCostService       { return store.costs }
+func (store *store) Triggers() application.ResearchTriggerService { return store.triggers }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

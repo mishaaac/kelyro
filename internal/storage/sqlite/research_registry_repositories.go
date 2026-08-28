@@ -21,6 +21,7 @@ func newResearchRepositories(target executor, timeout time.Duration) application
 		Provenance:       &researchProvenanceRepository{target, timeout},
 		Runs:             &researchRunRepository{target, timeout},
 		Costs:            &researchCostRepository{target, timeout},
+		TriggerQueue:     &researchTriggerQueueRepository{target, timeout},
 		TrustRegistry:    &researchTrustRegistryRepository{target, timeout},
 		SourceRegistry:   &researchSourceRegistryRepository{target, timeout},
 		Releases:         &researchReleaseRepository{target, timeout},
@@ -37,26 +38,27 @@ func newResearchRepositories(target executor, timeout time.Duration) application
 }
 
 var (
-	_ application.SourceRepository           = (*researchSourceRepository)(nil)
-	_ application.SnapshotRepository         = (*researchSnapshotRepository)(nil)
-	_ application.EvidenceRepository         = (*researchEvidenceRepository)(nil)
-	_ application.ClaimRepository            = (*researchClaimRepository)(nil)
-	_ application.CitationRepository         = (*researchCitationRepository)(nil)
-	_ application.ProvenanceRepository       = (*researchProvenanceRepository)(nil)
-	_ application.ResearchRunRepository      = (*researchRunRepository)(nil)
-	_ application.ResearchCostRepository     = (*researchCostRepository)(nil)
-	_ application.TrustRegistryRepository    = (*researchTrustRegistryRepository)(nil)
-	_ application.SourceRegistryRepository   = (*researchSourceRegistryRepository)(nil)
-	_ application.ReleaseRepository          = (*researchReleaseRepository)(nil)
-	_ application.ReleaseIngestionRepository = (*researchReleaseIngestionRepository)(nil)
-	_ application.DeprecationRepository      = (*researchDeprecationRepository)(nil)
-	_ application.FreshnessRepository        = (*researchFreshnessRepository)(nil)
-	_ application.VerificationRepository     = (*researchVerificationRepository)(nil)
-	_ application.ConflictRepository         = (*researchConflictRepository)(nil)
-	_ application.SourceBundleRepository     = (*researchSourceBundleRepository)(nil)
-	_ application.DriftRepository            = (*researchDriftRepository)(nil)
-	_ application.ImpactRepository           = (*researchImpactRepository)(nil)
-	_ application.ResearchCacheRepository    = (*researchCacheRepository)(nil)
+	_ application.SourceRepository               = (*researchSourceRepository)(nil)
+	_ application.SnapshotRepository             = (*researchSnapshotRepository)(nil)
+	_ application.EvidenceRepository             = (*researchEvidenceRepository)(nil)
+	_ application.ClaimRepository                = (*researchClaimRepository)(nil)
+	_ application.CitationRepository             = (*researchCitationRepository)(nil)
+	_ application.ProvenanceRepository           = (*researchProvenanceRepository)(nil)
+	_ application.ResearchRunRepository          = (*researchRunRepository)(nil)
+	_ application.ResearchCostRepository         = (*researchCostRepository)(nil)
+	_ application.ResearchTriggerQueueRepository = (*researchTriggerQueueRepository)(nil)
+	_ application.TrustRegistryRepository        = (*researchTrustRegistryRepository)(nil)
+	_ application.SourceRegistryRepository       = (*researchSourceRegistryRepository)(nil)
+	_ application.ReleaseRepository              = (*researchReleaseRepository)(nil)
+	_ application.ReleaseIngestionRepository     = (*researchReleaseIngestionRepository)(nil)
+	_ application.DeprecationRepository          = (*researchDeprecationRepository)(nil)
+	_ application.FreshnessRepository            = (*researchFreshnessRepository)(nil)
+	_ application.VerificationRepository         = (*researchVerificationRepository)(nil)
+	_ application.ConflictRepository             = (*researchConflictRepository)(nil)
+	_ application.SourceBundleRepository         = (*researchSourceBundleRepository)(nil)
+	_ application.DriftRepository                = (*researchDriftRepository)(nil)
+	_ application.ImpactRepository               = (*researchImpactRepository)(nil)
+	_ application.ResearchCacheRepository        = (*researchCacheRepository)(nil)
 )
 
 type researchRunRepository struct {
