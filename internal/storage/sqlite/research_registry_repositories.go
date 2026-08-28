@@ -20,6 +20,7 @@ func newResearchRepositories(target executor, timeout time.Duration) application
 		Citations:        &researchCitationRepository{target, timeout},
 		Provenance:       &researchProvenanceRepository{target, timeout},
 		Runs:             &researchRunRepository{target, timeout},
+		Costs:            &researchCostRepository{target, timeout},
 		TrustRegistry:    &researchTrustRegistryRepository{target, timeout},
 		SourceRegistry:   &researchSourceRegistryRepository{target, timeout},
 		Releases:         &researchReleaseRepository{target, timeout},
@@ -43,6 +44,7 @@ var (
 	_ application.CitationRepository         = (*researchCitationRepository)(nil)
 	_ application.ProvenanceRepository       = (*researchProvenanceRepository)(nil)
 	_ application.ResearchRunRepository      = (*researchRunRepository)(nil)
+	_ application.ResearchCostRepository     = (*researchCostRepository)(nil)
 	_ application.TrustRegistryRepository    = (*researchTrustRegistryRepository)(nil)
 	_ application.SourceRegistryRepository   = (*researchSourceRegistryRepository)(nil)
 	_ application.ReleaseRepository          = (*researchReleaseRepository)(nil)
@@ -108,6 +110,22 @@ func (repository *researchRunRepository) Create(ctx context.Context, request res
 		}
 		return researchPersistence(operation, err)
 	}
+	if run.Cost != nil {
+		if !run.Cost.Used.IsZero() || !run.Cost.CacheSavings.IsZero() || run.Cost.StoppedByBudget {
+			_, _ = repository.executor.ExecContext(opCtx, `DELETE FROM research_runs WHERE id=?`, run.ID.String())
+			if createdRequest {
+				_, _ = repository.executor.ExecContext(opCtx, `DELETE FROM research_topics WHERE request_id=? AND NOT EXISTS (SELECT 1 FROM research_runs WHERE request_id=?)`, request.ID.String(), request.ID.String())
+			}
+			return researchInvalid(operation, errors.New("new research run cost metadata is not empty"))
+		}
+		if err := insertResearchCostControl(opCtx, repository.executor, run.ID, *run.Cost); err != nil {
+			_, _ = repository.executor.ExecContext(opCtx, `DELETE FROM research_runs WHERE id=?`, run.ID.String())
+			if createdRequest {
+				_, _ = repository.executor.ExecContext(opCtx, `DELETE FROM research_topics WHERE request_id=? AND NOT EXISTS (SELECT 1 FROM research_runs WHERE request_id=?)`, request.ID.String(), request.ID.String())
+			}
+			return researchPersistence(operation, err)
+		}
+	}
 	return nil
 }
 
@@ -165,7 +183,17 @@ func (repository *researchRunRepository) GetRun(ctx context.Context, id research
 		return research.ResearchRun{}, err
 	}
 	defer cancel()
-	return scanResearchRun(repository.executor.QueryRowContext(opCtx, `SELECT id,request_id,status,started_at,completed_at FROM research_runs WHERE id=?`, id.String()), operation)
+	run, err := scanResearchRun(repository.executor.QueryRowContext(opCtx, `SELECT id,request_id,status,started_at,completed_at FROM research_runs WHERE id=?`, id.String()), operation)
+	if err != nil {
+		return research.ResearchRun{}, err
+	}
+	metadata, costErr := (&researchCostRepository{repository.executor, repository.timeout}).metadataWithContext(opCtx, id)
+	if costErr == nil {
+		run.Cost = &metadata
+	} else if !errors.Is(costErr, application.ErrNotFound) {
+		return research.ResearchRun{}, costErr
+	}
+	return run, nil
 }
 func scanResearchRun(row rowScanner, operation string) (research.ResearchRun, error) {
 	var idValue, requestValue, status, started string

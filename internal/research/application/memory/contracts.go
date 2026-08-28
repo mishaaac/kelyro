@@ -9,6 +9,7 @@ var (
 	_ application.ClaimRepository            = claimRepository{}
 	_ application.ProvenanceRepository       = provenanceRepository{}
 	_ application.ResearchRunRepository      = researchRunRepository{}
+	_ application.ResearchCostRepository     = researchCostRepository{}
 	_ application.TrustRegistryRepository    = trustRegistryRepository{}
 	_ application.SourceRegistryRepository   = sourceRegistryRepository{}
 	_ application.ReleaseRepository          = releaseRepository{}

@@ -57,6 +57,7 @@ type ResearchRun struct {
 	Status      ResearchRunStatus
 	StartedAt   Timestamp
 	CompletedAt *Timestamp
+	Cost        *ResearchCostMetadata
 }
 
 func (run ResearchRun) Validate() error {
@@ -77,6 +78,11 @@ func (run ResearchRun) Validate() error {
 	}
 	if run.CompletedAt != nil && run.CompletedAt.Before(run.StartedAt) {
 		return fmt.Errorf("research run completion precedes start")
+	}
+	if run.Cost != nil {
+		if err := run.Cost.Validate(); err != nil {
+			return fmt.Errorf("research run cost: %w", err)
+		}
 	}
 	switch run.Status {
 	case ResearchRunCompleted, ResearchRunFailed, ResearchRunCancelled:

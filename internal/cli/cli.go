@@ -66,7 +66,7 @@ Commands:
   reviews  Show scheduled or currently due reviews
   streak   Show study consistency without affecting progress
   sources  Inspect source registry, provenance, and stale evidence
-  research Inspect or clear the offline Research cache
+  research Inspect Research costs and the offline cache
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -180,7 +180,8 @@ Source registry commands:
   kelyro sources trace <claim-id>
   kelyro sources stale
 
-Research cache commands:
+Research commands:
+  kelyro research stats
   kelyro research cache status
   kelyro research cache clear
 
@@ -333,6 +334,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		ReviewsDue:              invocation.reviewsDue,
 		SourceRegistryOperation: invocation.sourceRegistryOperation,
 		ResearchCacheOperation:  invocation.researchCacheOperation,
+		ResearchOperation:       invocation.researchOperation,
 		SourceRegistryID:        invocation.sourceRegistryID,
 		ProvenanceClaimID:       invocation.provenanceClaimID,
 		Verbose:                 invocation.verbose,
@@ -459,6 +461,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatResearchCacheStatus(*result.ResearchCacheStatus))
 	} else if result.ResearchCacheCleared != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatResearchCacheClear(*result.ResearchCacheCleared))
+	} else if result.ResearchCostStats != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchCostStats(*result.ResearchCostStats))
 	} else if result.SourceRegistryEntry != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatSourceRegistryEntry(*result.SourceRegistryEntry))
 	} else if result.SourceRegistryEntries != nil && !invocation.quiet {
@@ -1150,6 +1154,7 @@ type invocation struct {
 	reviewsDue              bool
 	sourceRegistryOperation string
 	researchCacheOperation  string
+	researchOperation       string
 	sourceRegistryID        research.ID
 	provenanceClaimID       research.ClaimID
 }
@@ -1588,12 +1593,27 @@ func parseSourcesArguments(result *invocation) error {
 }
 
 func parseResearchArguments(result *invocation) error {
+	if len(result.arguments) == 1 && result.arguments[0] == "stats" {
+		result.researchOperation = "stats"
+		return nil
+	}
 	if len(result.arguments) == 2 && result.arguments[0] == "cache" &&
 		(result.arguments[1] == "status" || result.arguments[1] == "clear") {
 		result.researchCacheOperation = result.arguments[1]
 		return nil
 	}
-	return fmt.Errorf("research requires cache status or cache clear")
+	return fmt.Errorf("research requires stats, cache status, or cache clear")
+}
+
+func formatResearchCostStats(stats researchapp.ResearchCostStats) string {
+	return strings.Join([]string{
+		"Research cost stats",
+		"Algorithm: " + stats.AlgorithmVersion,
+		fmt.Sprintf("Runs: %d (%d stopped by budget)", stats.Runs, stats.BudgetStoppedRuns),
+		fmt.Sprintf("Used: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.Used.SearchRequests, stats.Used.FetchRequests, stats.Used.Bytes, stats.Used.ProviderAPICalls, stats.Used.ModelCalls),
+		fmt.Sprintf("Today: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.TodayUsed.SearchRequests, stats.TodayUsed.FetchRequests, stats.TodayUsed.Bytes, stats.TodayUsed.ProviderAPICalls, stats.TodayUsed.ModelCalls),
+		fmt.Sprintf("Saved by valid cache: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.CacheSavings.SearchRequests, stats.CacheSavings.FetchRequests, stats.CacheSavings.Bytes, stats.CacheSavings.ProviderAPICalls, stats.CacheSavings.ModelCalls),
+	}, "\n")
 }
 
 func formatResearchCacheStatus(status researchapp.ResearchCacheStatus) string {

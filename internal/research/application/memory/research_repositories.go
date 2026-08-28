@@ -23,6 +23,9 @@ func (repository researchRunRepository) Create(ctx context.Context, request rese
 	if run.RequestID != request.ID {
 		return invalid(operation, errRelationship("run request does not match"))
 	}
+	if run.Cost != nil && (!run.Cost.Used.IsZero() || !run.Cost.CacheSavings.IsZero() || run.Cost.StoppedByBudget) {
+		return invalid(operation, errRelationship("new research run cost metadata is not empty"))
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	if _, exists := repository.store.runs[run.ID]; exists {
@@ -90,6 +93,7 @@ func (repository researchRunRepository) UpdateRun(ctx context.Context, run resea
 	if stored.RequestID != run.RequestID {
 		return invalid(operation, errRelationship("run request identity cannot change"))
 	}
+	run.Cost = stored.Cost
 	repository.store.runs[run.ID] = cloneRun(run)
 	return nil
 }

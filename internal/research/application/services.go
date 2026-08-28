@@ -26,6 +26,9 @@ func (service *researchService) Start(ctx context.Context, request research.Rese
 	if run.RequestID != request.ID {
 		return invalid(operation, fmt.Errorf("run request relationship does not match"))
 	}
+	if run.Cost != nil && (!run.Cost.Used.IsZero() || !run.Cost.CacheSavings.IsZero() || run.Cost.StoppedByBudget) {
+		return invalid(operation, fmt.Errorf("new research run cost metadata is not empty"))
+	}
 	if err := requireDependency(operation, "research run repository", service.runs); err != nil {
 		return err
 	}

@@ -1405,6 +1405,23 @@ func TestRunnerParsesAndRendersSourceRegistryCommands(t *testing.T) {
 
 func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("stats", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		stats := researchapp.ResearchCostStats{
+			Used:      research.ResearchCostUsage{SearchRequests: 3, FetchRequests: 2, Bytes: 4096, ProviderAPICalls: 5},
+			TodayUsed: research.ResearchCostUsage{SearchRequests: 1}, CacheSavings: research.ResearchCostUsage{SearchRequests: 2},
+			Runs: 2, BudgetStoppedRuns: 1, AsOf: at, AlgorithmVersion: research.ResearchCostControlAlgorithmV1,
+		}
+		service := &fakeService{result: app.Result{ResearchCostStats: &stats}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "stats"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Research cost stats") || !strings.Contains(stdout.String(), "3 searches") || !strings.Contains(stdout.String(), "1 stopped by budget") {
+			t.Fatalf("stats = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ResearchOperation != "stats" {
+			t.Fatalf("stats command = %+v", service.commands)
+		}
+	})
 	t.Run("status", func(t *testing.T) {
 		status := researchapp.ResearchCacheStatus{
 			AlgorithmVersion: researchapp.ResearchCacheAlgorithmV1,

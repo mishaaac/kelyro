@@ -1571,6 +1571,91 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE TRIGGER evidence_source_code_locator_update_guard BEFORE UPDATE ON evidence WHEN NEW.source_code_locator_json <> '' AND COALESCE((SELECT kind FROM sources WHERE id=NEW.source_id),'') <> 'source_code' BEGIN SELECT RAISE(ABORT, 'source code locator requires source_code source'); END`,
 		},
 	},
+	{
+		version: 39,
+		name:    "bounded research cost controls",
+		statements: []string{
+			`CREATE TABLE research_cost_controls (
+    run_id TEXT PRIMARY KEY REFERENCES research_runs(id) ON DELETE CASCADE,
+    run_search_limit INTEGER NOT NULL CHECK (run_search_limit >= 0),
+    run_fetch_limit INTEGER NOT NULL CHECK (run_fetch_limit >= 0),
+    run_bytes_limit INTEGER NOT NULL CHECK (run_bytes_limit >= 0),
+    run_provider_limit INTEGER NOT NULL CHECK (run_provider_limit >= 0),
+    run_model_limit INTEGER NOT NULL CHECK (run_model_limit >= 0),
+    topic_search_limit INTEGER NOT NULL CHECK (topic_search_limit >= run_search_limit),
+    topic_fetch_limit INTEGER NOT NULL CHECK (topic_fetch_limit >= run_fetch_limit),
+    topic_bytes_limit INTEGER NOT NULL CHECK (topic_bytes_limit >= run_bytes_limit),
+    topic_provider_limit INTEGER NOT NULL CHECK (topic_provider_limit >= run_provider_limit),
+    topic_model_limit INTEGER NOT NULL CHECK (topic_model_limit >= run_model_limit),
+    daily_search_limit INTEGER CHECK (daily_search_limit IS NULL OR daily_search_limit >= 0),
+    daily_fetch_limit INTEGER CHECK (daily_fetch_limit IS NULL OR daily_fetch_limit >= 0),
+    daily_bytes_limit INTEGER CHECK (daily_bytes_limit IS NULL OR daily_bytes_limit >= 0),
+    daily_provider_limit INTEGER CHECK (daily_provider_limit IS NULL OR daily_provider_limit >= 0),
+    daily_model_limit INTEGER CHECK (daily_model_limit IS NULL OR daily_model_limit >= 0),
+    cache_search_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_search_saved >= 0),
+    cache_fetch_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_fetch_saved >= 0),
+    cache_bytes_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_bytes_saved >= 0),
+    cache_provider_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_provider_saved >= 0),
+    cache_model_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_model_saved >= 0),
+    stopped_by_budget INTEGER NOT NULL DEFAULT 0 CHECK (stopped_by_budget IN (0,1)),
+    stop_scope TEXT NOT NULL DEFAULT '' CHECK (stop_scope IN ('','run','topic','daily')),
+    stop_reason TEXT NOT NULL DEFAULT '',
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version = 'research-cost-control-v1'),
+    CHECK ((stopped_by_budget = 0 AND stop_scope = '' AND stop_reason = '') OR
+           (stopped_by_budget = 1 AND stop_scope <> '' AND length(trim(stop_reason)) > 0)),
+    CHECK ((daily_search_limit IS NULL) = (daily_fetch_limit IS NULL) AND
+           (daily_search_limit IS NULL) = (daily_bytes_limit IS NULL) AND
+           (daily_search_limit IS NULL) = (daily_provider_limit IS NULL) AND
+           (daily_search_limit IS NULL) = (daily_model_limit IS NULL))
+)`,
+			`CREATE TABLE research_cost_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES research_cost_controls(run_id) ON DELETE CASCADE,
+    occurred_at TEXT NOT NULL CHECK (occurred_at GLOB '*Z'),
+    search_requests INTEGER NOT NULL CHECK (search_requests >= 0),
+    fetch_requests INTEGER NOT NULL CHECK (fetch_requests >= 0),
+    bytes INTEGER NOT NULL CHECK (bytes >= 0),
+    provider_api_calls INTEGER NOT NULL CHECK (provider_api_calls >= 0),
+    model_calls INTEGER NOT NULL CHECK (model_calls >= 0),
+    CHECK (search_requests + fetch_requests + bytes + provider_api_calls + model_calls > 0)
+)`,
+			`CREATE INDEX research_cost_events_run_idx ON research_cost_events (run_id,id)`,
+			`CREATE INDEX research_cost_events_day_idx ON research_cost_events (substr(occurred_at,1,10),id)`,
+			`CREATE TRIGGER research_cost_run_budget BEFORE INSERT ON research_cost_events
+WHEN EXISTS (
+    SELECT 1 FROM research_cost_controls c WHERE c.run_id=NEW.run_id AND (
+      COALESCE((SELECT SUM(search_requests) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.search_requests > c.run_search_limit OR
+      COALESCE((SELECT SUM(fetch_requests) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.fetch_requests > c.run_fetch_limit OR
+      COALESCE((SELECT SUM(bytes) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.bytes > c.run_bytes_limit OR
+      COALESCE((SELECT SUM(provider_api_calls) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.provider_api_calls > c.run_provider_limit OR
+      COALESCE((SELECT SUM(model_calls) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.model_calls > c.run_model_limit
+    )
+) BEGIN SELECT RAISE(ABORT, 'research cost budget exceeded'); END`,
+			`CREATE TRIGGER research_cost_topic_budget BEFORE INSERT ON research_cost_events
+WHEN EXISTS (
+    SELECT 1 FROM research_cost_controls c
+    JOIN research_runs current_run ON current_run.id=c.run_id
+    JOIN research_topics current_topic ON current_topic.request_id=current_run.request_id
+    WHERE c.run_id=NEW.run_id AND (
+      COALESCE((SELECT SUM(e.search_requests) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.search_requests > c.topic_search_limit OR
+      COALESCE((SELECT SUM(e.fetch_requests) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.fetch_requests > c.topic_fetch_limit OR
+      COALESCE((SELECT SUM(e.bytes) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.bytes > c.topic_bytes_limit OR
+      COALESCE((SELECT SUM(e.provider_api_calls) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.provider_api_calls > c.topic_provider_limit OR
+      COALESCE((SELECT SUM(e.model_calls) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.model_calls > c.topic_model_limit
+    )
+) BEGIN SELECT RAISE(ABORT, 'research cost budget exceeded'); END`,
+			`CREATE TRIGGER research_cost_daily_budget BEFORE INSERT ON research_cost_events
+WHEN EXISTS (
+    SELECT 1 FROM research_cost_controls c WHERE c.run_id=NEW.run_id AND c.daily_search_limit IS NOT NULL AND (
+      COALESCE((SELECT SUM(search_requests) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.search_requests > c.daily_search_limit OR
+      COALESCE((SELECT SUM(fetch_requests) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.fetch_requests > c.daily_fetch_limit OR
+      COALESCE((SELECT SUM(bytes) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.bytes > c.daily_bytes_limit OR
+      COALESCE((SELECT SUM(provider_api_calls) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.provider_api_calls > c.daily_provider_limit OR
+      COALESCE((SELECT SUM(model_calls) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.model_calls > c.daily_model_limit
+    )
+) BEGIN SELECT RAISE(ABORT, 'research cost budget exceeded'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

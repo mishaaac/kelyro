@@ -36,6 +36,7 @@ type Store struct {
 	drift           map[research.ID]research.DriftReport
 	impact          map[research.ID]research.ImpactReport
 	cache           map[string]application.CacheEntry
+	costEvents      map[research.ID][]costEvent
 }
 
 func New() *Store {
@@ -61,6 +62,7 @@ func New() *Store {
 		drift:           make(map[research.ID]research.DriftReport),
 		impact:          make(map[research.ID]research.ImpactReport),
 		cache:           make(map[string]application.CacheEntry),
+		costEvents:      make(map[research.ID][]costEvent),
 	}
 }
 
@@ -73,6 +75,7 @@ func (store *Store) Repositories() application.Repositories {
 		Citations:        citationRepository{store},
 		Provenance:       provenanceRepository{store},
 		Runs:             researchRunRepository{store},
+		Costs:            researchCostRepository{store},
 		TrustRegistry:    trustRegistryRepository{store},
 		SourceRegistry:   sourceRegistryRepository{store},
 		Releases:         releaseRepository{store},
@@ -162,6 +165,14 @@ func cloneRequest(request research.ResearchRequest) research.ResearchRequest {
 func cloneRun(run research.ResearchRun) research.ResearchRun {
 	clone := run
 	clone.CompletedAt = cloneTimestamp(run.CompletedAt)
+	if run.Cost != nil {
+		cost := *run.Cost
+		if run.Cost.Budget.Daily != nil {
+			daily := *run.Cost.Budget.Daily
+			cost.Budget.Daily = &daily
+		}
+		clone.Cost = &cost
+	}
 	return clone
 }
 

@@ -256,3 +256,7 @@ are documented in
 The cross-aggregate integrity scan, privacy review, large deterministic fixture,
 query-plan protections, and concurrent-write behavior are documented in
 [student-core-hardening.md](student-core-hardening.md).
+
+The provider-neutral budgets, cache-first/sufficiency decisions, atomic SQLite
+ledger, explicit stop reasons, and `research stats` view are documented in
+[research-cost-control-v1.md](research-cost-control-v1.md).

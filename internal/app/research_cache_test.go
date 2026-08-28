@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
@@ -33,6 +35,39 @@ func TestServiceCoordinatesResearchCacheStatusAndClear(t *testing.T) {
 	if factory.openRoots[0] != root || factory.openRoots[1] != root || cache.statusCalls != 1 || cache.clearCalls != 1 {
 		t.Fatalf("cache coordination roots=%v status=%d clear=%d", factory.openRoots, cache.statusCalls, cache.clearCalls)
 	}
+}
+
+func TestServiceCoordinatesResearchCostStats(t *testing.T) {
+	t.Parallel()
+	root := "/workspaces/research-stats"
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+	costs := &fakeResearchCostService{stats: researchapp.ResearchCostStats{
+		Used: research.ResearchCostUsage{SearchRequests: 2}, TodayUsed: research.ResearchCostUsage{SearchRequests: 1},
+		Runs: 2, BudgetStoppedRuns: 1, AsOf: at, AlgorithmVersion: research.ResearchCostControlAlgorithmV1,
+	}}
+	factory := &fakeSourceRegistryStoreFactory{costs: costs}
+	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
+		WithResearchStores(factory).WithResearchClock(func() time.Time { return at.Time() })
+	result, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "stats"})
+	if err != nil || result.ResearchCostStats == nil || result.ResearchCostStats.BudgetStoppedRuns != 1 || costs.statsCalls != 1 {
+		t.Fatalf("research stats = (%+v,%v), calls=%d", result, err, costs.statsCalls)
+	}
+}
+
+type fakeResearchCostService struct {
+	stats      researchapp.ResearchCostStats
+	statsCalls int
+}
+
+func (*fakeResearchCostService) Evaluate(context.Context, researchapp.CostControlRequest) (researchapp.CostControlDecision, error) {
+	return researchapp.CostControlDecision{}, nil
+}
+func (*fakeResearchCostService) Metadata(context.Context, research.ID) (research.ResearchCostMetadata, error) {
+	return research.ResearchCostMetadata{}, nil
+}
+func (service *fakeResearchCostService) Stats(context.Context, research.Timestamp) (researchapp.ResearchCostStats, error) {
+	service.statsCalls++
+	return service.stats, nil
 }
 
 type fakeResearchCacheFactory struct {

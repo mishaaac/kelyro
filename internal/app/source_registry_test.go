@@ -68,19 +68,21 @@ type fakeSourceRegistryStoreFactory struct {
 	registry   researchapp.SourceRegistryService
 	provenance researchapp.ProvenanceService
 	freshness  researchapp.FreshnessService
+	costs      researchapp.ResearchCostService
 	openRoot   string
 	closed     int
 }
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{registry: factory.registry, provenance: factory.provenance, freshness: factory.freshness, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{registry: factory.registry, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
 	registry   researchapp.SourceRegistryService
 	provenance researchapp.ProvenanceService
 	freshness  researchapp.FreshnessService
+	costs      researchapp.ResearchCostService
 	close      func()
 }
 
@@ -93,6 +95,8 @@ func (store *fakeSourceRegistryStore) Provenance() researchapp.ProvenanceService
 func (store *fakeSourceRegistryStore) Freshness() researchapp.FreshnessService {
 	return store.freshness
 }
+func (store *fakeSourceRegistryStore) Research() researchapp.ResearchService  { return nil }
+func (store *fakeSourceRegistryStore) Costs() researchapp.ResearchCostService { return store.costs }
 func (store *fakeSourceRegistryStore) Close() error {
 	store.close()
 	return nil

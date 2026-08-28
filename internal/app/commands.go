@@ -114,6 +114,7 @@ type Command struct {
 	ReviewsDue              bool
 	SourceRegistryOperation string
 	ResearchCacheOperation  string
+	ResearchOperation       string
 	SourceRegistryID        research.ID
 	ProvenanceClaimID       research.ClaimID
 	Verbose                 bool
@@ -151,6 +152,7 @@ type Result struct {
 	StaleSources          []researchapp.FreshnessRecord
 	ResearchCacheStatus   *researchapp.ResearchCacheStatus
 	ResearchCacheCleared  *researchapp.ResearchCacheClearResult
+	ResearchCostStats     *researchapp.ResearchCostStats
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -308,7 +310,7 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 		return service.executeSourceRegistry(ctx, command)
 	}
 	if command.Action == ActionResearch {
-		return service.executeResearchCache(ctx, command)
+		return service.executeResearch(ctx, command)
 	}
 	if command.Action == ActionStatus || command.Action == ActionProgress || command.Action == ActionRoadmap || command.Action == ActionToday {
 		return service.executeDashboard(ctx, command)

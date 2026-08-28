@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 33
-Last completed step: 32
+Current step: 34
+Last completed step: 33
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2529,3 +2529,69 @@ Release: unreleased
 - El Paso 33 es el siguiente paso pendiente y requiere autorización explícita.
 - No implementar Research Cost Control ni pasos posteriores antes de esa
   autorización.
+
+## Step 33 — Research Cost Control
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Política provider-neutral `research-cost-control-v1` sobre cinco dimensiones:
+  search requests, fetch requests, bytes, provider API calls y future model
+  calls, sin asociar dinero ni precios de vendors.
+- Budget v1 explícito por run y tópico, con límite UTC diario opcional; el
+  default limita cada run a 6 búsquedas, 12 fetches, 8 MiB y 18 provider calls,
+  y prohíbe model calls no autorizadas.
+- `ResearchRun.Cost` con budget, uso acumulado, ahorro por cache válido y stop
+  de budget con scope/reason visibles; runs legacy sin metadata siguen siendo
+  válidos y legibles.
+- Servicio de aplicación que aplica cache-before-network, detiene trabajo si la
+  verificación ya está satisfecha o bastan las fuentes primarias, y reserva
+  unidades antes de permitir una llamada externa.
+- Migration forward-only v39 con controles por run y ledger append-only; los
+  triggers SQLite impiden atómicamente exceder límites de run, tópico o día.
+- Adapter memory equivalente, stats agregadas all-time/today/cache savings y
+  comando humano `kelyro research stats`.
+- Contrato, orden de decisión, concurrencia, compatibilidad y límites
+  documentados en `docs/architecture/research-cost-control-v1.md`.
+
+### Decisions
+
+- Cost Control autoriza o rechaza trabajo, pero no hace network I/O; discovery,
+  fetch, releases y futuros providers siguen siendo adapters externos.
+- Las unidades son genéricas para evitar acoplar el dominio a vendors o precios;
+  un model call tiene budget cero por defecto hasta que exista autorización e
+  integración explícita.
+- Un tópico lógico comparte budget por subject/domain/technology aunque use
+  ResearchRequest IDs distintos; el budget diario opcional usa fecha UTC.
+- El ledger se inserta con triggers en el mismo statement que valida el budget,
+  por lo que una reserva rechazada no deja uso parcial ni depende de un check
+  application-level susceptible a carreras.
+- Una cache válida registra unidades ahorradas; stops por evidencia suficiente
+  no se presentan falsamente como ahorro de cache.
+- No se añadió Trigger Policy, scheduler, nuevo provider, investigación CLI de
+  tópico, Curriculum Compiler ni cambios de Student Core/mastery.
+
+### Verification
+
+- Tests de validación del budget, metadata y stop reason, además de decisiones
+  cache-first, verification satisfied, primary sufficient y run budget.
+- Test SQLite de dos runs concurrentemente contables contra un topic budget:
+  la segunda reserva se rechaza sin sumar unidades y conserva razón visible.
+- Tests application/CLI de stats, today usage, cache savings, routing y output.
+- `GOCACHE=/tmp/kelyro-i03-step33-test-gocache go test ./...` y `go vet ./...`
+  con cache aislada completados antes del quality gate.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache y
+  `GOTMPDIR` bajo `/home/mishaaac`: tests, E2E, vet, race, build y smokes CLI;
+  SQLite race completó en 455.797 s.
+- El primer intento de quality agotó la cuota tmpfs; se limpiaron únicamente
+  los caches Go creados para el paso y el gate se repitió completo en disco.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 34 está autorizado a continuación por el usuario.
+- Trigger Policy debe producir decisión y queue metadata únicamente; no añadir
+  scheduler externo ni iniciar todavía el workflow CLI del Paso 35.

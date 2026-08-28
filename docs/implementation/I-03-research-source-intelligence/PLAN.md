@@ -2220,7 +2220,7 @@ feat(cache): add offline research cache
 
 ## Paso 33 — Implementar Research Cost Control
 
-- [ ] Paso 33 completado
+- [x] Paso 33 completado
 
 ### Objetivo
 

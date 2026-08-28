@@ -63,6 +63,71 @@ type ResearchRunRepository interface {
 	UpdateRun(context.Context, research.ResearchRun) error
 }
 
+type CostReservation struct {
+	RunID research.ID
+	Usage research.ResearchCostUsage
+	At    research.Timestamp
+}
+
+func (reservation CostReservation) Validate() error {
+	if err := reservation.RunID.Validate(); err != nil {
+		return fmt.Errorf("cost reservation run: %w", err)
+	}
+	if err := reservation.Usage.Validate(); err != nil {
+		return err
+	}
+	if reservation.Usage.IsZero() {
+		return fmt.Errorf("cost reservation usage is empty")
+	}
+	return reservation.At.Validate()
+}
+
+type CostReservationResult struct {
+	Allowed  bool
+	Scope    research.ResearchBudgetScope
+	Reason   string
+	Metadata research.ResearchCostMetadata
+}
+
+type ResearchCostStats struct {
+	Used              research.ResearchCostUsage
+	CacheSavings      research.ResearchCostUsage
+	TodayUsed         research.ResearchCostUsage
+	Runs              int
+	BudgetStoppedRuns int
+	AsOf              research.Timestamp
+	AlgorithmVersion  string
+}
+
+func (stats ResearchCostStats) Validate() error {
+	if err := stats.Used.Validate(); err != nil {
+		return err
+	}
+	if err := stats.CacheSavings.Validate(); err != nil {
+		return err
+	}
+	if err := stats.TodayUsed.Validate(); err != nil {
+		return err
+	}
+	if stats.Runs < 0 || stats.BudgetStoppedRuns < 0 || stats.BudgetStoppedRuns > stats.Runs {
+		return fmt.Errorf("research cost stats run counts are invalid")
+	}
+	if err := stats.AsOf.Validate(); err != nil {
+		return err
+	}
+	if stats.AlgorithmVersion != research.ResearchCostControlAlgorithmV1 {
+		return fmt.Errorf("research cost stats algorithm must be %q", research.ResearchCostControlAlgorithmV1)
+	}
+	return nil
+}
+
+type ResearchCostRepository interface {
+	Reserve(context.Context, CostReservation) (CostReservationResult, error)
+	RecordCacheSavings(context.Context, CostReservation) error
+	Metadata(context.Context, research.ID) (research.ResearchCostMetadata, error)
+	Stats(context.Context, research.Timestamp) (ResearchCostStats, error)
+}
+
 type TrustRegistryRepository interface {
 	SaveProfile(context.Context, research.AuthorityProfile) error
 	GetProfile(context.Context, research.ID) (research.AuthorityProfile, error)
@@ -242,6 +307,7 @@ type Repositories struct {
 	Citations        CitationRepository
 	Provenance       ProvenanceRepository
 	Runs             ResearchRunRepository
+	Costs            ResearchCostRepository
 	TrustRegistry    TrustRegistryRepository
 	SourceRegistry   SourceRegistryRepository
 	Releases         ReleaseRepository
@@ -953,6 +1019,52 @@ type ResearchService interface {
 	UpdateRun(context.Context, research.ResearchRun) error
 }
 
+type CostControlReason string
+
+const (
+	CostControlAllowed               CostControlReason = "within_budget"
+	CostControlUseValidCache         CostControlReason = "valid_cache_available"
+	CostControlVerificationSatisfied CostControlReason = "verification_requirements_satisfied"
+	CostControlPrimarySufficient     CostControlReason = "primary_sources_sufficient"
+	CostControlBudgetExceeded        CostControlReason = "budget_exceeded"
+)
+
+type CostControlRequest struct {
+	RunID                  research.ID
+	ProposedUsage          research.ResearchCostUsage
+	At                     research.Timestamp
+	ValidCacheAvailable    bool
+	VerificationSatisfied  bool
+	PrimarySources         int
+	RequiredPrimarySources int
+}
+
+func (request CostControlRequest) Validate() error {
+	reservation := CostReservation{RunID: request.RunID, Usage: request.ProposedUsage, At: request.At}
+	if err := reservation.Validate(); err != nil {
+		return err
+	}
+	if request.PrimarySources < 0 || request.RequiredPrimarySources < 0 {
+		return fmt.Errorf("research primary source counts are negative")
+	}
+	return nil
+}
+
+type CostControlDecision struct {
+	NetworkAllowed  bool
+	BudgetStopped   bool
+	Reason          CostControlReason
+	UserExplanation string
+	Scope           research.ResearchBudgetScope
+	Metadata        research.ResearchCostMetadata
+}
+
+type ResearchCostService interface {
+	Evaluate(context.Context, CostControlRequest) (CostControlDecision, error)
+	Metadata(context.Context, research.ID) (research.ResearchCostMetadata, error)
+	Stats(context.Context, research.Timestamp) (ResearchCostStats, error)
+}
+
 type DiscoveryService interface {
 	Search(context.Context, ResearchMode, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
@@ -1048,6 +1160,8 @@ type SourceRegistryStore interface {
 	Registry() SourceRegistryService
 	Provenance() ProvenanceService
 	Freshness() FreshnessService
+	Research() ResearchService
+	Costs() ResearchCostService
 	Close() error
 }
 
