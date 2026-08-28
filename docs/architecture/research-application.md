@@ -36,7 +36,7 @@ Persistence is divided by aggregate or durable output:
 
 | Port | Responsibility |
 | --- | --- |
-| `SourceRepository` | Stable source identities, canonical locators, metadata, optional specialized technical details, and explicit temporal-scope classification. |
+| `SourceRepository` | Stable source identities, canonical locators, metadata, optional specialized/video details, and explicit temporal-scope classification. |
 | `SnapshotRepository` | Immutable fetch snapshots ordered by `fetched_at`. |
 | `EvidenceRepository` | Immutable evidence tied to a source and snapshot. |
 | `ClaimRepository` | Structured claims with validated source/evidence relationships. |
@@ -223,6 +223,11 @@ return defensive deep copies. No new external provider or network path is
 introduced. The complete contract is in
 [specialized-technical-sources-v1.md](specialized-technical-sources-v1.md).
 
+Step 29 keeps the same ports while Source gains optional host-neutral video
+metadata. Memory and SQLite clone timestamp deep links defensively and persist
+only bounded metadata/availability, never transcript text. The complete
+contract is in [video-learning-resources-v1.md](video-learning-resources-v1.md).
+
 ## Error taxonomy
 
 Every error crossing the application boundary has one stable kind:
@@ -258,8 +263,9 @@ mutex-protected maps. It provides:
   source/deprecation/evidence, source/verification, claim/source/conflict, and
   run/claim/source/conflict/bundle, and drift/impact
   relationship checks;
-- defensive copies for pointer, slice, byte, and nested specialized-source
-  fields so callers cannot mutate stored state through returned values;
+- defensive copies for pointer, slice, byte, nested specialized-source, and
+  video deep-link fields so callers cannot mutate stored state through returned
+  values;
 - support for multiple runs belonging to one immutable request.
 
 The fake is a test adapter, not a persistence format, cache implementation, or

@@ -39,7 +39,7 @@ The base authority order is:
 - B: official documentation, release notes, official blogs, package
   references, official tutorials, and source code;
 - C: issue trackers, papers, and book references;
-- D: community articles/forums and videos;
+- D: community articles/forums and community or legacy videos;
 - E: unclassified or other sources.
 
 Step 27 extends this mapping for the new Playground kind using its reviewed
@@ -47,6 +47,12 @@ specialized affiliation: official Playground is B and community Playground is
 D. The policy emits `authority.playground_official` or
 `authority.playground_community`. A Playground remains supporting material;
 interactivity never promotes it to normative or primary evidence.
+
+Step 29 uses explicit video affiliation: official video is tier B and community
+video is tier D, with `authority.video_official` or
+`authority.video_community`. Video remains supplementary even at tier B;
+official conference publishing improves contextual authority but does not make
+a recording normative or a transcript primary evidence.
 
 Use cases refine that order:
 
@@ -118,6 +124,7 @@ corroboration.<value>
 metadata.complete | metadata.incomplete
 authority.historical_primary
 authority.playground_official | authority.playground_community
+authority.video_official | authority.video_community
 community.supplementary | community.recognized_supplementary | community.context_only
 security.independent_corroboration_required
 registry.<status>

@@ -128,6 +128,9 @@ func cloneSource(source research.Source) research.Source {
 	if source.Specialization != nil {
 		clone.Specialization = source.Specialization.Clone()
 	}
+	if source.Video != nil {
+		clone.Video = source.Video.Clone()
+	}
 	return clone
 }
 

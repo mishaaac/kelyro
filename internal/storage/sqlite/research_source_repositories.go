@@ -34,15 +34,15 @@ func (repository *researchSourceRepository) Create(ctx context.Context, source r
 			return researchConflict(operation)
 		}
 	}
-	storedKind, specializedKind, specializedJSON, err := sourceStorageRepresentation(source)
+	storedKind, specializedKind, specializedJSON, videoJSON, err := sourceStorageRepresentation(source)
 	if err != nil {
 		return researchInvalid(operation, err)
 	}
 	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO sources
-(id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at,temporal_scope,specialized_kind,specialized_metadata_json)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, source.ID.String(), storedKind, source.Locator.String(), optionalVersionText(source.Version),
+(id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at,temporal_scope,specialized_kind,specialized_metadata_json,video_metadata_json)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, source.ID.String(), storedKind, source.Locator.String(), optionalVersionText(source.Version),
 		source.Metadata.Title, source.Metadata.Publisher, source.Metadata.Language, optionalTimestampText(source.Metadata.PublishedAt),
-		optionalTimestampText(source.Metadata.UpdatedAt), timestampText(source.CreatedAt), string(source.TemporalScope), specializedKind, specializedJSON)
+		optionalTimestampText(source.Metadata.UpdatedAt), timestampText(source.CreatedAt), string(source.TemporalScope), specializedKind, specializedJSON, videoJSON)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -134,12 +134,12 @@ func (repository *researchSourceRepository) SetTemporalScope(ctx context.Context
 	return nil
 }
 
-const researchSourceSelect = `SELECT id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at,temporal_scope,specialized_kind,specialized_metadata_json FROM sources`
+const researchSourceSelect = `SELECT id,kind,locator,version,title,publisher,language,published_at,updated_at,created_at,temporal_scope,specialized_kind,specialized_metadata_json,video_metadata_json FROM sources`
 
 func scanResearchSource(row rowScanner, operation string) (research.Source, error) {
-	var idValue, storedKind, locatorValue, title, publisher, language, created, temporalScope, specializedJSON string
+	var idValue, storedKind, locatorValue, title, publisher, language, created, temporalScope, specializedJSON, videoJSON string
 	var version, published, updated, specializedKind sql.NullString
-	if err := row.Scan(&idValue, &storedKind, &locatorValue, &version, &title, &publisher, &language, &published, &updated, &created, &temporalScope, &specializedKind, &specializedJSON); err != nil {
+	if err := row.Scan(&idValue, &storedKind, &locatorValue, &version, &title, &publisher, &language, &published, &updated, &created, &temporalScope, &specializedKind, &specializedJSON, &videoJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.Source{}, researchNotFound(operation)
 		}
@@ -185,26 +185,42 @@ func scanResearchSource(row rowScanner, operation string) (research.Source, erro
 	} else if specializedJSON != "" {
 		return research.Source{}, researchPersistence(operation, fmt.Errorf("stored source has metadata without a specialized kind"))
 	}
-	source := research.Source{ID: id, Kind: kind, Locator: locator, Version: versionValue, TemporalScope: research.SourceTemporalScope(temporalScope), Metadata: research.SourceMetadata{Title: title, Publisher: publisher, Language: language, PublishedAt: publishedAt, UpdatedAt: updatedAt}, Specialization: specialization, CreatedAt: createdAt}
+	var video *research.VideoSupplementMetadata
+	if videoJSON != "" {
+		parsed, parseErr := research.ParseVideoSupplementMetadata([]byte(videoJSON))
+		if parseErr != nil {
+			return research.Source{}, researchPersistence(operation, fmt.Errorf("invalid stored video supplement metadata: %w", parseErr))
+		}
+		video = parsed.Clone()
+	}
+	source := research.Source{ID: id, Kind: kind, Locator: locator, Version: versionValue, TemporalScope: research.SourceTemporalScope(temporalScope), Metadata: research.SourceMetadata{Title: title, Publisher: publisher, Language: language, PublishedAt: publishedAt, UpdatedAt: updatedAt}, Specialization: specialization, Video: video, CreatedAt: createdAt}
 	if err := source.Validate(); err != nil {
 		return research.Source{}, researchPersistence(operation, fmt.Errorf("invalid stored source: %w", err))
 	}
 	return source, nil
 }
 
-func sourceStorageRepresentation(source research.Source) (string, any, string, error) {
+func sourceStorageRepresentation(source research.Source) (string, any, string, string, error) {
+	videoJSON := ""
+	if source.Video != nil {
+		encoded, err := research.EncodeVideoSupplementMetadata(*source.Video)
+		if err != nil {
+			return "", nil, "", "", err
+		}
+		videoJSON = string(encoded)
+	}
 	if source.Specialization == nil {
-		return string(source.Kind), nil, "", nil
+		return string(source.Kind), nil, "", videoJSON, nil
 	}
 	encoded, err := research.EncodeSourceSpecialization(*source.Specialization)
 	if err != nil {
-		return "", nil, "", err
+		return "", nil, "", "", err
 	}
 	storedKind := source.Kind
 	if source.Kind == research.SourcePlayground {
 		storedKind = research.SourceOther
 	}
-	return string(storedKind), string(source.Kind), string(encoded), nil
+	return string(storedKind), string(source.Kind), string(encoded), videoJSON, nil
 }
 
 type researchSnapshotRepository struct {

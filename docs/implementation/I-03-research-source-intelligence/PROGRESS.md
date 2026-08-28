@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 29
-Last completed step: 28
+Current step: 30
+Last completed step: 29
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2209,5 +2209,79 @@ Release: unreleased
 ### Notes for next session
 
 - El Paso 29 está autorizado a continuación por el usuario.
+- No implementar Source Diversity ni pasos posteriores antes de su autorización
+  independiente.
+
+## Step 29 — Video Supplement metadata
+
+Status: completed
+Date: 2026-08-27
+Release: unreleased
+
+### Delivered
+
+- Contrato host-neutral y versionado `video-supplement-metadata-v1` para video
+  supplements, integrado como metadata opcional de `SourceVideo`.
+- Normalización sin duplicación: video URL, title, publisher y published_at
+  permanecen en Source; channel, duration, description acotada,
+  official/community, transcript availability y deep links temporales viven en
+  el record específico.
+- Transcript availability cerrada como available/partial/unavailable/unknown;
+  el dominio, JSON y SQLite no contienen ningún campo de transcript text.
+- Hasta 32 deep links ordenados, únicos y dentro de duration. Los locators son
+  aportados por adapters y `DeepLinkAt` sólo devuelve coincidencias explícitas,
+  sin construir sintaxis específica de un host.
+- JSON canónico estricto de hasta 16 KiB, rechazo de unknown fields/trailing
+  data y clon defensivo de la colección de deep links.
+- Trust Policy asigna tier B a video official y D a community/legacy, pero
+  mantiene todo video como supplement; emite reasons
+  `authority.video_official/community`.
+- Further Reading exige que el label community coincida con la afiliación
+  revisada; Community Resource Policy rechaza un official video presentado
+  como community conference talk. Freshness conserva TTL de 60 días.
+- Migración forward-only SQLite v37 añade `video_metadata_json` acotado sólo
+  para el kind físico video; filas legacy permanecen con metadata vacía y sin
+  estados inventados.
+- Contrato, persistencia e integraciones documentados en
+  `docs/architecture/video-learning-resources-v1.md`, con índices, dominio,
+  application, trust, freshness, Further Reading y Community Policy
+  sincronizados.
+
+### Decisions
+
+- Title/publisher/published_at no se duplican dentro del JSON especializado;
+  una fuente v1 exige publisher, published_at y locator coincidente.
+- Metadata video sigue opcional para compatibilidad legacy. Vacío significa
+  desconocido/no clasificado, no transcript unavailable ni community.
+- Official mejora autoridad contextual hasta tier B, pero nunca cambia el rol
+  suplementario ni vuelve el transcript evidencia primaria.
+- Deep-link syntax queda fuera del domain; cada adapter declara el locator
+  exacto asociado al timestamp conocido.
+- Description, duration, deep links y JSON tienen límites explícitos; no se
+  almacena media ni contenido web crudo.
+- No se añadió provider de video, network access, transcript fetch, playback
+  CLI/TUI, popularity ranking, Source Diversity, Curriculum Compiler ni cambio
+  de Student Core/mastery.
+
+### Verification
+
+- Tests de codec canónico host-neutral, vocabulario transcript, límites,
+  relaciones Source/video, deep links explícitos y clon defensivo.
+- Tests de Trust official/community, Further Reading label, Community Policy,
+  memory repository, migración legacy, constraints y round-trip SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step29-target-gocache go test
+  ./internal/research/... ./internal/storage/sqlite` y `go vet` dirigido.
+- Suite completa `go test ./...` y `go vet ./...`.
+- Cross-compile de test binaries de domain, application, trust y SQLite para
+  Windows amd64 y Darwin amd64/arm64 con `CGO_ENABLED=0`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 892.329 s.
+- Auditoría sin provider específico en el domain, `gofmt` aplicado y
+  `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 30 es el siguiente paso pendiente y requiere autorización explícita.
 - No implementar Source Diversity ni pasos posteriores antes de su autorización
   independiente.

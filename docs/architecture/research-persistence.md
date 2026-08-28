@@ -9,9 +9,10 @@ and evidence lookup. Step 16 adds v29 for Authority Profile freshness TTL hints,
 Step 17 adds v30 for refresh scheduling metadata, Step 21 adds v31 for versioned
 deprecation conclusions, Step 22 adds v32 for source temporal scopes, and Step
 23 adds v33 for versioned conflict outcomes, Step 24 adds v34 for multi-source
-verification outputs, Step 25 adds v35 for versioned Source Bundles, and Step
-27 adds v36 for specialized technical source metadata. The 22 migrations that
-shipped Student Core and migrations v23–v35 remain unchanged, and an I-02
+verification outputs, Step 25 adds v35 for versioned Source Bundles, Step 27
+adds v36 for specialized technical source metadata, and Step 29 adds v37 for
+bounded video supplement metadata. The 22 migrations that shipped Student Core
+and migrations v23–v36 remain unchanged, and an I-02
 database is upgraded without rewriting its learning state.
 
 ## Adapter boundary
@@ -143,6 +144,14 @@ sources table. Adapter reads validate and reverse that projection. Constraints
 reject metadata without a recognized specialized kind, non-object or oversize
 JSON, and inconsistent physical/specialized kind pairs.
 
+Migration 37 adds bounded `video_metadata_json` to `sources`. Existing rows,
+including legacy video Sources, receive empty metadata and remain readable.
+Non-empty values must be JSON objects of at most 16 KiB and may appear only on
+the physical `video` kind. The repository parses canonical v1 JSON and validates
+the complete Source relationship on read; invalid stored metadata is a
+persistence failure. Title, publisher, and published_at retain their normalized
+columns, and no transcript text column exists.
+
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and
 opaque classification is reconstructed deterministically after reads. Existing
@@ -178,6 +187,11 @@ Step 27 writes a Source and its optional specialization in one row, preserving
 the existing repository transaction boundary. Canonical metadata is capped at
 8 KiB and revalidated on every read. Legacy Package Reference and Standard rows
 without details remain readable; Playground requires complete v1 metadata.
+
+Step 29 uses the same Source repository boundary for optional video metadata.
+The insert is atomic with the Source row, JSON is capped at 16 KiB, deep links
+are bounded, and memory/SQLite reads return defensive copies. Empty v37 values
+mean legacy/unknown metadata rather than a fabricated transcript state.
 
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.

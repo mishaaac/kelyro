@@ -1555,6 +1555,13 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`CREATE INDEX sources_specialized_kind_idx ON sources (specialized_kind, id)`,
 		},
 	},
+	{
+		version: 37,
+		name:    "video supplement metadata",
+		statements: []string{
+			`ALTER TABLE sources ADD COLUMN video_metadata_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(video_metadata_json AS BLOB)) <= 16384 AND (video_metadata_json = '' OR (kind = 'video' AND json_valid(video_metadata_json) AND json_type(video_metadata_json) = 'object')))`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

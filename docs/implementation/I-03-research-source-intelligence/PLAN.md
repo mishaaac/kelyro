@@ -2057,7 +2057,7 @@ feat(sources): add community resource trust policy
 
 ## Paso 29 — Implementar Video Supplement metadata
 
-- [ ] Paso 29 completado
+- [x] Paso 29 completado
 
 ### Objetivo
 
@@ -3208,7 +3208,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 26 — Further Reading
 - [x] Paso 27 — Playground/Package/Standards
 - [x] Paso 28 — Community Resources
-- [ ] Paso 29 — Video Supplements
+- [x] Paso 29 — Video Supplements
 - [ ] Paso 30 — Source Diversity
 - [ ] Paso 31 — Real Source Code
 - [ ] Paso 32 — Offline Research Cache

@@ -191,6 +191,31 @@ func TestPolicyV1UsesExplicitPlaygroundAffiliationWithoutMakingItPrimary(t *test
 	assertReason(t, communityDecision, "authority.playground_community")
 }
 
+func TestPolicyV1UsesVideoAffiliationButAlwaysKeepsVideoSupplementary(t *testing.T) {
+	t.Parallel()
+	official := trustTestInput(t, research.SourceVideo)
+	official.Source.Video = trustVideoMetadata(official.Source.Locator, research.SourceAffiliationOfficial)
+	communityVideo := trustTestInput(t, research.SourceVideo)
+	communityVideo.Source.Video = trustVideoMetadata(communityVideo.Source.Locator, research.SourceAffiliationCommunity)
+
+	officialDecision, err := (PolicyV1{}).Evaluate(official)
+	if err != nil {
+		t.Fatal(err)
+	}
+	communityDecision, err := (PolicyV1{}).Evaluate(communityVideo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if officialDecision.Tier != research.AuthorityTierB || officialDecision.State != research.TrustAcceptedSupplement {
+		t.Fatalf("official video decision = (%s,%s)", officialDecision.State, officialDecision.Tier)
+	}
+	if communityDecision.Tier != research.AuthorityTierD || communityDecision.State != research.TrustAcceptedSupplement {
+		t.Fatalf("community video decision = (%s,%s)", communityDecision.State, communityDecision.Tier)
+	}
+	assertReason(t, officialDecision, "authority.video_official")
+	assertReason(t, communityDecision, "authority.video_community")
+}
+
 func TestPolicyV1ConsumesCommunityPolicyWithoutMakingItNormative(t *testing.T) {
 	t.Parallel()
 	input := trustTestInput(t, research.SourceCode)
@@ -360,6 +385,14 @@ func playgroundSpecialization(t *testing.T, affiliation research.SourceAffiliati
 		Playground: &research.PlaygroundDetails{
 			Interactive: true, LanguageRuntime: "Portable runtime", Affiliation: affiliation, ShareableLocator: locator,
 		},
+	}
+}
+
+func trustVideoMetadata(locator research.SourceLocator, affiliation research.SourceAffiliation) *research.VideoSupplementMetadata {
+	return &research.VideoSupplementMetadata{
+		VideoLocator: locator, Channel: "Portable Conference", DurationSeconds: 600,
+		Affiliation: affiliation, TranscriptAvailability: research.TranscriptUnknown,
+		AlgorithmVersion: research.VideoSupplementMetadataV1,
 	}
 }
 

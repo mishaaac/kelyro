@@ -172,6 +172,12 @@ func (candidate Candidate) Validate() error {
 			return fmt.Errorf("playground community label must match its reviewed affiliation")
 		}
 	}
+	if candidate.Source.Kind == research.SourceVideo && candidate.Source.Video != nil {
+		communityVideo := candidate.Source.Video.Affiliation == research.SourceAffiliationCommunity
+		if candidate.Community != communityVideo {
+			return fmt.Errorf("video community label must match its reviewed affiliation")
+		}
+	}
 	if candidate.Category == CategoryCommunityExplanation && !candidate.Community {
 		return fmt.Errorf("community explanation must be explicitly labeled")
 	}

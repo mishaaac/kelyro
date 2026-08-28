@@ -162,6 +162,10 @@ func (input Input) Validate() error {
 	if !kindSupportsType(input.Source.Kind, input.ResourceType) {
 		return fmt.Errorf("source kind %q does not support community resource type %q", input.Source.Kind, input.ResourceType)
 	}
+	if input.ResourceType == ResourceConferenceTalk && input.Source.Video != nil &&
+		input.Source.Video.Affiliation != research.SourceAffiliationCommunity {
+		return fmt.Errorf("community conference talk requires community video affiliation")
+	}
 	if err := input.Contribution.Validate(); err != nil {
 		return err
 	}

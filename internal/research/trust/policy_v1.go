@@ -256,7 +256,12 @@ func authorityTier(useCase UseCase, source research.Source) research.AuthorityTi
 		return research.AuthorityTierB
 	case research.SourceIssueTracker, research.SourcePaper, research.SourceBookReference:
 		return research.AuthorityTierC
-	case research.SourceCommunityArticle, research.SourceCommunityForum, research.SourceVideo:
+	case research.SourceCommunityArticle, research.SourceCommunityForum:
+		return research.AuthorityTierD
+	case research.SourceVideo:
+		if source.Video != nil && source.Video.Affiliation == research.SourceAffiliationOfficial {
+			return research.AuthorityTierB
+		}
 		return research.AuthorityTierD
 	case research.SourcePlayground:
 		if source.Specialization != nil && source.Specialization.Playground != nil &&
@@ -312,7 +317,7 @@ func decide(input Input, tier research.AuthorityTier, completeMetadata bool) (re
 	if requiresVerification {
 		return research.TrustRequiresVerification, reason("decision.requires_verification", "The source cannot sustain the claim until the flagged dimensions are verified.")
 	}
-	if tier == research.AuthorityTierC || tier == research.AuthorityTierD || input.Directness != DirectnessPrimary {
+	if input.Source.Kind == research.SourceVideo || tier == research.AuthorityTierC || tier == research.AuthorityTierD || input.Directness != DirectnessPrimary {
 		return research.TrustAcceptedSupplement, reason("decision.accepted_as_supplement", "The source is appropriate only as supporting evidence.")
 	}
 	return research.TrustAccepted, reason("decision.accepted", "The source is appropriate to sustain knowledge in this context.")
@@ -360,6 +365,9 @@ func dimensionReasons(input Input, tier research.AuthorityTier) []research.Trust
 	if input.Source.Kind == research.SourcePlayground {
 		affiliation := input.Source.Specialization.Playground.Affiliation
 		reasons = append(reasons, reason("authority.playground_"+string(affiliation), "Playground affiliation is explicit specialized metadata; interactivity does not make it primary evidence."))
+	}
+	if input.Source.Kind == research.SourceVideo && input.Source.Video != nil {
+		reasons = append(reasons, reason("authority.video_"+string(input.Source.Video.Affiliation), "Video affiliation is explicit metadata; a video remains supplementary even when official."))
 	}
 	if input.Community != nil {
 		reasons = append(reasons, reason("community."+string(input.Community.Role), "Community Resource Policy keeps the resource non-normative and explicitly attributed."))

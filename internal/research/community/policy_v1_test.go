@@ -110,6 +110,25 @@ func TestPolicyV1PopularityDoesNotAffectAuthorityOrRole(t *testing.T) {
 	assertCommunityReason(t, highResult, ReasonPopularityIgnored)
 }
 
+func TestPolicyV1RejectsOfficialVideoAsCommunityConferenceTalk(t *testing.T) {
+	t.Parallel()
+	input := communityInput(t, ResourceConferenceTalk, research.SourceVideo)
+	published := input.Source.CreatedAt
+	input.Source.Metadata.PublishedAt = &published
+	input.Source.Video = &research.VideoSupplementMetadata{
+		VideoLocator: input.Source.Locator, Channel: "Official Sessions", DurationSeconds: 300,
+		Affiliation: research.SourceAffiliationOfficial, TranscriptAvailability: research.TranscriptUnknown,
+		AlgorithmVersion: research.VideoSupplementMetadataV1,
+	}
+	if _, err := (PolicyV1{}).Evaluate(input); err == nil || !strings.Contains(err.Error(), "community video affiliation") {
+		t.Fatalf("official conference talk error = %v", err)
+	}
+	input.Source.Video.Affiliation = research.SourceAffiliationCommunity
+	if _, err := (PolicyV1{}).Evaluate(input); err != nil {
+		t.Fatalf("community conference talk error = %v", err)
+	}
+}
+
 func TestPolicyV1RejectsMismatchedKindsProfilesAndInvalidOutput(t *testing.T) {
 	t.Parallel()
 	input := communityInput(t, ResourceRepositoryExample, research.SourceCommunityArticle)

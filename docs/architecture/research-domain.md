@@ -89,6 +89,14 @@ fields without assuming one ecosystem. Unknown optional versions/revisions and
 links remain absent rather than invented. The complete contract is documented
 in [specialized-technical-sources-v1.md](specialized-technical-sources-v1.md).
 
+Step 29 adds optional `video-supplement-metadata-v1` to `SourceVideo`. URL,
+title, publisher, and published_at remain normalized in Source; video-specific
+channel, duration, bounded description, affiliation, transcript availability,
+and explicit adapter-supplied timestamp links are validated separately. The
+contract intentionally has no transcript text or provider-specific URL logic.
+The complete contract is documented in
+[video-learning-resources-v1.md](video-learning-resources-v1.md).
+
 Step 22 adds the independent temporal scopes `current`, `historical`,
 `version_bound`, and `archived`. A version-bound source requires an opaque
 version. The pure `source-temporal-policy-v1` model decides only whether a

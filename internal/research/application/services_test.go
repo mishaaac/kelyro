@@ -109,6 +109,40 @@ func TestMemorySourceRepositoryDefensivelyCopiesSpecializedMetadata(t *testing.T
 	}
 }
 
+func TestMemorySourceRepositoryDefensivelyCopiesVideoMetadata(t *testing.T) {
+	t.Parallel()
+	repositories := memory.New().Repositories()
+	service := application.NewSourceService(repositories.Sources, repositories.Snapshots)
+	published := testTimestamp(t, 8)
+	locator := testLocator(t, "video")
+	deepLink := testLocator(t, "video?at=60")
+	source := research.Source{
+		ID: testSourceID(t, "video"), Kind: research.SourceVideo, Locator: locator,
+		TemporalScope: research.SourceTemporalCurrent,
+		Metadata:      research.SourceMetadata{Title: "Portable video", Publisher: "Conference", PublishedAt: &published},
+		Video: &research.VideoSupplementMetadata{
+			VideoLocator: locator, Channel: "Conference Sessions", DurationSeconds: 600,
+			Affiliation: research.SourceAffiliationOfficial, TranscriptAvailability: research.TranscriptAvailable,
+			DeepLinks:        []research.VideoDeepLink{{OffsetSeconds: 60, Locator: deepLink}},
+			AlgorithmVersion: research.VideoSupplementMetadataV1,
+		},
+		CreatedAt: testTimestamp(t, 9),
+	}
+	if err := service.Register(context.Background(), source); err != nil {
+		t.Fatal(err)
+	}
+	source.Video.DeepLinks[0].OffsetSeconds = 90
+	loaded, err := service.Get(context.Background(), source.ID)
+	if err != nil || loaded.Video.DeepLinks[0].OffsetSeconds != 60 {
+		t.Fatalf("first video source read = (%+v, %v)", loaded, err)
+	}
+	loaded.Video.Channel = "mutated"
+	again, err := service.Get(context.Background(), source.ID)
+	if err != nil || again.Video.Channel != "Conference Sessions" {
+		t.Fatalf("second video source read = (%+v, %v)", again, err)
+	}
+}
+
 func TestSourceRegistryServicePreservesEntriesAndRejectsDuplicateDomains(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

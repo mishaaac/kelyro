@@ -141,6 +141,11 @@ Authority Profile elevation, explicit attribution, comment limitation,
 freshness handling, and popularity exclusion are documented in
 [community-resource-policy-v1.md](community-resource-policy-v1.md).
 
+The host-neutral video metadata, normalized Source fields, transcript
+availability-only retention, adapter-supplied timestamp links, supplementary
+trust rule, and additive SQLite encoding are documented in
+[video-learning-resources-v1.md](video-learning-resources-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

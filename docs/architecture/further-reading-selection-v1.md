@@ -43,6 +43,12 @@ source. Its reviewed official/community affiliation must agree with the
 candidate community marker, preserving the mandatory community label. The
 selector still does not initiate discovery or execute the Playground.
 
+Step 29 applies the same affiliation consistency to video metadata. A community
+video must retain the community marker/label and an official video must not be
+mislabelled community. Legacy video without v1 metadata continues to use the
+explicit reviewed candidate marker. The selector neither plays the media nor
+fetches a transcript.
+
 ## Eligibility
 
 Rules run before ranking:

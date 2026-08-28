@@ -201,6 +201,27 @@ func TestInteractiveReadingCategoryRequiresSpecializedPlayground(t *testing.T) {
 	}
 }
 
+func TestVideoSupplementCommunityLabelMatchesReviewedAffiliation(t *testing.T) {
+	t.Parallel()
+	candidate := readingCandidate(t, "community-video", research.SourceVideo, CategoryVideoSupplement)
+	published := candidate.Source.CreatedAt
+	candidate.Source.Metadata.PublishedAt = &published
+	candidate.Source.Video = &research.VideoSupplementMetadata{
+		VideoLocator: candidate.Source.Locator, Channel: "Community Sessions", DurationSeconds: 600,
+		Affiliation: research.SourceAffiliationCommunity, TranscriptAvailability: research.TranscriptPartial,
+		AlgorithmVersion: research.VideoSupplementMetadataV1,
+	}
+	input := selectionInput(candidate)
+	if _, err := SelectV1(input); err == nil || !strings.Contains(err.Error(), "video community label") {
+		t.Fatalf("unlabeled community video error = %v", err)
+	}
+	candidate.Community = true
+	selection, err := SelectV1(selectionInput(candidate))
+	if err != nil || len(selection.Items) != 1 || !containsLabel(selection.Items[0].Labels, LabelCommunity) {
+		t.Fatalf("community video selection = (%+v, %v)", selection, err)
+	}
+}
+
 func selectionInput(candidates ...Candidate) Input {
 	return Input{
 		Purpose: research.PurposeCurrentUsage, TargetReadingLevel: ReadingIntermediate,

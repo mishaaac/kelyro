@@ -56,6 +56,10 @@ the claim and source defaults:
 | specification, standard, paper | 180 |
 | book reference | 365 |
 
+Step 29 keeps video at 60 days regardless of official/community affiliation.
+Affiliation affects contextual trust, not the evidence-age formula; an
+Authority Profile TTL hint may still provide an explicit narrower policy.
+
 A known release cadence then caps, but never lengthens, the selected TTL. An
 explicit Authority Profile hint therefore configures the base TTL while the
 technology cadence remains a safety ceiling.

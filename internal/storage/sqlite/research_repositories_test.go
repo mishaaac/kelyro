@@ -46,6 +46,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO sources (id,kind,locator,title,created_at) VALUES ('source.legacy-standard','standard','https://example.test/legacy-standard','Legacy standard',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO sources (id,kind,locator,title,created_at) VALUES ('source.legacy-video','video','https://example.test/legacy-video','Legacy video',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := handle.Exec(`INSERT INTO source_snapshots (id,source_id,locator,fetched_at,status_code,content_type,content_hash,content_length,fetch_version) VALUES ('snapshot.legacy','source.legacy','https://example.test/legacy',?,200,'text/plain','sha256:legacy',6,'fetch/v1')`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
@@ -93,8 +96,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 36 {
-		t.Fatalf("schema=(%d,%v), want 36", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 37 {
+		t.Fatalf("schema=(%d,%v), want 37", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -244,6 +247,18 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO sources (id,kind,locator,title,created_at) VALUES ('source.raw-playground','playground','https://example.test/playground','Playground',?)`, fixedTime.Format(timestampFormat)); err == nil {
 		t.Fatal("v36 bypassed the specialized playground storage projection")
 	}
+	var legacyVideoJSON string
+	if err := handle.QueryRow(`SELECT video_metadata_json FROM sources WHERE id='source.legacy-video'`).Scan(&legacyVideoJSON); err != nil {
+		t.Fatal(err)
+	}
+	legacyVideoID, _ := research.NewSourceID("source.legacy-video")
+	legacyVideo, err := database.Repositories().Research.Sources.Get(context.Background(), legacyVideoID)
+	if err != nil || legacyVideoJSON != "" || legacyVideo.Video != nil {
+		t.Fatalf("v37 invented legacy video metadata: JSON=%q source=(%+v,%v)", legacyVideoJSON, legacyVideo, err)
+	}
+	if _, err := handle.Exec(`UPDATE sources SET video_metadata_json='{}' WHERE id='source.legacy'`); err == nil {
+		t.Fatal("v37 accepted video metadata on a non-video source")
+	}
 }
 
 func TestSpecializedTechnicalSourcesRoundTripSQLite(t *testing.T) {
@@ -320,6 +335,48 @@ func TestSpecializedTechnicalSourcesRoundTripSQLite(t *testing.T) {
 	invalidID, _ := research.NewSourceID("source.invalid-specialized")
 	if _, err := repository.Get(ctx, invalidID); !errors.Is(err, application.ErrPersistenceFailure) {
 		t.Fatalf("invalid specialized metadata read error = %v, want persistence_failure", err)
+	}
+}
+
+func TestVideoSupplementMetadataRoundTripsSQLite(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	repository := database.Repositories().Research.Sources
+	ctx := context.Background()
+	published := researchTestTimestamp(t, fixedTime.Add(-2*time.Hour))
+	videoLocator := researchTestLocator(t, "https://media.example.test/watch/portable")
+	deepLink := researchTestLocator(t, "https://media.example.test/watch/portable?at=120")
+	source := research.Source{
+		ID: researchTestSourceID(t, "source.video"), Kind: research.SourceVideo,
+		Locator: videoLocator, TemporalScope: research.SourceTemporalCurrent,
+		Metadata: research.SourceMetadata{Title: "Portable systems session", Publisher: "Systems Conference", Language: "en", PublishedAt: &published},
+		Video: &research.VideoSupplementMetadata{
+			VideoLocator: videoLocator, Channel: "Systems Sessions", DurationSeconds: 1800,
+			Description: "A bounded provider-neutral description.", Affiliation: research.SourceAffiliationOfficial,
+			TranscriptAvailability: research.TranscriptAvailable,
+			DeepLinks:              []research.VideoDeepLink{{OffsetSeconds: 120, Locator: deepLink}},
+			AlgorithmVersion:       research.VideoSupplementMetadataV1,
+		},
+		CreatedAt: researchTestTimestamp(t, fixedTime),
+	}
+	if err := repository.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	got, err := repository.Get(ctx, source.ID)
+	if err != nil || !reflect.DeepEqual(got, source) {
+		t.Fatalf("video source roundtrip = (%+v,%v), want %+v", got, err, source)
+	}
+	var encoded string
+	if err := database.sql.QueryRowContext(ctx, `SELECT video_metadata_json FROM sources WHERE id=?`, source.ID.String()).Scan(&encoded); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(encoded, research.VideoSupplementMetadataV1) || strings.Contains(strings.ToLower(encoded), "transcript_text") {
+		t.Fatalf("stored video metadata = %q", encoded)
+	}
+	if _, err := database.sql.ExecContext(ctx, `UPDATE sources SET video_metadata_json='{}' WHERE id=?`, source.ID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repository.Get(ctx, source.ID); !errors.Is(err, application.ErrPersistenceFailure) {
+		t.Fatalf("invalid video metadata read error = %v, want persistence_failure", err)
 	}
 }
 

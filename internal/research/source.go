@@ -134,6 +134,7 @@ type Source struct {
 	TemporalScope  SourceTemporalScope
 	Metadata       SourceMetadata
 	Specialization *SourceSpecialization
+	Video          *VideoSupplementMetadata
 	CreatedAt      Timestamp
 }
 
@@ -162,6 +163,9 @@ func (source Source) Validate() error {
 		return err
 	}
 	if err := validateSourceSpecialization(source); err != nil {
+		return err
+	}
+	if err := validateSourceVideoMetadata(source); err != nil {
 		return err
 	}
 	return validateTimestamp("source created at", source.CreatedAt)

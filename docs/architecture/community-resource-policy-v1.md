@@ -89,8 +89,9 @@ code baseline.
 
 ## Boundaries
 
-Step 28 adds no source table columns, migration, network adapter, CLI/TUI path,
-video-specific metadata, transcript storage, Source Bundle rewrite, Community
-popularity ranking, Curriculum Compiler, or Student Core/mastery mutation.
-Video URL/channel/duration/transcript metadata remains the separately
-authorized Step 29 scope.
+Step 28 itself adds no source table columns, migration, network adapter,
+CLI/TUI path, transcript storage, Source Bundle rewrite, Community popularity
+ranking, Curriculum Compiler, or Student Core/mastery mutation. Step 29's
+separate optional video contract now makes conference-talk affiliation
+explicit: this community policy rejects an official video presented as a
+community talk and still never reads or stores transcript text.
