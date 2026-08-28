@@ -261,6 +261,15 @@ freshness is explicit, engagement never affects truth, and attribution always
 retains the canonical locator. The complete contract is documented in
 [community-resource-policy-v1.md](community-resource-policy-v1.md).
 
+Step 30 evaluates every Claim source through `source-diversity-v1`. It counts
+proven independent origins after grouping shared organizations and reviewed
+upstream dependencies, reports source-kind/perspective/reference-
+implementation dimensions, and preserves warnings for unknown or concentrated
+metadata. A unique tier-A normative Specification/Standard remains sufficient
+for definitions and requirements; diversity is not pursued as an end in
+itself. Geography and language are explicit deferred dimensions. The complete
+contract is documented in [source-diversity-v1.md](source-diversity-v1.md).
+
 `TechnologyRelease` (with the compatible `ReleaseRecord` alias) supports
 semantic, date-based, and opaque version identities;
 stable/preview/beta/RC/experimental/nightly/unknown channels; and

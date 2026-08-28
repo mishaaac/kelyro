@@ -228,6 +228,15 @@ metadata. Memory and SQLite clone timestamp deep links defensively and persist
 only bounded metadata/availability, never transcript text. The complete
 contract is in [video-learning-resources-v1.md](video-learning-resources-v1.md).
 
+Step 30 adds `SourceDiversityService` without a dedicated result repository. It
+composes existing Claim, Source, Trust Decision, and applicable Source Registry
+organization reads with caller-reviewed
+dependency/perspective/technical-role annotations.
+Exact annotation coverage is mandatory and failures use the existing error
+taxonomy. The returned `source-diversity-v1` assessment is not persisted and
+does not rewrite immutable Verification Results or Source Bundles. The complete
+contract is in [source-diversity-v1.md](source-diversity-v1.md).
+
 ## Error taxonomy
 
 Every error crossing the application boundary has one stable kind:

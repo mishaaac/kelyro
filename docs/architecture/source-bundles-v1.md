@@ -93,3 +93,13 @@ The memory and SQLite adapters provide exact lookup plus deterministic
 run-history listing and defensive copies. Neither adapter performs networking,
 re-verification, conflict resolution, freshness calculation, curriculum
 compilation, or learner-state mutation.
+
+## Source Diversity v1 composition
+
+Step 30 does not change canonical bundle JSON, hashes, lifecycle, source roles,
+or migration v35. `SourceDiversityService` assesses each Claim's complete
+source set before or alongside bundle consumption and returns a separate
+`source-diversity-v1` result. This preserves old bundle reproducibility while
+making same-organization and shared-upstream concentration visible to a future
+consumer. Geography and language remain explicitly deferred. See
+[source-diversity-v1.md](source-diversity-v1.md).

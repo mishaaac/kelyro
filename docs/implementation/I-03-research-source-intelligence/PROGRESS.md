@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 30
-Last completed step: 29
+Current step: 31
+Last completed step: 30
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2285,3 +2285,87 @@ Release: unreleased
 - El Paso 30 es el siguiente paso pendiente y requiere autorización explícita.
 - No implementar Source Diversity ni pasos posteriores antes de su autorización
   independiente.
+
+## Step 30 — Source Diversity policy
+
+Status: completed
+Date: 2026-08-27
+Release: unreleased
+
+### Delivered
+
+- Política pura, determinista y versionada `source-diversity-v1` para evaluar
+  la corroboración real de las fuentes asociadas a un claim persistido.
+- Conteo conservador de fuentes independientes mediante componentes conexos:
+  fuentes de la misma organización o con una dependencia revisada común se
+  agrupan y no inflan la corroboración.
+- Estados explícitos `sufficient`, `concentrated`, `unknown` y
+  `normative_source_sufficient`, junto con conteos de fuentes totales,
+  elegibles, independientes, organizaciones, kinds y perspectivas.
+- Excepción acotada para una única fuente normativa aceptada: una
+  Specification o Standard tier A puede bastar para claims de definición o
+  requisito sin generar diversidad artificial.
+- Evaluación separada de organization, source kind, perspective y rol técnico
+  reference/implementation; geography y language quedan declaradas como
+  dimensiones diferidas, no inferidas.
+- Warnings estructurados y estables para falta de soporte aceptado,
+  concentración organizacional, dependencia compartida, metadata desconocida
+  y concentración o ausencia en las dimensiones descriptivas.
+- `SourceDiversityService` compone Claim, Source, última TrustDecision y
+  Trusted Registry persistidos con annotations revisadas del caller; exige
+  cobertura exacta de todos los source IDs del claim y no persiste una segunda
+  verdad derivada.
+- Contrato y composición documentados en
+  `docs/architecture/source-diversity-v1.md`, con índices y contratos vecinos
+  de dominio, aplicación, verificación multi-source y bundles sincronizados.
+
+### Decisions
+
+- La independencia es un límite inferior auditable, no una inferencia
+  optimista: compartir organización o dependency group une fuentes; metadata
+  desconocida genera advertencias y nunca se inventa.
+- Sólo decisiones Trust `accepted` o `accepted_supplement` participan como
+  soporte elegible. Las demás fuentes permanecen visibles en el total pero no
+  cuentan como corroboración.
+- Las dimensiones descriptivas producen diagnósticos sin rebajar una
+  independencia genuina entre organizaciones y dependencias distintas.
+- Perspective y technical role usan vocabularios cerrados y el caller debe
+  proporcionar clasificación revisada; la aplicación no intenta deducirla del
+  contenido externo.
+- Organization sólo se toma del Trusted Registry cuando la entrada coincide
+  con el locator y aplica al topic/kind; dependency group nunca se deriva
+  implícitamente de organización o dominio.
+- No se añadió migración ni repository: el assessment es reproducible desde
+  records canónicos existentes y annotations revisadas, preservando los
+  contratos inmutables `multi-source-verification-v1` y `source-bundle-v1`.
+- No se añadió Real Source Code Evidence, acceso de red, CLI/TUI, Curriculum
+  Compiler ni cambios de Student Core o mastery.
+
+### Verification
+
+- Tests de fuente normativa única, concentración por organización, dependencia
+  compartida entre organizaciones, independencia genuina y warnings separados
+  de kind, perspective y reference/implementation.
+- Tests de metadata desconocida, ausencia de Trust aceptado, cobertura exacta,
+  vocabularios inválidos, determinismo ante reordenamiento y clon defensivo de
+  warnings.
+- Tests de integración de aplicación con Claim, Source, TrustDecision y
+  Trusted Registry persistidos, además de annotations incompletas y dependency
+  groups revisados.
+- `GOCACHE=/tmp/kelyro-i03-step30-target-gocache go test
+  ./internal/research/diversity ./internal/research/application`, `go vet`
+  dirigido y `go test -race` de ambos paquetes.
+- `GOCACHE=/tmp/kelyro-i03-step27-full-gocache go test ./...` y
+  `go vet ./...`.
+- Cross-compile con `CGO_ENABLED=0` de los test binaries de diversity y
+  application para Windows amd64 y Darwin amd64/arm64.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 888.339 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 31 es el siguiente paso pendiente y requiere autorización explícita.
+- No implementar Real Source Code Evidence ni pasos posteriores antes de su
+  autorización independiente.

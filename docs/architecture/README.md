@@ -146,6 +146,11 @@ availability-only retention, adapter-supplied timestamp links, supplementary
 trust rule, and additive SQLite encoding are documented in
 [video-learning-resources-v1.md](video-learning-resources-v1.md).
 
+The proven-origin graph, organization/upstream dependency grouping,
+kind/perspective/implementation-reference dimensions, normative single-source
+exception, warnings, and deferred geography/language fields are documented in
+[source-diversity-v1.md](source-diversity-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

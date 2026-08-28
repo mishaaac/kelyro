@@ -8,6 +8,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/citation"
 	conflictpolicy "github.com/mishaaac/kelyro/internal/research/conflict"
+	"github.com/mishaaac/kelyro/internal/research/diversity"
 )
 
 // Persistence ports are intentionally split by aggregate/use case.
@@ -1034,6 +1035,58 @@ type VerificationService interface {
 	Verify(context.Context, research.ClaimID) (research.VerificationResult, error)
 	Get(context.Context, research.ID) (research.VerificationResult, error)
 	Latest(context.Context, research.ClaimID) (research.VerificationResult, error)
+}
+
+type SourceDiversityAnnotation struct {
+	SourceID        research.SourceID
+	DependencyGroup string
+	Perspective     diversity.Perspective
+	TechnicalRole   diversity.TechnicalRole
+}
+
+func (annotation SourceDiversityAnnotation) Validate() error {
+	if err := annotation.SourceID.Validate(); err != nil {
+		return err
+	}
+	if err := annotation.Perspective.Validate(); err != nil {
+		return err
+	}
+	if err := annotation.TechnicalRole.Validate(); err != nil {
+		return err
+	}
+	if annotation.DependencyGroup != strings.TrimSpace(annotation.DependencyGroup) || len(annotation.DependencyGroup) > 256 || strings.ContainsAny(annotation.DependencyGroup, "\r\n") {
+		return fmt.Errorf("source diversity dependency group is invalid")
+	}
+	return nil
+}
+
+type AssessSourceDiversityRequest struct {
+	ClaimID     research.ClaimID
+	Annotations []SourceDiversityAnnotation
+}
+
+func (request AssessSourceDiversityRequest) Validate() error {
+	if err := request.ClaimID.Validate(); err != nil {
+		return err
+	}
+	if len(request.Annotations) == 0 || len(request.Annotations) > diversity.MaximumSourceCount {
+		return fmt.Errorf("source diversity annotations must contain between 1 and %d entries", diversity.MaximumSourceCount)
+	}
+	seen := make(map[research.SourceID]struct{}, len(request.Annotations))
+	for index, annotation := range request.Annotations {
+		if err := annotation.Validate(); err != nil {
+			return fmt.Errorf("source diversity annotation %d: %w", index, err)
+		}
+		if _, exists := seen[annotation.SourceID]; exists {
+			return fmt.Errorf("source diversity repeats annotation for %q", annotation.SourceID)
+		}
+		seen[annotation.SourceID] = struct{}{}
+	}
+	return nil
+}
+
+type SourceDiversityService interface {
+	Assess(context.Context, AssessSourceDiversityRequest) (diversity.Assessment, error)
 }
 
 type AssembleSourceBundleRequest struct {

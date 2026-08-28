@@ -2095,7 +2095,7 @@ feat(sources): support video learning resources
 
 ## Paso 30 — Implementar Source Diversity policy
 
-- [ ] Paso 30 completado
+- [x] Paso 30 completado
 
 ### Objetivo
 
@@ -3209,7 +3209,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 27 — Playground/Package/Standards
 - [x] Paso 28 — Community Resources
 - [x] Paso 29 — Video Supplements
-- [ ] Paso 30 — Source Diversity
+- [x] Paso 30 — Source Diversity
 - [ ] Paso 31 — Real Source Code
 - [ ] Paso 32 — Offline Research Cache
 - [ ] Paso 33 — Cost Control

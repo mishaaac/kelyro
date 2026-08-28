@@ -90,3 +90,14 @@ metrics; migration does not invent corroboration facts. New records require
 
 This step does not create Source Bundles, compile curriculum, mutate Student
 Core/mastery, discover conflict candidates, or perform network access.
+
+## Source Diversity v1 composition
+
+Step 30 leaves this immutable algorithm and its v34 representation unchanged.
+`source-diversity-v1` is an adjacent assessment that extends organization-only
+corroboration analysis with reviewed upstream dependency components,
+source-kind, perspective, and implementation/reference dimensions. It can
+therefore reveal cross-organization mirrors without retroactively changing a
+stored Verification Result. Its unique normative-source rule agrees with this
+policy's normative-primary requirement. The complete contract is documented in
+[source-diversity-v1.md](source-diversity-v1.md).
