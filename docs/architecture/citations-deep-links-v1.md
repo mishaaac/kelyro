@@ -41,7 +41,7 @@ location input:
 | package reference with observed symbol | `package_symbol` | canonical URL plus explicit symbol fragment |
 | specification or standard section | `spec_section` | canonical URL plus explicit section fragment |
 | release notes heading | `release_heading` | canonical URL plus explicit release fragment |
-| source code | `source_permalink` | same-host file URL pinned to commit and line range |
+| source code | `source_permalink` | persisted adapter-supplied file URL pinned to commit |
 | no stable deep link | `canonical_fallback` | canonical URL plus section/path hint |
 
 Anchor input must be explicit. The generator validates and encodes it, but does
@@ -49,12 +49,14 @@ not slugify a heading because sites use incompatible and changeable anchor
 rules. A missing anchor produces the documented fallback rather than a guessed
 link.
 
-Source code never accepts an anchor on a mutable branch URL. Its permalink must
-name the same host as the canonical source, contain a 7–64 character hexadecimal
-commit revision and clean relative file path, and end with the exact
-`#Lstart` or `#Lstart-Lend` range declared by the input. The adapter or reviewer
-supplies the host-specific URL; v1 verifies the stable components without
-hard-coding one source host.
+Source code never accepts an anchor on a mutable branch URL. Step 31 makes its
+`source-code-evidence-v1` locator part of the persisted Evidence record: it
+names the canonical repository, same-host adapter-supplied permalink, 7–64
+character hexadecimal commit, clean relative path, bounded line range, symbol,
+version scope, and optional license metadata. Citation generation consumes this
+single canonical record instead of accepting duplicate location input. The
+complete contract is in
+[real-source-code-evidence-v1.md](real-source-code-evidence-v1.md).
 
 All canonical and deep-link locators use the existing `SourceLocator` contract:
 absolute HTTP(S), no credentials, normalized scheme/host, and valid URL syntax.
@@ -79,6 +81,10 @@ explicit `source-temporal-legacy-current` marker; repositories accept only
 `source-temporal-policy-v1` for new citations. Citation generation copies the
 source's temporal classification at that moment, so a later source
 reclassification cannot silently rewrite an existing citation.
+
+Step 31 does not change the citation schema. The immutable source-code locator
+lives with Evidence in migration v38, while the existing citation deep link
+stores the exact resolved permalink for offline presentation.
 
 ## Boundaries
 

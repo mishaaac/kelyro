@@ -1562,6 +1562,15 @@ BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
 			`ALTER TABLE sources ADD COLUMN video_metadata_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(video_metadata_json AS BLOB)) <= 16384 AND (video_metadata_json = '' OR (kind = 'video' AND json_valid(video_metadata_json) AND json_type(video_metadata_json) = 'object')))`,
 		},
 	},
+	{
+		version: 38,
+		name:    "reproducible source code evidence",
+		statements: []string{
+			`ALTER TABLE evidence ADD COLUMN source_code_locator_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(source_code_locator_json AS BLOB)) <= 8192 AND (source_code_locator_json = '' OR (json_valid(source_code_locator_json) AND json_type(source_code_locator_json) = 'object')))`,
+			`CREATE TRIGGER evidence_source_code_locator_insert_guard BEFORE INSERT ON evidence WHEN NEW.source_code_locator_json <> '' AND COALESCE((SELECT kind FROM sources WHERE id=NEW.source_id),'') <> 'source_code' BEGIN SELECT RAISE(ABORT, 'source code locator requires source_code source'); END`,
+			`CREATE TRIGGER evidence_source_code_locator_update_guard BEFORE UPDATE ON evidence WHEN NEW.source_code_locator_json <> '' AND COALESCE((SELECT kind FROM sources WHERE id=NEW.source_id),'') <> 'source_code' BEGIN SELECT RAISE(ABORT, 'source code locator requires source_code source'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

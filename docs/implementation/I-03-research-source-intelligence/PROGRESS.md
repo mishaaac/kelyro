@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 31
-Last completed step: 30
+Current step: 32
+Last completed step: 31
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2368,4 +2368,78 @@ Release: unreleased
 
 - El Paso 31 es el siguiente paso pendiente y requiere autorización explícita.
 - No implementar Real Source Code Evidence ni pasos posteriores antes de su
+  autorización independiente.
+
+## Step 31 — Real Source Code Evidence
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Contrato de dominio host-neutral y versionado `source-code-evidence-v1`
+  integrado en Evidence mediante `SourceCodeLocator`: repositorio, permalink,
+  commit, path, rango de líneas, symbol, version scope y licencia opcional.
+- Permalinks obligatoriamente fijados a revisions hexadecimales de 7–64
+  caracteres, mismo host que el repositorio y diferentes de la URL canónica;
+  branches simbólicos como `main` no pueden presentarse como evidencia
+  reproducible.
+- Paths relativos limpios y portables, rangos positivos acotados a 200 líneas,
+  metadata textual acotada, version scope requerido y licencia revisada
+  opcional sin inferirla cuando falta.
+- Relación validada entre Source/Evidence: nueva evidencia de kind
+  `source_code` requiere locator v1; otros kinds lo rechazan y la versión debe
+  coincidir cuando Source ya declara una.
+- Citation v1 consume el permalink persistido en Evidence y elimina el input
+  efímero duplicado, conservando `source_permalink` y presentación offline.
+- Trust Policy probado para mantener Specification normativa en tier A y
+  Source Code en tier B en language-specification, sin permitir que
+  implementación reemplace silenciosamente una spec.
+- Migración SQLite forward-only v38 con JSON canónico de hasta 8 KiB, guards
+  por source kind, compatibilidad legacy sin metadata inventada y round-trip
+  completo; memory/SQLite usan copias defensivas.
+- Contrato, persistencia, citation integration, límites y fronteras
+  documentados en `docs/architecture/real-source-code-evidence-v1.md` y
+  documentos Research relacionados.
+
+### Decisions
+
+- SourceCodeLocator pertenece a la Evidence concreta, no a Source: path, rango
+  y symbol describen el excerpt observado y pueden variar dentro de un mismo
+  repositorio estable.
+- El adapter de forge entrega el permalink exacto; domain valida componentes
+  reproducibles sin construir URLs específicas de GitHub/GitLab.
+- Version scope es siempre explícito y opaco; puede representar release,
+  edición o alcance revisado por commit. Si Source tiene version, ambos scopes
+  deben coincidir.
+- License metadata es contexto de attribution, no una decisión automática de
+  compatibilidad; ausencia permanece desconocida.
+- Filas Evidence legacy sin locator siguen legibles, pero sólo nuevos records
+  validados pueden llamarse Real Source Code Evidence v1.
+- No se añadió provider GitHub, clone/Git execution, fetch de red, whole-file
+  storage, license inference, Research Cache, CLI/TUI, Curriculum Compiler ni
+  cambios de Student Core/mastery.
+
+### Verification
+
+- Tests de codec JSON canónico, clones defensivos, branch mutable, permalink
+  sin commit, cross-host, traversal, line limit, version requerida y relaciones
+  Source/Evidence.
+- Tests de citation derivada desde metadata persistida, precedencia normativa
+  Trust, migración legacy v37 → v38, constraints y round-trip SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step31-full-gocache go test ./...` fuera del sandbox
+  para permitir listeners locales de `httptest`.
+- `GOCACHE=/tmp/kelyro-i03-step31-vet-gocache go vet ./...`.
+- Cross-compile del test binary Research para Windows amd64 y Darwin
+  amd64/arm64 con `CGO_ENABLED=0`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 358.328 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 32 está autorizado a continuación por el usuario.
+- No implementar Research Cost Control ni pasos posteriores antes de su
   autorización independiente.

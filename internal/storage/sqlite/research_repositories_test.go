@@ -96,8 +96,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 37 {
-		t.Fatalf("schema=(%d,%v), want 37", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 38 {
+		t.Fatalf("schema=(%d,%v), want 38", version, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -258,6 +258,21 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	}
 	if _, err := handle.Exec(`UPDATE sources SET video_metadata_json='{}' WHERE id='source.legacy'`); err == nil {
 		t.Fatal("v37 accepted video metadata on a non-video source")
+	}
+	var legacySourceCodeJSON string
+	if err := handle.QueryRow(`SELECT source_code_locator_json FROM evidence WHERE id='evidence.legacy'`).Scan(&legacySourceCodeJSON); err != nil {
+		t.Fatal(err)
+	}
+	legacyEvidenceID, _ := research.NewID("evidence.legacy")
+	legacyEvidence, err := database.Repositories().Research.Evidence.Get(context.Background(), legacyEvidenceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacySourceCodeJSON != "" || legacyEvidence.SourceCode != nil {
+		t.Fatalf("v38 invented legacy source code metadata: JSON=%q evidence=%+v", legacySourceCodeJSON, legacyEvidence)
+	}
+	if _, err := handle.Exec(`UPDATE evidence SET source_code_locator_json='{}' WHERE id='evidence.legacy'`); err == nil {
+		t.Fatal("v38 accepted source code metadata on a non-source-code evidence record")
 	}
 }
 
@@ -530,6 +545,81 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 	mismatch.SourceID = researchTestSourceID(t, "source.other")
 	if err := repositories.Evidence.Append(ctx, mismatch); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("mismatched evidence error=%v", err)
+	}
+}
+
+func TestSourceCodeEvidenceRoundTripsSQLite(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	repositories := database.Repositories().Research
+	ctx := context.Background()
+	observed := researchTestTimestamp(t, fixedTime)
+	version := researchTestVersion(t, "v3.2.0")
+	repositoryLocator := researchTestLocator(t, "https://code.example.test/portable/client")
+	permalink := researchTestLocator(t, "https://code.example.test/portable/client/tree/0123456789abcdef/client.go#lines-40-46")
+	licenseLocator := researchTestLocator(t, "https://code.example.test/portable/client/tree/0123456789abcdef/LICENSE")
+	source := research.Source{
+		ID: researchTestSourceID(t, "source.code"), Kind: research.SourceCode,
+		Locator: repositoryLocator, Version: &version, TemporalScope: research.SourceTemporalVersionBound,
+		Metadata: research.SourceMetadata{Title: "Portable client implementation", Publisher: "Portable Systems"}, CreatedAt: observed,
+	}
+	if err := repositories.Sources.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := research.SourceSnapshot{
+		ID: researchTestID(t, "snapshot.code"), SourceID: source.ID, Locator: permalink, FetchedAt: observed,
+		Fetch: research.FetchMetadata{StatusCode: 200, ContentType: "text/plain", ContentHash: "sha256:source-code", ContentLength: 80, FetchVersion: "fetch/v1"},
+	}
+	if err := repositories.Snapshots.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	excerpt := "return transport.RoundTrip(request)"
+	evidence := research.Evidence{
+		ID: researchTestID(t, "evidence.code"), SourceID: source.ID, SnapshotID: snapshot.ID,
+		Location: "client.go:40-46", Excerpt: excerpt, ExcerptHash: research.CanonicalEvidenceExcerptHashV1(excerpt),
+		ExtractedAt: observed, ExtractorVersion: "source-code-extractor/v1",
+		SourceCode: &research.SourceCodeLocator{
+			Repository: repositoryLocator, Permalink: permalink, Commit: "0123456789abcdef", Path: "client.go",
+			StartLine: 40, EndLine: 46, Symbol: "Client.Do", VersionScope: version,
+			License:          &research.SourceCodeLicense{Identifier: "BSD-3-Clause", Locator: &licenseLocator},
+			AlgorithmVersion: research.SourceCodeEvidenceV1,
+		},
+	}
+	if err := repositories.Evidence.Append(ctx, evidence); err != nil {
+		t.Fatal(err)
+	}
+	got, err := repositories.Evidence.Get(ctx, evidence.ID)
+	if err != nil || !reflect.DeepEqual(got, evidence) {
+		t.Fatalf("source code evidence roundtrip = (%+v,%v), want %+v", got, err, evidence)
+	}
+	var encoded string
+	if err := database.sql.QueryRowContext(ctx, `SELECT source_code_locator_json FROM evidence WHERE id=?`, evidence.ID.String()).Scan(&encoded); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(encoded, research.SourceCodeEvidenceV1) || !strings.Contains(encoded, "0123456789abcdef") {
+		t.Fatalf("stored source code locator = %q", encoded)
+	}
+
+	nonCode := research.Source{
+		ID: researchTestSourceID(t, "source.docs-code-mismatch"), Kind: research.SourceOfficialDocumentation,
+		Locator: researchTestLocator(t, "https://docs.example.test/client"), TemporalScope: research.SourceTemporalCurrent,
+		Metadata: research.SourceMetadata{Title: "Client docs"}, CreatedAt: observed,
+	}
+	if err := repositories.Sources.Create(ctx, nonCode); err != nil {
+		t.Fatal(err)
+	}
+	nonCodeSnapshot := snapshot
+	nonCodeSnapshot.ID = researchTestID(t, "snapshot.docs-code-mismatch")
+	nonCodeSnapshot.SourceID = nonCode.ID
+	nonCodeSnapshot.Locator = nonCode.Locator
+	if err := repositories.Snapshots.Append(ctx, nonCodeSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	mismatch := evidence
+	mismatch.ID = researchTestID(t, "evidence.docs-code-mismatch")
+	mismatch.SourceID = nonCode.ID
+	mismatch.SnapshotID = nonCodeSnapshot.ID
+	if err := repositories.Evidence.Append(ctx, mismatch); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("non-code source metadata error = %v, want invalid_state", err)
 	}
 }
 

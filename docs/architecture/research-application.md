@@ -228,6 +228,13 @@ metadata. Memory and SQLite clone timestamp deep links defensively and persist
 only bounded metadata/availability, never transcript text. The complete
 contract is in [video-learning-resources-v1.md](video-learning-resources-v1.md).
 
+Step 31 keeps `EvidenceRepository` host-neutral and requires its adapters to
+validate the loaded Source against any `source-code-evidence-v1` locator before
+append. Citation generation consumes the persisted locator rather than a
+second caller-owned permalink. Memory and SQLite return defensive copies. The
+complete contract is in
+[real-source-code-evidence-v1.md](real-source-code-evidence-v1.md).
+
 Step 30 adds `SourceDiversityService` without a dedicated result repository. It
 composes existing Claim, Source, Trust Decision, and applicable Source Registry
 organization reads with caller-reviewed

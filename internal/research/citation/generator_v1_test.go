@@ -93,16 +93,8 @@ func TestGenerateV1AcceptsCommitPinnedSourceCodePermalink(t *testing.T) {
 	request := fixtureRequest(t, research.SourceCode, "https://github.com/example/project")
 	version := mustVersion(t, "v1.4.0")
 	request.Source.Version = &version
-	request.Target = citation.Target{
-		Section: "internal/client/client.go:42-47",
-		Permalink: &citation.SourcePermalink{
-			Locator:   mustLocator(t, "https://github.com/example/project/blob/0123456789abcdef/internal/client/client.go#L42-L47"),
-			Commit:    "0123456789abcdef",
-			FilePath:  "internal/client/client.go",
-			StartLine: 42,
-			EndLine:   47,
-		},
-	}
+	request.Evidence.SourceCode.VersionScope = version
+	request.Target = citation.Target{Section: "internal/client/client.go:42-47"}
 	got, err := citation.GenerateV1(request)
 	if err != nil {
 		t.Fatalf("GenerateV1() error = %v", err)
@@ -125,18 +117,14 @@ func TestGenerateV1RejectsInvalidURLsAndUnstablePermalinks(t *testing.T) {
 	}
 
 	request := fixtureRequest(t, research.SourceCode, "https://github.com/example/project")
-	request.Target.Permalink = &citation.SourcePermalink{
-		Locator: mustLocator(t, "https://github.com/example/project/blob/main/client.go#L9"),
-		Commit:  "main", FilePath: "client.go", StartLine: 9, EndLine: 9,
-	}
+	request.Evidence.SourceCode.Commit = "main"
+	request.Evidence.SourceCode.Permalink = mustLocator(t, "https://github.com/example/project/blob/main/client.go#L9")
 	if _, err := citation.GenerateV1(request); err == nil || !strings.Contains(err.Error(), "hexadecimal revision") {
 		t.Fatalf("mutable permalink error = %v", err)
 	}
 
-	request.Target.Permalink = &citation.SourcePermalink{
-		Locator: mustLocator(t, "https://evil.example/project/blob/0123456/client.go#L9"),
-		Commit:  "0123456", FilePath: "client.go", StartLine: 9, EndLine: 9,
-	}
+	request = fixtureRequest(t, research.SourceCode, "https://github.com/example/project")
+	request.Evidence.SourceCode.Permalink = mustLocator(t, "https://evil.example/project/blob/0123456/client.go#L9")
 	if _, err := citation.GenerateV1(request); err == nil || !strings.Contains(err.Error(), "host") {
 		t.Fatalf("cross-host permalink error = %v", err)
 	}
@@ -160,7 +148,7 @@ func fixtureRequest(t *testing.T, kind research.SourceKind, locatorValue string)
 	citationID, _ := research.NewID("citation.fixture")
 	locator := mustLocator(t, locatorValue)
 	excerpt := "A bounded fixture excerpt."
-	return citation.Request{
+	request := citation.Request{
 		ID: citationID,
 		Source: research.Source{
 			ID: sourceID, Kind: kind, Locator: locator,
@@ -179,6 +167,16 @@ func fixtureRequest(t *testing.T, kind research.SourceKind, locatorValue string)
 		},
 		LastVerified: verified,
 	}
+	if kind == research.SourceCode {
+		version := mustVersion(t, "commit-0123456789abcdef")
+		request.Evidence.SourceCode = &research.SourceCodeLocator{
+			Repository: locator,
+			Permalink:  mustLocator(t, locatorValue+"/blob/0123456789abcdef/internal/client/client.go#L42-L47"),
+			Commit:     "0123456789abcdef", Path: "internal/client/client.go", StartLine: 42, EndLine: 47,
+			Symbol: "Client.Do", VersionScope: version, AlgorithmVersion: research.SourceCodeEvidenceV1,
+		}
+	}
+	return request
 }
 
 func mustLocator(t *testing.T, value string) research.SourceLocator {

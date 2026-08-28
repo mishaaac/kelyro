@@ -134,6 +134,14 @@ func cloneSource(source research.Source) research.Source {
 	return clone
 }
 
+func cloneEvidence(evidence research.Evidence) research.Evidence {
+	clone := evidence
+	if evidence.SourceCode != nil {
+		clone.SourceCode = evidence.SourceCode.Clone()
+	}
+	return clone
+}
+
 func cloneTimestamp(timestamp *research.Timestamp) *research.Timestamp {
 	if timestamp == nil {
 		return nil

@@ -10,9 +10,10 @@ Step 17 adds v30 for refresh scheduling metadata, Step 21 adds v31 for versioned
 deprecation conclusions, Step 22 adds v32 for source temporal scopes, and Step
 23 adds v33 for versioned conflict outcomes, Step 24 adds v34 for multi-source
 verification outputs, Step 25 adds v35 for versioned Source Bundles, Step 27
-adds v36 for specialized technical source metadata, and Step 29 adds v37 for
-bounded video supplement metadata. The 22 migrations that shipped Student Core
-and migrations v23–v36 remain unchanged, and an I-02
+adds v36 for specialized technical source metadata, Step 29 adds v37 for
+bounded video supplement metadata, and Step 31 adds v38 for reproducible source
+code evidence. The 22 migrations that shipped Student Core and migrations
+v23–v37 remain unchanged, and an I-02
 database is upgraded without rewriting its learning state.
 
 ## Adapter boundary
@@ -151,6 +152,14 @@ the physical `video` kind. The repository parses canonical v1 JSON and validates
 the complete Source relationship on read; invalid stored metadata is a
 persistence failure. Title, publisher, and published_at retain their normalized
 columns, and no transcript text column exists.
+
+Migration 38 adds bounded `source_code_locator_json` to Evidence. Existing rows
+receive an empty value without invented location data. Non-empty JSON is capped
+at 8 KiB and guarded so it can reference only a physical `source_code` Source;
+the repository parses canonical v1 metadata and validates source identity,
+repository locator, version scope, and snapshot relationship before append.
+Stored corruption is a persistence failure, while memory and SQLite reads use
+defensive copies.
 
 Step 19 requires no migration. The v23 `release_records.version` text preserves
 the exact `VersionIdentifier`; strict semantic, supported date-based, and

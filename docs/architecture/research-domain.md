@@ -97,6 +97,15 @@ contract intentionally has no transcript text or provider-specific URL logic.
 The complete contract is documented in
 [video-learning-resources-v1.md](video-learning-resources-v1.md).
 
+Step 31 adds optional `source-code-evidence-v1` metadata to Evidence and
+requires it for every new Evidence record whose Source kind is `source_code`.
+The host-neutral locator captures repository, commit-pinned permalink, clean
+path, bounded line range, optional symbol, required version scope, and optional
+reviewed license metadata. The Evidence excerpt remains bounded and a normative
+Specification or Standard retains precedence over implementation evidence. The
+complete contract is documented in
+[real-source-code-evidence-v1.md](real-source-code-evidence-v1.md).
+
 Step 22 adds the independent temporal scopes `current`, `historical`,
 `version_bound`, and `archived`. A version-bound source requires an opaque
 version. The pure `source-temporal-policy-v1` model decides only whether a

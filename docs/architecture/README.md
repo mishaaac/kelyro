@@ -151,6 +151,11 @@ kind/perspective/implementation-reference dimensions, normative single-source
 exception, warnings, and deferred geography/language fields are documented in
 [source-diversity-v1.md](source-diversity-v1.md).
 
+The commit-pinned, host-neutral repository/path/line/symbol/version locator,
+bounded excerpt, optional reviewed license metadata, normative-source
+precedence, citation integration, and additive persistence are documented in
+[real-source-code-evidence-v1.md](real-source-code-evidence-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

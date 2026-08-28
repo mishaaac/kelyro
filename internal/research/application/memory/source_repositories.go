@@ -222,7 +222,11 @@ func (repository evidenceRepository) Append(ctx context.Context, evidence resear
 	if snapshot.SourceID != evidence.SourceID {
 		return invalid(operation, errRelationship("evidence source does not match snapshot"))
 	}
-	repository.store.evidence[evidence.ID] = evidence
+	source := repository.store.sources[evidence.SourceID]
+	if err := research.ValidateSourceCodeEvidenceRelationship(source, evidence); err != nil {
+		return invalid(operation, err)
+	}
+	repository.store.evidence[evidence.ID] = cloneEvidence(evidence)
 	return nil
 }
 
@@ -240,7 +244,7 @@ func (repository evidenceRepository) Get(ctx context.Context, id research.ID) (r
 	if !exists {
 		return research.Evidence{}, notFound(operation)
 	}
-	return evidence, nil
+	return cloneEvidence(evidence), nil
 }
 
 func (repository evidenceRepository) ListBySource(ctx context.Context, sourceID research.SourceID) ([]research.Evidence, error) {
@@ -271,7 +275,7 @@ func (repository evidenceRepository) list(_ context.Context, include func(resear
 	result := make([]research.Evidence, 0)
 	for _, evidence := range repository.store.evidence {
 		if include(evidence) {
-			result = append(result, evidence)
+			result = append(result, cloneEvidence(evidence))
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID.String() < result[j].ID.String() })

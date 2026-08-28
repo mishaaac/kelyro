@@ -28,6 +28,27 @@ func TestPolicyV1AcceptsNormativeLanguageSpecification(t *testing.T) {
 	}
 }
 
+func TestPolicyV1KeepsNormativeSpecificationAboveImplementationEvidence(t *testing.T) {
+	t.Parallel()
+	specification := trustTestInput(t, research.SourceSpecification)
+	specification.UseCase = UseCaseLanguageSpecification
+	specification.Corroboration = CorroborationSingleSource
+	implementation := specification
+	implementation.Source = trustTestSource(t, research.SourceCode)
+
+	specificationDecision, err := (PolicyV1{}).Evaluate(specification)
+	if err != nil {
+		t.Fatal(err)
+	}
+	implementationDecision, err := (PolicyV1{}).Evaluate(implementation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if specificationDecision.Tier != research.AuthorityTierA || implementationDecision.Tier != research.AuthorityTierB {
+		t.Fatalf("normative/implementation tiers = %s/%s, want A/B", specificationDecision.Tier, implementationDecision.Tier)
+	}
+}
+
 func TestPolicyV1DoesNotAllowCommunityOnlyEvidenceToSustainKnowledge(t *testing.T) {
 	input := trustTestInput(t, research.SourceCommunityArticle)
 	input.Directness = DirectnessSupporting

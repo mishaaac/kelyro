@@ -33,6 +33,7 @@ type Evidence struct {
 	ContextAfter     string
 	ExtractedAt      Timestamp
 	ExtractorVersion string
+	SourceCode       *SourceCodeLocator
 }
 
 func (evidence Evidence) Validate() error {
@@ -65,6 +66,11 @@ func (evidence Evidence) Validate() error {
 	}
 	if err := validateTimestamp("evidence extracted at", evidence.ExtractedAt); err != nil {
 		return err
+	}
+	if evidence.SourceCode != nil {
+		if err := evidence.SourceCode.Validate(); err != nil {
+			return err
+		}
 	}
 	return requireText("evidence extractor version", evidence.ExtractorVersion)
 }

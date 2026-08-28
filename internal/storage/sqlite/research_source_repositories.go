@@ -370,7 +370,22 @@ func (repository *researchEvidenceRepository) Append(ctx context.Context, item r
 	if snapshotSource != item.SourceID.String() {
 		return researchInvalid(operation, errors.New("evidence source does not match snapshot"))
 	}
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version) VALUES (?,?,?,?,?,?,?,?,?,?)`, item.ID.String(), item.SourceID.String(), item.SnapshotID.String(), item.Location, item.Excerpt, item.ExcerptHash, item.ContextBefore, item.ContextAfter, timestampText(item.ExtractedAt), item.ExtractorVersion)
+	source, err := scanResearchSource(repository.executor.QueryRowContext(opCtx, researchSourceSelect+` WHERE id=?`, item.SourceID.String()), operation)
+	if err != nil {
+		return err
+	}
+	if err := research.ValidateSourceCodeEvidenceRelationship(source, item); err != nil {
+		return researchInvalid(operation, err)
+	}
+	sourceCodeJSON := ""
+	if item.SourceCode != nil {
+		encoded, encodeErr := research.EncodeSourceCodeLocator(*item.SourceCode)
+		if encodeErr != nil {
+			return researchInvalid(operation, encodeErr)
+		}
+		sourceCodeJSON = string(encoded)
+	}
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO evidence (id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version,source_code_locator_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, item.ID.String(), item.SourceID.String(), item.SnapshotID.String(), item.Location, item.Excerpt, item.ExcerptHash, item.ContextBefore, item.ContextAfter, timestampText(item.ExtractedAt), item.ExtractorVersion, sourceCodeJSON)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -388,7 +403,7 @@ func (repository *researchEvidenceRepository) getOne(ctx context.Context, operat
 		return research.Evidence{}, err
 	}
 	defer cancel()
-	return scanResearchEvidence(repository.executor.QueryRowContext(opCtx, `SELECT id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version FROM evidence `+suffix, value), operation)
+	return scanResearchEvidence(repository.executor.QueryRowContext(opCtx, researchEvidenceSelect+` `+suffix, value), operation)
 }
 func (repository *researchEvidenceRepository) ListBySource(ctx context.Context, id research.SourceID) ([]research.Evidence, error) {
 	return repository.list(ctx, "list SQLite evidence by source", "source_id", id.String(), id.Validate())
@@ -405,7 +420,7 @@ func (repository *researchEvidenceRepository) list(ctx context.Context, operatio
 		return nil, err
 	}
 	defer cancel()
-	rows, err := repository.executor.QueryContext(opCtx, `SELECT id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version FROM evidence WHERE `+column+`=? ORDER BY id`, value)
+	rows, err := repository.executor.QueryContext(opCtx, researchEvidenceSelect+` WHERE `+column+`=? ORDER BY id`, value)
 	if err != nil {
 		return nil, researchPersistence(operation, err)
 	}
@@ -424,8 +439,8 @@ func (repository *researchEvidenceRepository) list(ctx context.Context, operatio
 	return result, nil
 }
 func scanResearchEvidence(row rowScanner, operation string) (research.Evidence, error) {
-	var idValue, sourceValue, snapshotValue, location, excerpt, hash, contextBefore, contextAfter, extracted, version string
-	if err := row.Scan(&idValue, &sourceValue, &snapshotValue, &location, &excerpt, &hash, &contextBefore, &contextAfter, &extracted, &version); err != nil {
+	var idValue, sourceValue, snapshotValue, location, excerpt, hash, contextBefore, contextAfter, extracted, version, sourceCodeJSON string
+	if err := row.Scan(&idValue, &sourceValue, &snapshotValue, &location, &excerpt, &hash, &contextBefore, &contextAfter, &extracted, &version, &sourceCodeJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return research.Evidence{}, researchNotFound(operation)
 		}
@@ -452,8 +467,17 @@ func scanResearchEvidence(row rowScanner, operation string) (research.Evidence, 
 		Excerpt: excerpt, ExcerptHash: hash, ContextBefore: contextBefore, ContextAfter: contextAfter,
 		ExtractedAt: extractedAt, ExtractorVersion: version,
 	}
+	if sourceCodeJSON != "" {
+		locator, parseErr := research.ParseSourceCodeLocator([]byte(sourceCodeJSON))
+		if parseErr != nil {
+			return research.Evidence{}, researchPersistence(operation, fmt.Errorf("invalid stored source code locator: %w", parseErr))
+		}
+		item.SourceCode = locator.Clone()
+	}
 	if err := item.Validate(); err != nil {
 		return research.Evidence{}, researchPersistence(operation, fmt.Errorf("invalid stored evidence: %w", err))
 	}
 	return item, nil
 }
+
+const researchEvidenceSelect = `SELECT id,source_id,snapshot_id,location,excerpt,excerpt_hash,context_before,context_after,extracted_at,extractor_version,source_code_locator_json FROM evidence`
