@@ -126,4 +126,13 @@ func (service *conflictResolutionService) ListForClaim(ctx context.Context, clai
 	return results, repositoryError(operation, err)
 }
 
+func (service *conflictResolutionService) ListUnresolved(ctx context.Context) ([]research.Conflict, error) {
+	const operation = "list unresolved source conflicts"
+	if err := requireDependency(operation, "conflict repository", service.repository); err != nil {
+		return nil, err
+	}
+	results, err := service.repository.ListUnresolved(ctx)
+	return results, repositoryError(operation, err)
+}
+
 var _ ConflictResolutionService = (*conflictResolutionService)(nil)

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 35
-Last completed step: 34
+Current step: 36
+Last completed step: 35
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2659,3 +2659,67 @@ Release: unreleased
 - El Paso 35 está autorizado a continuación por el usuario.
 - El CLI debe reutilizar los servicios/policies existentes, respetar privacy y
   Cost Control, y no implementar todavía las vistas TUI del Paso 36.
+
+## Step 35 — Research and Sources CLI
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Superficie humana completa para `kelyro sources`, `sources list`, `sources
+  show`, `sources conflicts`, `sources trace`, `sources stale` y `sources
+  registry list`, conservando también la inspección individual del registry.
+- `kelyro research topic <topic>` crea request/run durable en estado planned,
+  adjunta el budget default de Cost Control y construye un query plan acotado
+  `query-planner-v1` sin convertir candidatos en evidencia.
+- La solicitud manual pasa por `research-trigger-v1`, conserva dedupe y queue
+  metadata durable, y queda queued porque no se despachó un worker/provider.
+- `kelyro research status <run-id>` carga request/run y, cuando existe, resume
+  el Source Bundle más reciente con estado, fuentes primary/supporting,
+  conflictos y última verificación.
+- El workflow CLI `research-cli-workflow-v1` informa el estado de
+  `privacy.allow_network`; ante la ausencia actual de un search adapter de
+  producción deja discovery pending en vez de inventar resultados o claims.
+- Lecturas application/SQLite/memory para conflictos no resueltos con orden
+  determinista, además del cableado de Source, Bundle y Conflict services en el
+  store workspace-local.
+- Contrato, privacidad y límites documentados en
+  `docs/architecture/research-cli-v1.md`.
+
+### Decisions
+
+- Un query plan es intención de discovery, no evidencia. Sin provider live no
+  se marca el run completed ni se fabrica un bundle vacío; el run queda planned
+  e inspeccionable por ID.
+- El perfil genérico del CLI solo ordena clases deseadas y umbral de autoridad;
+  exige corroboración y no otorga trust por sí mismo.
+- `sources` es alias de `sources list`; los bodies externos nunca aparecen en
+  los listados o detalles, solo metadata acotada e identidad/hash del snapshot.
+- `sources conflicts` muestra exclusivamente conflictos unresolved; decisiones
+  históricas resueltas siguen persistidas pero no se presentan como pendientes.
+- No se añadió provider, scheduler, fetch automático, TUI, Curriculum Compiler
+  ni mutación de Student Core/mastery.
+
+### Verification
+
+- Tests application de planificación/persistencia/status offline y de
+  list/detail de sources.
+- Tests CLI de routing, aliases, topics multi-palabra, status IDs, output humano,
+  conflictos vacíos y errores de uso/IDs.
+- Tests de application, CLI, researchdb, memory y SQLite, incluyendo el nuevo
+  listado de conflictos no resueltos.
+- Smoke real en workspace temporal: init, creación offline de topic, status por
+  run ID durable, listado vacío de sources y conflictos sin acceso de red.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache y
+  `GOTMPDIR` bajo `/home/mishaaac`: tests, E2E, vet, race, build y smokes CLI;
+  SQLite race completó en 469.206 s.
+- `gofmt` y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 36 requiere autorización explícita antes de implementar Source
+  Transparency views en TUI.
+- Un provider live futuro debe entrar por `SearchProvider`, consultar el network
+  gate y Cost Control antes de cada operación, y mantener cache/evidence offline.

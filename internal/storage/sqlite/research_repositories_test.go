@@ -828,6 +828,18 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if list, err := repositories.Conflicts.ListByClaim(ctx, claimTwo.ID); err != nil || len(list) != 1 || !reflect.DeepEqual(list[0], conflict) {
 		t.Fatalf("conflicts by claim=(%+v,%v)", list, err)
 	}
+	unresolved := conflict
+	unresolved.ID = researchTestID(t, "conflict.unresolved")
+	unresolved.Resolution = ""
+	unresolved.WinningClaimID, unresolved.WinningSourceID, unresolved.WinningScope = nil, nil, ""
+	unresolved.Unresolved = true
+	unresolved.Reason = "The available evidence does not safely select a winner."
+	if err := repositories.Conflicts.Append(ctx, unresolved); err != nil {
+		t.Fatal(err)
+	}
+	if list, err := repositories.Conflicts.ListUnresolved(ctx); err != nil || len(list) != 1 || !reflect.DeepEqual(list[0], unresolved) {
+		t.Fatalf("unresolved conflicts=(%+v,%v)", list, err)
+	}
 	bundleVerifiedAt := researchTestTimestamp(t, fixedTime.Add(2*time.Minute))
 	bundle, err := research.SealSourceBundleV1(research.SourceBundle{
 		ID: researchTestID(t, "bundle.sqlite.1"), RunID: run.ID, Topic: topic,

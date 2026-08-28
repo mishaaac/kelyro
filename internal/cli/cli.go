@@ -65,8 +65,8 @@ Commands:
   time     Show intentional active study time
   reviews  Show scheduled or currently due reviews
   streak   Show study consistency without affecting progress
-  sources  Inspect source registry, provenance, and stale evidence
-  research Inspect Research costs and the offline cache
+  sources  Inspect sources, conflicts, provenance, and stale evidence
+  research Plan and inspect Research runs, costs, and the offline cache
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -175,12 +175,18 @@ Streak command:
   kelyro streak
 
 Source registry commands:
+  kelyro sources
+  kelyro sources list
+  kelyro sources show <source-id>
   kelyro sources registry list
   kelyro sources registry show <id>
   kelyro sources trace <claim-id>
   kelyro sources stale
+  kelyro sources conflicts
 
 Research commands:
+  kelyro research topic <topic>
+  kelyro research status <run-id>
   kelyro research stats
   kelyro research cache status
   kelyro research cache clear
@@ -335,6 +341,9 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		SourceRegistryOperation: invocation.sourceRegistryOperation,
 		ResearchCacheOperation:  invocation.researchCacheOperation,
 		ResearchOperation:       invocation.researchOperation,
+		ResearchTopic:           invocation.researchTopic,
+		ResearchRunID:           invocation.researchRunID,
+		SourceID:                invocation.sourceID,
 		SourceRegistryID:        invocation.sourceRegistryID,
 		ProvenanceClaimID:       invocation.provenanceClaimID,
 		Verbose:                 invocation.verbose,
@@ -463,6 +472,14 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatResearchCacheClear(*result.ResearchCacheCleared))
 	} else if result.ResearchCostStats != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatResearchCostStats(*result.ResearchCostStats))
+	} else if result.ResearchView != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchView(*result.ResearchView))
+	} else if result.Source != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSource(*result.Source))
+	} else if result.Sources != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSources(result.Sources))
+	} else if result.SourceConflicts != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSourceConflicts(result.SourceConflicts))
 	} else if result.SourceRegistryEntry != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatSourceRegistryEntry(*result.SourceRegistryEntry))
 	} else if result.SourceRegistryEntries != nil && !invocation.quiet {
@@ -1155,6 +1172,9 @@ type invocation struct {
 	sourceRegistryOperation string
 	researchCacheOperation  string
 	researchOperation       string
+	researchTopic           string
+	researchRunID           research.ID
+	sourceID                research.SourceID
 	sourceRegistryID        research.ID
 	provenanceClaimID       research.ClaimID
 }
@@ -1563,6 +1583,23 @@ func parse(args []string) (invocation, error) {
 }
 
 func parseSourcesArguments(result *invocation) error {
+	if len(result.arguments) == 0 || (len(result.arguments) == 1 && result.arguments[0] == "list") {
+		result.sourceRegistryOperation = "sources-list"
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "show" {
+		id, err := research.NewSourceID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("sources show: invalid source id: %w", err)
+		}
+		result.sourceRegistryOperation = "source-show"
+		result.sourceID = id
+		return nil
+	}
+	if len(result.arguments) == 1 && result.arguments[0] == "conflicts" {
+		result.sourceRegistryOperation = "conflicts"
+		return nil
+	}
 	if len(result.arguments) == 1 && result.arguments[0] == "stale" {
 		result.sourceRegistryOperation = "stale"
 		return nil
@@ -1589,10 +1626,28 @@ func parseSourcesArguments(result *invocation) error {
 		result.sourceRegistryID = id
 		return nil
 	}
-	return fmt.Errorf("sources requires registry list, registry show <id>, trace <claim-id>, or stale")
+	return fmt.Errorf("sources requires list, show <source-id>, conflicts, registry list, registry show <id>, trace <claim-id>, or stale")
 }
 
 func parseResearchArguments(result *invocation) error {
+	if len(result.arguments) >= 2 && result.arguments[0] == "topic" {
+		topic := strings.Join(result.arguments[1:], " ")
+		if strings.TrimSpace(topic) == "" {
+			return fmt.Errorf("research topic requires a topic")
+		}
+		result.researchOperation = "topic"
+		result.researchTopic = topic
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "status" {
+		id, err := research.NewID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("research status: invalid run id: %w", err)
+		}
+		result.researchOperation = "status"
+		result.researchRunID = id
+		return nil
+	}
 	if len(result.arguments) == 1 && result.arguments[0] == "stats" {
 		result.researchOperation = "stats"
 		return nil
@@ -1602,7 +1657,97 @@ func parseResearchArguments(result *invocation) error {
 		result.researchCacheOperation = result.arguments[1]
 		return nil
 	}
-	return fmt.Errorf("research requires stats, cache status, or cache clear")
+	return fmt.Errorf("research requires topic <topic>, status <run-id>, stats, cache status, or cache clear")
+}
+
+func formatResearchView(view app.ResearchCLIView) string {
+	status := string(view.Run.Status)
+	primary, supporting, conflicts := 0, 0, 0
+	lastVerified := "not available"
+	if view.Bundle != nil {
+		status = strings.ReplaceAll(string(view.Bundle.State), "_", " ")
+		for _, source := range view.Bundle.Sources {
+			switch source.Role {
+			case research.BundleSourcePrimary:
+				primary++
+			case research.BundleSourceSupporting:
+				supporting++
+			}
+		}
+		conflicts = len(view.Bundle.ConflictIDs)
+		lastVerified = view.Bundle.VerifiedAt.Time().Format(time.RFC3339)
+	}
+	lines := []string{
+		"Research: " + view.Request.Topic.Subject,
+		"Run: " + view.Run.ID.String(),
+		"", "Status: " + status,
+		fmt.Sprintf("Primary sources: %d", primary),
+		fmt.Sprintf("Supporting sources: %d", supporting),
+		fmt.Sprintf("Conflicts: %d", conflicts),
+		"Last verified: " + lastVerified,
+	}
+	if view.DiscoveryPending {
+		policy := "blocked by privacy.allow_network"
+		if view.NetworkAllowed {
+			policy = "allowed; no live discovery adapter configured"
+		}
+		lines = append(lines, "Discovery: pending ("+policy+")")
+	}
+	if view.QueueItem != nil {
+		triggers := make([]string, len(view.QueueItem.Triggers))
+		for index, trigger := range view.QueueItem.Triggers {
+			triggers[index] = string(trigger)
+		}
+		lines = append(lines, "Trigger: "+strings.Join(triggers, ", ")+" ("+string(view.QueueItem.Priority)+")")
+	}
+	if view.Plan != nil {
+		lines = append(lines, "Query plan: "+view.Plan.AlgorithmVersion)
+		for _, query := range view.Plan.Queries {
+			lines = append(lines, fmt.Sprintf("- %d. %s [%s, tier %s+]", query.Priority, query.Query, query.DesiredSourceKind, query.RequiredAuthority))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSources(sources []research.Source) string {
+	lines := []string{"Research sources"}
+	if len(sources) == 0 {
+		return strings.Join(append(lines, "No sources recorded."), "\n")
+	}
+	for _, source := range sources {
+		lines = append(lines, fmt.Sprintf("- %s [%s, %s] — %s — %s", source.ID, source.Kind, source.TemporalScope, source.Metadata.Title, source.Locator))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSource(view app.SourceCLIView) string {
+	source := view.Source
+	lines := []string{
+		"Research source", "ID: " + source.ID.String(), "Title: " + source.Metadata.Title,
+		"Kind: " + string(source.Kind), "Temporal scope: " + string(source.TemporalScope),
+		"Locator: " + source.Locator.String(), "Publisher: " + source.Metadata.Publisher,
+	}
+	if view.LatestSnapshot == nil {
+		lines = append(lines, "Latest snapshot: not available")
+	} else {
+		lines = append(lines, "Latest snapshot: "+view.LatestSnapshot.ID.String(), "Fetched: "+view.LatestSnapshot.FetchedAt.Time().Format(time.RFC3339), "Content hash: "+view.LatestSnapshot.Fetch.ContentHash)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSourceConflicts(conflicts []research.Conflict) string {
+	lines := []string{"Unresolved source conflicts"}
+	if len(conflicts) == 0 {
+		return strings.Join(append(lines, "No unresolved conflicts."), "\n")
+	}
+	for _, conflict := range conflicts {
+		claims := make([]string, len(conflict.ClaimIDs))
+		for index, claimID := range conflict.ClaimIDs {
+			claims[index] = claimID.String()
+		}
+		lines = append(lines, fmt.Sprintf("- %s [%s] — claims %s — %s", conflict.ID, conflict.Type, strings.Join(claims, ", "), conflict.Reason))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatResearchCostStats(stats researchapp.ResearchCostStats) string {

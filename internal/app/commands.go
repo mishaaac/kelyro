@@ -115,6 +115,9 @@ type Command struct {
 	SourceRegistryOperation string
 	ResearchCacheOperation  string
 	ResearchOperation       string
+	ResearchTopic           string
+	ResearchRunID           research.ID
+	SourceID                research.SourceID
 	SourceRegistryID        research.ID
 	ProvenanceClaimID       research.ClaimID
 	Verbose                 bool
@@ -153,6 +156,10 @@ type Result struct {
 	ResearchCacheStatus   *researchapp.ResearchCacheStatus
 	ResearchCacheCleared  *researchapp.ResearchCacheClearResult
 	ResearchCostStats     *researchapp.ResearchCostStats
+	ResearchView          *ResearchCLIView
+	Sources               []research.Source
+	Source                *SourceCLIView
+	SourceConflicts       []research.Conflict
 }
 
 // FoundationService executes the operations currently exposed by the CLI.

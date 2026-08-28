@@ -47,6 +47,18 @@ func (service *researchService) Run(ctx context.Context, id research.ID) (resear
 	return run, repositoryError(operation, err)
 }
 
+func (service *researchService) Request(ctx context.Context, id research.ID) (research.ResearchRequest, error) {
+	const operation = "get research request"
+	if err := id.Validate(); err != nil {
+		return research.ResearchRequest{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "research run repository", service.runs); err != nil {
+		return research.ResearchRequest{}, err
+	}
+	request, err := service.runs.GetRequest(ctx, id)
+	return request, repositoryError(operation, err)
+}
+
 func (service *researchService) UpdateRun(ctx context.Context, run research.ResearchRun) error {
 	const operation = "update research run"
 	if err := run.Validate(); err != nil {

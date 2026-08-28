@@ -265,3 +265,7 @@ The eight deterministic research/research-refresh triggers, priority,
 deduplication, durable queue metadata, and explicit no-scheduler boundary are
 documented in
 [research-trigger-policy-v1.md](research-trigger-policy-v1.md).
+
+The human-first Research/Sources commands, durable manual query planning,
+bundle-derived status output, privacy behavior, and no-provider boundary are
+documented in [research-cli-v1.md](research-cli-v1.md).

@@ -245,6 +245,7 @@ type ConflictRepository interface {
 	Append(context.Context, research.Conflict) error
 	Get(context.Context, research.ID) (research.Conflict, error)
 	ListByClaim(context.Context, research.ClaimID) ([]research.Conflict, error)
+	ListUnresolved(context.Context) ([]research.Conflict, error)
 }
 
 // SourceBundleRepository is append-only. A later assembly produces a new
@@ -1024,6 +1025,7 @@ type CitationService interface {
 // Application service contracts expose use cases without leaking repositories.
 type ResearchService interface {
 	Start(context.Context, research.ResearchRequest, research.ResearchRun) error
+	Request(context.Context, research.ID) (research.ResearchRequest, error)
 	Run(context.Context, research.ID) (research.ResearchRun, error)
 	UpdateRun(context.Context, research.ResearchRun) error
 }
@@ -1170,14 +1172,16 @@ type ProvenanceService interface {
 	Export(context.Context, research.ClaimID) ([]byte, error)
 }
 
-// SourceRegistryStore scopes read-only source registry, provenance, and stale
-// schedule commands plus the underlying workspace database lifetime without
-// exposing SQLite.
+// SourceRegistryStore scopes Research/Source CLI use cases plus the underlying
+// workspace database lifetime without exposing SQLite to presentation.
 type SourceRegistryStore interface {
+	Sources() SourceService
 	Registry() SourceRegistryService
 	Provenance() ProvenanceService
 	Freshness() FreshnessService
 	Research() ResearchService
+	Bundles() SourceBundleService
+	Conflicts() ConflictResolutionService
 	Costs() ResearchCostService
 	Triggers() ResearchTriggerService
 	Close() error
@@ -1316,6 +1320,7 @@ type ConflictResolutionService interface {
 	Assess(context.Context, ConflictAssessmentRequest) (research.Conflict, error)
 	Get(context.Context, research.ID) (research.Conflict, error)
 	ListForClaim(context.Context, research.ClaimID) ([]research.Conflict, error)
+	ListUnresolved(context.Context) ([]research.Conflict, error)
 }
 
 type FreshnessService interface {

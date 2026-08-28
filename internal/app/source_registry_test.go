@@ -19,6 +19,11 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	provenanceStore := memory.New()
 	provenance := researchapp.NewProvenanceService(provenanceStore.Repositories().Provenance)
 	freshness := researchapp.NewFreshnessService(provenanceStore.Repositories().Freshness)
+	sources := researchapp.NewSourceService(provenanceStore.Repositories().Sources, provenanceStore.Repositories().Snapshots)
+	source := appSource(t)
+	if err := sources.Register(ctx, source); err != nil {
+		t.Fatal(err)
+	}
 	entry := appRegistryEntry(t)
 	if err := registry.Save(ctx, entry); err != nil {
 		t.Fatal(err)
@@ -39,7 +44,7 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	if err := freshness.Save(ctx, staleRecord); err != nil {
 		t.Fatal(err)
 	}
-	factory := &fakeSourceRegistryStoreFactory{registry: registry, provenance: provenance, freshness: freshness}
+	factory := &fakeSourceRegistryStoreFactory{sources: sources, registry: registry, provenance: provenance, freshness: freshness}
 	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
 		WithResearchStores(factory).
 		WithResearchClock(func() time.Time { return time.Date(2026, 8, 25, 10, 0, 0, 0, time.UTC) })
@@ -59,48 +64,82 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 	if err != nil || len(due.StaleSources) != 1 || due.StaleSources[0].SubjectID != staleRecord.SubjectID {
 		t.Fatalf("stale sources = (%+v, %v)", due.StaleSources, err)
 	}
-	if factory.openRoot != root || factory.closed != 4 {
+	listedSources, err := service.Execute(ctx, Command{Action: ActionSources, Workspace: root, SourceRegistryOperation: "sources-list"})
+	if err != nil || len(listedSources.Sources) != 1 || listedSources.Sources[0].ID != source.ID {
+		t.Fatalf("source list = (%+v, %v)", listedSources.Sources, err)
+	}
+	shownSource, err := service.Execute(ctx, Command{Action: ActionSources, Workspace: root, SourceRegistryOperation: "source-show", SourceID: source.ID})
+	if err != nil || shownSource.Source == nil || shownSource.Source.Source.ID != source.ID {
+		t.Fatalf("source show = (%+v, %v)", shownSource.Source, err)
+	}
+	if factory.openRoot != root || factory.closed != 6 {
 		t.Fatalf("registry factory root=%q closed=%d", factory.openRoot, factory.closed)
 	}
 }
 
 type fakeSourceRegistryStoreFactory struct {
+	sources    researchapp.SourceService
 	registry   researchapp.SourceRegistryService
 	provenance researchapp.ProvenanceService
 	freshness  researchapp.FreshnessService
 	costs      researchapp.ResearchCostService
+	research   researchapp.ResearchService
+	bundles    researchapp.SourceBundleService
+	conflicts  researchapp.ConflictResolutionService
+	triggers   researchapp.ResearchTriggerService
 	openRoot   string
 	closed     int
 }
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{registry: factory.registry, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, registry: factory.registry, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
+	sources    researchapp.SourceService
 	registry   researchapp.SourceRegistryService
 	provenance researchapp.ProvenanceService
 	freshness  researchapp.FreshnessService
 	costs      researchapp.ResearchCostService
+	research   researchapp.ResearchService
+	bundles    researchapp.SourceBundleService
+	conflicts  researchapp.ConflictResolutionService
+	triggers   researchapp.ResearchTriggerService
 	close      func()
 }
 
 func (store *fakeSourceRegistryStore) Registry() researchapp.SourceRegistryService {
 	return store.registry
 }
+func (store *fakeSourceRegistryStore) Sources() researchapp.SourceService { return store.sources }
 func (store *fakeSourceRegistryStore) Provenance() researchapp.ProvenanceService {
 	return store.provenance
 }
 func (store *fakeSourceRegistryStore) Freshness() researchapp.FreshnessService {
 	return store.freshness
 }
-func (store *fakeSourceRegistryStore) Research() researchapp.ResearchService        { return nil }
-func (store *fakeSourceRegistryStore) Costs() researchapp.ResearchCostService       { return store.costs }
-func (store *fakeSourceRegistryStore) Triggers() researchapp.ResearchTriggerService { return nil }
+func (store *fakeSourceRegistryStore) Research() researchapp.ResearchService    { return store.research }
+func (store *fakeSourceRegistryStore) Bundles() researchapp.SourceBundleService { return store.bundles }
+func (store *fakeSourceRegistryStore) Conflicts() researchapp.ConflictResolutionService {
+	return store.conflicts
+}
+func (store *fakeSourceRegistryStore) Costs() researchapp.ResearchCostService { return store.costs }
+func (store *fakeSourceRegistryStore) Triggers() researchapp.ResearchTriggerService {
+	return store.triggers
+}
 func (store *fakeSourceRegistryStore) Close() error {
 	store.close()
 	return nil
+}
+
+func appSource(t *testing.T) research.Source {
+	t.Helper()
+	id, _ := research.NewSourceID("source.app-doc")
+	locator, _ := research.NewSourceLocator("https://example.test/docs")
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+	return research.Source{ID: id, Kind: research.SourceOfficialDocumentation, Locator: locator,
+		TemporalScope: research.SourceTemporalCurrent, Metadata: research.SourceMetadata{Title: "Example docs", Publisher: "Example"}, CreatedAt: at}
 }
 
 func appRegistryEntry(t *testing.T) research.SourceRegistryEntry {

@@ -2308,7 +2308,7 @@ feat(research): add research trigger policy v1
 
 ## Paso 35 — Implementar `kelyro research` y `kelyro sources`
 
-- [ ] Paso 35 completado
+- [x] Paso 35 completado
 
 ### Objetivo
 
@@ -3212,9 +3212,9 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 30 — Source Diversity
 - [ ] Paso 31 — Real Source Code
 - [ ] Paso 32 — Offline Research Cache
-- [ ] Paso 33 — Cost Control
-- [ ] Paso 34 — Trigger Policies
-- [ ] Paso 35 — Research/Sources CLI
+- [x] Paso 33 — Cost Control
+- [x] Paso 34 — Trigger Policies
+- [x] Paso 35 — Research/Sources CLI
 - [ ] Paso 36 — TUI Transparency
 - [ ] Paso 37 — Update Scan
 - [ ] Paso 38 — Drift Detection

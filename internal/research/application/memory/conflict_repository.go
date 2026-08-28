@@ -83,6 +83,28 @@ func (repository conflictRepository) ListByClaim(ctx context.Context, claimID re
 	return results, nil
 }
 
+func (repository conflictRepository) ListUnresolved(ctx context.Context) ([]research.Conflict, error) {
+	const operation = "list unresolved memory source conflicts"
+	if err := contextError(operation, ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	results := make([]research.Conflict, 0)
+	for _, result := range repository.store.conflicts {
+		if result.Unresolved {
+			results = append(results, cloneConflict(result))
+		}
+	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].DetectedAt.Time().Equal(results[j].DetectedAt.Time()) {
+			return results[i].ID.String() < results[j].ID.String()
+		}
+		return results[i].DetectedAt.Before(results[j].DetectedAt)
+	})
+	return results, nil
+}
+
 func claimContainsSource(claim research.Claim, sourceID research.SourceID) bool {
 	for _, candidate := range claim.SourceIDs {
 		if candidate == sourceID {

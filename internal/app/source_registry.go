@@ -27,6 +27,38 @@ func (service *Service) executeSourceRegistry(ctx context.Context, command Comma
 		}
 	}()
 	switch command.SourceRegistryOperation {
+	case "sources-list":
+		if store.Sources() == nil {
+			return Result{}, errors.New("source service is unavailable")
+		}
+		result.Sources, err = store.Sources().List(ctx)
+		if result.Sources == nil {
+			result.Sources = make([]research.Source, 0)
+		}
+	case "source-show":
+		if store.Sources() == nil {
+			return Result{}, errors.New("source service is unavailable")
+		}
+		source, getErr := store.Sources().Get(ctx, command.SourceID)
+		if getErr != nil {
+			return Result{}, getErr
+		}
+		view := SourceCLIView{Source: source}
+		snapshot, snapshotErr := store.Sources().LatestSnapshot(ctx, command.SourceID)
+		if snapshotErr == nil {
+			view.LatestSnapshot = &snapshot
+		} else if !errors.Is(snapshotErr, researchapp.ErrNotFound) {
+			return Result{}, snapshotErr
+		}
+		result.Source = &view
+	case "conflicts":
+		if store.Conflicts() == nil {
+			return Result{}, errors.New("conflict service is unavailable")
+		}
+		result.SourceConflicts, err = store.Conflicts().ListUnresolved(ctx)
+		if result.SourceConflicts == nil {
+			result.SourceConflicts = make([]research.Conflict, 0)
+		}
 	case "list":
 		if store.Registry() == nil {
 			return Result{}, errors.New("source registry service is unavailable")

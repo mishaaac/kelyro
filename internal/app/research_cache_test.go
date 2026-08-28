@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
+	"github.com/mishaaac/kelyro/internal/research/application/memory"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -51,6 +53,34 @@ func TestServiceCoordinatesResearchCostStats(t *testing.T) {
 	result, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "stats"})
 	if err != nil || result.ResearchCostStats == nil || result.ResearchCostStats.BudgetStoppedRuns != 1 || costs.statsCalls != 1 {
 		t.Fatalf("research stats = (%+v,%v), calls=%d", result, err, costs.statsCalls)
+	}
+}
+
+func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
+	t.Parallel()
+	root := "/workspaces/research-topic"
+	at := time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC)
+	memoryStore := memory.New()
+	repositories := memoryStore.Repositories()
+	factory := &fakeSourceRegistryStoreFactory{
+		research: researchapp.NewResearchService(repositories.Runs),
+		bundles:  researchapp.NewSourceBundleService(repositories.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil),
+		triggers: researchapp.NewResearchTriggerService(repositories.TriggerQueue),
+	}
+	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
+		WithConfig(&recordingConfigStore{project: config.Settings{config.KeyAllowNetwork: config.BoolValue(false)}}).
+		WithResearchStores(factory).WithResearchClock(func() time.Time { return at })
+	planned, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "topic", ResearchTopic: "Go range over func"})
+	if err != nil || planned.ResearchView == nil || planned.ResearchView.Plan == nil || len(planned.ResearchView.Plan.Queries) == 0 || planned.ResearchView.QueueItem == nil || !planned.ResearchView.DiscoveryPending || planned.ResearchView.NetworkAllowed {
+		t.Fatalf("research topic = (%+v, %v)", planned.ResearchView, err)
+	}
+	repeated, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "topic", ResearchTopic: "Go range over func"})
+	if err != nil || repeated.ResearchView.Request.ID != planned.ResearchView.Request.ID || repeated.ResearchView.Run.ID == planned.ResearchView.Run.ID {
+		t.Fatalf("repeated research topic = (%+v, %v)", repeated.ResearchView, err)
+	}
+	status, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "status", ResearchRunID: planned.ResearchView.Run.ID})
+	if err != nil || status.ResearchView == nil || status.ResearchView.Request.Topic.Subject != "Go range over func" || status.ResearchView.Run.Status != research.ResearchRunPlanned {
+		t.Fatalf("research status = (%+v, %v)", status.ResearchView, err)
 	}
 }
 

@@ -28,30 +28,39 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		return nil, err
 	}
 	registry := application.NewSourceRegistryService(database.Repositories().Research.SourceRegistry)
+	sources := application.NewSourceService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots)
 	provenance := application.NewProvenanceService(database.Repositories().Research.Provenance)
 	freshness := application.NewFreshnessService(database.Repositories().Research.Freshness)
 	researchService := application.NewResearchService(database.Repositories().Research.Runs)
 	costs := application.NewResearchCostService(database.Repositories().Research.Costs)
 	triggers := application.NewResearchTriggerService(database.Repositories().Research.TriggerQueue)
-	return &store{database: database, registry: registry, provenance: provenance, freshness: freshness, research: researchService, costs: costs, triggers: triggers}, nil
+	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
+	return &store{database: database, sources: sources, registry: registry, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers}, nil
 }
 
 type store struct {
 	database   *sqlite.Database
+	sources    application.SourceService
 	registry   application.SourceRegistryService
 	provenance application.ProvenanceService
 	freshness  application.FreshnessService
 	research   application.ResearchService
+	bundles    application.SourceBundleService
+	conflicts  application.ConflictResolutionService
 	costs      application.ResearchCostService
 	triggers   application.ResearchTriggerService
 }
 
-func (store *store) Registry() application.SourceRegistryService  { return store.registry }
-func (store *store) Provenance() application.ProvenanceService    { return store.provenance }
-func (store *store) Freshness() application.FreshnessService      { return store.freshness }
-func (store *store) Research() application.ResearchService        { return store.research }
-func (store *store) Costs() application.ResearchCostService       { return store.costs }
-func (store *store) Triggers() application.ResearchTriggerService { return store.triggers }
+func (store *store) Sources() application.SourceService               { return store.sources }
+func (store *store) Registry() application.SourceRegistryService      { return store.registry }
+func (store *store) Provenance() application.ProvenanceService        { return store.provenance }
+func (store *store) Freshness() application.FreshnessService          { return store.freshness }
+func (store *store) Research() application.ResearchService            { return store.research }
+func (store *store) Bundles() application.SourceBundleService         { return store.bundles }
+func (store *store) Conflicts() application.ConflictResolutionService { return store.conflicts }
+func (store *store) Costs() application.ResearchCostService           { return store.costs }
+func (store *store) Triggers() application.ResearchTriggerService     { return store.triggers }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

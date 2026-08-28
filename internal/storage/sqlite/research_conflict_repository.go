@@ -115,6 +115,32 @@ func (repository *researchConflictRepository) ListByClaim(ctx context.Context, c
 	return results, nil
 }
 
+func (repository *researchConflictRepository) ListUnresolved(ctx context.Context) ([]research.Conflict, error) {
+	const operation = "list unresolved SQLite source conflicts"
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+	rows, err := repository.executor.QueryContext(opCtx, conflictSelect+` WHERE unresolved=1 ORDER BY detected_at,id`)
+	if err != nil {
+		return nil, researchPersistence(operation, err)
+	}
+	defer rows.Close()
+	results := make([]research.Conflict, 0)
+	for rows.Next() {
+		result, scanErr := scanConflict(rows, operation)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		results = append(results, result)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, researchPersistence(operation, err)
+	}
+	return results, nil
+}
+
 const conflictSelect = `SELECT id,conflict_type,claim_ids_json,resolution,unresolved,detected_at,
 confidence,reason,winning_claim_id,winning_source_id,winning_scope,algorithm_version FROM source_conflicts`
 

@@ -92,6 +92,15 @@ func TestConflictResolutionServiceRequiresAcceptedTrustAndClaimSourceRelationshi
 	if _, err := service.Assess(ctx, request); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("unrelated source error = %v, want invalid_state", err)
 	}
+	request.Observations[1].SourceID = rightSource.ID
+	result, err := service.Assess(ctx, request)
+	if err != nil || !result.Unresolved {
+		t.Fatalf("equal-authority conflict = (%+v, %v), want unresolved", result, err)
+	}
+	list, err := service.ListUnresolved(ctx)
+	if err != nil || len(list) != 1 || list[0].ID != result.ID {
+		t.Fatalf("unresolved conflicts = (%+v, %v)", list, err)
+	}
 }
 
 func appendConflictFixture(
