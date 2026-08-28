@@ -2020,7 +2020,7 @@ feat(sources): support playgrounds package references and standards
 
 ## Paso 28 — Implementar Community Resource Policy
 
-- [ ] Paso 28 completado
+- [x] Paso 28 completado
 
 ### Objetivo
 
@@ -3207,7 +3207,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 25 — Source Bundle
 - [ ] Paso 26 — Further Reading
 - [x] Paso 27 — Playground/Package/Standards
-- [ ] Paso 28 — Community Resources
+- [x] Paso 28 — Community Resources
 - [ ] Paso 29 — Video Supplements
 - [ ] Paso 30 — Source Diversity
 - [ ] Paso 31 — Real Source Code

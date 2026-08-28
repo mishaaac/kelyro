@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/mishaaac/kelyro/internal/research"
+	"github.com/mishaaac/kelyro/internal/research/community"
 	registrycatalog "github.com/mishaaac/kelyro/internal/research/registry"
 )
 
@@ -119,6 +120,7 @@ type Input struct {
 	Stability     Stability
 	Corroboration Corroboration
 	Registry      *research.SourceRegistryEntry
+	Community     *community.Assessment
 	EvaluatedAt   research.Timestamp
 }
 
@@ -159,6 +161,17 @@ func (input Input) Validate() error {
 			return fmt.Errorf("trust registry entry does not apply to source kind and topic")
 		}
 	}
+	if input.Community != nil {
+		if err := input.Community.Validate(); err != nil {
+			return fmt.Errorf("trust community assessment: %w", err)
+		}
+		if input.Community.SourceID != input.Source.ID {
+			return fmt.Errorf("trust community assessment does not match source")
+		}
+		if input.Community.Freshness != input.Freshness {
+			return fmt.Errorf("trust community assessment freshness does not match input")
+		}
+	}
 	return nil
 }
 
@@ -170,7 +183,11 @@ func (PolicyV1) Evaluate(input Input) (research.TrustDecision, error) {
 		return research.TrustDecision{}, err
 	}
 
-	tier := registryAdjustedTier(input, authorityTier(input.UseCase, input.Source))
+	baselineTier := authorityTier(input.UseCase, input.Source)
+	if input.Community != nil {
+		baselineTier = input.Community.Tier
+	}
+	tier := registryAdjustedTier(input, baselineTier)
 	reasons := dimensionReasons(input, tier)
 	state, outcomeReason := decide(input, tier, metadataComplete(input))
 	reasons = append(reasons, outcomeReason)
@@ -275,6 +292,10 @@ func decide(input Input, tier research.AuthorityTier, completeMetadata bool) (re
 		input.Corroboration == CorroborationNone || input.Corroboration == CorroborationUnknown ||
 		input.Corroboration == CorroborationConflicted ||
 		(tier == research.AuthorityTierD && input.Corroboration != CorroborationIndependent)
+	if input.Community != nil {
+		requiresVerification = requiresVerification || input.Community.RequiresVerification ||
+			input.Community.Role == community.RoleContextOnly
+	}
 	if input.Registry != nil {
 		requiresVerification = requiresVerification || input.Registry.Status == research.RegistryConditional ||
 			input.Registry.Status == research.RegistryDeprecated ||
@@ -339,6 +360,9 @@ func dimensionReasons(input Input, tier research.AuthorityTier) []research.Trust
 	if input.Source.Kind == research.SourcePlayground {
 		affiliation := input.Source.Specialization.Playground.Affiliation
 		reasons = append(reasons, reason("authority.playground_"+string(affiliation), "Playground affiliation is explicit specialized metadata; interactivity does not make it primary evidence."))
+	}
+	if input.Community != nil {
+		reasons = append(reasons, reason("community."+string(input.Community.Role), "Community Resource Policy keeps the resource non-normative and explicitly attributed."))
 	}
 	if input.UseCase == UseCaseSecurityAdvisory && input.Corroboration != CorroborationIndependent {
 		reasons = append(reasons, reason("security.independent_corroboration_required", "Security guidance requires vendor or normative evidence plus independent recognized support."))

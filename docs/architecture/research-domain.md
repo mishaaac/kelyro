@@ -245,6 +245,14 @@ labels/warnings; it neither turns reading material into Evidence nor compiles
 curriculum. The complete contract is documented in
 [further-reading-selection-v1.md](further-reading-selection-v1.md).
 
+Step 28 classifies blogs, forums, Q&A, conference talks, community tutorials,
+and repository examples through `community-resource-policy-v1`. Community
+resources are tier-D supplements by default; a matching Authority Profile may
+recognize them only as tier-C supplements. Comments remain context-only,
+freshness is explicit, engagement never affects truth, and attribution always
+retains the canonical locator. The complete contract is documented in
+[community-resource-policy-v1.md](community-resource-policy-v1.md).
+
 `TechnologyRelease` (with the compatible `ReleaseRecord` alias) supports
 semantic, date-based, and opaque version identities;
 stable/preview/beta/RC/experimental/nightly/unknown channels; and

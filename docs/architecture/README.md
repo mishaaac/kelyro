@@ -136,6 +136,11 @@ union, canonical bounded encoding, trust/freshness integration, and additive
 SQLite compatibility projection are documented in
 [specialized-technical-sources-v1.md](specialized-technical-sources-v1.md).
 
+The community resource types, supplementary-by-default rule, tightly bounded
+Authority Profile elevation, explicit attribution, comment limitation,
+freshness handling, and popularity exclusion are documented in
+[community-resource-policy-v1.md](community-resource-policy-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).

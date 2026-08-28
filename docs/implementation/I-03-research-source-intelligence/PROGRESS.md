@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 28
-Last completed step: 27
+Current step: 29
+Last completed step: 28
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2143,3 +2143,71 @@ Release: unreleased
 - El Paso 28 es el siguiente paso pendiente y requiere autorización explícita.
 - No implementar Community Resource Policy ni pasos posteriores antes de su
   autorización independiente.
+
+## Step 28 — Community Resource Policy
+
+Status: completed
+Date: 2026-08-27
+Release: unreleased
+
+### Delivered
+
+- Política pura y versionada `community-resource-policy-v1` para blog, forum,
+  Q&A, conference talk, community tutorial y repository example sobre source
+  kinds existentes y sin dependencias de red o almacenamiento.
+- Rol `supplementary` y tier D por defecto; elevación máxima a
+  `recognized_supplementary` tier C sólo cuando un Authority Profile aplicable
+  reconoce explícitamente kind y organization/publisher o dominio.
+- Diferenciación entre recurso y comment: comentarios permanecen
+  `context_only`, tier D y requieren verificación incluso bajo un profile
+  reconocido.
+- Freshness revisada como input obligatorio; estados stale/unknown requieren
+  verificación y nunca se infieren desde publication date o engagement.
+- Votes/views aceptados sólo como señales informativas y excluidos por diseño
+  de truth, authority, role y verification, con reason estable
+  `popularity.ignored`.
+- Attribution explícita con title, author/organization opcionales, publisher y
+  locator canónico, sin inventar identidades ausentes.
+- Integración conservadora con `trust-policy-v1`: valida identidad/freshness,
+  evita que repository examples comunitarios hereden tier B de source code y
+  mantiene todo resultado community como suplemento o verificación requerida.
+- Contrato y límites documentados en
+  `docs/architecture/community-resource-policy-v1.md`, con índices, dominio y
+  Trust Policy sincronizados.
+
+### Decisions
+
+- Authority Profile no convierte una fuente comunitaria en normativa: la
+  elevación está acotada a tier C y requiere coincidencia conjunta de kind e
+  identidad organizacional/dominio.
+- `AllowedSupplementaryKinds` permite uso contextual pero no eleva autoridad;
+  la preferencia debe ser explícita en `PreferredKinds`.
+- Los counts de engagement no se copian a razones ni fórmulas; inputs con cero
+  o millones de interacciones producen la misma decisión.
+- Conference talk utiliza el source kind host-neutral `video`, mientras sus
+  metadatos específicos se reservan al Paso 29.
+- No se añadió migración, repository, network adapter, CLI/TUI, transcript,
+  Source Bundle, Curriculum Compiler ni cambio de Student Core/mastery.
+
+### Verification
+
+- Tests de los seis resource types, mapping de source kinds, supplement por
+  defecto, elevación y no-elevación por Authority Profile, comment context-only,
+  freshness, attribution y neutralidad ante popularidad.
+- Tests de integración Trust para repository example reconocido y comment que
+  requiere verificación.
+- `GOCACHE=/tmp/kelyro-i03-step28-target-gocache go test
+  ./internal/research/community ./internal/research/trust` y `go vet` dirigido.
+- `go test -race ./internal/research/community ./internal/research/trust`.
+- Suite completa `go test ./...` y `go vet ./...` con cache compartida aislada.
+- Cross-compile del test binary community para Windows amd64 y Darwin
+  amd64/arm64 con `CGO_ENABLED=0`.
+- `gofmt` aplicado y `git diff --check` sin errores. Un primer intento de suite
+  completa agotó una cuota temporal; tras limpiar exclusivamente caches Go
+  regenerables de Kelyro, la repetición terminó correctamente.
+
+### Notes for next session
+
+- El Paso 29 está autorizado a continuación por el usuario.
+- No implementar Source Diversity ni pasos posteriores antes de su autorización
+  independiente.

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/research"
+	"github.com/mishaaac/kelyro/internal/research/community"
 )
 
 func TestPolicyV1AcceptsNormativeLanguageSpecification(t *testing.T) {
@@ -188,6 +189,51 @@ func TestPolicyV1UsesExplicitPlaygroundAffiliationWithoutMakingItPrimary(t *test
 	}
 	assertReason(t, officialDecision, "authority.playground_official")
 	assertReason(t, communityDecision, "authority.playground_community")
+}
+
+func TestPolicyV1ConsumesCommunityPolicyWithoutMakingItNormative(t *testing.T) {
+	t.Parallel()
+	input := trustTestInput(t, research.SourceCode)
+	input.Source.ID, _ = research.NewSourceID("source.community-example")
+	input.Source.Kind = research.SourceCode
+	profileID, _ := research.NewID("authority.community-trust")
+	profile := research.AuthorityProfile{
+		ID: profileID, Version: "authority-profile/v1", Domain: "software", TopicPattern: "example/*",
+		PreferredKinds: []research.SourceKind{research.SourceCode}, PreferredDomains: []string{"example.com"},
+		MinimumCorroboration: 1, MinimumTier: research.AuthorityTierC, CreatedAt: input.EvaluatedAt,
+	}
+	assessment, err := (community.PolicyV1{}).Evaluate(community.Input{
+		Source: input.Source, Topic: input.Topic, ResourceType: community.ResourceRepositoryExample,
+		Contribution: community.ContributionResource, Freshness: input.Freshness, AuthorityProfile: &profile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input.Community = &assessment
+
+	decision, err := (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Tier != research.AuthorityTierC || decision.State != research.TrustAcceptedSupplement {
+		t.Fatalf("community repository decision = (%s,%s)", decision.State, decision.Tier)
+	}
+	assertReason(t, decision, "community.recognized_supplementary")
+
+	assessment.Contribution = community.ContributionComment
+	assessment.Role = community.RoleContextOnly
+	assessment.Tier = research.AuthorityTierD
+	assessment.AuthorityElevated = false
+	assessment.RequiresVerification = true
+	assessment.Reasons[1] = community.Reason{Code: community.ReasonCommentContext, Detail: "Discussion comment remains context only."}
+	input.Community = &assessment
+	decision, err = (PolicyV1{}).Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.State != research.TrustRequiresVerification || decision.Tier != research.AuthorityTierD {
+		t.Fatalf("community comment decision = (%s,%s)", decision.State, decision.Tier)
+	}
 }
 
 func TestPolicyV1IsDeterministicAndRejectsInvalidInput(t *testing.T) {

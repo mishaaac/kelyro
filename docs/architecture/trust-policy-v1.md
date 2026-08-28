@@ -25,8 +25,9 @@ dimensions are explicit input and are never collapsed into a numeric score:
 | corroboration | independent, single_source, none, conflicted, unknown | Independent support or explicit disagreement. |
 
 The input also includes the validated `Source`, research topic and purpose, one
-use case, an optional already-matched `SourceRegistryEntry`, and the UTC
-evaluation timestamp. Supported use cases are `general`,
+use case, an optional already-matched `SourceRegistryEntry`, an optional
+validated `community-resource-policy-v1` assessment, and the UTC evaluation
+timestamp. Supported use cases are `general`,
 `language_specification`, `security_advisory`, `package_api`, and
 `historical_behavior`.
 
@@ -65,6 +66,13 @@ may make the resulting tier more conservative but never elevate the baseline.
 `blocked` rejects; `conditional` and `deprecated` require verification; and
 `historical` requires verification outside the historical use case. Registry
 matching itself lives in `internal/research/registry`.
+
+Step 28 adds an explicit community override before registry context. A
+Community Resource assessment supplies tier D by default or at most tier C
+when a matching Authority Profile recognizes both kind and organization/domain.
+This prevents a `repository_example` from inheriting the generic source-code
+tier B. Comments and stale/unknown community assessments force verification;
+even a recognized community resource remains supplementary.
 
 ## Metadata requirement
 
@@ -110,6 +118,7 @@ corroboration.<value>
 metadata.complete | metadata.incomplete
 authority.historical_primary
 authority.playground_official | authority.playground_community
+community.supplementary | community.recognized_supplementary | community.context_only
 security.independent_corroboration_required
 registry.<status>
 registry.authority_hint
