@@ -17,6 +17,7 @@ const (
 	workspaceMetadataFileName     = "workspace.json"
 	workspaceStateDirectoryName   = "state"
 	workspaceCacheDirectoryName   = "cache"
+	workspaceResearchCacheName    = "research"
 	workspaceBackupDirectoryName  = "backups"
 	workspaceLogDirectoryName     = "logs"
 	workspaceLearningFileName     = "LEARNING.md"
@@ -150,6 +151,15 @@ func WorkspaceStatePath(root string) (string, error) {
 // WorkspaceCacheDir returns the directory for workspace-local disposable data.
 func WorkspaceCacheDir(root string) (string, error) {
 	return workspaceChildPath(root, workspaceCacheDirectoryName)
+}
+
+// WorkspaceResearchCacheDir returns the disposable Research cache directory.
+func WorkspaceResearchCacheDir(root string) (string, error) {
+	cache, err := WorkspaceCacheDir(root)
+	if err != nil {
+		return "", err
+	}
+	return childPath(cache, workspaceResearchCacheName)
 }
 
 // WorkspaceBackupDir returns the directory reserved for workspace backups.

@@ -66,6 +66,7 @@ Commands:
   reviews  Show scheduled or currently due reviews
   streak   Show study consistency without affecting progress
   sources  Inspect source registry, provenance, and stale evidence
+  research Inspect or clear the offline Research cache
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -179,6 +180,10 @@ Source registry commands:
   kelyro sources trace <claim-id>
   kelyro sources stale
 
+Research cache commands:
+  kelyro research cache status
+  kelyro research cache clear
+
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
 `
@@ -210,6 +215,7 @@ var actions = map[string]app.Action{
 	"reviews":     app.ActionReviews,
 	"streak":      app.ActionStreak,
 	"sources":     app.ActionSources,
+	"research":    app.ActionResearch,
 	"maintenance": app.ActionMaintenance,
 }
 
@@ -326,6 +332,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		MaintenanceDryRun:       invocation.maintenanceDryRun,
 		ReviewsDue:              invocation.reviewsDue,
 		SourceRegistryOperation: invocation.sourceRegistryOperation,
+		ResearchCacheOperation:  invocation.researchCacheOperation,
 		SourceRegistryID:        invocation.sourceRegistryID,
 		ProvenanceClaimID:       invocation.provenanceClaimID,
 		Verbose:                 invocation.verbose,
@@ -448,6 +455,10 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatStreak(*result.Streak))
 	} else if result.StaleSources != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatStaleSources(result.StaleSources))
+	} else if result.ResearchCacheStatus != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchCacheStatus(*result.ResearchCacheStatus))
+	} else if result.ResearchCacheCleared != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchCacheClear(*result.ResearchCacheCleared))
 	} else if result.SourceRegistryEntry != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatSourceRegistryEntry(*result.SourceRegistryEntry))
 	} else if result.SourceRegistryEntries != nil && !invocation.quiet {
@@ -1138,6 +1149,7 @@ type invocation struct {
 	maintenanceDryRun       bool
 	reviewsDue              bool
 	sourceRegistryOperation string
+	researchCacheOperation  string
 	sourceRegistryID        research.ID
 	provenanceClaimID       research.ClaimID
 }
@@ -1500,6 +1512,10 @@ func parse(args []string) (invocation, error) {
 		if err := parseSourcesArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "research":
+		if err := parseResearchArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	case "maintenance":
 		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
 			return invocation{}, fmt.Errorf("maintenance requires recalculate")
@@ -1569,6 +1585,32 @@ func parseSourcesArguments(result *invocation) error {
 		return nil
 	}
 	return fmt.Errorf("sources requires registry list, registry show <id>, trace <claim-id>, or stale")
+}
+
+func parseResearchArguments(result *invocation) error {
+	if len(result.arguments) == 2 && result.arguments[0] == "cache" &&
+		(result.arguments[1] == "status" || result.arguments[1] == "clear") {
+		result.researchCacheOperation = result.arguments[1]
+		return nil
+	}
+	return fmt.Errorf("research requires cache status or cache clear")
+}
+
+func formatResearchCacheStatus(status researchapp.ResearchCacheStatus) string {
+	lines := []string{
+		"Research cache",
+		"Algorithm: " + status.AlgorithmVersion,
+		fmt.Sprintf("Total: %d entries, %d bytes, %d stale", status.TotalEntries, status.TotalPayloadBytes, status.StaleEntries),
+		fmt.Sprintf("Corrupt: %d entries, %d bytes", status.CorruptEntries, status.CorruptBytes),
+	}
+	for _, layer := range status.Layers {
+		lines = append(lines, fmt.Sprintf("- %s: %d entries, %d bytes, %d stale", layer.Layer, layer.Entries, layer.PayloadBytes, layer.StaleEntries))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatResearchCacheClear(result researchapp.ResearchCacheClearResult) string {
+	return fmt.Sprintf("Research cache cleared\nRemoved: %d entries, %d bytes\nPersisted snapshots and evidence were not modified.", result.RemovedEntries, result.RemovedBytes)
 }
 
 func formatStaleSources(records []researchapp.FreshnessRecord) string {

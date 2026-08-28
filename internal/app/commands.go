@@ -65,6 +65,7 @@ const (
 	ActionDashboard    Action = "dashboard"
 	ActionMaintenance  Action = "maintenance"
 	ActionSources      Action = "sources"
+	ActionResearch     Action = "research"
 )
 
 // Command contains presentation-independent input for a Foundation action.
@@ -112,6 +113,7 @@ type Command struct {
 	MaintenanceDryRun       bool
 	ReviewsDue              bool
 	SourceRegistryOperation string
+	ResearchCacheOperation  string
 	SourceRegistryID        research.ID
 	ProvenanceClaimID       research.ClaimID
 	Verbose                 bool
@@ -147,6 +149,8 @@ type Result struct {
 	SourceRegistryEntries []research.SourceRegistryEntry
 	ProvenanceGraph       *research.ProvenanceGraph
 	StaleSources          []researchapp.FreshnessRecord
+	ResearchCacheStatus   *researchapp.ResearchCacheStatus
+	ResearchCacheCleared  *researchapp.ResearchCacheClearResult
 }
 
 // FoundationService executes the operations currently exposed by the CLI.
@@ -171,6 +175,7 @@ type Service struct {
 	updates          update.Checker
 	profiles         learningapp.ProfileStoreFactory
 	researchStores   researchapp.SourceRegistryStoreFactory
+	researchCaches   researchapp.ResearchCacheServiceFactory
 	researchClock    func() time.Time
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
@@ -203,6 +208,12 @@ func (service *Service) WithProfiles(profiles learningapp.ProfileStoreFactory) *
 
 func (service *Service) WithResearchStores(stores researchapp.SourceRegistryStoreFactory) *Service {
 	service.researchStores = stores
+	return service
+}
+
+// WithResearchCaches attaches workspace-local disposable Research cache.
+func (service *Service) WithResearchCaches(caches researchapp.ResearchCacheServiceFactory) *Service {
+	service.researchCaches = caches
 	return service
 }
 
@@ -295,6 +306,9 @@ func (service *Service) execute(ctx context.Context, command Command) (Result, e
 	}
 	if command.Action == ActionSources {
 		return service.executeSourceRegistry(ctx, command)
+	}
+	if command.Action == ActionResearch {
+		return service.executeResearchCache(ctx, command)
 	}
 	if command.Action == ActionStatus || command.Action == ActionProgress || command.Action == ActionRoadmap || command.Action == ActionToday {
 		return service.executeDashboard(ctx, command)

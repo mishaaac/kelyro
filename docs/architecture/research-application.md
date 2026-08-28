@@ -235,6 +235,16 @@ second caller-owned permalink. Memory and SQLite return defensive copies. The
 complete contract is in
 [real-source-code-evidence-v1.md](real-source-code-evidence-v1.md).
 
+Step 32 adds the separate `ResearchCacheStore`/`ResearchCacheService` boundary
+for disposable workspace files. The service owns versioned layer TTLs,
+per-entry/global limits, explicit hit/stale outcomes, warnings, status, clear,
+and deterministic eviction; the filesystem adapter owns strict envelopes and
+Foundation paths. `SearchCache`, `SourceFetchCache`, and `ReleaseLookupCache`
+are now backed by a concrete network-free codec adapter. The older generic
+SQLite cache repository remains compatibility-only and is not historical
+evidence. The complete contract is in
+[research-cache-offline-v1.md](research-cache-offline-v1.md).
+
 Step 30 adds `SourceDiversityService` without a dedicated result repository. It
 composes existing Claim, Source, Trust Decision, and applicable Source Registry
 organization reads with caller-reviewed

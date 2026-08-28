@@ -112,6 +112,13 @@ func normalizeSearchResults(ctx context.Context, operation string, results []Sea
 		result.Title = normalizeSearchText(result.Title)
 		result.Snippet = normalizeSearchText(result.Snippet)
 		result.Provider = normalizeSearchText(result.Provider)
+		if cached {
+			result.CacheHit = true
+		} else {
+			result.CacheHit = false
+			result.CacheStale = false
+			result.CacheWarning = ""
+		}
 		locator, err := normalizeDiscoveryLocator(result.Locator)
 		if err != nil {
 			return nil, searchResultError(operation, fmt.Errorf("result %d: %w", index, err), cached)

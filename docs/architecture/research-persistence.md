@@ -202,6 +202,13 @@ The insert is atomic with the Source row, JSON is capped at 16 KiB, deep links
 are bounded, and memory/SQLite reads return defensive copies. Empty v37 values
 mean legacy/unknown metadata rather than a fabricated transcript state.
 
+Step 32 requires no SQLite migration. `research-cache-v1` stores disposable
+records below Foundation's workspace cache directory and deliberately leaves
+the database's SourceSnapshots, Evidence, Claims, citations, and canonical
+Source Bundles outside eviction/clear. The v23 `research_cache_entries` table
+remains readable for compatibility but is not the active filesystem cache and
+is never promoted to historical truth.
+
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
 Small ordered identity collections and versioned reason records that do not

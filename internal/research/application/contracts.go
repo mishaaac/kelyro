@@ -303,6 +303,9 @@ type SearchResult struct {
 	Provider      string
 	Rank          int
 	PublishedHint *research.Timestamp
+	CacheHit      bool
+	CacheStale    bool
+	CacheWarning  CacheWarning
 }
 
 const MaximumSearchResults = 100
@@ -327,6 +330,12 @@ func (result SearchResult) Validate() error {
 		if err := result.PublishedHint.Validate(); err != nil {
 			return fmt.Errorf("search result published hint: %w", err)
 		}
+	}
+	if result.CacheStale && (!result.CacheHit || result.CacheWarning != CacheWarningStaleOffline) {
+		return fmt.Errorf("stale search cache result requires explicit offline warning")
+	}
+	if !result.CacheStale && result.CacheWarning != "" {
+		return fmt.Errorf("fresh search result cannot contain a cache warning")
 	}
 	return nil
 }
@@ -370,12 +379,15 @@ func (request FetchRequest) Validate() error {
 }
 
 type FetchedSource struct {
-	SourceID  research.SourceID
-	Locator   research.SourceLocator
-	FetchedAt research.Timestamp
-	Metadata  research.FetchMetadata
-	Body      []byte
-	Origin    FetchOrigin
+	SourceID     research.SourceID
+	Locator      research.SourceLocator
+	FetchedAt    research.Timestamp
+	Metadata     research.FetchMetadata
+	Body         []byte
+	Origin       FetchOrigin
+	CacheHit     bool
+	CacheStale   bool
+	CacheWarning CacheWarning
 }
 
 type FetchOrigin string
@@ -409,6 +421,18 @@ func (source FetchedSource) Validate() error {
 	}
 	if err := source.Origin.Validate(); err != nil {
 		return err
+	}
+	if source.Origin == FetchOriginLive && (source.CacheHit || source.CacheStale || source.CacheWarning != "") {
+		return fmt.Errorf("live fetched source cannot contain cache metadata")
+	}
+	if source.Origin == FetchOriginCache && !source.CacheHit {
+		return fmt.Errorf("cached fetched source requires explicit cache hit")
+	}
+	if source.CacheStale && source.CacheWarning != CacheWarningStaleOffline {
+		return fmt.Errorf("stale fetched source requires explicit offline warning")
+	}
+	if !source.CacheStale && source.CacheWarning != "" {
+		return fmt.Errorf("fresh fetched source cannot contain a cache warning")
 	}
 	if source.Metadata.StatusCode != 204 && source.Metadata.StatusCode != 304 && len(source.Body) == 0 {
 		return fmt.Errorf("fetched source body is empty")

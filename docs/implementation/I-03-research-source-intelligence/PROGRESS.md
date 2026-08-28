@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 32
-Last completed step: 31
+Current step: 33
+Last completed step: 32
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2443,3 +2443,89 @@ Release: unreleased
 - El Paso 32 está autorizado a continuación por el usuario.
 - No implementar Research Cost Control ni pasos posteriores antes de su
   autorización independiente.
+
+## Step 32 — Research Cache and Offline Research Mode
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Servicio versionado `research-cache-v1` con cinco layers explícitos:
+  discovery, fetch metadata, bounded source, normalized source y source bundle.
+- Política TTL/tamaño por layer: 24 h/256 KiB discovery, 24 h/32 KiB fetch
+  metadata, 7 días/1 MiB bounded y normalized source, y 30 días/256 KiB source
+  bundle.
+- Límites globales de 512 records y 64 MiB con eviction determinista: expirados
+  primero y luego oldest stored_at con desempate estable por layer/key.
+- Outcomes `CacheLookup` con hit explícito, stale explícito y warning cerrado
+  `stale_cache_used_offline`; fresh-only trata stale como miss y offline puede
+  consumirlo conservando la advertencia.
+- Adapter filesystem cross-platform en `.kelyro/cache/research`, derivado de
+  `WorkspaceResearchCacheDir`, con nombres SHA-256, permisos restrictivos,
+  staging y replace atómico.
+- Envelopes JSON estrictos/acotados con schema y algorithm version, content
+  hash canónico, timestamps/TTL, identidad y detección de unknown fields,
+  trailing data, oversize, filename mismatch y corrupción de hash.
+- Adapter offline concreto para SearchCache, SourceFetchCache y
+  ReleaseLookupCache; fetched source se divide entre metadata/body y los codecs
+  revalidan todos los records reconstruidos.
+- Layers expuestas para normalized source y canonical Source Bundle JSON; bundle
+  cacheado debe conservar la identidad pedida.
+- SearchResult y FetchedSource cacheados exponen hit/stale/warning; live outputs
+  limpian defensivamente metadata de cache aportada por providers externos.
+- CLI completa `kelyro research cache status|clear`, con métricas por layer,
+  stale/corrupt totals y confirmación visible de que snapshots/evidence no se
+  modificaron.
+- Wiring manual en bootstrap y aplicación, más contrato arquitectónico en
+  `docs/architecture/research-cache-offline-v1.md` y documentos Foundation/
+  Research sincronizados.
+
+### Decisions
+
+- Research cache vive en Foundation workspace cache y no en SQLite para que
+  clear/eviction tengan una frontera física separada de la evidencia durable.
+- La tabla genérica `research_cache_entries` v23 queda compatibility-only; no
+  se modifica una migration publicada ni se la promueve a historical truth.
+- Cache keys se hashean antes de usarlas como filenames; queries, URLs y caller
+  keys no controlan paths ni aparecen en nombres de archivo.
+- Cache stale no se presenta como fresh: sólo offline_allow_stale devuelve hit
+  con warning estructurado. Fresh-only devuelve miss explícito.
+- Clear elimina únicamente `.json` y staging files de los cinco directorios
+  conocidos, no hace recursive deletion de `.kelyro`, workspace, SQLite ni
+  caches de otros componentes.
+- Un fallo/corrupción de cache es persistence_failure y nunca inventa evidencia;
+  status cuenta corrupt files sin decodificarlos como records válidos.
+- No se añadió Cost Control, paid-provider budget, Trigger Policy, nuevo network
+  provider, Curriculum Compiler ni cambios de Student Core/mastery.
+
+### Verification
+
+- Tests de las cinco policies TTL/size, hit/miss, fresh-only, stale offline,
+  warning, clones defensivos, per-layer limit, 512-entry eviction y hash
+  corruption.
+- Tests filesystem de path Foundation, permisos, atomic records, cinco layers,
+  status, malformed JSON, tampered hash y scoped clear.
+- Integración offline después de ocho días para discovery/fetch/release/
+  normalized data con warnings y cero llamadas a live providers/gate.
+- Test con SQLite real que persiste Source → SourceSnapshot → Evidence, ejecuta
+  cache clear y vuelve a leer Snapshot/Evidence; cache de otro componente
+  también permanece intacta.
+- Tests application/CLI de routing, output y argumentos inválidos; smoke real
+  `init → research cache status → research cache clear` en workspace temporal.
+- `GOCACHE=/tmp/kelyro-i03-step32-full-gocache go test ./...` fuera del sandbox
+  para listeners locales de `httptest` y `go vet ./...` con cache aislada.
+- `go test -race` dirigido de application, researchcachefs, app y CLI.
+- Cross-compile del test binary researchcachefs para Windows amd64 y Darwin
+  amd64/arm64 con `CGO_ENABLED=0`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache
+  aislada y `go run ./tools/quality all`: tests, E2E, vet, race, build y smokes
+  de CLI; SQLite race completó en 357.881 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 33 es el siguiente paso pendiente y requiere autorización explícita.
+- No implementar Research Cost Control ni pasos posteriores antes de esa
+  autorización.

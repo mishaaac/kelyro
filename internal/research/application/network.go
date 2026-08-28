@@ -148,8 +148,12 @@ func (service *fetchService) Fetch(ctx context.Context, mode ResearchMode, reque
 func validateFetchedSource(operation string, request FetchRequest, fetched FetchedSource, cached bool) (FetchedSource, error) {
 	if cached {
 		fetched.Origin = FetchOriginCache
+		fetched.CacheHit = true
 	} else {
 		fetched.Origin = FetchOriginLive
+		fetched.CacheHit = false
+		fetched.CacheStale = false
+		fetched.CacheWarning = ""
 	}
 	err := fetched.Validate()
 	if err == nil && fetched.SourceID != request.SourceID {

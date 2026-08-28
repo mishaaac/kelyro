@@ -46,9 +46,11 @@ The offline read contracts are intentionally distinct from live ports:
 This makes the fallback path explicit and prevents an adapter labeled as a
 cache from silently delegating to a network provider. Cached outputs pass the
 same normalization, URL deduplication, rank preservation, limits, and
-structural validation as live outputs. Step 07 does not define cache encoding,
-cache writes, expiry, or eviction; the existing bounded
-`ResearchCacheRepository` remains available for future adapters.
+structural validation as live outputs. Step 32 supplies the concrete
+`research-cache-v1` filesystem service and offline adapter, including strict
+encoding, TTLs, stale warnings, corruption detection, size limits, and eviction.
+The complete contract is in
+[research-cache-offline-v1.md](research-cache-offline-v1.md).
 
 When live access is impossible and the offline cache is absent or reports a
 miss, the service returns the stable application classification

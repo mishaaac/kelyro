@@ -2172,7 +2172,7 @@ feat(evidence): support reproducible source-code evidence
 
 ## Paso 32 — Implementar Research Cache y Offline Research Mode
 
-- [ ] Paso 32 completado
+- [x] Paso 32 completado
 
 ### Objetivo
 

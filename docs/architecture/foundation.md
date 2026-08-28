@@ -215,6 +215,9 @@ Workspace data never moves into those global directories:
 `WorkspaceInternalDir` resolves `<workspace>/.kelyro`, the database is
 `learning.db`, metadata is `workspace.json`, state is under `state`, disposable
 cache is under `cache`, backups are under `backups`, and logs are under `logs`.
+`WorkspaceResearchCacheDir` further scopes I-03 disposable records to
+`.kelyro/cache/research` so cache clear/eviction cannot target the database or
+another component's cache.
 `WorkspaceConfigPath` resolves `.kelyro/config.toml`, and
 `WorkspaceLearningPath` resolves the visible `LEARNING.md` document and
 `WorkspaceRoadmapPath` resolves `00-roadmap/ROADMAP.md`. These

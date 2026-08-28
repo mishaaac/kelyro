@@ -1403,6 +1403,49 @@ func TestRunnerParsesAndRendersSourceRegistryCommands(t *testing.T) {
 	}
 }
 
+func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("status", func(t *testing.T) {
+		status := researchapp.ResearchCacheStatus{
+			AlgorithmVersion: researchapp.ResearchCacheAlgorithmV1,
+			TotalEntries:     3, TotalPayloadBytes: 240, StaleEntries: 1, CorruptEntries: 1, CorruptBytes: 12,
+			Layers: []researchapp.CacheLayerStatus{
+				{Layer: researchapp.CacheLayerDiscovery, Entries: 2, PayloadBytes: 120, StaleEntries: 1},
+				{Layer: researchapp.CacheLayerSourceBundle, Entries: 1, PayloadBytes: 120},
+			},
+		}
+		service := &fakeService{result: app.Result{ResearchCacheStatus: &status}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "cache", "status"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Algorithm: research-cache-v1") ||
+			!strings.Contains(stdout.String(), "discovery: 2 entries") || !strings.Contains(stdout.String(), "Corrupt: 1 entries") {
+			t.Fatalf("status = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].Action != app.ActionResearch || service.commands[0].ResearchCacheOperation != "status" {
+			t.Fatalf("status command = %+v", service.commands)
+		}
+	})
+	t.Run("clear", func(t *testing.T) {
+		cleared := researchapp.ResearchCacheClearResult{RemovedEntries: 4, RemovedBytes: 512}
+		service := &fakeService{result: app.Result{ResearchCacheCleared: &cleared}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "cache", "clear"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Removed: 4 entries, 512 bytes") ||
+			!strings.Contains(stdout.String(), "evidence were not modified") {
+			t.Fatalf("clear = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ResearchCacheOperation != "clear" {
+			t.Fatalf("clear command = %+v", service.commands)
+		}
+	})
+	for _, args := range [][]string{{"research"}, {"research", "cache"}, {"research", "cache", "delete"}, {"research", "status"}} {
+		var stderr bytes.Buffer
+		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) code = %d, want usage; stderr=%q", args, code, stderr.String())
+		}
+	}
+}
+
 func cliID(t *testing.T, value string) research.ID {
 	t.Helper()
 	result, err := research.NewID(value)

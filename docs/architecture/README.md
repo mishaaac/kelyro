@@ -156,6 +156,11 @@ bounded excerpt, optional reviewed license metadata, normative-source
 precedence, citation integration, and additive persistence are documented in
 [real-source-code-evidence-v1.md](real-source-code-evidence-v1.md).
 
+The five workspace-local cache layers, versioned TTL/size/eviction policy,
+explicit hit and offline-stale warning, corruption detection, offline adapters,
+safe status/clear CLI, and durable-evidence boundary are documented in
+[research-cache-offline-v1.md](research-cache-offline-v1.md).
+
 Its repository ports, application services, error taxonomy, and transaction
 boundary are documented in
 [student-learning-application.md](student-learning-application.md).
