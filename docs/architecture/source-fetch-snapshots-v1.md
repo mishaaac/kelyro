@@ -73,6 +73,13 @@ declares one disposition:
 | `normalized_excerpt` | Return a defensive transient `FetchedSource` as `NormalizationInput` for the Step 10 pipeline; snapshot capture does not parse or persist it. |
 | `bounded_cached_body` | Return a defensive `CacheCandidate`, limited to 1 MiB, for the future Step 32 cache; Step 09 does not write cache entries. |
 
+Step 43 hardens this disposition for copyright and response policy. An
+explicit `Cache-Control: no-store` response can still be normalized
+transiently, but produces no `CacheCandidate`; `CacheSuppressed` makes that
+decision visible. The offline cache adapter also rejects raw and normalized
+cache writes for that response. See
+[source-content-retention-policy.md](source-content-retention-policy.md).
+
 The metadata-only path is the default storage shape, not an unbounded archive.
 Evidence excerpts remain separately limited by persistence, and cache
 encoding, expiry, stale behavior, and eviction remain Step 32 responsibilities.

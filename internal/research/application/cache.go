@@ -18,6 +18,27 @@ const (
 	MaximumResearchCacheKeyBytes = 1024
 )
 
+// ResearchCacheLimits configures eviction below the immutable hard ceilings.
+// Lower limits are useful for storage-constrained or stricter workspaces.
+type ResearchCacheLimits struct {
+	MaximumBytes int
+	MaximumItems int
+}
+
+func DefaultResearchCacheLimits() ResearchCacheLimits {
+	return ResearchCacheLimits{MaximumBytes: MaximumResearchCacheBytes, MaximumItems: MaximumResearchCacheItems}
+}
+
+func (limits ResearchCacheLimits) Validate() error {
+	if limits.MaximumBytes < 1 || limits.MaximumBytes > MaximumResearchCacheBytes {
+		return fmt.Errorf("research cache byte limit must be between 1 and %d", MaximumResearchCacheBytes)
+	}
+	if limits.MaximumItems < 1 || limits.MaximumItems > MaximumResearchCacheItems {
+		return fmt.Errorf("research cache item limit must be between 1 and %d", MaximumResearchCacheItems)
+	}
+	return nil
+}
+
 type CacheLayer string
 
 const (
@@ -208,12 +229,20 @@ type ResearchCacheServiceFactory interface {
 }
 
 type researchCacheService struct {
-	store ResearchCacheStore
-	clock Clock
+	store  ResearchCacheStore
+	clock  Clock
+	limits ResearchCacheLimits
 }
 
 func NewResearchCacheService(store ResearchCacheStore, clock Clock) ResearchCacheService {
-	return &researchCacheService{store: store, clock: clock}
+	return &researchCacheService{store: store, clock: clock, limits: DefaultResearchCacheLimits()}
+}
+
+func NewResearchCacheServiceWithLimits(store ResearchCacheStore, clock Clock, limits ResearchCacheLimits) (ResearchCacheService, error) {
+	if err := limits.Validate(); err != nil {
+		return nil, err
+	}
+	return &researchCacheService{store: store, clock: clock, limits: limits}, nil
 }
 
 func (service *researchCacheService) Put(ctx context.Context, layer CacheLayer, key string, payload []byte) error {
@@ -368,7 +397,7 @@ func (service *researchCacheService) evict(ctx context.Context, now research.Tim
 		retained = append(retained, record)
 	}
 	records = retained
-	for len(records) > MaximumResearchCacheItems || totalBytes > MaximumResearchCacheBytes {
+	for len(records) > service.limits.MaximumItems || totalBytes > service.limits.MaximumBytes {
 		oldest := records[0]
 		if err := service.store.Delete(ctx, oldest.Layer, oldest.Key); err != nil && !errors.Is(err, ErrNotFound) {
 			return repositoryError(operation, err)

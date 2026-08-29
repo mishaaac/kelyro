@@ -64,6 +64,7 @@ type Response struct {
 	ETag         string
 	LastModified string
 	FinalURL     string
+	NoStore      bool
 	Body         []byte
 }
 
@@ -284,8 +285,20 @@ func (client *Client) readResponse(response *http.Response, responseLimit int64)
 	return Response{
 		StatusCode: response.StatusCode, ContentType: contentType,
 		ETag: boundedHeader(response.Header.Get("ETag")), LastModified: boundedHeader(response.Header.Get("Last-Modified")),
-		FinalURL: responseURL(response), Body: body,
+		FinalURL: responseURL(response), NoStore: cacheControlNoStore(response.Header.Values("Cache-Control")), Body: body,
 	}, nil
+}
+
+func cacheControlNoStore(values []string) bool {
+	for _, value := range values {
+		for _, directive := range strings.Split(value, ",") {
+			name, _, _ := strings.Cut(strings.TrimSpace(directive), "=")
+			if strings.EqualFold(strings.TrimSpace(name), "no-store") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (client *Client) allowedContentType(mediaType string) bool {

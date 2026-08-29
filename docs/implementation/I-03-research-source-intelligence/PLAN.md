@@ -2743,7 +2743,7 @@ feat(audit): add reproducible research run metadata
 
 ## Paso 43 — Copyright, licensing y content retention hardening
 
-- [ ] Paso 43 completado
+- [x] Paso 43 completado
 
 ### Objetivo
 

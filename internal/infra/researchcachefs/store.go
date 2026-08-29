@@ -28,12 +28,22 @@ const (
 	maximumEnvelopeBytes = (application.MaximumCachedSourceBodyBytes * 4 / 3) + (64 << 10)
 )
 
-type Factory struct{ clock application.Clock }
+type Factory struct {
+	clock  application.Clock
+	limits application.ResearchCacheLimits
+}
 
-func NewFactory() *Factory { return &Factory{clock: systemClock{}} }
+func NewFactory() *Factory {
+	return &Factory{clock: systemClock{}, limits: application.DefaultResearchCacheLimits()}
+}
 
 func (factory *Factory) WithClock(clock application.Clock) *Factory {
 	factory.clock = clock
+	return factory
+}
+
+func (factory *Factory) WithLimits(limits application.ResearchCacheLimits) *Factory {
+	factory.limits = limits
 	return factory
 }
 
@@ -45,7 +55,11 @@ func (factory *Factory) Open(ctx context.Context, root string) (application.Rese
 	if err != nil {
 		return nil, fmt.Errorf("resolve research cache directory: %w", err)
 	}
-	return application.NewResearchCacheService(newStore(cacheRoot), factory.clock), nil
+	service, err := application.NewResearchCacheServiceWithLimits(newStore(cacheRoot), factory.clock, factory.limits)
+	if err != nil {
+		return nil, fmt.Errorf("configure research cache retention: %w", err)
+	}
+	return service, nil
 }
 
 type systemClock struct{}

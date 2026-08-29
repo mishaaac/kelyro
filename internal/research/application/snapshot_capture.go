@@ -114,7 +114,11 @@ func (service *snapshotCaptureService) Capture(ctx context.Context, mode Researc
 			result.NormalizationInput = &normalizationInput
 		}
 	case SnapshotBoundedCachedBody:
-		result.CacheCandidate = append([]byte(nil), fetched.Body...)
+		if fetched.NoStore {
+			result.CacheSuppressed = true
+		} else {
+			result.CacheCandidate = append([]byte(nil), fetched.Body...)
+		}
 	}
 	return result, nil
 }

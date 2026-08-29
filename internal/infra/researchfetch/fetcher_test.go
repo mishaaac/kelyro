@@ -94,6 +94,20 @@ func TestFetcherDelegatesContentAndSizeEnforcementToHardenedClient(t *testing.T)
 	}
 }
 
+func TestFetcherCarriesNoStoreRetentionDirective(t *testing.T) {
+	client := &recordingClient{responses: []researchhttp.Response{{
+		StatusCode: http.StatusOK, ContentType: "text/plain", FinalURL: "https://docs.example/source",
+		NoStore: true, Body: []byte("transient"),
+	}}}
+	result, err := New(client).Fetch(context.Background(), fetchRequest(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.NoStore {
+		t.Fatal("fetcher dropped explicit no-store retention directive")
+	}
+}
+
 type recordingClient struct {
 	requests  []researchhttp.Request
 	responses []researchhttp.Response

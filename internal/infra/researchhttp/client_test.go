@@ -50,6 +50,25 @@ func TestClientFetchesBoundedContentWithKelyroUserAgentAndSafeMetadata(t *testin
 	}
 }
 
+func TestClientCarriesExplicitNoStoreWithoutExposingOtherCacheHeaders(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Add("Cache-Control", "public, max-age=3600")
+		writer.Header().Add("Cache-Control", `No-Store="reason"`)
+		writer.Header().Set("Content-Type", "text/plain")
+		_, _ = writer.Write([]byte("transient"))
+	}))
+	defer server.Close()
+
+	response, err := newTestClient(t, testConfig(), nil, nil, nil).Do(context.Background(), Request{URL: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !response.NoStore || string(response.Body) != "transient" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
 func TestClientEnforcesTimeoutAndCallerCancellation(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

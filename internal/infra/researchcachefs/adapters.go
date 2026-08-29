@@ -119,6 +119,9 @@ func (adapter *OfflineAdapter) CacheFetched(ctx context.Context, request applica
 	if source.SourceID != request.SourceID {
 		return errors.New("fetched source does not match cache request")
 	}
+	if source.NoStore {
+		return errors.New("fetched source forbids cache storage")
+	}
 	metadata := fetchedMetadataJSON{
 		SourceID: source.SourceID.String(), Locator: source.Locator.String(), FetchedAt: formatCacheTimestamp(source.FetchedAt),
 		StatusCode: source.Metadata.StatusCode, ContentType: source.Metadata.ContentType, ETag: source.Metadata.ETag,
@@ -288,7 +291,13 @@ func (adapter *OfflineAdapter) LookupCachedReleases(ctx context.Context, query a
 	return records, nil
 }
 
-func (adapter *OfflineAdapter) CacheNormalized(ctx context.Context, key string, canonicalJSON []byte) error {
+func (adapter *OfflineAdapter) CacheNormalized(ctx context.Context, key string, source application.FetchedSource, canonicalJSON []byte) error {
+	if err := source.Validate(); err != nil {
+		return fmt.Errorf("cache normalized source: %w", err)
+	}
+	if source.NoStore {
+		return errors.New("normalized source forbids cache storage")
+	}
 	return adapter.cache.Put(ctx, application.CacheLayerNormalizedSource, normalizedCacheKey(key), canonicalJSON)
 }
 

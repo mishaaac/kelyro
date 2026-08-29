@@ -469,6 +469,9 @@ type FetchedSource struct {
 	CacheHit     bool
 	CacheStale   bool
 	CacheWarning CacheWarning
+	// NoStore carries an explicit response retention prohibition. The body may
+	// be used transiently for normalization but must not enter a cache.
+	NoStore bool
 }
 
 type FetchOrigin string
@@ -508,6 +511,9 @@ func (source FetchedSource) Validate() error {
 	}
 	if source.Origin == FetchOriginCache && !source.CacheHit {
 		return fmt.Errorf("cached fetched source requires explicit cache hit")
+	}
+	if source.Origin == FetchOriginCache && source.NoStore {
+		return fmt.Errorf("no-store fetched source cannot originate from cache")
 	}
 	if source.CacheStale && source.CacheWarning != CacheWarningStaleOffline {
 		return fmt.Errorf("stale fetched source requires explicit offline warning")
@@ -1148,6 +1154,7 @@ type SnapshotCapture struct {
 	RevalidatedSnapshotID *research.ID
 	NormalizationInput    *FetchedSource
 	CacheCandidate        []byte
+	CacheSuppressed       bool
 }
 
 type SnapshotCaptureService interface {

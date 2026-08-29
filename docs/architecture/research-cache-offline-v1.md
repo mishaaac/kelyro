@@ -33,6 +33,10 @@ The immutable v1 policy is:
 | source bundle | 30 days | 256 KiB |
 
 The cache is additionally capped at 512 records and 64 MiB of decoded payload.
+These are hard ceilings. Integrations may configure lower item and byte
+eviction limits through `ResearchCacheLimits`; TTLs and per-layer record bounds
+remain fixed. Explicit `Cache-Control: no-store` fetched bodies and their
+normalized representations are rejected before a cache write.
 After every put, expired records are removed first and remaining excess is
 evicted by oldest `stored_at`, then layer/key as stable tie breakers.
 

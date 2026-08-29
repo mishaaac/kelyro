@@ -52,6 +52,10 @@ The `SourceFetcher` adapter, canonical content hash, conditional revalidation,
 append-only snapshot capture, and raw-body disposition contract are documented
 in [source-fetch-snapshots-v1.md](source-fetch-snapshots-v1.md).
 
+The copyright, licensing, minimal-excerpt, `no-store`, bounded-cache, export,
+and video/transcript retention boundary is documented in
+[source-content-retention-policy.md](source-content-retention-policy.md).
+
 The deterministic HTML/text/JSON/Markdown normalization pipeline, enriched
 derived-source contract, sanitization boundary, canonical links, output limits,
 and golden fixtures are documented in

@@ -120,6 +120,48 @@ func TestSnapshotCaptureProducesBoundedCacheCandidateWithoutPersistingBody(t *te
 	}
 }
 
+func TestSnapshotCaptureSuppressesNoStoreCacheCandidateButAllowsTransientNormalization(t *testing.T) {
+	ctx := context.Background()
+	store := memory.New()
+	repositories := store.Repositories()
+	source := testSource(t, "no-store")
+	if err := repositories.Sources.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("transient fixture")
+	first := fetchedFixture(t, source, 10, http.StatusOK, `"no-store"`, body)
+	first.NoStore = true
+	second := first
+	ids := []string{"snapshot.no-store-cache", "snapshot.no-store-normalize"}
+	service := application.NewSnapshotCaptureService(repositories.Sources, repositories.Snapshots,
+		&recordingCaptureFetchService{results: []application.FetchedSource{first, second}},
+		application.WithSnapshotIDGenerator(func() (research.ID, error) {
+			value := ids[0]
+			ids = ids[1:]
+			return research.NewID(value)
+		}))
+
+	suppressed, err := service.Capture(ctx, application.ResearchModeOnline, application.SnapshotCaptureRequest{
+		SourceID: source.ID, MaximumBytes: int64(len(body)), BodyPolicy: application.SnapshotBoundedCachedBody,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !suppressed.CacheSuppressed || len(suppressed.CacheCandidate) != 0 {
+		t.Fatalf("no-store cache disposition = %+v", suppressed)
+	}
+
+	normalized, err := service.Capture(ctx, application.ResearchModeOnline, application.SnapshotCaptureRequest{
+		SourceID: source.ID, MaximumBytes: int64(len(body)), BodyPolicy: application.SnapshotNormalizedExcerpt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.CacheSuppressed || normalized.NormalizationInput == nil || string(normalized.NormalizationInput.Body) != string(body) {
+		t.Fatalf("no-store transient normalization disposition = %+v", normalized)
+	}
+}
+
 func TestSnapshotCaptureRejectsInvalidRetentionAndOrphan304(t *testing.T) {
 	ctx := context.Background()
 	store := memory.New()

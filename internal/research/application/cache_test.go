@@ -108,6 +108,39 @@ func TestResearchCacheServiceEnforcesLayerLimitsEvictsAndDetectsCorruption(t *te
 	}
 }
 
+func TestResearchCacheServiceUsesConfigurableLowerEvictionLimits(t *testing.T) {
+	t.Parallel()
+	store := newMemoryCacheStore()
+	clock := &cacheClock{now: cacheTimestamp(t, time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))}
+	service, err := application.NewResearchCacheServiceWithLimits(store, clock, application.ResearchCacheLimits{
+		MaximumItems: 2, MaximumBytes: 16,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"oldest", "middle", "newest"} {
+		if err := service.Put(context.Background(), application.CacheLayerSourceBundle, key, []byte(key)); err != nil {
+			t.Fatal(err)
+		}
+		clock.now = cacheTimestamp(t, clock.now.Time().Add(time.Second))
+	}
+	status, err := service.Status(context.Background())
+	if err != nil || status.TotalEntries != 2 || status.TotalPayloadBytes > 16 {
+		t.Fatalf("configured eviction status = (%+v, %v)", status, err)
+	}
+	if _, exists := store.records[cacheStoreKey(application.CacheLayerSourceBundle, "oldest")]; exists {
+		t.Fatal("configured eviction retained oldest entry")
+	}
+	for _, limits := range []application.ResearchCacheLimits{
+		{MaximumItems: 0, MaximumBytes: 1},
+		{MaximumItems: 1, MaximumBytes: application.MaximumResearchCacheBytes + 1},
+	} {
+		if _, err := application.NewResearchCacheServiceWithLimits(store, clock, limits); err == nil {
+			t.Fatalf("invalid limits %+v were accepted", limits)
+		}
+	}
+}
+
 type cacheClock struct{ now research.Timestamp }
 
 func (clock *cacheClock) Now() research.Timestamp { return clock.now }

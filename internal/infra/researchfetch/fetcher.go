@@ -87,6 +87,7 @@ func (fetcher *Fetcher) Fetch(ctx context.Context, request application.FetchRequ
 	result := application.FetchedSource{
 		SourceID: request.SourceID, Locator: locator, FetchedAt: fetchedAt,
 		Metadata: metadata, Body: append([]byte(nil), response.Body...), Origin: application.FetchOriginLive,
+		NoStore: response.NoStore,
 	}
 	if err := result.Validate(); err != nil {
 		return application.FetchedSource{}, fmt.Errorf("validate source fetch response: %w", err)

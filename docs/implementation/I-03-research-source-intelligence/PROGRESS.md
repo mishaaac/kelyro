@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 43
-Last completed step: 42
+Current step: 44
+Last completed step: 43
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3172,3 +3172,67 @@ Release: unreleased
 - El Paso 43 es el siguiente paso pendiente y requiere autorización explícita.
 - Debe endurecer copyright, licensing y retention sin ampliar este audit con
   bodies externos ni modificar migrations publicadas.
+
+## Step 43 — Copyright, licensing and content retention hardening
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Política versionada `source-content-retention-v1` con matriz explícita para
+  metadata, hashes, Evidence excerpts, bodies, normalized content, snippets,
+  Source Bundles, source code y video/transcripts.
+- Propagación transport-neutral de `Cache-Control: no-store` desde el cliente
+  HTTP al `FetchedSource`, incluyendo múltiples field values, casing y
+  directives con valor.
+- `SnapshotCapture.CacheSuppressed` para hacer visible que
+  `bounded_cached_body` fue denegado, preservando solo el uso transitorio para
+  normalización y el snapshot durable sin body.
+- Defensa en profundidad en el offline adapter: los bodies `no-store` y sus
+  representaciones normalizadas se rechazan antes de escribir cualquier capa
+  de cache.
+- `ResearchCacheLimits` configurable para reducir caps globales por items y
+  bytes; los límites seguros de 512 records/64 MiB siguen siendo techos duros,
+  y TTLs/per-record bounds no pueden ampliarse.
+- Reglas explícitas de export: bundles y audit no incluyen bodies; un future
+  human-readable export solo podrá resolver citations y excerpts mínimos.
+- Política de licensing conservadora: metadata opcional y revisada para source
+  code, sin inferir licencia, fabricar SPDX IDs ni convertirla en permiso de
+  redistribución o decisión de compatibilidad.
+- Prohibición explícita de cache/export de video, audio, captions o transcripts
+  completos; video permanece metadata suplementaria.
+
+### Decisions
+
+- `no-store` prohíbe cachear la representación HTTP raw o normalizada, pero no
+  impide calcular hash, registrar metadata de snapshot ni usar el body en
+  memoria para derivar un excerpt mínimo revisado.
+- La metadata durable y Evidence no se modelan como HTTP cache; restricciones
+  legales/source-specific adicionales siguen prevaleciendo y pueden requerir
+  remoción explícita fuera del eviction automático.
+- La configuración de eviction solo puede reducir retención. Ampliar los hard
+  ceilings o TTLs requeriría una policy version nueva y revisión explícita.
+- No se añadió export de bodies, downloader de transcripts, license detector,
+  migration SQLite, Curriculum Compiler ni cambio a Student Core.
+
+### Verification
+
+- Tests HTTP/fetch para parse y propagación de `no-store`.
+- Tests application para cache suppression con normalización transitoria y
+  eviction determinista bajo caps configurados.
+- Tests filesystem/offline adapter que prueban cero writes ante body o
+  normalized content `no-store`.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step43-gocache GOFLAGS=-timeout=20m
+  go test ./...` y `go vet ./...` completos.
+- Quality gate completo con tests, E2E, vet, race, build y smokes CLI; SQLite
+  race completó en 393.250 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 44 está autorizado a continuación por el usuario.
+- Debe endurecer inputs no confiables (SSRF, redirects, response/parser/cache
+  bounds, injection, secrets y paths) y documentar desde ahora que external
+  source content siempre es data, nunca instrucciones.

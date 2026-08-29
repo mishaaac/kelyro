@@ -2,12 +2,44 @@ package researchcachefs
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
 )
+
+func TestOfflineAdapterRejectsNoStoreFetchedBodiesBeforeWriting(t *testing.T) {
+	ctx := context.Background()
+	clock := &testClock{now: fsTimestamp(t, time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC))}
+	cache, err := NewFactory().WithClock(clock).Open(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := NewOfflineAdapter(cache)
+	sourceID, _ := research.NewSourceID("source.no-store")
+	locator, _ := research.NewSourceLocator("https://docs.example.test/no-store")
+	request := application.FetchRequest{SourceID: sourceID, Locator: locator, MaximumBytes: 4096}
+	fetched := application.FetchedSource{
+		SourceID: sourceID, Locator: locator, FetchedAt: clock.now, Body: []byte("transient"),
+		Origin: application.FetchOriginLive, NoStore: true,
+		Metadata: research.FetchMetadata{StatusCode: 200, ContentType: "text/plain", ContentHash: research.CanonicalContentHashV1([]byte("transient")), ContentLength: 9, FetchVersion: "fetch/v1"},
+	}
+	if err := adapter.CacheFetched(ctx, request, fetched); err == nil {
+		t.Fatal("no-store fetched source was cached")
+	}
+	if err := adapter.CacheNormalized(ctx, "source.no-store", fetched, []byte(`{"segments":["transient"]}`)); err == nil {
+		t.Fatal("normalized no-store source was cached")
+	}
+	status, err := cache.Status(ctx)
+	if err != nil || status.TotalEntries != 0 {
+		t.Fatalf("cache status after rejected no-store write = (%+v, %v)", status, err)
+	}
+	if _, err := adapter.FetchCached(ctx, request); !errors.Is(err, application.ErrNotFound) {
+		t.Fatalf("no-store cache lookup error = %v, want not found", err)
+	}
+}
 
 func TestOfflineAdapterFeedsDiscoveryFetchAndReleaseWithoutLiveCalls(t *testing.T) {
 	t.Parallel()
@@ -50,7 +82,7 @@ func TestOfflineAdapterFeedsDiscoveryFetchAndReleaseWithoutLiveCalls(t *testing.
 	if err := adapter.CacheReleases(ctx, releaseQuery, releases); err != nil {
 		t.Fatal(err)
 	}
-	if err := adapter.CacheNormalized(ctx, "source.offline-cache", []byte(`{"segments":["bounded"]}`)); err != nil {
+	if err := adapter.CacheNormalized(ctx, "source.offline-cache", fetched, []byte(`{"segments":["bounded"]}`)); err != nil {
 		t.Fatal(err)
 	}
 
