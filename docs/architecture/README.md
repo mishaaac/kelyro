@@ -62,6 +62,11 @@ allowlist, controlled endpoint inventory, persisted pipeline, scenario matrix,
 and cross-platform CI contract are documented in
 [research-e2e-fixture-v1.md](research-e2e-fixture-v1.md).
 
+The explicit opt-in boundary, stable unauthenticated source inventory, strict
+timeouts, resilient assertion policy, and non-blocking role of controlled live
+Research checks are documented in
+[research-live-integration.md](research-live-integration.md).
+
 The `SourceFetcher` adapter, canonical content hash, conditional revalidation,
 append-only snapshot capture, and raw-body disposition contract are documented
 in [source-fetch-snapshots-v1.md](source-fetch-snapshots-v1.md).

@@ -2951,7 +2951,7 @@ test(e2e): cover Research Engine evidence pipeline
 
 ## Paso 47 — Controlled live-web integration tests
 
-- [ ] Paso 47 completado
+- [x] Paso 47 completado
 
 ### Objetivo
 
@@ -3226,7 +3226,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 44 — Security hardening
 - [ ] Paso 45 — Performance/concurrency
 - [x] Paso 46 — E2E controlled
-- [ ] Paso 47 — Live integration opt-in
+- [x] Paso 47 — Live integration opt-in
 - [ ] Paso 48 — Dogfooding
 - [ ] Paso 49 — Cierre formal
 

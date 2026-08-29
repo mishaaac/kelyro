@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 47
-Last completed step: 46
+Current step: 48
+Last completed step: 47
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3448,3 +3448,59 @@ Release: unreleased
 - El Paso 47 es el siguiente paso pendiente y requiere autorización explícita.
 - Debe mantener cualquier prueba live como opt-in; no convertir este fixture
   determinista en dependencia de Internet público ni comenzar I-04.
+
+## Step 47 — Controlled live-web integration tests
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Suite separada `tests/live` que hace skip antes de construir el cliente HTTP
+  salvo que `KELYRO_LIVE_RESEARCH_TESTS` valga exactamente `1`.
+- Dos fuentes oficiales, públicas, estables y sin autenticación: “How to Write
+  Go Code” en `go.dev` y RFC 2606 en texto plano desde `rfc-editor.org`.
+- Camino real por hardened HTTP client, `SourceFetcher`, privacy-gated
+  `FetchService`, snapshot capture, memory repository y normalizador HTML/text.
+- Assertions resilientes de reachability 2xx, classification Trust Policy v1,
+  content metadata, estructura normalizada, hash canónico y snapshot durable,
+  sin depender de wording, fechas, ETag o layout exactos.
+- Check explícito de `privacy.allow_network=false` que exige
+  `network_research_blocked` y cero invocaciones adicionales al live fetcher.
+- Contrato operativo, sources, límites y rol no bloqueante documentados en
+  `docs/architecture/research-live-integration.md` y enlazados desde el índice.
+
+### Decisions
+
+- La habilitación es exacta (`=1`), local y explícita. La variable no existe en
+  los workflows CI/release y la suite no forma parte del gate E2E determinista.
+- `go test ./...` sí compila el test para detectar API drift, pero lo salta sin
+  construir networking cuando no existe opt-in.
+- Cada caso tiene deadline de 15 s; el cliente limita request a 8 s, dial/TLS a
+  4 s, headers a 5 s, una sola tentativa, tres redirects y 2 MiB decoded.
+- Se eligieron documentos oficiales acotados: las especificaciones completas
+  inicialmente probadas eran alcanzables, pero excedían correctamente el bound
+  de output del normalizador y no son apropiadas para un smoke estable.
+- RFC 2606 usa la representación oficial `text/plain`; evita depender del HTML
+  histórico y cubre un segundo normalizador y un host independiente.
+- No se añadió search provider, paid API, credential, browser, fixture de
+  contenido público ni persistencia de bodies completos.
+
+### Verification
+
+- Sin opt-in: `go test ./tests/live -count=1 -v`, resultado `SKIP` antes de red.
+- Con opt-in: `KELYRO_LIVE_RESEARCH_TESTS=1 go test ./tests/live -count=1 -v`;
+  ambos subtests completaron trust/fetch/normalize/snapshot/privacy.
+- `go test ./...`, `go vet ./...` y E2E controlado completo; `tests/live` quedó
+  skipped en el camino default y también bajo race.
+- Compilación cruzada del paquete live con `CGO_ENABLED=0` para Windows amd64 y
+  macOS amd64.
+- Quality gate final completo con tests, E2E, vet, race, build y smokes CLI.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 48 es el siguiente paso pendiente y requiere autorización explícita.
+- Dogfooding debe consumir los contratos ya cerrados; no convertir estos live
+  smokes en CI obligatorio ni comenzar I-04.
