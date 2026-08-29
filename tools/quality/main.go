@@ -18,7 +18,7 @@ const usage = `Usage: go run ./tools/quality <gate>
 
 Gates:
   test         Run all tests
-  e2e          Run the isolated Foundation and Student Core lifecycle tests
+  e2e          Run isolated Foundation, Student Core, and Research Engine tests
   vet          Run Go static analysis
   race         Run all tests with the race detector
   build-smoke  Build the CLI and run version/help smoke tests

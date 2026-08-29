@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 46
-Last completed step: 45
+Current step: 47
+Last completed step: 46
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3387,3 +3387,64 @@ Release: unreleased
 - El Paso 46 es el siguiente paso pendiente y requiere autorización explícita.
 - Debe crear el E2E controlado del Research Engine con fixture HTTP local; no
   habilitar todavía live integration opt-in del Paso 47.
+
+## Step 46 — E2E Research Engine con fixture HTTP controlado
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- E2E único y determinista que recorre request, query plan, discovery fake,
+  clasificación Trust Policy v1, fetch HTTP real, normalización, Evidence,
+  Claims, multi-source verification, Source Bundle, SQLite y CLI inspect.
+- Servidor `httptest` con hosts independientes `*.fixture.test` para official
+  docs, release notes, página historical/version-bound, community article,
+  conflicto, deprecación, página mutable con ETag/304 y HTTP 429 con retry.
+- Constructor de transporte disponible solo con build tag `e2e`, limitado a
+  una allowlist explícita y loopback; la SSRF policy de binaries de producción
+  no se relaja.
+- Cobertura de primary sufficient, needs corroboration, conflict,
+  historical/current, new release, deprecation, cache offline fresh/stale,
+  privacy bloqueando live y source change convertido en drift durable.
+- Inspección del workspace persistido mediante `research status` y
+  `sources show`, incluyendo bundle state y hash del último snapshot.
+- Regresión SQLite para drift con arrays JSON idénticos de old/new Evidence;
+  se reemplazó un map de decode susceptible a colisión por una secuencia
+  explícita que siempre deserializa los tres campos.
+- Contrato del fixture, aislamiento de red y matriz CI documentados en
+  `docs/architecture/research-e2e-fixture-v1.md`.
+
+### Decisions
+
+- Los distintos hostnames modelan organizaciones independientes para trust y
+  verification, aunque todos terminen en el mismo listener local controlado.
+- El escape loopback no forma parte de la API de producción: compila únicamente
+  bajo `-tags=e2e`, solo acepta subdominios nombrados de `fixture.test` y sigue
+  usando validación, retries, bounds, conditional requests y rate limits reales.
+- Discovery sigue produciendo candidates; el test registra explícitamente las
+  fuentes seleccionadas antes de crear snapshots o Evidence.
+- Fresh/stale cache usa el adapter filesystem real y su TTL de producción para
+  probar que no se invoca el adapter live; SQLite conserva la cadena probatoria
+  durable, no raw pages ni cache bodies como evidencia.
+- El Paso 47 no fue iniciado: no hay opt-in live, dominios públicos, DNS público
+  ni dependencia de disponibilidad externa.
+
+### Verification
+
+- `go test ./internal/storage/sqlite` con regresión same-evidence drift.
+- `go test -tags=e2e ./tests/e2e -run
+  TestResearchEngineEvidencePipelineEndToEnd -count=1`.
+- `go test ./...`, `go vet ./...` y E2E completo sin Internet público.
+- Compilación cruzada del paquete E2E con `CGO_ENABLED=0` para Windows amd64 y
+  macOS amd64; el gate existente corre además en la matriz CI Linux/Windows/macOS.
+- Quality gate final completo con tests, E2E, vet, race, build y smokes CLI;
+  SQLite race completó en 416.081 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 47 es el siguiente paso pendiente y requiere autorización explícita.
+- Debe mantener cualquier prueba live como opt-in; no convertir este fixture
+  determinista en dependencia de Internet público ni comenzar I-04.

@@ -999,6 +999,15 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if got, err := repositories.Drift.Get(ctx, drift.ID); err != nil || !reflect.DeepEqual(got, drift) {
 		t.Fatalf("drift roundtrip=(%+v,%v)", got, err)
 	}
+	sameEvidenceDrift := drift
+	sameEvidenceDrift.ID = researchTestID(t, "drift.same-evidence")
+	sameEvidenceDrift.NewEvidence = append([]research.ID(nil), sameEvidenceDrift.OldEvidence...)
+	if err := repositories.Drift.Append(ctx, sameEvidenceDrift); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Drift.Get(ctx, sameEvidenceDrift.ID); err != nil || !reflect.DeepEqual(got, sameEvidenceDrift) {
+		t.Fatalf("same-evidence drift roundtrip=(%+v,%v)", got, err)
+	}
 	impact := research.ImpactReport{ID: researchTestID(t, "impact.1"), DriftReportID: drift.ID, AffectedEvidenceIDs: append(append([]research.ID(nil), drift.OldEvidence...), drift.NewEvidence...), AffectedBundleIDs: []research.ID{drift.OldBundleID}, AffectedClaimIDs: drift.AffectedClaims, FutureConceptRefs: []research.ID{researchTestID(t, "concept.1")}, FutureLessonRefs: []research.ID{researchTestID(t, "lesson.1")}, TechnologyVersionRefs: []research.TechnologyVersionReference{{TechnologyID: researchTestID(t, "technology.go"), Version: researchTestVersion(t, "1.24.0")}}, Severity: research.SeverityImportant, RecommendedAction: research.ActionReviewCurriculum, AssessedAt: at, AlgorithmVersion: research.ImpactAnalysisAlgorithmV1}
 	if err := repositories.Impact.Append(ctx, impact); err != nil {
 		t.Fatal(err)

@@ -2888,7 +2888,7 @@ perf(research): bound concurrent source processing
 
 ## Paso 46 — E2E Research Engine con fixture HTTP controlado
 
-- [ ] Paso 46 completado
+- [x] Paso 46 completado
 
 ### Objetivo
 
@@ -3225,7 +3225,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 43 — Copyright/retention
 - [ ] Paso 44 — Security hardening
 - [ ] Paso 45 — Performance/concurrency
-- [ ] Paso 46 — E2E controlled
+- [x] Paso 46 — E2E controlled
 - [ ] Paso 47 — Live integration opt-in
 - [ ] Paso 48 — Dogfooding
 - [ ] Paso 49 — Cierre formal

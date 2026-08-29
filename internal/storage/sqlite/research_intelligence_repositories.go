@@ -436,8 +436,15 @@ func (repository *researchDriftRepository) Get(ctx context.Context, id research.
 		newBundleID = &parsed
 	}
 	var claimValues, oldEvidenceValues, newEvidenceValues []string
-	for value, target := range map[string]*[]string{claimsJSON: &claimValues, oldEvidenceJSON: &oldEvidenceValues, newEvidenceJSON: &newEvidenceValues} {
-		if decodeErr := decodeJSON(value, target); decodeErr != nil {
+	for _, encoded := range []struct {
+		value  string
+		target *[]string
+	}{
+		{claimsJSON, &claimValues},
+		{oldEvidenceJSON, &oldEvidenceValues},
+		{newEvidenceJSON, &newEvidenceValues},
+	} {
+		if decodeErr := decodeJSON(encoded.value, encoded.target); decodeErr != nil {
 			return research.DriftReport{}, researchPersistence(operation, decodeErr)
 		}
 	}
