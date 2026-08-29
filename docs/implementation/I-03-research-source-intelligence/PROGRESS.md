@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 38
-Last completed step: 37
+Current step: 39
+Last completed step: 38
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2373,7 +2373,7 @@ Release: unreleased
 ## Step 31 — Real Source Code Evidence
 
 Status: completed
-Date: 2026-08-28
+Date: 2026-08-29
 Release: unreleased
 
 ### Delivered
@@ -2854,3 +2854,67 @@ Release: unreleased
 - El Paso 38 está autorizado a continuación por el usuario.
 - Drift Detection deberá tratar estas señales solo como candidatos y comparar
   bundles/evidencia estructurada antes de emitir un `DriftReport` v1.
+
+## Step 38 — Evidence Drift Detection v1
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Policy pura `drift-v1` que compara bundle/Claims anteriores con bundle,
+  Claims, snapshots y releases estructuradas actuales mediante stable Claim
+  IDs, sin network, SQLite, UI ni dependencias de curriculum.
+- Clasificación de los seis drift types requeridos con severity/confidence
+  explícitas y deterministas; findings del mismo tipo agrupan claims/evidence
+  con orden estable, máxima severidad y confianza conservadora mínima.
+- Normalización léxica v1 que ignora exclusivamente cambios de case,
+  puntuación y whitespace; cambios restantes quedan visibles en vez de asumir
+  equivalencia semántica no demostrada.
+- Semántica unresolved que no convierte ausencia de Claim/snapshot actual en
+  invalidación; un 404/410 confirmado sí produce `source_changed` con evidencia
+  nueva vacía cuando corresponda.
+- `DriftService.Detect` puro con IDs reproducibles y persistencia separada vía
+  `Record`, evitando writes parciales durante una comparación multi-reporte.
+- Migration forward-only v41 con confidence, algorithm version e índice de
+  historial por bundle/type; filas anteriores quedan legibles como
+  `drift-unversioned-legacy` sin confianza inventada.
+- Contrato, tabla de severidad/confianza, limitaciones semánticas, unresolved,
+  compatibilidad y límites documentados en `docs/architecture/drift-v1.md`.
+
+### Decisions
+
+- `ClaimID` es la identidad de revisión: wording nuevo con otro ID no se
+  empareja heurísticamente y queda unresolved, para no inventar equivalencias.
+- Un content hash distinto señala drift de source con confidence 0.50, pero no
+  invalida automáticamente la Claim; source gone explícito eleva severity y
+  conserva la falta de nueva evidencia.
+- Una release solo supersede Claims que el caller mapea explícitamente y cuya
+  versión anterior difiere; no se adivina relación por nombres de tecnología.
+- La comparación de texto no usa LLM ni declara sinónimos equivalentes. Esta
+  limitación conservadora es parte versionada de v1.
+- No se implementó Impact Analysis, referencias a lesson/concept, Curriculum
+  Compiler, migración automática ni mutación de Student Core/mastery.
+
+### Verification
+
+- Tests policy de wording sin drift semántico, cambio de versión, deprecación,
+  recommendation, scope, source gone, release supersession y unresolved.
+- Tests application de detección sin write, IDs deterministas, persistencia
+  explícita/round-trip y rechazo de nuevos records legacy.
+- Test de migration v41 que conserva un DriftReport preexistente con marker
+  legacy y confidence desconocida, más round-trip SQLite de reportes v1.
+- Tests focalizados y vet de research, SQLite, researchdb, app y CLI.
+- `go test ./...` y `go vet ./...` completos; SQLite completó en 110.512 s.
+- Quality gate completo: tests (SQLite 105.889 s), E2E (46.979 s), vet,
+  race, build y smokes CLI. La repetición explícita de SQLite con `-race`
+  completó en 452.796 s después de perderse el código de salida de la sesión
+  original por truncación del canal.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 39 es el siguiente paso pendiente y requiere autorización explícita.
+- Impact Analysis deberá consumir DriftReports ya persistidos y no ampliar
+  Step 38 con referencias curriculares o acciones de migración.

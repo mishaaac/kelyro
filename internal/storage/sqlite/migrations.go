@@ -1684,6 +1684,15 @@ WHEN EXISTS (
 			`CREATE INDEX research_trigger_queue_order_idx ON research_trigger_queue (status,priority,queued_at,id)`,
 		},
 	},
+	{
+		version: 41,
+		name:    "versioned evidence drift reports",
+		statements: []string{
+			`ALTER TABLE drift_reports ADD COLUMN confidence REAL NOT NULL DEFAULT 0 CHECK (confidence BETWEEN 0 AND 1)`,
+			`ALTER TABLE drift_reports ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'drift-unversioned-legacy' CHECK (algorithm_version IN ('drift-unversioned-legacy','drift-v1'))`,
+			`CREATE INDEX drift_reports_bundle_type_idx ON drift_reports (old_bundle_id,drift_type,detected_at,id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

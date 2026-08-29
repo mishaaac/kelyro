@@ -154,7 +154,8 @@ The initial services are deliberately thin:
   declared Evidence identity, consumes latest verification/conflict/freshness
   state, classifies source roles, invokes `source-bundle-v1`, appends the
   immutable result, and exposes offline read/export/history operations;
-- `DriftService` records and reads drift reports;
+- `DriftService` deterministically detects v1 drift without writing, exposes
+  unresolved comparisons, and separately records/reads reviewed reports;
 - `ImpactService` records and reads impact reports.
 
 They validate input, enforce immediate identity relationships, require their

@@ -268,10 +268,21 @@ func TestDriftAndImpactReportsKeepExplicitAffectedRelationships(t *testing.T) {
 		ID: mustID(t, "drift.behavior"), OldBundleID: mustID(t, "bundle.old"),
 		NewBundleID: &newBundleID, Type: DriftRecommendationChanged, Severity: SeverityImportant,
 		AffectedClaims: []ClaimID{claimID}, OldEvidence: []ID{mustID(t, "evidence.old")},
-		NewEvidence: []ID{mustID(t, "evidence.new")}, DetectedAt: mustTimestamp(t, 12),
+		NewEvidence: []ID{mustID(t, "evidence.new")}, Confidence: mustConfidence(t, .8),
+		DetectedAt: mustTimestamp(t, 12), AlgorithmVersion: DriftAlgorithmV1,
 	}
 	if err := drift.Validate(); err != nil {
 		t.Fatalf("DriftReport.Validate() error = %v", err)
+	}
+	legacy := drift
+	legacy.AlgorithmVersion = DriftLegacyAlgorithm
+	legacy.Confidence = ClaimConfidence{}
+	if err := legacy.Validate(); err != nil {
+		t.Fatalf("legacy DriftReport.Validate() error = %v", err)
+	}
+	legacy.Confidence = mustConfidence(t, .5)
+	if err := legacy.Validate(); err == nil {
+		t.Fatal("DriftReport.Validate() accepted invented legacy confidence")
 	}
 
 	impact := ImpactReport{

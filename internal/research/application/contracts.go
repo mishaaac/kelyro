@@ -9,6 +9,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/research/citation"
 	conflictpolicy "github.com/mishaaac/kelyro/internal/research/conflict"
 	"github.com/mishaaac/kelyro/internal/research/diversity"
+	driftpolicy "github.com/mishaaac/kelyro/internal/research/drift"
 	triggerpolicy "github.com/mishaaac/kelyro/internal/research/trigger"
 )
 
@@ -1379,8 +1380,24 @@ type UpdateScanService interface {
 }
 
 type DriftService interface {
+	Detect(context.Context, DriftDetectionRequest) (DriftDetectionResult, error)
 	Record(context.Context, research.DriftReport) error
 	Get(context.Context, research.ID) (research.DriftReport, error)
+}
+
+type DriftDetectionRequest struct {
+	OldBundle            research.SourceBundle
+	NewBundle            *research.SourceBundle
+	OldClaims            []research.Claim
+	NewClaims            []research.Claim
+	SnapshotObservations []driftpolicy.SnapshotObservation
+	ReleaseObservations  []driftpolicy.ReleaseObservation
+	DetectedAt           research.Timestamp
+}
+
+type DriftDetectionResult struct {
+	Reports          []research.DriftReport
+	UnresolvedClaims []research.ClaimID
 }
 
 type ImpactService interface {

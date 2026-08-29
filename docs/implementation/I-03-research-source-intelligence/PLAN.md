@@ -2471,7 +2471,7 @@ feat(research): add source update scanning
 
 ## Paso 38 — Implementar Drift Detection v1
 
-- [ ] Paso 38 completado
+- [x] Paso 38 completado
 
 ### Objetivo
 
@@ -3216,8 +3216,8 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 34 — Trigger Policies
 - [x] Paso 35 — Research/Sources CLI
 - [ ] Paso 36 — TUI Transparency
-- [ ] Paso 37 — Update Scan
-- [ ] Paso 38 — Drift Detection
+- [x] Paso 37 — Update Scan
+- [x] Paso 38 — Drift Detection
 - [ ] Paso 39 — Impact Analysis
 - [ ] Paso 40 — Migration contracts
 - [ ] Paso 41 — Compiler contract

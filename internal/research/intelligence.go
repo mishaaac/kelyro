@@ -630,6 +630,11 @@ func (result VerificationResult) Validate() error {
 type DriftType string
 
 const (
+	DriftAlgorithmV1     = "drift-v1"
+	DriftLegacyAlgorithm = "drift-unversioned-legacy"
+)
+
+const (
 	DriftSourceChanged         DriftType = "source_changed"
 	DriftClaimInvalidated      DriftType = "claim_invalidated"
 	DriftVersionSuperseded     DriftType = "version_superseded"
@@ -667,15 +672,17 @@ func (severity Severity) Validate() error {
 }
 
 type DriftReport struct {
-	ID             ID
-	OldBundleID    ID
-	NewBundleID    *ID
-	Type           DriftType
-	Severity       Severity
-	AffectedClaims []ClaimID
-	OldEvidence    []ID
-	NewEvidence    []ID
-	DetectedAt     Timestamp
+	ID               ID
+	OldBundleID      ID
+	NewBundleID      *ID
+	Type             DriftType
+	Severity         Severity
+	AffectedClaims   []ClaimID
+	OldEvidence      []ID
+	NewEvidence      []ID
+	Confidence       ClaimConfidence
+	DetectedAt       Timestamp
+	AlgorithmVersion string
 }
 
 func (report DriftReport) Validate() error {
@@ -705,7 +712,22 @@ func (report DriftReport) Validate() error {
 	if err := validateIDs("drift new evidence", report.NewEvidence, 0); err != nil {
 		return err
 	}
-	return validateTimestamp("drift detected at", report.DetectedAt)
+	if err := validateTimestamp("drift detected at", report.DetectedAt); err != nil {
+		return err
+	}
+	switch report.AlgorithmVersion {
+	case DriftAlgorithmV1:
+		if err := report.Confidence.Validate(); err != nil {
+			return fmt.Errorf("drift confidence: %w", err)
+		}
+	case DriftLegacyAlgorithm:
+		if report.Confidence.Value() != 0 {
+			return fmt.Errorf("legacy drift report cannot contain invented confidence")
+		}
+	default:
+		return fmt.Errorf("invalid drift algorithm version %q", report.AlgorithmVersion)
+	}
+	return nil
 }
 
 type RecommendedAction string

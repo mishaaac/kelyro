@@ -172,6 +172,9 @@ func (repository driftRepository) Append(ctx context.Context, report research.Dr
 	if err := report.Validate(); err != nil {
 		return invalid(operation, err)
 	}
+	if report.AlgorithmVersion != research.DriftAlgorithmV1 {
+		return invalid(operation, fmt.Errorf("new drift reports must use %s", research.DriftAlgorithmV1))
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	if _, exists := repository.store.drift[report.ID]; exists {

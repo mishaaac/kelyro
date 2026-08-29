@@ -77,6 +77,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO source_bundle_items (bundle_id,item_type,item_id,position) VALUES ('bundle.legacy','claim','claim.legacy',0),('bundle.legacy','source','source.legacy',0)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO drift_reports (id,old_bundle_id,drift_type,severity,affected_claim_ids_json,old_evidence_ids_json,new_evidence_ids_json,detected_at) VALUES ('drift.legacy','bundle.legacy','source_changed','minor','["claim.legacy"]','["evidence.legacy"]','[]',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := handle.Exec(`INSERT INTO citations (id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,snapshot_date,last_verified) VALUES ('citation.legacy','source.legacy','snapshot.legacy','evidence.legacy','Legacy source','https://example.test/legacy','https://example.test/legacy#section',?,?)`, fixedTime.Format(timestampFormat), fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
@@ -96,8 +99,13 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 40 {
-		t.Fatalf("schema=(%d,%v), want 40", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 41 {
+		t.Fatalf("schema=(%d,%v), want 41", version, err)
+	}
+	legacyDriftID, _ := research.NewID("drift.legacy")
+	legacyDrift, err := database.Repositories().Research.Drift.Get(context.Background(), legacyDriftID)
+	if err != nil || legacyDrift.AlgorithmVersion != research.DriftLegacyAlgorithm || legacyDrift.Confidence.Value() != 0 {
+		t.Fatalf("v41 legacy drift = (%+v, %v)", legacyDrift, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -881,7 +889,7 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 		t.Fatal("v35 allowed mutation of an immutable source bundle item")
 	}
 
-	drift := research.DriftReport{ID: researchTestID(t, "drift.1"), OldBundleID: researchTestID(t, "bundle.old"), Type: research.DriftSourceChanged, Severity: research.SeverityImportant, AffectedClaims: []research.ClaimID{verification.ClaimID}, OldEvidence: []research.ID{researchTestID(t, "evidence.old")}, NewEvidence: []research.ID{researchTestID(t, "evidence.new")}, DetectedAt: at}
+	drift := research.DriftReport{ID: researchTestID(t, "drift.1"), OldBundleID: researchTestID(t, "bundle.old"), Type: research.DriftSourceChanged, Severity: research.SeverityImportant, AffectedClaims: []research.ClaimID{verification.ClaimID}, OldEvidence: []research.ID{researchTestID(t, "evidence.old")}, NewEvidence: []research.ID{researchTestID(t, "evidence.new")}, Confidence: researchTestConfidence(t, .8), DetectedAt: at, AlgorithmVersion: research.DriftAlgorithmV1}
 	if err := repositories.Drift.Append(ctx, drift); err != nil {
 		t.Fatal(err)
 	}
@@ -1068,4 +1076,12 @@ func researchTestVersion(t *testing.T, value string) research.SourceVersion {
 		t.Fatal(err)
 	}
 	return version
+}
+func researchTestConfidence(t *testing.T, value float64) research.ClaimConfidence {
+	t.Helper()
+	confidence, err := research.NewClaimConfidence(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return confidence
 }

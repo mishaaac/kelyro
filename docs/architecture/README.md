@@ -279,3 +279,7 @@ The read-only stored/live change inventory, deterministic signal ordering,
 privacy-gated optional provider, explicit incomplete states, and curriculum
 non-mutation boundary are documented in
 [update-scan-v1.md](update-scan-v1.md).
+
+The deterministic old/new Claim, snapshot, and release comparison; six drift
+types; severity/confidence policy; unresolved-evidence behavior; and versioned
+legacy-compatible persistence are documented in [drift-v1.md](drift-v1.md).

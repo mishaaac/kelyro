@@ -362,6 +362,9 @@ func (repository *researchDriftRepository) Append(ctx context.Context, report re
 	if err := report.Validate(); err != nil {
 		return researchInvalid(operation, err)
 	}
+	if report.AlgorithmVersion != research.DriftAlgorithmV1 {
+		return researchInvalid(operation, fmt.Errorf("new drift reports must use %s", research.DriftAlgorithmV1))
+	}
 	claims, err := encodeJSON(operation, claimIDStrings(report.AffectedClaims))
 	if err != nil {
 		return err
@@ -390,7 +393,7 @@ func (repository *researchDriftRepository) Append(ctx context.Context, report re
 	if report.NewBundleID != nil {
 		newBundle = report.NewBundleID.String()
 	}
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO drift_reports (id,old_bundle_id,new_bundle_id,drift_type,severity,affected_claim_ids_json,old_evidence_ids_json,new_evidence_ids_json,detected_at) VALUES (?,?,?,?,?,?,?,?,?)`, report.ID.String(), report.OldBundleID.String(), newBundle, string(report.Type), string(report.Severity), claims, oldEvidence, newEvidence, timestampText(report.DetectedAt))
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO drift_reports (id,old_bundle_id,new_bundle_id,drift_type,severity,affected_claim_ids_json,old_evidence_ids_json,new_evidence_ids_json,detected_at,confidence,algorithm_version) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, report.ID.String(), report.OldBundleID.String(), newBundle, string(report.Type), string(report.Severity), claims, oldEvidence, newEvidence, timestampText(report.DetectedAt), report.Confidence.Value(), report.AlgorithmVersion)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -406,9 +409,10 @@ func (repository *researchDriftRepository) Get(ctx context.Context, id research.
 		return research.DriftReport{}, err
 	}
 	defer cancel()
-	var idValue, oldBundleValue, driftType, severity, claimsJSON, oldEvidenceJSON, newEvidenceJSON, detected string
+	var idValue, oldBundleValue, driftType, severity, claimsJSON, oldEvidenceJSON, newEvidenceJSON, detected, algorithm string
+	var confidence float64
 	var newBundleValue sql.NullString
-	err = repository.executor.QueryRowContext(opCtx, `SELECT id,old_bundle_id,new_bundle_id,drift_type,severity,affected_claim_ids_json,old_evidence_ids_json,new_evidence_ids_json,detected_at FROM drift_reports WHERE id=?`, id.String()).Scan(&idValue, &oldBundleValue, &newBundleValue, &driftType, &severity, &claimsJSON, &oldEvidenceJSON, &newEvidenceJSON, &detected)
+	err = repository.executor.QueryRowContext(opCtx, `SELECT id,old_bundle_id,new_bundle_id,drift_type,severity,affected_claim_ids_json,old_evidence_ids_json,new_evidence_ids_json,detected_at,confidence,algorithm_version FROM drift_reports WHERE id=?`, id.String()).Scan(&idValue, &oldBundleValue, &newBundleValue, &driftType, &severity, &claimsJSON, &oldEvidenceJSON, &newEvidenceJSON, &detected, &confidence, &algorithm)
 	if errors.Is(err, sql.ErrNoRows) {
 		return research.DriftReport{}, researchNotFound(operation)
 	}
@@ -453,7 +457,11 @@ func (repository *researchDriftRepository) Get(ctx context.Context, id research.
 	if err != nil {
 		return research.DriftReport{}, researchPersistence(operation, err)
 	}
-	item := research.DriftReport{ID: reportID, OldBundleID: oldBundleID, NewBundleID: newBundleID, Type: research.DriftType(driftType), Severity: research.Severity(severity), AffectedClaims: claims, OldEvidence: oldEvidence, NewEvidence: newEvidence, DetectedAt: detectedAt}
+	confidenceScore, err := research.NewClaimConfidence(confidence)
+	if err != nil {
+		return research.DriftReport{}, researchPersistence(operation, err)
+	}
+	item := research.DriftReport{ID: reportID, OldBundleID: oldBundleID, NewBundleID: newBundleID, Type: research.DriftType(driftType), Severity: research.Severity(severity), AffectedClaims: claims, OldEvidence: oldEvidence, NewEvidence: newEvidence, Confidence: confidenceScore, DetectedAt: detectedAt, AlgorithmVersion: algorithm}
 	if err := item.Validate(); err != nil {
 		return research.DriftReport{}, researchPersistence(operation, fmt.Errorf("invalid stored drift: %w", err))
 	}

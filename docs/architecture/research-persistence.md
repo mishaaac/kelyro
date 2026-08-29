@@ -37,6 +37,11 @@ Repository behavior matches the deterministic memory adapter:
   semantics;
 - collection and latest-record queries have deterministic ordering.
 
+Migration v41 completes drift persistence with bounded confidence and an
+explicit algorithm version. Pre-v41 rows migrate to
+`drift-unversioned-legacy` with unknown (zero) confidence; repository writes
+after Step 38 accept only `drift-v1` while preserving legacy reads.
+
 All database and context failures cross the adapter as the application error
 taxonomy introduced in Step 02. Transactions created by Foundation receive the
 same repository bundle and therefore keep Research writes inside the caller's

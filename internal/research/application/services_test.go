@@ -602,7 +602,8 @@ func testDrift(t *testing.T) research.DriftReport {
 		NewBundleID: &newBundle, Type: research.DriftSourceChanged, Severity: research.SeverityImportant,
 		AffectedClaims: []research.ClaimID{testClaimID(t, "release.current")},
 		OldEvidence:    []research.ID{testID(t, "evidence.old")},
-		NewEvidence:    []research.ID{testID(t, "evidence.new")}, DetectedAt: testTimestamp(t, 12),
+		NewEvidence:    []research.ID{testID(t, "evidence.new")}, Confidence: testConfidence(t, .8),
+		DetectedAt: testTimestamp(t, 12), AlgorithmVersion: research.DriftAlgorithmV1,
 	}
 }
 

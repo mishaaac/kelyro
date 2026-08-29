@@ -475,6 +475,9 @@ func (service *driftService) Record(ctx context.Context, report research.DriftRe
 	if err := report.Validate(); err != nil {
 		return invalid(operation, err)
 	}
+	if report.AlgorithmVersion != research.DriftAlgorithmV1 {
+		return invalid(operation, fmt.Errorf("new drift reports must use %s", research.DriftAlgorithmV1))
+	}
 	if err := requireDependency(operation, "drift repository", service.repository); err != nil {
 		return err
 	}

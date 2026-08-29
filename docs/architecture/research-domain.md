@@ -312,7 +312,11 @@ implemented by `multi-source-verification-v1`, adds a Claim requirement,
 versioned reason codes, source/organization/authority/scope metrics, confidence,
 and an immutable algorithm ID to `VerificationResult`. Its full contract is in
 [multi-source-verification-v1.md](multi-source-verification-v1.md). Semantic
-drift detection and curriculum impact remain in later dedicated steps.
+drift detection is implemented by `drift-v1`, which adds explicit confidence
+and algorithm identity to `DriftReport` while preserving legacy reports as
+unversioned/unknown-confidence data. Its complete contract is documented in
+[drift-v1.md](drift-v1.md). Curriculum impact remains in a later dedicated
+step.
 
 ## Temporal and enum invariants
 
