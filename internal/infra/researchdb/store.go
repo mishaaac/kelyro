@@ -35,9 +35,18 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	researchService := application.NewResearchService(database.Repositories().Research.Runs)
 	costs := application.NewResearchCostService(database.Repositories().Research.Costs)
 	triggers := application.NewResearchTriggerService(database.Repositories().Research.TriggerQueue)
+	updateScan := application.NewUpdateScanService(
+		database.Repositories().Research.Sources,
+		database.Repositories().Research.Snapshots,
+		database.Repositories().Research.Releases,
+		database.Repositories().Research.Deprecations,
+		database.Repositories().Research.Freshness,
+		database.Repositories().Research.Conflicts,
+		nil,
+	)
 	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, registry: registry, trust: trust, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers}, nil
+	return &store{database: database, sources: sources, registry: registry, trust: trust, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }
 
 type store struct {
@@ -52,6 +61,7 @@ type store struct {
 	conflicts  application.ConflictResolutionService
 	costs      application.ResearchCostService
 	triggers   application.ResearchTriggerService
+	updateScan application.UpdateScanService
 }
 
 func (store *store) Sources() application.SourceService               { return store.sources }
@@ -64,6 +74,7 @@ func (store *store) Bundles() application.SourceBundleService         { return s
 func (store *store) Conflicts() application.ConflictResolutionService { return store.conflicts }
 func (store *store) Costs() application.ResearchCostService           { return store.costs }
 func (store *store) Triggers() application.ResearchTriggerService     { return store.triggers }
+func (store *store) UpdateScan() application.UpdateScanService        { return store.updateScan }
 
 func (store *store) Close() error {
 	if err := store.database.Close(); err != nil {

@@ -156,6 +156,7 @@ type Result struct {
 	ResearchCacheStatus   *researchapp.ResearchCacheStatus
 	ResearchCacheCleared  *researchapp.ResearchCacheClearResult
 	ResearchCostStats     *researchapp.ResearchCostStats
+	UpdateScan            *research.UpdateScan
 	ResearchView          *ResearchCLIView
 	Sources               []research.Source
 	SourceTransparency    []SourceCLIView

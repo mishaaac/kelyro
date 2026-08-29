@@ -6,10 +6,11 @@ import (
 	"fmt"
 
 	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 )
 
 func (service *Service) executeResearch(ctx context.Context, command Command) (Result, error) {
-	if command.ResearchOperation == "topic" || command.ResearchOperation == "status" {
+	if command.ResearchOperation == "topic" || command.ResearchOperation == "status" || command.ResearchOperation == "update-scan" {
 		if service.researchStores == nil {
 			return Result{}, errors.New("research store is unavailable")
 		}
@@ -23,6 +24,28 @@ func (service *Service) executeResearch(ctx context.Context, command Command) (R
 			return Result{}, fmt.Errorf("open research store: %w", err)
 		}
 		defer store.Close()
+		if command.ResearchOperation == "update-scan" {
+			if store.UpdateScan() == nil {
+				return Result{}, errors.New("research update scan service is unavailable")
+			}
+			settings, settingsErr := service.resolvedConfigForWorkspace(found.Root, command.ConfigOverrides)
+			if settingsErr != nil {
+				return Result{}, settingsErr
+			}
+			gate, gateErr := service.networkGate(settings, command)
+			if gateErr != nil {
+				return Result{}, gateErr
+			}
+			now, clockErr := research.NewTimestamp(service.researchClock().UTC())
+			if clockErr != nil {
+				return Result{}, fmt.Errorf("research clock: %w", clockErr)
+			}
+			scan, scanErr := store.UpdateScan().Scan(ctx, researchapp.ResearchModeAuto, researchapp.NetworkResearchAccess{Gate: gate}, now)
+			if scanErr != nil {
+				return Result{}, scanErr
+			}
+			return Result{UpdateScan: &scan}, nil
+		}
 		var view ResearchCLIView
 		if command.ResearchOperation == "topic" {
 			view, err = service.startResearchTopic(ctx, command, store)

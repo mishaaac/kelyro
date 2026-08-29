@@ -69,6 +69,29 @@ func (repository deprecationRepository) Get(ctx context.Context, id research.ID)
 	return cloneDeprecation(record), nil
 }
 
+func (repository deprecationRepository) List(ctx context.Context) ([]research.DeprecationRecord, error) {
+	const operation = "list all memory deprecations"
+	if err := contextError(operation, ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	result := make([]research.DeprecationRecord, 0, len(repository.store.deprecations))
+	for _, record := range repository.store.deprecations {
+		result = append(result, cloneDeprecation(record))
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Subject != result[j].Subject {
+			return result[i].Subject < result[j].Subject
+		}
+		if result[i].VerifiedAt.Time().Equal(result[j].VerifiedAt.Time()) {
+			return result[i].ID.String() < result[j].ID.String()
+		}
+		return result[i].VerifiedAt.Before(result[j].VerifiedAt)
+	})
+	return result, nil
+}
+
 func (repository deprecationRepository) ListBySubject(ctx context.Context, subject string) ([]research.DeprecationRecord, error) {
 	const operation = "list memory deprecation history"
 	if err := contextError(operation, ctx); err != nil {

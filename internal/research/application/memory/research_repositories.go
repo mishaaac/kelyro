@@ -331,6 +331,29 @@ func (repository releaseRepository) Get(ctx context.Context, id research.ID) (re
 	return cloneRelease(record), nil
 }
 
+func (repository releaseRepository) List(ctx context.Context) ([]research.ReleaseRecord, error) {
+	const operation = "list all memory releases"
+	if err := contextError(operation, ctx); err != nil {
+		return nil, err
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	result := make([]research.ReleaseRecord, 0, len(repository.store.releases))
+	for _, record := range repository.store.releases {
+		result = append(result, cloneRelease(record))
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].TechnologyID != result[j].TechnologyID {
+			return result[i].TechnologyID.String() < result[j].TechnologyID.String()
+		}
+		if result[i].VerifiedAt.Time().Equal(result[j].VerifiedAt.Time()) {
+			return result[i].ID.String() < result[j].ID.String()
+		}
+		return result[i].VerifiedAt.Before(result[j].VerifiedAt)
+	})
+	return result, nil
+}
+
 func (repository releaseRepository) ListByTechnology(ctx context.Context, technologyID research.ID) ([]research.ReleaseRecord, error) {
 	const operation = "list memory releases"
 	if err := contextError(operation, ctx); err != nil {

@@ -2421,7 +2421,7 @@ feat(tui): add research source transparency views
 
 ## Paso 37 — Implementar Update Scan
 
-- [ ] Paso 37 completado
+- [x] Paso 37 completado
 
 ### Objetivo
 

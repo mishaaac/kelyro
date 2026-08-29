@@ -604,6 +604,31 @@ func sameResearchSourceIDs(left, right []research.SourceID) bool {
 func (repository *researchReleaseRepository) Get(ctx context.Context, id research.ID) (research.ReleaseRecord, error) {
 	return repository.get(ctx, "get SQLite release record", `WHERE id=?`, id.String(), id.Validate())
 }
+func (repository *researchReleaseRepository) List(ctx context.Context) ([]research.ReleaseRecord, error) {
+	const operation = "list all SQLite release records"
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+	rows, err := repository.executor.QueryContext(opCtx, `SELECT id,technology_id,version,channel,status,source_ids_json,released_at,verified_at FROM release_records ORDER BY technology_id,verified_at,id`)
+	if err != nil {
+		return nil, researchPersistence(operation, err)
+	}
+	defer rows.Close()
+	result := make([]research.ReleaseRecord, 0)
+	for rows.Next() {
+		item, scanErr := scanRelease(rows, operation)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, researchPersistence(operation, err)
+	}
+	return result, nil
+}
 func (repository *researchReleaseRepository) ListByTechnology(ctx context.Context, id research.ID) ([]research.ReleaseRecord, error) {
 	const operation = "list SQLite release records"
 	if err := id.Validate(); err != nil {

@@ -33,9 +33,10 @@ func (mode ResearchMode) Validate() error {
 type NetworkOperation string
 
 const (
-	NetworkOperationDiscovery NetworkOperation = "research.discovery"
-	NetworkOperationFetch     NetworkOperation = "research.fetch"
-	NetworkOperationRelease   NetworkOperation = "research.release_lookup"
+	NetworkOperationDiscovery  NetworkOperation = "research.discovery"
+	NetworkOperationFetch      NetworkOperation = "research.fetch"
+	NetworkOperationRelease    NetworkOperation = "research.release_lookup"
+	NetworkOperationUpdateScan NetworkOperation = "research.update_scan"
 )
 
 // NetworkResearchAccess is constructed from Foundation's resolved privacy

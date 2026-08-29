@@ -188,6 +188,7 @@ Research commands:
   kelyro research topic <topic>
   kelyro research status <run-id>
   kelyro research stats
+  kelyro research update-scan
   kelyro research cache status
   kelyro research cache clear
 
@@ -472,6 +473,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatResearchCacheClear(*result.ResearchCacheCleared))
 	} else if result.ResearchCostStats != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatResearchCostStats(*result.ResearchCostStats))
+	} else if result.UpdateScan != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatUpdateScan(*result.UpdateScan))
 	} else if result.ResearchView != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatResearchView(*result.ResearchView))
 	} else if result.Source != nil && !invocation.quiet {
@@ -1652,12 +1655,16 @@ func parseResearchArguments(result *invocation) error {
 		result.researchOperation = "stats"
 		return nil
 	}
+	if len(result.arguments) == 1 && result.arguments[0] == "update-scan" {
+		result.researchOperation = "update-scan"
+		return nil
+	}
 	if len(result.arguments) == 2 && result.arguments[0] == "cache" &&
 		(result.arguments[1] == "status" || result.arguments[1] == "clear") {
 		result.researchCacheOperation = result.arguments[1]
 		return nil
 	}
-	return fmt.Errorf("research requires topic <topic>, status <run-id>, stats, cache status, or cache clear")
+	return fmt.Errorf("research requires topic <topic>, status <run-id>, stats, update-scan, cache status, or cache clear")
 }
 
 func formatResearchView(view app.ResearchCLIView) string {
@@ -1759,6 +1766,34 @@ func formatResearchCostStats(stats researchapp.ResearchCostStats) string {
 		fmt.Sprintf("Today: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.TodayUsed.SearchRequests, stats.TodayUsed.FetchRequests, stats.TodayUsed.Bytes, stats.TodayUsed.ProviderAPICalls, stats.TodayUsed.ModelCalls),
 		fmt.Sprintf("Saved by valid cache: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.CacheSavings.SearchRequests, stats.CacheSavings.FetchRequests, stats.CacheSavings.Bytes, stats.CacheSavings.ProviderAPICalls, stats.CacheSavings.ModelCalls),
 	}, "\n")
+}
+
+func formatUpdateScan(scan research.UpdateScan) string {
+	status := "complete"
+	if !scan.Complete() {
+		reasons := make([]string, len(scan.IncompleteReasons))
+		for index, reason := range scan.IncompleteReasons {
+			reasons[index] = string(reason)
+		}
+		status = "incomplete (" + strings.Join(reasons, ", ") + ")"
+	}
+	lines := []string{
+		"Research update scan",
+		"Status: " + status,
+		"Scanned: " + scan.ScannedAt.Time().Format(time.RFC3339),
+		fmt.Sprintf("Inventory: %d technologies, %d releases, %d tracked sources, %d freshness due",
+			scan.Inventory.KnownTechnologies, scan.Inventory.KnownReleases,
+			scan.Inventory.TrackedSources, scan.Inventory.FreshnessDue),
+		fmt.Sprintf("Signals: %d", len(scan.Signals)),
+	}
+	for _, signal := range scan.Signals {
+		lines = append(lines, fmt.Sprintf("- %s: %s — %s [%s]", signal.Type, signal.Reference, signal.Detail, signal.Origin))
+	}
+	if len(scan.Signals) == 0 {
+		lines = append(lines, "No stored change signals found.")
+	}
+	lines = append(lines, "Algorithm: "+scan.AlgorithmVersion, "This report does not modify curriculum or student state.")
+	return strings.Join(lines, "\n")
 }
 
 func formatResearchCacheStatus(status researchapp.ResearchCacheStatus) string {

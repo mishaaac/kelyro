@@ -18,6 +18,11 @@ Source Bundle exists, it presents its state, primary/supporting counts,
 conflicts, and verification timestamp. A search result or query plan is never
 counted as a source, claim, or evidence.
 
+`kelyro research update-scan` inventories stored releases, tracked sources,
+freshness schedules, deprecations, and unresolved conflicts. It reports an
+explicit incomplete reason when privacy blocks current lookup or no live
+provider is configured, and never modifies curriculum or student state.
+
 ## Manual topic workflow
 
 `kelyro research topic <topic>` normalizes and validates the topic, creates a

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 37
-Last completed step: 36
+Current step: 38
+Last completed step: 37
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2792,3 +2792,65 @@ Release: unreleased
 - El Paso 37 es el siguiente paso pendiente y requiere autorización explícita.
 - Update Scan deberá comparar evidencia almacenada con señales actuales detrás
   de adapters y respetar `privacy.allow_network`; no fue iniciado en Step 36.
+
+## Step 37 — Research Update Scan
+
+Status: completed
+Date: 2026-08-28
+Release: unreleased
+
+### Delivered
+
+- Modelo `update-scan-v1` con inventario de tecnologías/releases/sources y
+  freshness due, cinco señales cerradas, origins almacenado/live, orden y
+  deduplicación deterministas, y razones explícitas de scan incompleto.
+- Servicio application que analiza metadata local: releases current con
+  historial previo, cambios entre hashes comparables o 404/410, freshness due,
+  última deprecation por subject y conflictos unresolved.
+- Puerto opcional `UpdateSignalProvider` que recibe únicamente metadata
+  acotada y solo puede ejecutarse después del gate `research.update_scan`.
+- `kelyro research update-scan` con inventario, señales, estado
+  complete/incomplete y recordatorio explícito de que el reporte no modifica
+  curriculum ni estado de estudiante.
+- Lecturas globales deterministas de releases/deprecations en memory y SQLite,
+  y wiring workspace-local sin añadir un provider live ficticio.
+- Contrato, privacidad, semántica offline y límites documentados en
+  `docs/architecture/update-scan-v1.md`.
+
+### Decisions
+
+- El scan es un reporte efímero y reproducible sobre el estado observado; no se
+  añadió una tabla de scans ni se usa su repetición como prueba de drift.
+- Una release local se señala como nueva solo cuando existe historial previo y
+  el registro verificado más reciente es current; una única release conocida
+  no se interpreta como cambio.
+- Snapshots sin hash, incluido un 304, no prueban cambio. Un 404/410 almacenado
+  sí señala que el source desapareció, sin convertirlo todavía en drift
+  semántico.
+- Network disabled, provider ausente y fallo del provider son estados
+  incompletos distintos; todos conservan los resultados locales disponibles.
+- No se añadió fetch/discovery, scheduler, Drift Detection, Impact Analysis,
+  Curriculum Compiler ni mutación de Student Core/mastery.
+
+### Verification
+
+- Tests application de las cinco señales locales, inventario, modo offline,
+  autorización previa al adapter, combinación live y fallo parcial explícito.
+- Tests app/CLI de coordinación, parsing y salida humana de `update-scan`.
+- Tests focalizados y vet de research, SQLite, researchdb, app y CLI.
+- `go test ./...` y `go vet ./...` completos con cache/temporales en disco; el
+  primer intento en `/tmp` agotó su cuota y el retry autorizado permitió los
+  sockets loopback deterministas de `httptest`.
+- Quality gate completo con `GOFLAGS=-timeout=20m`, `GOMAXPROCS=2`, cache y
+  `GOTMPDIR` bajo el workspace: tests, E2E, vet, race, build y smokes CLI;
+  SQLite race completó en 524.553 s.
+- Smoke real sobre workspace temporal: `init` seguido de `research
+  update-scan`, con estado `incomplete (network_disabled)` y cero señales sin
+  inventar evidencia.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 38 está autorizado a continuación por el usuario.
+- Drift Detection deberá tratar estas señales solo como candidatos y comparar
+  bundles/evidencia estructurada antes de emitir un `DriftReport` v1.

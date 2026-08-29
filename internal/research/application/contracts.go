@@ -154,6 +154,7 @@ type ReleaseRepository interface {
 	Create(context.Context, research.ReleaseRecord) error
 	Update(context.Context, research.ReleaseRecord) error
 	Get(context.Context, research.ID) (research.ReleaseRecord, error)
+	List(context.Context) ([]research.ReleaseRecord, error)
 	ListByTechnology(context.Context, research.ID) ([]research.ReleaseRecord, error)
 }
 
@@ -175,6 +176,7 @@ type ReleaseIngestionRepository interface {
 type DeprecationRepository interface {
 	Append(context.Context, research.DeprecationRecord) error
 	Get(context.Context, research.ID) (research.DeprecationRecord, error)
+	List(context.Context) ([]research.DeprecationRecord, error)
 	ListBySubject(context.Context, string) ([]research.DeprecationRecord, error)
 }
 
@@ -1191,6 +1193,7 @@ type SourceRegistryStore interface {
 	Conflicts() ConflictResolutionService
 	Costs() ResearchCostService
 	Triggers() ResearchTriggerService
+	UpdateScan() UpdateScanService
 	Close() error
 }
 
@@ -1340,6 +1343,39 @@ type ReleaseIntelligenceService interface {
 	Record(context.Context, research.ReleaseRecord) error
 	Get(context.Context, research.ID) (research.ReleaseRecord, error)
 	List(context.Context, research.ID) ([]research.ReleaseRecord, error)
+}
+
+// UpdateSignalLookup is the bounded inventory supplied to an optional live
+// adapter. Stored source bodies and evidence excerpts never cross this port.
+type UpdateSignalLookup struct {
+	Sources  []research.Source
+	Releases []research.ReleaseRecord
+	AsOf     research.Timestamp
+}
+
+func (lookup UpdateSignalLookup) Validate() error {
+	if err := lookup.AsOf.Validate(); err != nil {
+		return err
+	}
+	for index, source := range lookup.Sources {
+		if err := source.Validate(); err != nil {
+			return fmt.Errorf("update lookup source %d: %w", index, err)
+		}
+	}
+	for index, release := range lookup.Releases {
+		if err := release.Validate(); err != nil {
+			return fmt.Errorf("update lookup release %d: %w", index, err)
+		}
+	}
+	return nil
+}
+
+type UpdateSignalProvider interface {
+	Scan(context.Context, UpdateSignalLookup) ([]research.UpdateSignal, error)
+}
+
+type UpdateScanService interface {
+	Scan(context.Context, ResearchMode, NetworkResearchAccess, research.Timestamp) (research.UpdateScan, error)
 }
 
 type DriftService interface {

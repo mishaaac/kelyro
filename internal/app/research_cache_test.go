@@ -56,6 +56,24 @@ func TestServiceCoordinatesResearchCostStats(t *testing.T) {
 	}
 }
 
+func TestServiceCoordinatesOfflineResearchUpdateScan(t *testing.T) {
+	t.Parallel()
+	root := "/workspaces/research-update-scan"
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+	scanner := &fakeUpdateScanService{scan: research.UpdateScan{
+		ScannedAt: at, IncompleteReasons: []research.UpdateScanIncompleteReason{research.UpdateScanNetworkDisabled},
+		AlgorithmVersion: research.UpdateScanAlgorithmV1,
+	}}
+	factory := &fakeSourceRegistryStoreFactory{updateScan: scanner}
+	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
+		WithConfig(&recordingConfigStore{project: config.Settings{config.KeyAllowNetwork: config.BoolValue(false)}}).
+		WithResearchStores(factory).WithResearchClock(func() time.Time { return at.Time() })
+	result, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "update-scan"})
+	if err != nil || result.UpdateScan == nil || result.UpdateScan.Complete() || scanner.calls != 1 {
+		t.Fatalf("update scan = (%+v,%v), calls=%d", result.UpdateScan, err, scanner.calls)
+	}
+}
+
 func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
 	t.Parallel()
 	root := "/workspaces/research-topic"
@@ -87,6 +105,17 @@ func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
 type fakeResearchCostService struct {
 	stats      researchapp.ResearchCostStats
 	statsCalls int
+}
+
+type fakeUpdateScanService struct {
+	scan  research.UpdateScan
+	err   error
+	calls int
+}
+
+func (service *fakeUpdateScanService) Scan(context.Context, researchapp.ResearchMode, researchapp.NetworkResearchAccess, research.Timestamp) (research.UpdateScan, error) {
+	service.calls++
+	return service.scan, service.err
 }
 
 func (*fakeResearchCostService) Evaluate(context.Context, researchapp.CostControlRequest) (researchapp.CostControlDecision, error) {

@@ -95,6 +95,32 @@ func (repository *researchDeprecationRepository) Get(ctx context.Context, id res
 	return scanDeprecation(repository.executor.QueryRowContext(opCtx, deprecationSelect+` WHERE id=?`, id.String()), operation)
 }
 
+func (repository *researchDeprecationRepository) List(ctx context.Context) ([]research.DeprecationRecord, error) {
+	const operation = "list all SQLite deprecations"
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+	rows, err := repository.executor.QueryContext(opCtx, deprecationSelect+` ORDER BY subject,verified_at,id`)
+	if err != nil {
+		return nil, researchPersistence(operation, err)
+	}
+	defer rows.Close()
+	result := make([]research.DeprecationRecord, 0)
+	for rows.Next() {
+		record, scanErr := scanDeprecation(rows, operation)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result = append(result, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, researchPersistence(operation, err)
+	}
+	return result, nil
+}
+
 func (repository *researchDeprecationRepository) ListBySubject(ctx context.Context, subject string) ([]research.DeprecationRecord, error) {
 	const operation = "list SQLite deprecation history"
 	if strings.TrimSpace(subject) == "" || subject != strings.TrimSpace(subject) {

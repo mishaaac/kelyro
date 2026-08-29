@@ -104,13 +104,14 @@ type fakeSourceRegistryStoreFactory struct {
 	bundles    researchapp.SourceBundleService
 	conflicts  researchapp.ConflictResolutionService
 	triggers   researchapp.ResearchTriggerService
+	updateScan researchapp.UpdateScanService
 	openRoot   string
 	closed     int
 }
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
@@ -124,6 +125,7 @@ type fakeSourceRegistryStore struct {
 	bundles    researchapp.SourceBundleService
 	conflicts  researchapp.ConflictResolutionService
 	triggers   researchapp.ResearchTriggerService
+	updateScan researchapp.UpdateScanService
 	close      func()
 }
 
@@ -148,6 +150,9 @@ func (store *fakeSourceRegistryStore) Conflicts() researchapp.ConflictResolution
 func (store *fakeSourceRegistryStore) Costs() researchapp.ResearchCostService { return store.costs }
 func (store *fakeSourceRegistryStore) Triggers() researchapp.ResearchTriggerService {
 	return store.triggers
+}
+func (store *fakeSourceRegistryStore) UpdateScan() researchapp.UpdateScanService {
+	return store.updateScan
 }
 func (store *fakeSourceRegistryStore) Close() error {
 	store.close()

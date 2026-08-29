@@ -1483,6 +1483,29 @@ func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
 			t.Fatalf("stats command = %+v", service.commands)
 		}
 	})
+	t.Run("update scan", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		scan := research.UpdateScan{
+			ScannedAt: at,
+			Inventory: research.UpdateScanInventory{KnownTechnologies: 1, KnownReleases: 2, TrackedSources: 3, FreshnessDue: 1},
+			Signals: []research.UpdateSignal{{
+				Type: research.UpdateSignalChangedSource, Reference: "source.docs", Detail: "content hash changed",
+				Origin: research.UpdateSignalStoredMetadata, ObservedAt: at,
+			}},
+			IncompleteReasons: []research.UpdateScanIncompleteReason{research.UpdateScanNetworkDisabled},
+			AlgorithmVersion:  research.UpdateScanAlgorithmV1,
+		}
+		service := &fakeService{result: app.Result{UpdateScan: &scan}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "update-scan"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "incomplete (network_disabled)") ||
+			!strings.Contains(stdout.String(), "changed_source: source.docs") || !strings.Contains(stdout.String(), "does not modify curriculum") {
+			t.Fatalf("update scan = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ResearchOperation != "update-scan" {
+			t.Fatalf("update scan command = %+v", service.commands)
+		}
+	})
 	t.Run("status", func(t *testing.T) {
 		status := researchapp.ResearchCacheStatus{
 			AlgorithmVersion: researchapp.ResearchCacheAlgorithmV1,

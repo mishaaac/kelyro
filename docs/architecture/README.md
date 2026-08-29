@@ -274,3 +274,8 @@ The terminal Research, Sources, Source/Claim detail, Conflicts, and Freshness
 views; persisted authority/freshness projection; compact URL policy; and native
 browser-opening boundary are documented in
 [research-source-transparency-tui-v1.md](research-source-transparency-tui-v1.md).
+
+The read-only stored/live change inventory, deterministic signal ordering,
+privacy-gated optional provider, explicit incomplete states, and curriculum
+non-mutation boundary are documented in
+[update-scan-v1.md](update-scan-v1.md).
