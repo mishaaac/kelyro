@@ -2833,7 +2833,7 @@ fix(security): harden Research Engine inputs
 
 ## Paso 45 — Performance, concurrency y rate-limit hardening
 
-- [ ] Paso 45 completado
+- [x] Paso 45 completado
 
 ### Objetivo
 

@@ -12,6 +12,9 @@ const (
 	maximumUserAgentLength    = 128
 	maximumAttempts           = 5
 	maximumRedirects          = 10
+	maximumConcurrentRequests = 256
+	maximumConcurrentPerHost  = 32
+	maximumRequestInterval    = time.Minute
 )
 
 // Config contains bounded HTTP and retry policy. Start with DefaultConfig and
@@ -31,6 +34,9 @@ type Config struct {
 	MaxBackoff                time.Duration
 	MaxIdleConnections        int
 	MaxIdleConnectionsPerHost int
+	MaxConcurrentRequests     int
+	MaxConcurrentPerHost      int
+	MinimumIntervalPerHost    time.Duration
 	AllowedContentTypes       []string
 }
 
@@ -51,6 +57,9 @@ func DefaultConfig() Config {
 		MaxBackoff:                2 * time.Second,
 		MaxIdleConnections:        32,
 		MaxIdleConnectionsPerHost: 4,
+		MaxConcurrentRequests:     16,
+		MaxConcurrentPerHost:      4,
+		MinimumIntervalPerHost:    100 * time.Millisecond,
 		AllowedContentTypes: []string{
 			"text/*",
 			"application/json",
@@ -102,6 +111,14 @@ func (config Config) validate() error {
 	if config.MaxIdleConnections < 1 || config.MaxIdleConnections > 256 ||
 		config.MaxIdleConnectionsPerHost < 1 || config.MaxIdleConnectionsPerHost > config.MaxIdleConnections {
 		return fmt.Errorf("idle connection limits are invalid")
+	}
+	if config.MaxConcurrentRequests < 1 || config.MaxConcurrentRequests > maximumConcurrentRequests ||
+		config.MaxConcurrentPerHost < 1 || config.MaxConcurrentPerHost > maximumConcurrentPerHost ||
+		config.MaxConcurrentPerHost > config.MaxConcurrentRequests {
+		return fmt.Errorf("active request limits are invalid")
+	}
+	if config.MinimumIntervalPerHost <= 0 || config.MinimumIntervalPerHost > maximumRequestInterval {
+		return fmt.Errorf("minimum per-host request interval must be positive and at most one minute")
 	}
 	if len(config.AllowedContentTypes) == 0 {
 		return fmt.Errorf("allowed content types are empty")

@@ -76,6 +76,8 @@ type Client struct {
 	http      *http.Client
 	transport *http.Transport
 	limiter   RateLimiter
+	interval  RateLimiter
+	requests  *requestConcurrency
 	observer  Observer
 	network   networkDependencies
 }
@@ -100,7 +102,11 @@ func newClient(config Config, limiter RateLimiter, observer Observer, network ne
 		return nil, classified(ErrorInvalidRequest, errors.New("network dependencies are incomplete"))
 	}
 	config.AllowedContentTypes = append([]string(nil), config.AllowedContentTypes...)
-	client := &Client{config: config, limiter: limiter, observer: observer, network: network}
+	client := &Client{
+		config: config, limiter: limiter, observer: observer, network: network,
+		interval: newHostIntervalLimiter(config.MinimumIntervalPerHost, network.now, network.sleep),
+		requests: newRequestConcurrency(config.MaxConcurrentRequests, config.MaxConcurrentPerHost),
+	}
 	client.transport = &http.Transport{
 		// Environment proxies can resolve the validated target a second time and
 		// bypass address pinning. Research uses direct, policy-checked dialing.
@@ -111,6 +117,7 @@ func newClient(config Config, limiter RateLimiter, observer Observer, network ne
 		ForceAttemptHTTP2:      true,
 		MaxIdleConns:           config.MaxIdleConnections,
 		MaxIdleConnsPerHost:    config.MaxIdleConnectionsPerHost,
+		MaxConnsPerHost:        config.MaxConcurrentPerHost,
 		IdleConnTimeout:        config.IdleConnTimeout,
 		TLSHandshakeTimeout:    config.TLSHandshakeTimeout,
 		ResponseHeaderTimeout:  config.ResponseHeaderTimeout,
@@ -169,8 +176,22 @@ func (client *Client) Do(ctx context.Context, input Request) (Response, error) {
 			client.observe(ctx, Event{Attempt: attempt, Outcome: OutcomeFailed})
 			return Response{}, err
 		}
+		host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
+		release, err := client.requests.acquire(ctx, host)
+		if err != nil {
+			return Response{}, err
+		}
+		if err := client.interval.Wait(ctx, host); err != nil {
+			release()
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return Response{}, ctxErr
+			}
+			client.observe(ctx, Event{Attempt: attempt, Outcome: OutcomeFailed})
+			return Response{}, classified(ErrorRateLimitHook, err)
+		}
 		if client.limiter != nil {
-			if err := client.limiter.Wait(ctx, strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))); err != nil {
+			if err := client.limiter.Wait(ctx, host); err != nil {
+				release()
 				if ctxErr := ctx.Err(); ctxErr != nil {
 					return Response{}, ctxErr
 				}
@@ -180,6 +201,7 @@ func (client *Client) Do(ctx context.Context, input Request) (Response, error) {
 		}
 
 		response, requestErr := client.attempt(ctx, parsed, header, responseLimit)
+		release()
 		if requestErr == nil {
 			client.observe(ctx, Event{Attempt: attempt, StatusCode: response.StatusCode, Outcome: OutcomeSucceeded})
 			return response, nil

@@ -412,6 +412,7 @@ func testConfig() Config {
 	config.UserAgent = "Kelyro/test"
 	config.RequestTimeout = time.Second
 	config.MaxAttempts = 1
+	config.MinimumIntervalPerHost = time.Millisecond
 	return config
 }
 

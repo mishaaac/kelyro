@@ -14,6 +14,9 @@ func (repository releaseIngestionRepository) Commit(ctx context.Context, batch a
 	if err := contextError(operation, ctx); err != nil {
 		return err
 	}
+	if err := batch.ValidateBounds(); err != nil {
+		return invalid(operation, err)
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 

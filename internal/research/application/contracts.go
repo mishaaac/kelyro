@@ -170,6 +170,32 @@ type ReleaseIngestionBatch struct {
 	StatusUpdates []research.TechnologyRelease
 }
 
+const (
+	MaximumEvidencePerIngestionBatch       = 5_000
+	MaximumClaimsPerIngestionBatch         = MaximumClaimsPerRun
+	MaximumReleasesPerIngestionBatch       = 256
+	MaximumReleaseUpdatesPerIngestionBatch = 256
+)
+
+// ValidateBounds prevents a single repository transaction from growing
+// without limit. It deliberately does not replace each record's validation.
+func (batch ReleaseIngestionBatch) ValidateBounds() error {
+	for _, size := range []struct {
+		name       string
+		value, max int
+	}{
+		{"evidence", len(batch.Evidence), MaximumEvidencePerIngestionBatch},
+		{"claims", len(batch.Claims), MaximumClaimsPerIngestionBatch},
+		{"releases", len(batch.Releases), MaximumReleasesPerIngestionBatch},
+		{"release updates", len(batch.StatusUpdates), MaximumReleaseUpdatesPerIngestionBatch},
+	} {
+		if size.value > size.max {
+			return fmt.Errorf("release ingestion %s exceed batch limit %d", size.name, size.max)
+		}
+	}
+	return nil
+}
+
 type ReleaseIngestionRepository interface {
 	Commit(context.Context, ReleaseIngestionBatch) error
 }

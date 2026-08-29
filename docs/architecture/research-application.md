@@ -116,6 +116,9 @@ The initial services are deliberately thin:
   mode/privacy, delegates to either the live provider or explicit offline cache,
   and returns bounded unique candidates without reranking them;
 - `FetchService` applies the same boundary to live/cached source retrieval;
+- `ResearchProcessingService` executes prepared discovery and fetch work in
+  separate bounded pools, preserves input-index result ordering, and enforces
+  the versioned whole-run candidate, fetch, Claim, and byte budget;
 - `SnapshotCaptureService` resolves the latest source snapshot, sends its
   conditional validators through `FetchService`, verifies canonical content
   metadata, and appends a new immutable observation;
@@ -164,9 +167,14 @@ They validate input, enforce immediate identity relationships, require their
 dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
-implement Trust Policy, authority matching, query execution orchestration,
-general-purpose evidence extraction or conflict candidate discovery. They do
+implement Trust Policy, authority matching, candidate selection,
+general-purpose evidence extraction, or conflict candidate discovery. They do
 not invoke curriculum compilation or mutate Student Core.
+
+Step 45 adds only bounded execution over already prepared discovery and fetch
+inputs. It does not make a discovery candidate Evidence or decide which
+candidates should be fetched. The complete concurrency and budget contract is
+in [research-performance-limits-v1.md](research-performance-limits-v1.md).
 
 Step 19 keeps these ports stable through the `ReleaseRecord` alias while adding
 the explicit `TechnologyRelease` entity and deterministic

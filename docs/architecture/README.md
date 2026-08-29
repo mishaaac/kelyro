@@ -48,6 +48,11 @@ The reusable Research HTTP transport, bounded retry policy, response limits,
 safe hooks, compression behavior, redaction boundary, and SSRF defenses are
 documented in [research-http-client.md](research-http-client.md).
 
+The versioned Research run budget, bounded discovery/fetch worker pools,
+global/per-host HTTP concurrency and rate policy, SQLite batch boundary, and
+offline performance fixture are documented in
+[research-performance-limits-v1.md](research-performance-limits-v1.md).
+
 The complete untrusted-input threat model, redirect/content/parser/cache/log
 hardening, fuzz surface, and future AI prompt-injection gate are documented in
 [research-security-hardening-v1.md](research-security-hardening-v1.md).

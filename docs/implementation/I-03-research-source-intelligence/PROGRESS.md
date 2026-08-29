@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 45
-Last completed step: 44
+Current step: 46
+Last completed step: 45
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3309,3 +3309,81 @@ Release: unreleased
 - El Paso 45 es el siguiente paso pendiente y requiere autorización explícita.
 - Debe implementar concurrency/rate-limit/per-host/global run bounds y batch
   SQLite sin reabrir security policy ni comenzar el E2E del Paso 46.
+
+## Step 45 — Performance, concurrency and rate-limit hardening
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Política versionada `research-processing-limits-v1` y
+  `ResearchProcessingService` con pools fijos e independientes: cuatro workers
+  discovery y ocho fetch por defecto, con hard ceilings 16/32 y sin goroutine
+  por query o URL.
+- Resultados discovery/fetch reensamblados por índice de entrada y selección
+  determinista del error de menor índice, aunque el orden real de finalización
+  sea concurrente.
+- Global run budget validado antes y después del trabajo: 100 queries, 500
+  candidates, 200 fetches, 5.000 Claims y 64 MiB fetched; requested candidate
+  y byte totals tampoco pueden superar esos techos.
+- Cliente HTTP con límites obligatorios y compartidos aun sin hook externo: 16
+  attempts globales, cuatro por hostname y 100 ms mínimos entre starts del
+  mismo hostname por defecto; `MaxConnsPerHost` replica el límite físico.
+- Slots context-aware con cleanup de host entries, rate scheduling cancelable,
+  tabla de rate state acotada a 1.024 hosts y `RateLimiter` externo conservado
+  como una restricción adicional, no como el único control.
+- Release ingestion acotado a 5.000 Evidence, 5.000 Claims, 256 releases y 256
+  status updates; memory y SQLite rechazan batches mayores antes de mutar.
+- SQLite conserva una única transacción atómica y reutiliza statements
+  preparados para writes repetidos dentro del batch, sin migration nueva.
+- Benchmark offline que simula exactamente 100 queries, 500 candidate URLs,
+  200 fetched sources y 5.000 Claims.
+- Contrato, defaults, hard ceilings, cancelación, ordering, HTTP y batch SQLite
+  documentados en `docs/architecture/research-performance-limits-v1.md` y en
+  los documentos de application, HTTP, persistence e índice arquitectónico.
+
+### Decisions
+
+- Discovery termina antes de iniciar fetch porque la selección candidate →
+  fetch sigue siendo responsabilidad del caller; el servicio no promueve
+  candidates a Evidence ni inventa esa decisión.
+- Los budgets v1 son techos estructurales por llamada. El control durable de
+  provider/cost de `research-cost-control-v1` permanece independiente y no fue
+  reemplazado.
+- El rate limit built-in no se puede desactivar pasando `nil`; un provider hook
+  puede imponer una cuota más estricta. `privacy.allow_network` conserva la
+  autorización previa y no es sustituido por estos límites.
+- El key per-host es el hostname normalizado, sin path/query/fragment/port. El
+  transport aplica además su cap a destinos físicos, incluidos redirects.
+- Un error de cualquier record o del context conserva rollback de todo el
+  ingestion batch. No se modificó schema ni migration publicada.
+- No se implementó el fixture HTTP E2E del Paso 46, Internet público, Compiler,
+  curriculum ni mutaciones de Student Core.
+
+### Verification
+
+- Tests application de ceilings, prevalidation, pools separados, ordering,
+  error determinista, cancelación y ausencia de workers activos al retornar.
+- Tests HTTP de máximo global/per-host, rate scheduling y state cap,
+  cancelación, reuse de slots, cleanup de host entries y rechazo de
+  configuración sobre hard caps.
+- Tests SQLite de oversized batch, rollback ya existente y reuse de un único
+  prepared statement para dos writes equivalentes.
+- `go test -race` dirigido de `internal/research/application` y
+  `internal/infra/researchhttp`.
+- Benchmark final `BenchmarkResearchProcessingStep45Fixture`, `-benchtime=1x`:
+  322395 ns/op, 163328 B/op y 734 allocs/op en Linux amd64, completamente
+  offline.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step45-gocache GOFLAGS=-timeout=20m
+  go test ./...` y `go vet ./...` completos.
+- Quality gate final completo con tests, E2E, vet, race, build y smokes CLI;
+  SQLite race completó en 508.466 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 46 es el siguiente paso pendiente y requiere autorización explícita.
+- Debe crear el E2E controlado del Research Engine con fixture HTTP local; no
+  habilitar todavía live integration opt-in del Paso 47.

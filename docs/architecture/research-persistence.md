@@ -220,6 +220,13 @@ Source Bundles outside eviction/clear. The v23 `research_cache_entries` table
 remains readable for compatibility but is not the active filesystem cache and
 is never promoted to historical truth.
 
+Step 45 also requires no migration. Release ingestion remains one atomic
+transaction, but the adapter now rejects unbounded batches before mutation and
+reuses prepared write statements for the batch. The ceilings are 5,000
+Evidence records, 5,000 Claims, 256 release inserts, and 256 lifecycle updates.
+The memory adapter enforces the same contract. A failed record still rolls back
+every earlier write in the batch.
+
 The schema stores request topic fields directly in `research_topics`; its
 `request_id` is the stable request identity referenced by one or more runs.
 Small ordered identity collections and versioned reason records that do not

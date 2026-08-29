@@ -15,6 +15,63 @@ import (
 	"github.com/mishaaac/kelyro/internal/research/application"
 )
 
+func TestReleaseIngestionRejectsOversizedBatchBeforeRecordValidation(t *testing.T) {
+	t.Parallel()
+	batch := application.ReleaseIngestionBatch{
+		Evidence: make([]research.Evidence, application.MaximumEvidencePerIngestionBatch+1),
+	}
+	if err := validateReleaseIngestionBatch(batch); err == nil || !strings.Contains(err.Error(), "batch limit") {
+		t.Fatalf("oversized release ingestion error = %v", err)
+	}
+}
+
+func TestPreparedBatchExecutorReusesWriteStatement(t *testing.T) {
+	t.Parallel()
+	path, err := platform.WorkspaceDBPath(newWorkspaceRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle, err := sql.Open("sqlite", databaseURI(path, defaultOperationTimeout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = handle.Close() })
+	ctx := context.Background()
+	if _, err := handle.ExecContext(ctx, `CREATE TABLE batch_fixture (value TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	transaction, err := handle.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counting := &countingStatementPreparer{Tx: transaction}
+	prepared := newPreparedBatchExecutor(counting)
+	for _, value := range []string{"first", "second"} {
+		if _, err := prepared.ExecContext(ctx, `INSERT INTO batch_fixture (value) VALUES (?)`, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if counting.prepares != 1 {
+		t.Fatalf("prepared statement count = %d, want 1", counting.prepares)
+	}
+	if err := prepared.close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := transaction.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type countingStatementPreparer struct {
+	*sql.Tx
+	prepares int
+}
+
+func (target *countingStatementPreparer) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
+	target.prepares++
+	return target.Tx.PrepareContext(ctx, query)
+}
+
 func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	root := newWorkspaceRoot(t)
 	path, err := platform.WorkspaceDBPath(root)

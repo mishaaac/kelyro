@@ -26,6 +26,9 @@ before an adapter invokes this package.
 | redirects | 5 |
 | attempts | 3 |
 | retry backoff | 100 ms, capped at 2 seconds |
+| active attempts across the client | 16 |
+| active attempts per hostname | 4 |
+| minimum attempt interval per hostname | 100 ms |
 
 Configuration validation also places hard ceilings on response size,
 redirects, attempts, timeouts, connection pools, backoff, User-Agent length,
@@ -85,7 +88,18 @@ SSRF denials are never retried. Exponential backoff and valid `Retry-After`
 values are always capped by `MaxBackoff`; cancellation interrupts a pending
 backoff.
 
-`RateLimiter.Wait` runs before every attempt with only a normalized hostname.
+Step 45 adds a mandatory shared limiter before every attempt: 16 active
+attempts globally, four per normalized hostname, and at least 100 ms between
+starts for one hostname by default. Configuration may narrow these values but
+cannot exceed the versioned ceilings documented in
+[research-performance-limits-v1.md](research-performance-limits-v1.md).
+`http.Transport.MaxConnsPerHost` provides the matching physical connection
+cap. Waiting is context-aware and releases all concurrency state on
+cancellation.
+
+An optional `RateLimiter.Wait` hook runs additively after the mandatory limiter
+with only a normalized hostname, allowing a provider to impose a stricter
+quota. Omitting that hook never disables the built-in policy.
 `Observer.Observe` receives attempt number, status, outcome, and bounded retry
 delay. Its event type cannot contain URLs, request/response headers, content,
 credentials, or raw transport error strings.
