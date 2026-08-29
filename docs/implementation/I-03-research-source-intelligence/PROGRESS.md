@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 40
-Last completed step: 39
+Current step: 41
+Last completed step: 40
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2978,3 +2978,67 @@ Release: unreleased
 - El Paso 40 está autorizado a continuación por el usuario.
 - Debe definir el hand-off selectivo y student-safe para I-04 sin implementar
   migración curricular real ni tocar Student Core.
+
+## Step 40 — Selective Migration and Student-safe Update contracts
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Contrato versionado `research-to-curriculum-update/v1` para el envelope que
+  I-03 entregará a I-04 con Source Bundles old/new, DriftReports,
+  ImpactReports, ChangeClassification, refs afectadas, rationale y unresolved.
+- Identidad versionada de Source Bundle definida como el tuple inmutable
+  `(bundle_id, content_hash, algorithm_version, verified_at)`, sin convertir
+  topic/run ni un registro mutable en version identity.
+- Vocabulario conservador de knowledge change: `no_knowledge_change`,
+  `non_breaking`, `breaking` y `unknown`, con evidence gates y prohibición de
+  clasificar por search candidate, hash aislado, ausencia o popularidad.
+- Siete suggested migration classes, desde `no_migration` y `reverify_only`
+  hasta `new_curriculum_version` y `manual_decision_required`, siempre como
+  recomendaciones revisables por I-04 y nunca como comandos.
+- Contrato `ConceptContinuity` para unchanged/revised/add/deprecate/replace/
+  split/merge/remove, con directives futuras `preserve`,
+  `preserve_and_reverify`, `do_not_transfer` y `not_applicable`.
+- Diez invariantes student-safe que conservan definitions/instances previos,
+  hechos educativos append-only y scope por instance, impiden rebind o mastery
+  duplication silenciosos, y exigen preview, aceptación, idempotencia y audit.
+- Decision gates, audit payload y límites explícitos para que unknown,
+  inconsistencias, bundle no listo o mapping ambiguo detengan automatización.
+- Contrato documentado en
+  `docs/architecture/research-to-curriculum-update-contract.md` y enlazado desde
+  el índice, Curriculum consumption y Learner Curriculum Instances.
+
+### Decisions
+
+- Stable concept ID solo expresa continuidad del mismo conocimiento y
+  assessment meaning; títulos, orden y similitud textual no prueban identidad.
+- Cualquier definition fingerprint distinto exige nueva curriculum version;
+  selective recompilation no autoriza reusar `(curriculum_id, version)`.
+- Breaking/unknown, replace, split, merge y removal no transfieren mastery
+  automáticamente. El historial permanece visible en la instancia anterior.
+- `ImpactReport.RecommendedAction` y suggested migration class son inputs para
+  I-04; I-03 no decide compile/migration ni emite writes a Student Core.
+- Step 40 define shapes y reglas, no añade Go types, persistence, classifier,
+  compiler, CLI ni migration executor antes de sus specifications futuras.
+
+### Verification
+
+- Revisión cruzada con `curriculum-consumption/v1`, fingerprints inmutables,
+  Curriculum Instance version isolation y sparse instance concept state de
+  I-02.
+- Auditoría documental de los requisitos del Paso 40: stable concept IDs,
+  Source Bundle version, breaking/non-breaking, suggested migration class y
+  Student Core untouched por I-03.
+- `GOCACHE=/tmp/kelyro-i03-step39-full-gocache go test ./...` y `go vet ./...`
+  completos (cache compartida con la verificación inmediatamente anterior).
+- `git diff --check` y comprobación explícita de términos/gates obligatorios
+  del contrato sin errores.
+
+### Notes for next session
+
+- El Paso 41 es el siguiente paso pendiente y requiere autorización explícita.
+- Debe definir el Source-driven Compiler request/response para I-04 sin
+  implementar todavía el Curriculum Compiler ni Learning Packs de producción.

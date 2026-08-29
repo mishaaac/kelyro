@@ -288,3 +288,8 @@ The deterministic projection from persisted drift to affected Evidence,
 bundles, Claims, explicit future curriculum references, severity, and closed
 recommended actions is documented in
 [impact-analysis-v1.md](impact-analysis-v1.md).
+
+The versioned I-03 → I-04 update envelope, knowledge-change classification,
+stable concept continuity, selective migration classes, and student-state
+non-destruction invariants are documented in
+[research-to-curriculum-update-contract.md](research-to-curriculum-update-contract.md).

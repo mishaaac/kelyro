@@ -2596,7 +2596,7 @@ feat(drift): add research impact analysis
 
 ## Paso 40 — Definir Selective Migration y Student-safe Update contracts para I-04
 
-- [ ] Paso 40 completado
+- [x] Paso 40 completado
 
 ### Objetivo
 

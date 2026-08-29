@@ -114,6 +114,10 @@ policy can compare old/new immutable definitions, map stable concepts, decide
 which progress is transferable, and transition instance statuses. Step 10 does
 not auto-copy state, merge evidence, or guess mappings.
 
+I-03 Step 40 now defines the design hand-off for that future owner, including
+explicit continuity mappings and non-destructive state directives, in
+[research-to-curriculum-update-contract.md](research-to-curriculum-update-contract.md).
+
 The prerequisite application service now requires an instance ID and performs
 one `ListByInstance` read. It verifies instance ownership, projects only that
 instance's states into the existing pure graph snapshot, and preserves the

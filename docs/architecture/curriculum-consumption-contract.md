@@ -122,3 +122,8 @@ still release-candidate software when this contract was implemented.
 The dependency is isolated from `internal/learning`: the educational domain
 continues to depend only on the Go standard library, and future fixture, import,
 or pack adapters can feed the same validated domain constructor.
+
+The future research-driven update boundary must preserve these immutable
+identity and fingerprint rules. Its selective migration and student-state
+safety requirements are defined in
+[research-to-curriculum-update-contract.md](research-to-curriculum-update-contract.md).
