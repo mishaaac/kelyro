@@ -156,16 +156,17 @@ The initial services are deliberately thin:
   immutable result, and exposes offline read/export/history operations;
 - `DriftService` deterministically detects v1 drift without writing, exposes
   unresolved comparisons, and separately records/reads reviewed reports;
-- `ImpactService` records and reads impact reports.
+- `ImpactService` loads a persisted v1 DriftReport, deterministically assesses
+  affected identities and explicit future references, and separately
+  records/reads reviewed impact reports.
 
 They validate input, enforce immediate identity relationships, require their
 dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
 implement Trust Policy, authority matching, query execution orchestration,
-general-purpose evidence extraction, conflict candidate discovery, drift
-detection, or impact analysis. Those remain future versioned policies and
-orchestration steps.
+general-purpose evidence extraction or conflict candidate discovery. They do
+not invoke curriculum compilation or mutate Student Core.
 
 Step 19 keeps these ports stable through the `ReleaseRecord` alias while adding
 the explicit `TechnologyRelease` entity and deterministic

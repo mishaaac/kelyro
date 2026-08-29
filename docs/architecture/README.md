@@ -283,3 +283,8 @@ non-mutation boundary are documented in
 The deterministic old/new Claim, snapshot, and release comparison; six drift
 types; severity/confidence policy; unresolved-evidence behavior; and versioned
 legacy-compatible persistence are documented in [drift-v1.md](drift-v1.md).
+
+The deterministic projection from persisted drift to affected Evidence,
+bundles, Claims, explicit future curriculum references, severity, and closed
+recommended actions is documented in
+[impact-analysis-v1.md](impact-analysis-v1.md).

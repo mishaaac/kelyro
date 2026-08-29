@@ -211,6 +211,9 @@ func (repository impactRepository) Append(ctx context.Context, report research.I
 	if err := report.Validate(); err != nil {
 		return invalid(operation, err)
 	}
+	if report.AlgorithmVersion != research.ImpactAnalysisAlgorithmV1 {
+		return invalid(operation, fmt.Errorf("new impact reports must use %s", research.ImpactAnalysisAlgorithmV1))
+	}
 	repository.store.mu.Lock()
 	defer repository.store.mu.Unlock()
 	if _, exists := repository.store.impact[report.ID]; exists {

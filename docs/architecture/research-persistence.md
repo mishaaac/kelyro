@@ -42,6 +42,12 @@ explicit algorithm version. Pre-v41 rows migrate to
 `drift-unversioned-legacy` with unknown (zero) confidence; repository writes
 after Step 38 accept only `drift-v1` while preserving legacy reads.
 
+Migration v42 completes impact persistence with affected Evidence, opaque
+future concept/lesson references, exact technology-version references, and an
+explicit algorithm version. Pre-v42 rows migrate to
+`impact-unversioned-legacy` with the new relationships empty; repository writes
+after Step 39 accept only `impact-analysis-v1` while preserving legacy reads.
+
 All database and context failures cross the adapter as the application error
 taxonomy introduced in Step 02. Transactions created by Foundation receive the
 same repository bundle and therefore keep Research writes inside the caller's

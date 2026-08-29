@@ -287,9 +287,11 @@ func TestDriftAndImpactReportsKeepExplicitAffectedRelationships(t *testing.T) {
 
 	impact := ImpactReport{
 		ID: mustID(t, "impact.behavior"), DriftReportID: drift.ID,
-		AffectedBundleIDs: []ID{drift.OldBundleID}, AffectedClaimIDs: []ClaimID{claimID},
-		Severity: SeverityImportant, RecommendedAction: ActionReviewCurriculum,
-		AssessedAt: mustTimestamp(t, 13),
+		AffectedEvidenceIDs: []ID{mustID(t, "evidence.old"), mustID(t, "evidence.new")},
+		AffectedBundleIDs:   []ID{drift.OldBundleID}, AffectedClaimIDs: []ClaimID{claimID},
+		FutureConceptRefs: []ID{mustID(t, "concept.behavior")},
+		Severity:          SeverityImportant, RecommendedAction: ActionReviewCurriculum,
+		AssessedAt: mustTimestamp(t, 13), AlgorithmVersion: ImpactAnalysisAlgorithmV1,
 	}
 	if err := impact.Validate(); err != nil {
 		t.Fatalf("ImpactReport.Validate() error = %v", err)
@@ -297,5 +299,13 @@ func TestDriftAndImpactReportsKeepExplicitAffectedRelationships(t *testing.T) {
 	impact.AffectedClaimIDs = nil
 	if err := impact.Validate(); err == nil {
 		t.Fatal("ImpactReport.Validate() accepted no affected claims")
+	}
+	legacyImpact := impact
+	legacyImpact.AffectedClaimIDs = []ClaimID{claimID}
+	legacyImpact.AffectedEvidenceIDs = nil
+	legacyImpact.FutureConceptRefs = nil
+	legacyImpact.AlgorithmVersion = ImpactLegacyAlgorithm
+	if err := legacyImpact.Validate(); err != nil {
+		t.Fatalf("legacy ImpactReport.Validate() error = %v", err)
 	}
 }

@@ -478,7 +478,26 @@ func (repository *researchImpactRepository) Append(ctx context.Context, report r
 	if err := report.Validate(); err != nil {
 		return researchInvalid(operation, err)
 	}
+	if report.AlgorithmVersion != research.ImpactAnalysisAlgorithmV1 {
+		return researchInvalid(operation, fmt.Errorf("new impact reports must use %s", research.ImpactAnalysisAlgorithmV1))
+	}
+	evidence, err := encodeJSON(operation, idStrings(report.AffectedEvidenceIDs))
+	if err != nil {
+		return err
+	}
 	bundles, err := encodeJSON(operation, idStrings(report.AffectedBundleIDs))
+	if err != nil {
+		return err
+	}
+	concepts, err := encodeJSON(operation, idStrings(report.FutureConceptRefs))
+	if err != nil {
+		return err
+	}
+	lessons, err := encodeJSON(operation, idStrings(report.FutureLessonRefs))
+	if err != nil {
+		return err
+	}
+	versions, err := encodeJSON(operation, encodeTechnologyVersionReferences(report.TechnologyVersionRefs))
 	if err != nil {
 		return err
 	}
@@ -505,7 +524,7 @@ func (repository *researchImpactRepository) Append(ctx context.Context, report r
 	if !exists {
 		return researchNotFound(operation)
 	}
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO impact_reports (id,drift_report_id,affected_bundle_ids_json,affected_claim_ids_json,severity,recommended_action,assessed_at) VALUES (?,?,?,?,?,?,?)`, report.ID.String(), report.DriftReportID.String(), bundles, claims, string(report.Severity), string(report.RecommendedAction), timestampText(report.AssessedAt))
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO impact_reports (id,drift_report_id,affected_bundle_ids_json,affected_claim_ids_json,severity,recommended_action,assessed_at,affected_evidence_ids_json,future_concept_refs_json,future_lesson_refs_json,technology_version_refs_json,algorithm_version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, report.ID.String(), report.DriftReportID.String(), bundles, claims, string(report.Severity), string(report.RecommendedAction), timestampText(report.AssessedAt), evidence, concepts, lessons, versions, report.AlgorithmVersion)
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
@@ -522,7 +541,8 @@ func (repository *researchImpactRepository) Get(ctx context.Context, id research
 	}
 	defer cancel()
 	var idValue, driftValue, bundlesJSON, claimsJSON, severity, action, assessed string
-	err = repository.executor.QueryRowContext(opCtx, `SELECT id,drift_report_id,affected_bundle_ids_json,affected_claim_ids_json,severity,recommended_action,assessed_at FROM impact_reports WHERE id=?`, id.String()).Scan(&idValue, &driftValue, &bundlesJSON, &claimsJSON, &severity, &action, &assessed)
+	var evidenceJSON, conceptsJSON, lessonsJSON, versionsJSON, algorithm string
+	err = repository.executor.QueryRowContext(opCtx, `SELECT id,drift_report_id,affected_bundle_ids_json,affected_claim_ids_json,severity,recommended_action,assessed_at,affected_evidence_ids_json,future_concept_refs_json,future_lesson_refs_json,technology_version_refs_json,algorithm_version FROM impact_reports WHERE id=?`, id.String()).Scan(&idValue, &driftValue, &bundlesJSON, &claimsJSON, &severity, &action, &assessed, &evidenceJSON, &conceptsJSON, &lessonsJSON, &versionsJSON, &algorithm)
 	if errors.Is(err, sql.ErrNoRows) {
 		return research.ImpactReport{}, researchNotFound(operation)
 	}
@@ -537,11 +557,32 @@ func (repository *researchImpactRepository) Get(ctx context.Context, id research
 	if err != nil {
 		return research.ImpactReport{}, researchPersistence(operation, err)
 	}
-	var bundleValues, claimValues []string
+	var evidenceValues, bundleValues, claimValues, conceptValues, lessonValues []string
+	if err := decodeJSON(evidenceJSON, &evidenceValues); err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
 	if err := decodeJSON(bundlesJSON, &bundleValues); err != nil {
 		return research.ImpactReport{}, researchPersistence(operation, err)
 	}
 	if err := decodeJSON(claimsJSON, &claimValues); err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
+	if err := decodeJSON(conceptsJSON, &conceptValues); err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
+	if err := decodeJSON(lessonsJSON, &lessonValues); err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
+	var versionValues []technologyVersionReferenceJSON
+	if err := decodeJSON(versionsJSON, &versionValues); err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
+	versions, err := decodeTechnologyVersionReferences(versionValues)
+	if err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
+	evidence, err := parseIDs(evidenceValues)
+	if err != nil {
 		return research.ImpactReport{}, researchPersistence(operation, err)
 	}
 	bundles, err := parseIDs(bundleValues)
@@ -552,15 +593,55 @@ func (repository *researchImpactRepository) Get(ctx context.Context, id research
 	if err != nil {
 		return research.ImpactReport{}, researchPersistence(operation, err)
 	}
+	concepts, err := parseIDs(conceptValues)
+	if err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
+	lessons, err := parseIDs(lessonValues)
+	if err != nil {
+		return research.ImpactReport{}, researchPersistence(operation, err)
+	}
 	assessedAt, err := scanTimestamp(assessed)
 	if err != nil {
 		return research.ImpactReport{}, researchPersistence(operation, err)
 	}
-	item := research.ImpactReport{ID: reportID, DriftReportID: driftID, AffectedBundleIDs: bundles, AffectedClaimIDs: claims, Severity: research.Severity(severity), RecommendedAction: research.RecommendedAction(action), AssessedAt: assessedAt}
+	item := research.ImpactReport{ID: reportID, DriftReportID: driftID, AffectedEvidenceIDs: evidence, AffectedBundleIDs: bundles, AffectedClaimIDs: claims, FutureConceptRefs: concepts, FutureLessonRefs: lessons, TechnologyVersionRefs: versions, Severity: research.Severity(severity), RecommendedAction: research.RecommendedAction(action), AssessedAt: assessedAt, AlgorithmVersion: algorithm}
 	if err := item.Validate(); err != nil {
 		return research.ImpactReport{}, researchPersistence(operation, err)
 	}
 	return item, nil
+}
+
+type technologyVersionReferenceJSON struct {
+	TechnologyID string `json:"technology_id"`
+	Version      string `json:"version"`
+}
+
+func encodeTechnologyVersionReferences(references []research.TechnologyVersionReference) []technologyVersionReferenceJSON {
+	encoded := make([]technologyVersionReferenceJSON, len(references))
+	for index, reference := range references {
+		encoded[index] = technologyVersionReferenceJSON{TechnologyID: reference.TechnologyID.String(), Version: reference.Version.String()}
+	}
+	return encoded
+}
+
+func decodeTechnologyVersionReferences(encoded []technologyVersionReferenceJSON) ([]research.TechnologyVersionReference, error) {
+	if len(encoded) == 0 {
+		return nil, nil
+	}
+	references := make([]research.TechnologyVersionReference, len(encoded))
+	for index, item := range encoded {
+		technologyID, err := research.NewID(item.TechnologyID)
+		if err != nil {
+			return nil, err
+		}
+		version, err := research.NewVersionIdentifier(item.Version)
+		if err != nil {
+			return nil, err
+		}
+		references[index] = research.TechnologyVersionReference{TechnologyID: technologyID, Version: version}
+	}
+	return references, nil
 }
 
 type researchCacheRepository struct {

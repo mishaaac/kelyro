@@ -343,8 +343,12 @@ func cloneDrift(report research.DriftReport) research.DriftReport {
 
 func cloneImpact(report research.ImpactReport) research.ImpactReport {
 	clone := report
+	clone.AffectedEvidenceIDs = append([]research.ID(nil), report.AffectedEvidenceIDs...)
 	clone.AffectedBundleIDs = append([]research.ID(nil), report.AffectedBundleIDs...)
 	clone.AffectedClaimIDs = append([]research.ClaimID(nil), report.AffectedClaimIDs...)
+	clone.FutureConceptRefs = append([]research.ID(nil), report.FutureConceptRefs...)
+	clone.FutureLessonRefs = append([]research.ID(nil), report.FutureLessonRefs...)
+	clone.TechnologyVersionRefs = append([]research.TechnologyVersionReference(nil), report.TechnologyVersionRefs...)
 	return clone
 }
 

@@ -315,8 +315,11 @@ and an immutable algorithm ID to `VerificationResult`. Its full contract is in
 drift detection is implemented by `drift-v1`, which adds explicit confidence
 and algorithm identity to `DriftReport` while preserving legacy reports as
 unversioned/unknown-confidence data. Its complete contract is documented in
-[drift-v1.md](drift-v1.md). Curriculum impact remains in a later dedicated
-step.
+[drift-v1.md](drift-v1.md). Impact analysis is implemented by
+`impact-analysis-v1`, which projects affected Evidence, bundles, Claims, and
+caller-supplied opaque future curriculum/technology references without reading
+curriculum or student state. Its complete contract is documented in
+[impact-analysis-v1.md](impact-analysis-v1.md).
 
 ## Temporal and enum invariants
 

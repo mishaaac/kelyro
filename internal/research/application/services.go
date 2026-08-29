@@ -496,16 +496,22 @@ func (service *driftService) Get(ctx context.Context, id research.ID) (research.
 	return report, repositoryError(operation, err)
 }
 
-type impactService struct{ repository ImpactRepository }
+type impactService struct {
+	drift      DriftRepository
+	repository ImpactRepository
+}
 
-func NewImpactService(repository ImpactRepository) ImpactService {
-	return &impactService{repository: repository}
+func NewImpactService(drift DriftRepository, repository ImpactRepository) ImpactService {
+	return &impactService{drift: drift, repository: repository}
 }
 
 func (service *impactService) Record(ctx context.Context, report research.ImpactReport) error {
 	const operation = "record impact report"
 	if err := report.Validate(); err != nil {
 		return invalid(operation, err)
+	}
+	if report.AlgorithmVersion != research.ImpactAnalysisAlgorithmV1 {
+		return invalid(operation, fmt.Errorf("new impact reports must use %s", research.ImpactAnalysisAlgorithmV1))
 	}
 	if err := requireDependency(operation, "impact repository", service.repository); err != nil {
 		return err

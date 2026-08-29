@@ -1401,8 +1401,15 @@ type DriftDetectionResult struct {
 }
 
 type ImpactService interface {
+	Assess(context.Context, ImpactAssessmentRequest) (research.ImpactReport, error)
 	Record(context.Context, research.ImpactReport) error
 	Get(context.Context, research.ID) (research.ImpactReport, error)
+}
+
+type ImpactAssessmentRequest struct {
+	DriftReportID research.ID
+	References    []research.ClaimImpactReference
+	AssessedAt    research.Timestamp
 }
 
 func requireText(name, value string) error {

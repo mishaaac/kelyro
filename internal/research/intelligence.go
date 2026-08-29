@@ -733,6 +733,9 @@ func (report DriftReport) Validate() error {
 type RecommendedAction string
 
 const (
+	ImpactAnalysisAlgorithmV1 = "impact-analysis-v1"
+	ImpactLegacyAlgorithm     = "impact-unversioned-legacy"
+
 	ActionNoAction         RecommendedAction = "no_action"
 	ActionReverify         RecommendedAction = "reverify"
 	ActionReviewCurriculum RecommendedAction = "review_curriculum"
@@ -750,14 +753,60 @@ func (action RecommendedAction) Validate() error {
 	}
 }
 
+// TechnologyVersionReference is an explicit downstream reference supplied by
+// a future curriculum compiler. Impact analysis never infers this relationship
+// from topic or technology names.
+type TechnologyVersionReference struct {
+	TechnologyID ID
+	Version      VersionIdentifier
+}
+
+func (reference TechnologyVersionReference) Validate() error {
+	if err := reference.TechnologyID.Validate(); err != nil {
+		return fmt.Errorf("technology version reference: %w", err)
+	}
+	if err := reference.Version.Validate(); err != nil {
+		return fmt.Errorf("technology version reference: %w", err)
+	}
+	return nil
+}
+
+// ClaimImpactReference is an explicit, contract-only link from an evidence
+// Claim to possible future curriculum identities. I-03 stores and reports the
+// links but does not inspect or mutate curriculum state.
+type ClaimImpactReference struct {
+	ClaimID               ClaimID
+	FutureConceptRefs     []ID
+	FutureLessonRefs      []ID
+	TechnologyVersionRefs []TechnologyVersionReference
+}
+
+func (reference ClaimImpactReference) Validate() error {
+	if err := reference.ClaimID.Validate(); err != nil {
+		return fmt.Errorf("claim impact reference: %w", err)
+	}
+	if err := validateIDs("future concept references", reference.FutureConceptRefs, 0); err != nil {
+		return err
+	}
+	if err := validateIDs("future lesson references", reference.FutureLessonRefs, 0); err != nil {
+		return err
+	}
+	return validateTechnologyVersionReferences(reference.TechnologyVersionRefs)
+}
+
 type ImpactReport struct {
-	ID                ID
-	DriftReportID     ID
-	AffectedBundleIDs []ID
-	AffectedClaimIDs  []ClaimID
-	Severity          Severity
-	RecommendedAction RecommendedAction
-	AssessedAt        Timestamp
+	ID                    ID
+	DriftReportID         ID
+	AffectedEvidenceIDs   []ID
+	AffectedBundleIDs     []ID
+	AffectedClaimIDs      []ClaimID
+	FutureConceptRefs     []ID
+	FutureLessonRefs      []ID
+	TechnologyVersionRefs []TechnologyVersionReference
+	Severity              Severity
+	RecommendedAction     RecommendedAction
+	AssessedAt            Timestamp
+	AlgorithmVersion      string
 }
 
 func (report ImpactReport) Validate() error {
@@ -767,10 +816,22 @@ func (report ImpactReport) Validate() error {
 	if err := report.DriftReportID.Validate(); err != nil {
 		return fmt.Errorf("impact drift report: %w", err)
 	}
+	if err := validateIDs("impact affected evidence", report.AffectedEvidenceIDs, 0); err != nil {
+		return err
+	}
 	if err := validateIDs("impact affected bundles", report.AffectedBundleIDs, 1); err != nil {
 		return err
 	}
 	if err := validateClaimIDs("impact affected claims", report.AffectedClaimIDs, 1); err != nil {
+		return err
+	}
+	if err := validateIDs("impact future concept references", report.FutureConceptRefs, 0); err != nil {
+		return err
+	}
+	if err := validateIDs("impact future lesson references", report.FutureLessonRefs, 0); err != nil {
+		return err
+	}
+	if err := validateTechnologyVersionReferences(report.TechnologyVersionRefs); err != nil {
 		return err
 	}
 	if err := report.Severity.Validate(); err != nil {
@@ -779,5 +840,36 @@ func (report ImpactReport) Validate() error {
 	if err := report.RecommendedAction.Validate(); err != nil {
 		return err
 	}
-	return validateTimestamp("impact assessed at", report.AssessedAt)
+	if err := validateTimestamp("impact assessed at", report.AssessedAt); err != nil {
+		return err
+	}
+	switch report.AlgorithmVersion {
+	case ImpactAnalysisAlgorithmV1:
+		if len(report.AffectedEvidenceIDs) == 0 {
+			return fmt.Errorf("impact-analysis-v1 requires affected evidence")
+		}
+	case ImpactLegacyAlgorithm:
+		if len(report.AffectedEvidenceIDs) != 0 || len(report.FutureConceptRefs) != 0 ||
+			len(report.FutureLessonRefs) != 0 || len(report.TechnologyVersionRefs) != 0 {
+			return fmt.Errorf("legacy impact report cannot contain invented v1 relationships")
+		}
+	default:
+		return fmt.Errorf("invalid impact algorithm version %q", report.AlgorithmVersion)
+	}
+	return nil
+}
+
+func validateTechnologyVersionReferences(references []TechnologyVersionReference) error {
+	seen := make(map[string]struct{}, len(references))
+	for _, reference := range references {
+		if err := reference.Validate(); err != nil {
+			return err
+		}
+		key := reference.TechnologyID.String() + "\x00" + reference.Version.String()
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("duplicate technology version reference %s@%s", reference.TechnologyID, reference.Version)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
 }

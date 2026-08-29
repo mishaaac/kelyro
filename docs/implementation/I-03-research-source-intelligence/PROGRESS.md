@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 39
-Last completed step: 38
+Current step: 40
+Last completed step: 39
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -2918,3 +2918,63 @@ Release: unreleased
 - El Paso 39 es el siguiente paso pendiente y requiere autorización explícita.
 - Impact Analysis deberá consumir DriftReports ya persistidos y no ampliar
   Step 38 con referencias curriculares o acciones de migración.
+
+## Step 39 — Research Impact Analysis v1
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Policy pura `impact-analysis-v1` que traduce un `DriftReport` v1 persistido
+  a evidencia, bundles y Claims afectados, severidad conservada y una acción
+  recomendada cerrada, sin consultar curriculum ni Student Core.
+- Contratos explícitos `ClaimImpactReference` y
+  `TechnologyVersionReference` para concept refs, lesson refs y pares exactos
+  tecnología/versión futuros; relaciones ajenas al drift y mappings duplicados
+  se rechazan en vez de inferirse por nombres o wording.
+- Precedencia determinista de acciones: informational → `no_action`, critical
+  → `manual_review`, source change → `reverify`, version superseded →
+  `recompile_future`, y cambios semánticos no críticos → `review_curriculum`.
+- `ImpactService.Assess` carga drift durable y genera IDs reproducibles sin
+  escribir; `Record` permanece como append explícito posterior a revisión.
+- Migration forward-only v42 con Evidence/future refs y algorithm version;
+  reportes anteriores siguen legibles como `impact-unversioned-legacy` sin
+  inventar las nuevas relaciones.
+- Contrato y límites documentados en
+  `docs/architecture/impact-analysis-v1.md` y enlazados desde el índice.
+
+### Decisions
+
+- Impact conserva exactamente la severity del drift y nunca la reduce.
+- Old/new Evidence se une y deduplica; old/new bundle se conserva salvo
+  identidad repetida; todos los IDs se ordenan de forma estable.
+- Las referencias curriculares son opacas y caller-supplied: I-03 no importa
+  learning repositories ni valida existencia de concepts/lessons.
+- Solo Drift v1 puede producir Impact v1; datos legacy siguen auditables pero
+  no se reinterpretan con semántica moderna.
+- Una acción recomendada es metadata para un owner futuro, no autorización de
+  compilación, migración ni modificación de learner progress.
+
+### Verification
+
+- Tests de policy para deduplicación/proyección, referencias explícitas,
+  precedencia de las cinco acciones, drift legacy y relaciones inválidas.
+- Tests application para carga obligatoria de drift persistido, evaluación sin
+  write, ID determinista y persistencia explícita/round-trip.
+- Test de migration v42 que conserva un ImpactReport preexistente con marker
+  legacy, además de round-trip SQLite del payload v1 completo.
+- Tests focalizados de research/application/impact y SQLite.
+- `GOCACHE=/tmp/kelyro-i03-step39-full-gocache go test ./...` y `go vet ./...`
+  completos; el primer intento sandboxed solo falló al abrir loopback para
+  `httptest` y el retry autorizado pasó.
+- Quality gate completo con tests, E2E, vet, race, build y smokes CLI;
+  SQLite race completó en 383.805 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 40 está autorizado a continuación por el usuario.
+- Debe definir el hand-off selectivo y student-safe para I-04 sin implementar
+  migración curricular real ni tocar Student Core.

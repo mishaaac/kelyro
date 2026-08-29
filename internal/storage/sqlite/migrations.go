@@ -1693,6 +1693,18 @@ WHEN EXISTS (
 			`CREATE INDEX drift_reports_bundle_type_idx ON drift_reports (old_bundle_id,drift_type,detected_at,id)`,
 		},
 	},
+	{
+		version: 42,
+		name:    "versioned research impact analysis",
+		statements: []string{
+			`ALTER TABLE impact_reports ADD COLUMN affected_evidence_ids_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(affected_evidence_ids_json) AND json_type(affected_evidence_ids_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN future_concept_refs_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(future_concept_refs_json) AND json_type(future_concept_refs_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN future_lesson_refs_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(future_lesson_refs_json) AND json_type(future_lesson_refs_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN technology_version_refs_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(technology_version_refs_json) AND json_type(technology_version_refs_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'impact-unversioned-legacy' CHECK (algorithm_version IN ('impact-unversioned-legacy','impact-analysis-v1'))`,
+			`CREATE INDEX impact_reports_drift_history_idx ON impact_reports (drift_report_id,assessed_at,id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

@@ -80,6 +80,9 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if _, err := handle.Exec(`INSERT INTO drift_reports (id,old_bundle_id,drift_type,severity,affected_claim_ids_json,old_evidence_ids_json,new_evidence_ids_json,detected_at) VALUES ('drift.legacy','bundle.legacy','source_changed','minor','["claim.legacy"]','["evidence.legacy"]','[]',?)`, fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := handle.Exec(`INSERT INTO impact_reports (id,drift_report_id,affected_bundle_ids_json,affected_claim_ids_json,severity,recommended_action,assessed_at) VALUES ('impact.legacy','drift.legacy','["bundle.legacy"]','["claim.legacy"]','minor','reverify',?)`, fixedTime.Format(timestampFormat)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := handle.Exec(`INSERT INTO citations (id,source_id,snapshot_id,evidence_id,title,locator,deep_link_locator,snapshot_date,last_verified) VALUES ('citation.legacy','source.legacy','snapshot.legacy','evidence.legacy','Legacy source','https://example.test/legacy','https://example.test/legacy#section',?,?)`, fixedTime.Format(timestampFormat), fixedTime.Format(timestampFormat)); err != nil {
 		t.Fatal(err)
 	}
@@ -99,13 +102,18 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 41 {
-		t.Fatalf("schema=(%d,%v), want 41", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 42 {
+		t.Fatalf("schema=(%d,%v), want 42", version, err)
 	}
 	legacyDriftID, _ := research.NewID("drift.legacy")
 	legacyDrift, err := database.Repositories().Research.Drift.Get(context.Background(), legacyDriftID)
 	if err != nil || legacyDrift.AlgorithmVersion != research.DriftLegacyAlgorithm || legacyDrift.Confidence.Value() != 0 {
 		t.Fatalf("v41 legacy drift = (%+v, %v)", legacyDrift, err)
+	}
+	legacyImpactID, _ := research.NewID("impact.legacy")
+	legacyImpact, err := database.Repositories().Research.Impact.Get(context.Background(), legacyImpactID)
+	if err != nil || legacyImpact.AlgorithmVersion != research.ImpactLegacyAlgorithm || len(legacyImpact.AffectedEvidenceIDs) != 0 {
+		t.Fatalf("v42 legacy impact = (%+v, %v)", legacyImpact, err)
 	}
 	legacyID, err := research.NewID("authority.legacy")
 	if err != nil {
@@ -896,7 +904,7 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if got, err := repositories.Drift.Get(ctx, drift.ID); err != nil || !reflect.DeepEqual(got, drift) {
 		t.Fatalf("drift roundtrip=(%+v,%v)", got, err)
 	}
-	impact := research.ImpactReport{ID: researchTestID(t, "impact.1"), DriftReportID: drift.ID, AffectedBundleIDs: []research.ID{drift.OldBundleID}, AffectedClaimIDs: drift.AffectedClaims, Severity: research.SeverityImportant, RecommendedAction: research.ActionReviewCurriculum, AssessedAt: at}
+	impact := research.ImpactReport{ID: researchTestID(t, "impact.1"), DriftReportID: drift.ID, AffectedEvidenceIDs: append(append([]research.ID(nil), drift.OldEvidence...), drift.NewEvidence...), AffectedBundleIDs: []research.ID{drift.OldBundleID}, AffectedClaimIDs: drift.AffectedClaims, FutureConceptRefs: []research.ID{researchTestID(t, "concept.1")}, FutureLessonRefs: []research.ID{researchTestID(t, "lesson.1")}, TechnologyVersionRefs: []research.TechnologyVersionReference{{TechnologyID: researchTestID(t, "technology.go"), Version: researchTestVersion(t, "1.24.0")}}, Severity: research.SeverityImportant, RecommendedAction: research.ActionReviewCurriculum, AssessedAt: at, AlgorithmVersion: research.ImpactAnalysisAlgorithmV1}
 	if err := repositories.Impact.Append(ctx, impact); err != nil {
 		t.Fatal(err)
 	}

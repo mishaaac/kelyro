@@ -311,7 +311,7 @@ func TestIntelligenceServicesPersistOnlyValidatedPolicyOutputs(t *testing.T) {
 	if err := driftService.Record(ctx, drift); err != nil {
 		t.Fatalf("DriftService.Record() error = %v", err)
 	}
-	impactService := application.NewImpactService(repositories.Impact)
+	impactService := application.NewImpactService(repositories.Drift, repositories.Impact)
 	impact := testImpact(t, drift)
 	if err := impactService.Record(ctx, impact); err != nil {
 		t.Fatalf("ImpactService.Record() error = %v", err)
@@ -611,9 +611,11 @@ func testImpact(t *testing.T, drift research.DriftReport) research.ImpactReport 
 	t.Helper()
 	return research.ImpactReport{
 		ID: testID(t, "impact.current"), DriftReportID: drift.ID,
-		AffectedBundleIDs: []research.ID{drift.OldBundleID},
-		AffectedClaimIDs:  drift.AffectedClaims, Severity: research.SeverityImportant,
+		AffectedEvidenceIDs: append(append([]research.ID(nil), drift.OldEvidence...), drift.NewEvidence...),
+		AffectedBundleIDs:   []research.ID{drift.OldBundleID},
+		AffectedClaimIDs:    drift.AffectedClaims, Severity: research.SeverityImportant,
 		RecommendedAction: research.ActionReviewCurriculum, AssessedAt: testTimestamp(t, 13),
+		AlgorithmVersion: research.ImpactAnalysisAlgorithmV1,
 	}
 }
 
