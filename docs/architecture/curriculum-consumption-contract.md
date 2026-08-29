@@ -127,3 +127,6 @@ The future research-driven update boundary must preserve these immutable
 identity and fingerprint rules. Its selective migration and student-state
 safety requirements are defined in
 [research-to-curriculum-update-contract.md](research-to-curriculum-update-contract.md).
+The research inputs and fail-closed eligibility gate used by the future
+compiler are defined in
+[source-driven-compiler-contract.md](source-driven-compiler-contract.md).

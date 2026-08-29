@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 41
-Last completed step: 40
+Current step: 42
+Last completed step: 41
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3042,3 +3042,61 @@ Release: unreleased
 - El Paso 41 es el siguiente paso pendiente y requiere autorización explícita.
 - Debe definir el Source-driven Compiler request/response para I-04 sin
   implementar todavía el Curriculum Compiler ni Learning Packs de producción.
+
+## Step 41 — Source-driven Compiler contract for I-04
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Contrato transport-neutral `source-driven-compiler/v1` para que I-04 consulte
+  bundles, Claims, primary sources, conflictos, freshness y requisitos de
+  verificación mediante un contexto topic/version/purpose/as-of común.
+- View inmutable y consistente que conserva la identidad completa
+  `(bundle_id, content_hash, algorithm_version, verified_at)` y prohíbe mezclar
+  lecturas `latest` que nunca coexistieron.
+- Eligibility cerrada `ready_for_compile`, `ready_with_caveats` y `not_ready`,
+  con mapping conservador desde los cuatro estados reales de Source Bundle.
+- Reason codes obligatorios para missing primary source, stale, conflicted,
+  insufficient corroboration y version unknown, con IDs afectados y
+  explicaciones/versiones de algoritmo.
+- Gate fail-closed para contenido crítico: un resultado `not_ready` nunca se
+  compila silenciosamente y caveats requieren aceptación revisada explícita.
+- Semántica de `RequireVerification` definida como trabajo pendiente, no como
+  prueba de verificación, permiso de red ni autorización para compilar.
+- Contrato documentado en
+  `docs/architecture/source-driven-compiler-contract.md` y enlazado desde el
+  índice, Source Bundles y Curriculum consumption.
+
+### Decisions
+
+- I-03 decide hechos de evidencia y eligibility; I-04 declara criticality y es
+  dueño de policy de compilación, versiones curriculares y provenance final.
+- `ready_with_caveats` no equivale a aprobación silenciosa; I-04 conserva y
+  reconoce warnings, mientras cualquier estado incomplete/conflicted/legacy o
+  scope de versión incompatible queda `not_ready`.
+- Missing freshness permanece unknown y no se renombra como stale; version
+  unknown, falta de primary y corroboration insuficiente bloquean en vez de
+  inferirse desde popularidad, provider rank o semejanza de dominio.
+- Las operaciones son API lógica futura. Step 41 no añade Go types,
+  repositories, persistence, red, Compiler, Learning Packs ni Student Core.
+
+### Verification
+
+- Revisión cruzada con `source-bundle-v1`, su state/issue precedence, roles
+  primary inmutables, freshness aggregate y version identity del Step 40.
+- Auditoría documental de las seis operaciones requeridas, tres estados de
+  eligibility, cinco reasons mínimos y gate crítico del Paso 41.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step41-gocache GOFLAGS=-timeout=20m
+  go test ./...` completo.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step41-gocache GOFLAGS=-timeout=20m
+  go vet ./...` completo.
+- `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 42 está autorizado a continuación por el usuario.
+- Debe persistir metadata reproducible de Research Runs y exponer `research
+  show <run-id>` sin prometer reproducción futura exacta de Internet.

@@ -293,3 +293,8 @@ The versioned I-03 → I-04 update envelope, knowledge-change classification,
 stable concept continuity, selective migration classes, and student-state
 non-destruction invariants are documented in
 [research-to-curriculum-update-contract.md](research-to-curriculum-update-contract.md).
+
+The transport-neutral I-04 research read API, conservative compile-eligibility
+mapping, required reason codes, exact-version behavior, and critical-content
+fail-closed gate are documented in
+[source-driven-compiler-contract.md](source-driven-compiler-contract.md).

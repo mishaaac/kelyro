@@ -94,6 +94,10 @@ run-history listing and defensive copies. Neither adapter performs networking,
 re-verification, conflict resolution, freshness calculation, curriculum
 compilation, or learner-state mutation.
 
+The future I-04 read API and the conservative mapping from these lifecycle
+states to compiler eligibility are defined separately in
+[source-driven-compiler-contract.md](source-driven-compiler-contract.md).
+
 ## Source Diversity v1 composition
 
 Step 30 does not change canonical bundle JSON, hashes, lifecycle, source roles,
