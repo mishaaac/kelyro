@@ -35,7 +35,8 @@ raise the configured decoded-body ceiling.
 
 The reusable `http.Transport`:
 
-- uses `http.ProxyFromEnvironment`;
+- disables environment proxies so target resolution cannot escape Kelyro's
+  SSRF policy;
 - performs context-aware, address-pinned dialing;
 - requires TLS 1.2 or newer while retaining Go's default certificate and
   cipher behavior;
@@ -64,9 +65,9 @@ to the validated IP rather than asking a second resolver implicitly. A mixed
 public/private DNS result rejects the entire target. Redirect targets repeat
 the same validation before the client follows them.
 
-Proxy selection follows Go's environment behavior, but a proxy connection is
-still subject to the address policy. This intentionally prevents a local or
-private proxy from becoming an SSRF bypass.
+Research uses direct address-pinned dialing. A future proxy adapter would need
+its own explicit trust configuration and must preserve target validation; proxy
+environment variables are not an implicit authorization channel.
 
 ## Responses, retries, and hooks
 
@@ -100,6 +101,12 @@ ETag/Last-Modified values, final locator, and bounded body. It never returns
 authentication or cookie headers. Classified error strings contain only a
 stable category and optional status code, so URLs, queries, credentials, and
 provider error text are not emitted when errors are logged normally.
+
+Step 44 additionally blocks HTTPS-to-HTTP redirect downgrade, removes all
+conditional/Range headers across origins, strips fragments and credential-like
+query pairs from returned locators, and verifies that text/JSON/XML/PDF bodies
+match their declared representation. Full threat coverage is documented in
+[research-security-hardening-v1.md](research-security-hardening-v1.md).
 
 ## Step 09 consumer
 

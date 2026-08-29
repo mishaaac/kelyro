@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/mishaaac/kelyro/internal/research"
@@ -198,11 +199,25 @@ func resolveLocator(base research.SourceLocator, raw string, canonical bool) (re
 	return locator, err == nil
 }
 
-func normalizeWhitespace(value string) string { return strings.Join(strings.Fields(value), " ") }
+func normalizeWhitespace(value string) string {
+	value = strings.Map(func(item rune) rune {
+		if unicode.IsControl(item) {
+			return ' '
+		}
+		return item
+	}, value)
+	return strings.Join(strings.Fields(value), " ")
+}
 
 func normalizeCode(value string) string {
 	value = strings.ReplaceAll(value, "\r\n", "\n")
 	value = strings.ReplaceAll(value, "\r", "\n")
+	value = strings.Map(func(item rune) rune {
+		if unicode.IsControl(item) && item != '\n' && item != '\t' {
+			return -1
+		}
+		return item
+	}, value)
 	return strings.Trim(value, "\n")
 }
 

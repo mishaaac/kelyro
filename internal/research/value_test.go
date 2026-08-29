@@ -48,6 +48,10 @@ func TestSourceLocatorValidatesAndNormalizesAbsoluteHTTPURLs(t *testing.T) {
 	for _, invalid := range []string{
 		"", "go.dev/doc", "ftp://go.dev/doc", "https:///missing-host",
 		"https://user:secret@example.com/doc", "https://example.com/white space",
+		"https://example.com/doc?access_token=secret", "https://example.com/doc?x=1;y=2",
+		"https://example.com/doc#access_token=secret",
+		"https://example.com/doc\x00tail", "https://example.com\\@127.0.0.1/doc",
+		"https://example.com/" + string(make([]byte, maximumSourceLocatorBytes)),
 	} {
 		if _, err := NewSourceLocator(invalid); err == nil {
 			t.Errorf("NewSourceLocator(%q) accepted invalid locator", invalid)

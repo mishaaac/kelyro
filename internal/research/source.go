@@ -1,6 +1,10 @@
 package research
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+	"unicode"
+)
 
 const (
 	SourceTemporalPolicyV1      = "source-temporal-policy-v1"
@@ -106,11 +110,20 @@ func (metadata SourceMetadata) Validate() error {
 	if err := requireText("source title", metadata.Title); err != nil {
 		return err
 	}
+	if strings.IndexFunc(metadata.Title, unicode.IsControl) >= 0 {
+		return fmt.Errorf("source title contains control characters")
+	}
 	if err := validateOptionalText("source publisher", metadata.Publisher); err != nil {
 		return err
 	}
+	if strings.IndexFunc(metadata.Publisher, unicode.IsControl) >= 0 {
+		return fmt.Errorf("source publisher contains control characters")
+	}
 	if err := validateOptionalText("source language", metadata.Language); err != nil {
 		return err
+	}
+	if strings.IndexFunc(metadata.Language, unicode.IsControl) >= 0 {
+		return fmt.Errorf("source language contains control characters")
 	}
 	if err := validateOptionalTimestamp("source published at", metadata.PublishedAt); err != nil {
 		return err

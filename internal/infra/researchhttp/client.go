@@ -3,6 +3,8 @@ package researchhttp
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"io"
 	"mime"
@@ -13,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -99,7 +102,9 @@ func newClient(config Config, limiter RateLimiter, observer Observer, network ne
 	config.AllowedContentTypes = append([]string(nil), config.AllowedContentTypes...)
 	client := &Client{config: config, limiter: limiter, observer: observer, network: network}
 	client.transport = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+		// Environment proxies can resolve the validated target a second time and
+		// bypass address pinning. Research uses direct, policy-checked dialing.
+		Proxy: nil,
 		DialContext: func(ctx context.Context, networkName, address string) (net.Conn, error) {
 			return secureDialContext(ctx, networkName, address, client.network)
 		},
@@ -121,10 +126,16 @@ func newClient(config Config, limiter RateLimiter, observer Observer, network ne
 			if len(via) > config.MaxRedirects {
 				return classified(ErrorRedirectLimit, errors.New("redirect limit exceeded"))
 			}
+			if len(via) > 0 && strings.EqualFold(via[len(via)-1].URL.Scheme, "https") && strings.EqualFold(request.URL.Scheme, "http") {
+				return classified(ErrorInvalidRequest, errors.New("HTTPS redirect downgrade is blocked"))
+			}
 			if err := validateTarget(request.Context(), request.URL, client.network.resolver, client.network.addressPolicy); err != nil {
 				return err
 			}
 			stripSensitiveHeaders(request.Header)
+			if len(via) > 0 && !sameOrigin(via[len(via)-1].URL, request.URL) {
+				stripConditionalHeaders(request.Header)
+			}
 			request.Header.Set("User-Agent", config.UserAgent)
 			return nil
 		},
@@ -282,11 +293,55 @@ func (client *Client) readResponse(response *http.Response, responseLimit int64)
 	if int64(len(body)) > responseLimit {
 		return Response{}, classified(ErrorResponseTooLarge, errors.New("response body exceeds limit"))
 	}
+	if err := validateRepresentation(contentType, body); err != nil {
+		return Response{}, classified(ErrorContentType, err)
+	}
 	return Response{
 		StatusCode: response.StatusCode, ContentType: contentType,
 		ETag: boundedHeader(response.Header.Get("ETag")), LastModified: boundedHeader(response.Header.Get("Last-Modified")),
 		FinalURL: responseURL(response), NoStore: cacheControlNoStore(response.Header.Values("Cache-Control")), Body: body,
 	}, nil
+}
+
+func validateRepresentation(contentType string, body []byte) error {
+	if len(body) == 0 {
+		return nil
+	}
+	lower := strings.ToLower(contentType)
+	switch {
+	case strings.HasPrefix(lower, "text/"):
+		if !utf8.Valid(body) || bytesContainNUL(body) {
+			return errors.New("response body does not match declared text content type")
+		}
+	case lower == "application/json" || strings.HasSuffix(lower, "+json"):
+		if !json.Valid(body) {
+			return errors.New("response body does not match declared JSON content type")
+		}
+	case lower == "application/xml" || lower == "application/xhtml+xml" ||
+		lower == "application/rss+xml" || lower == "application/atom+xml" || strings.HasSuffix(lower, "+xml"):
+		decoder := xml.NewDecoder(strings.NewReader(string(body)))
+		for {
+			if _, err := decoder.Token(); errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return errors.New("response body does not match declared XML content type")
+			}
+		}
+	case lower == "application/pdf":
+		if !strings.HasPrefix(string(body), "%PDF-") {
+			return errors.New("response body does not match declared PDF content type")
+		}
+	}
+	return nil
+}
+
+func bytesContainNUL(value []byte) bool {
+	for _, item := range value {
+		if item == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func cacheControlNoStore(values []string) bool {
@@ -437,7 +492,24 @@ func responseURL(response *http.Response) string {
 	if response.Request == nil || response.Request.URL == nil {
 		return ""
 	}
-	return response.Request.URL.String()
+	return sanitizedURL(response.Request.URL)
+}
+
+func sanitizedURL(input *url.URL) string {
+	if input == nil {
+		return ""
+	}
+	clone := *input
+	clone.Fragment = ""
+	clone.RawFragment = ""
+	query := clone.Query()
+	for key := range query {
+		if sensitiveQueryName(key) {
+			query.Del(key)
+		}
+	}
+	clone.RawQuery = query.Encode()
+	return clone.String()
 }
 
 func boundedHeader(value string) string {
@@ -466,6 +538,39 @@ func stripSensitiveHeaders(header http.Header) {
 			header.Del(name)
 		}
 	}
+}
+
+func stripConditionalHeaders(header http.Header) {
+	for _, name := range []string{"If-Match", "If-Modified-Since", "If-None-Match", "If-Range", "If-Unmodified-Since", "Range"} {
+		header.Del(name)
+	}
+}
+
+func sameOrigin(left, right *url.URL) bool {
+	if left == nil || right == nil || !strings.EqualFold(left.Scheme, right.Scheme) || !strings.EqualFold(left.Hostname(), right.Hostname()) {
+		return false
+	}
+	return effectivePort(left) == effectivePort(right)
+}
+
+func effectivePort(value *url.URL) string {
+	if port := value.Port(); port != "" {
+		return port
+	}
+	if strings.EqualFold(value.Scheme, "https") {
+		return "443"
+	}
+	return "80"
+}
+
+func sensitiveQueryName(name string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(name), "-", "_"), ".", "_"))
+	for _, marker := range []string{"api_key", "apikey", "key", "access_token", "token", "auth", "secret", "password", "credential", "signature", "sig"} {
+		if normalized == marker || strings.HasSuffix(normalized, "_"+marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func drainAndClose(body io.ReadCloser) {

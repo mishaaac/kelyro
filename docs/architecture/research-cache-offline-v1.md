@@ -21,6 +21,9 @@ The filesystem adapter uses Foundation's cross-platform path contract:
 Keys are SHA-256-derived filenames, so queries, locators, and arbitrary caller
 keys do not become paths. Directories and files use restrictive permissions
 where supported, and writes use same-directory staging plus atomic replacement.
+Step 44 additionally verifies that every cache path stays within the normalized
+workspace boundary, rejects symlinked path components and non-regular records,
+and treats record symlinks as corruption without reading their targets.
 
 The immutable v1 policy is:
 

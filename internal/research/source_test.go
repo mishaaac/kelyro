@@ -114,6 +114,19 @@ func TestSourceMetadataRejectsReversedPublicationTimeline(t *testing.T) {
 	}
 }
 
+func TestSourceMetadataRejectsTerminalAndLogControlCharacters(t *testing.T) {
+	t.Parallel()
+	for _, metadata := range []SourceMetadata{
+		{Title: "trusted\x1b[31mspoof"},
+		{Title: "Reference", Publisher: "Publisher\nforged log"},
+		{Title: "Reference", Language: "en\rforged"},
+	} {
+		if err := metadata.Validate(); err == nil {
+			t.Fatalf("SourceMetadata.Validate() accepted control characters: %+v", metadata)
+		}
+	}
+}
+
 func TestResearchRunAuthorityTrustAndDiscoveryValidateEnumsAndTime(t *testing.T) {
 	t.Parallel()
 

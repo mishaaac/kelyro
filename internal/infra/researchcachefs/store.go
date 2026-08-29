@@ -55,7 +55,11 @@ func (factory *Factory) Open(ctx context.Context, root string) (application.Rese
 	if err != nil {
 		return nil, fmt.Errorf("resolve research cache directory: %w", err)
 	}
-	service, err := application.NewResearchCacheServiceWithLimits(newStore(cacheRoot), factory.clock, factory.limits)
+	workspaceRoot, err := platform.NormalizePath(root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve research cache workspace: %w", err)
+	}
+	service, err := application.NewResearchCacheServiceWithLimits(newStore(workspaceRoot, cacheRoot), factory.clock, factory.limits)
 	if err != nil {
 		return nil, fmt.Errorf("configure research cache retention: %w", err)
 	}
@@ -73,11 +77,12 @@ func (systemClock) Now() research.Timestamp {
 }
 
 type Store struct {
-	root string
-	mu   sync.Mutex
+	boundary string
+	root     string
+	mu       sync.Mutex
 }
 
-func newStore(root string) *Store { return &Store{root: root} }
+func newStore(boundary, root string) *Store { return &Store{boundary: boundary, root: root} }
 
 type envelope struct {
 	SchemaVersion    int                    `json:"schema_version"`
@@ -108,7 +113,7 @@ func (store *Store) Put(ctx context.Context, record application.CacheRecord) err
 	if err != nil {
 		return invalid(operation, err)
 	}
-	if err := writeAtomic(path, encoded); err != nil {
+	if err := store.writeAtomic(path, encoded); err != nil {
 		return persistence(operation, err)
 	}
 	return nil
@@ -125,7 +130,7 @@ func (store *Store) Get(ctx context.Context, layer application.CacheLayer, key s
 	if err != nil {
 		return application.CacheRecord{}, invalid(operation, err)
 	}
-	record, err := readRecord(path)
+	record, err := store.readRecord(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return application.CacheRecord{}, notFound(operation)
 	}
@@ -170,6 +175,9 @@ func (store *Store) Inspect(ctx context.Context) (application.CacheInventory, er
 			return application.CacheInventory{}, application.Classify(application.ErrorUnavailable, operation, err)
 		}
 		directory := filepath.Join(store.root, string(layer))
+		if err := store.ensureSafePath(directory); err != nil {
+			return application.CacheInventory{}, persistence(operation, err)
+		}
 		entries, err := os.ReadDir(directory)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
@@ -178,15 +186,26 @@ func (store *Store) Inspect(ctx context.Context) (application.CacheInventory, er
 			return application.CacheInventory{}, persistence(operation, err)
 		}
 		for _, entry := range entries {
+			if entry.Type()&os.ModeSymlink != 0 {
+				inventory.CorruptEntries++
+				if info, infoErr := entry.Info(); infoErr == nil {
+					inventory.CorruptBytes += info.Size()
+				}
+				continue
+			}
 			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 				continue
 			}
 			path := filepath.Join(directory, entry.Name())
+			if err := store.ensureSafePath(path); err != nil {
+				inventory.CorruptEntries++
+				continue
+			}
 			info, infoErr := entry.Info()
 			if infoErr != nil {
 				return application.CacheInventory{}, persistence(operation, infoErr)
 			}
-			record, readErr := readRecord(path)
+			record, readErr := store.readRecord(path)
 			if readErr != nil || filepath.Base(store.pathFor(record.Layer, record.Key)) != entry.Name() || record.Layer != layer {
 				inventory.CorruptEntries++
 				inventory.CorruptBytes += info.Size()
@@ -208,6 +227,9 @@ func (store *Store) Clear(ctx context.Context) (application.ResearchCacheClearRe
 	result := application.ResearchCacheClearResult{}
 	for _, layer := range application.ResearchCacheLayers() {
 		directory := filepath.Join(store.root, string(layer))
+		if err := store.ensureSafePath(directory); err != nil {
+			return application.ResearchCacheClearResult{}, persistence(operation, err)
+		}
 		entries, err := os.ReadDir(directory)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
@@ -245,7 +267,11 @@ func (store *Store) recordPath(layer application.CacheLayer, key string) (string
 	if strings.TrimSpace(key) == "" || key != strings.TrimSpace(key) || len(key) > application.MaximumResearchCacheKeyBytes {
 		return "", errors.New("research cache key is invalid")
 	}
-	return store.pathFor(layer, key), nil
+	path := store.pathFor(layer, key)
+	if err := store.ensureSafePath(path); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func (store *Store) pathFor(layer application.CacheLayer, key string) string {
@@ -269,7 +295,17 @@ func encodeRecord(record application.CacheRecord) ([]byte, error) {
 	return append(encoded, '\n'), nil
 }
 
-func readRecord(path string) (application.CacheRecord, error) {
+func (store *Store) readRecord(path string) (application.CacheRecord, error) {
+	if err := store.ensureSafePath(path); err != nil {
+		return application.CacheRecord{}, err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return application.CacheRecord{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return application.CacheRecord{}, errors.New("research cache record is not a regular file")
+	}
 	encoded, err := os.ReadFile(path)
 	if err != nil {
 		return application.CacheRecord{}, err
@@ -308,6 +344,37 @@ func readRecord(path string) (application.CacheRecord, error) {
 	return record, nil
 }
 
+func (store *Store) ensureSafePath(target string) error {
+	boundary := filepath.Clean(store.boundary)
+	target = filepath.Clean(target)
+	relative, err := filepath.Rel(boundary, target)
+	if err != nil || relative == "." || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return errors.New("research cache path escapes workspace")
+	}
+	current := boundary
+	parts := strings.Split(relative, string(filepath.Separator))
+	for index, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return errors.New("research cache path contains an unsafe component")
+		}
+		current = filepath.Join(current, part)
+		info, statErr := os.Lstat(current)
+		if errors.Is(statErr, fs.ErrNotExist) {
+			break
+		}
+		if statErr != nil {
+			return statErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("research cache path contains a symbolic link")
+		}
+		if index < len(parts)-1 && !info.IsDir() {
+			return errors.New("research cache path parent is not a directory")
+		}
+	}
+	return nil
+}
+
 func parseTimestamp(value string) (research.Timestamp, error) {
 	parsed, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {
@@ -327,9 +394,15 @@ func ensureEOF(decoder *json.Decoder) error {
 	return nil
 }
 
-func writeAtomic(path string, encoded []byte) (err error) {
+func (store *Store) writeAtomic(path string, encoded []byte) (err error) {
+	if err := store.ensureSafePath(path); err != nil {
+		return err
+	}
 	directory := filepath.Dir(path)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return err
+	}
+	if err := store.ensureSafePath(directory); err != nil {
 		return err
 	}
 	temporary, err := os.CreateTemp(directory, ".research-cache-*.tmp")
@@ -351,6 +424,12 @@ func writeAtomic(path string, encoded []byte) (err error) {
 		return err
 	}
 	if err := temporary.Close(); err != nil {
+		return err
+	}
+	if err := store.ensureSafePath(temporaryPath); err != nil {
+		return err
+	}
+	if err := store.ensureSafePath(path); err != nil {
 		return err
 	}
 	return replaceFile(temporaryPath, path)

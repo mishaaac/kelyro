@@ -48,6 +48,10 @@ The reusable Research HTTP transport, bounded retry policy, response limits,
 safe hooks, compression behavior, redaction boundary, and SSRF defenses are
 documented in [research-http-client.md](research-http-client.md).
 
+The complete untrusted-input threat model, redirect/content/parser/cache/log
+hardening, fuzz surface, and future AI prompt-injection gate are documented in
+[research-security-hardening-v1.md](research-security-hardening-v1.md).
+
 The `SourceFetcher` adapter, canonical content hash, conditional revalidation,
 append-only snapshot capture, and raw-body disposition contract are documented
 in [source-fetch-snapshots-v1.md](source-fetch-snapshots-v1.md).

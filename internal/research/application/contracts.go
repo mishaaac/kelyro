@@ -474,6 +474,10 @@ type FetchedSource struct {
 	NoStore bool
 }
 
+// ExternalSourceContentPolicyV1 is the non-negotiable interpretation boundary
+// for current and future extractors: source bytes are data, never instructions.
+const ExternalSourceContentPolicyV1 = "external-source-content-is-data-v1"
+
 type FetchOrigin string
 
 const (

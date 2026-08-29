@@ -2778,7 +2778,7 @@ fix(research): harden external content retention policy
 
 ## Paso 44 — Security hardening de Research Engine
 
-- [ ] Paso 44 completado
+- [x] Paso 44 completado
 
 ### Objetivo
 

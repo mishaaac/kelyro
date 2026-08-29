@@ -13,6 +13,8 @@ import (
 
 const maximumURLLength = 8 * 1024
 
+const SecurityPolicyVersion = "research-input-security-v1"
+
 type resolver interface {
 	LookupIPAddr(context.Context, string) ([]net.IPAddr, error)
 }
@@ -43,7 +45,8 @@ var blockedMetadataAddresses = map[string]struct{}{
 
 func validateTarget(ctx context.Context, parsed *url.URL, lookup resolver, policy func(net.IP) error) error {
 	if parsed == nil || len(parsed.String()) > maximumURLLength ||
-		(parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+		(parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Opaque != "" ||
+		strings.Contains(parsed.Host, `\`) || strings.IndexFunc(parsed.String(), isUnsafeURLRune) >= 0 {
 		return classified(ErrorInvalidRequest, errors.New("target must be an absolute HTTP(S) URL without user information"))
 	}
 	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
@@ -66,6 +69,10 @@ func validateTarget(ctx context.Context, parsed *url.URL, lookup resolver, polic
 		}
 	}
 	return nil
+}
+
+func isUnsafeURLRune(value rune) bool {
+	return value == 0 || value < 0x20 || value == 0x7f
 }
 
 func metadataHostBlocked(host string) bool {

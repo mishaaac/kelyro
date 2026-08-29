@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 44
-Last completed step: 43
+Current step: 45
+Last completed step: 44
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3236,3 +3236,76 @@ Release: unreleased
 - Debe endurecer inputs no confiables (SSRF, redirects, response/parser/cache
   bounds, injection, secrets y paths) y documentar desde ahora que external
   source content siempre es data, nunca instrucciones.
+
+## Step 44 — Research Engine security hardening
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Threat model versionado `research-input-security-v1` para URL, DNS, HTTP,
+  redirects, bodies, parsers, metadata, logs, cache y filenames, con el marker
+  explícito `external-source-content-is-data-v1`.
+- Transporte directo sin proxies implícitos de environment, preservando el
+  pinning DNS/IP y evitando una segunda resolución fuera de la SSRF policy.
+- Redirect hardening con revalidación existente, bloqueo de downgrade HTTPS →
+  HTTP y eliminación de validators/Range al cambiar scheme/host/effective port.
+- Content-type spoofing checks: text requiere UTF-8 sin NUL, JSON/XML deben
+  parsear y PDF debe tener signature, además de los bounds previos de headers,
+  decoded body y content encoding.
+- Redacción de locators finales: fragments y query pairs tipo credential no se
+  persisten; `SourceLocator` rechaza userinfo, controles, opaque/backslash host,
+  query malformed y parámetros de token/key/auth/secret/password/credential/
+  signature.
+- Metadata de source rechaza terminal/log control characters; normalización
+  elimina controles de prose y de code salvo newline/tab sin ejecutar HTML ni
+  reinterpretar instruction-like text.
+- Filesystem cache comprueba confinement bajo workspace, rechaza componentes o
+  records symlink, exige regular files y contabiliza links maliciosos como
+  corrupción sin leer el target.
+- Gate definido para un future AI extractor: source delimitado como untrusted
+  data, permissions separadas, ningún secret/tool write por defecto, schema
+  validation, Evidence durable, versionado y human review.
+- Fuzz targets para target URLs, redacción de query credentials, HTML malformado
+  y cache key/path generation, todos deterministas y offline.
+
+### Decisions
+
+- `privacy.allow_network` sigue siendo autorización; security hardening no la
+  sustituye ni puede habilitar red por sí mismo.
+- Environment proxy variables no son autorización de Research. Un future proxy
+  adapter requerirá trust configuration explícita y conservar SSRF validation.
+- Signed/secret URLs no son locators durables. Un adapter autenticado futuro
+  deberá recibir secrets por un canal separado y devolver canonical locator sin
+  credenciales.
+- Instruction-like source text puede conservarse como Evidence data, pero no
+  altera policies, llama tools ni recibe autoridad por su wording.
+- No se añadió AI extractor, secret injection, browser renderer, network test
+  público, migration SQLite, Compiler, curriculum migration ni Student Core.
+
+### Verification
+
+- Tests SSRF/redirect para addresses bloqueadas, redirect limits, cross-origin
+  validator stripping y HTTPS downgrade.
+- Tests HTTP para header/credential redaction, representation spoofing,
+  decoded-size gzip bomb, structured representations válidas y response bounds.
+- Tests de malformed/malicious HTML, unsafe links, prompt-like prose y terminal
+  controls; source metadata controla log/terminal injection.
+- Tests filesystem para parent/record symlinks y ausencia de writes fuera del
+  workspace.
+- Fuzz de los cuatro targets por 3 s cada uno: URL target ~232k execs, URL
+  redaction ~45k, HTML ~212k y cache paths ~108k, sin fallos después de corregir
+  un false-positive del oracle de test.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step44-gocache GOFLAGS=-timeout=20m
+  go test ./...` y `go vet ./...` completos.
+- Quality gate completo con tests, E2E, vet, race, build y smokes CLI; SQLite
+  race completó en 374.401 s.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 45 es el siguiente paso pendiente y requiere autorización explícita.
+- Debe implementar concurrency/rate-limit/per-host/global run bounds y batch
+  SQLite sin reabrir security policy ni comenzar el E2E del Paso 46.

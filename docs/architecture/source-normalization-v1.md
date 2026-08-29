@@ -51,6 +51,9 @@ quoted attributes, comments, entity decoding, common block boundaries,
 headings, `<title>`, metadata, canonical links, anchors, `<time>`, and
 `<pre>/<code>`. Script, style, noscript, template, SVG, canvas, navigation,
 footer, form, and aside subtrees are removed using exact closing-tag matching.
+Step 44 adds fuzz coverage for malformed markup and strips terminal/log control
+characters from prose and from code except newline/tab formatting. Text that
+looks like an instruction remains ordinary untrusted source data.
 
 This is deliberately not a browser DOM, HTML5 renderer, or reusable output
 sanitizer. It never emits HTML and no trust decision is based on markup shape.
@@ -108,7 +111,8 @@ and unsupported media types are not normalized by v1.
 Golden fixtures cover all four formats. Additional tests cover script/style
 removal, exact discarded-tag closure, unsafe links, malformed JSON, invalid
 UTF-8, bodyless responses, cancellation, output limits, hierarchy, dates, code,
-and deterministic ordering.
+deterministic ordering, hostile instruction-like prose, terminal controls, and
+fuzzed malformed HTML.
 
 This step does not implement discovery, evidence/claims, metadata persistence,
 PDF parsing, cache writes, trust decisions, release ingestion, curriculum

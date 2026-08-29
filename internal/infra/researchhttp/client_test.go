@@ -45,7 +45,7 @@ func TestClientFetchesBoundedContentWithKelyroUserAgentAndSafeMetadata(t *testin
 		response.ETag != `"current"` || response.LastModified == "" || string(response.Body) != "fixture" {
 		t.Fatalf("response = %+v", response)
 	}
-	if !strings.Contains(response.FinalURL, "/source?") {
+	if !strings.HasSuffix(response.FinalURL, "/source") || strings.Contains(response.FinalURL, "token") || strings.Contains(response.FinalURL, "must-not-be-logged") {
 		t.Fatalf("final URL = %q", response.FinalURL)
 	}
 }
@@ -128,6 +128,32 @@ func TestClientEnforcesRedirectLimitAndRevalidatesRedirectTargets(t *testing.T) 
 	})
 }
 
+func TestClientStripsConditionalHeadersAcrossOrigins(t *testing.T) {
+	t.Parallel()
+	var received http.Header
+	target := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		received = request.Header.Clone()
+		writer.Header().Set("Content-Type", "text/plain")
+		_, _ = writer.Write([]byte("redirected"))
+	}))
+	defer target.Close()
+	origin := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, target.URL, http.StatusFound)
+	}))
+	defer origin.Close()
+
+	client := newTestClient(t, testConfig(), nil, nil, loopbackTestPolicy)
+	_, err := client.Do(context.Background(), Request{URL: origin.URL, Header: http.Header{
+		"If-None-Match": []string{`"private-validator"`}, "Range": []string{"bytes=0-10"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if received.Get("If-None-Match") != "" || received.Get("Range") != "" {
+		t.Fatalf("cross-origin redirect leaked conditional headers: %+v", received)
+	}
+}
+
 func TestClientRejectsOversizeAndUnexpectedContent(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -140,6 +166,10 @@ func TestClientRejectsOversizeAndUnexpectedContent(t *testing.T) {
 		{name: "oversize", contentType: "text/plain", body: strings.Repeat("x", 33), want: ErrResponseTooLarge},
 		{name: "content type", contentType: "application/octet-stream", body: "fixture", want: ErrContentType},
 		{name: "encoding", contentType: "text/plain", encoding: "br", body: "fixture", want: ErrUnsupportedEncoding},
+		{name: "binary declared text", contentType: "text/plain", body: "image\x00payload", want: ErrContentType},
+		{name: "invalid declared JSON", contentType: "application/json", body: `{"open":`, want: ErrContentType},
+		{name: "invalid declared XML", contentType: "application/xml", body: `<open>`, want: ErrContentType},
+		{name: "fake PDF", contentType: "application/pdf", body: "not a pdf", want: ErrContentType},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -158,6 +188,30 @@ func TestClientRejectsOversizeAndUnexpectedContent(t *testing.T) {
 			_, err := client.Do(context.Background(), Request{URL: server.URL})
 			if !errors.Is(err, test.want) {
 				t.Fatalf("Do() error = %v, want %v", err, test.want)
+			}
+		})
+	}
+}
+
+func TestClientAcceptsValidatedStructuredRepresentations(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		contentType string
+		body        string
+	}{
+		{contentType: "application/json", body: `{"ok":true}`},
+		{contentType: "application/xml", body: `<root><ok>true</ok></root>`},
+		{contentType: "application/pdf", body: "%PDF-1.7\nfixture"},
+	} {
+		t.Run(test.contentType, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				writer.Header().Set("Content-Type", test.contentType)
+				_, _ = writer.Write([]byte(test.body))
+			}))
+			defer server.Close()
+			response, err := newTestClient(t, testConfig(), nil, nil, nil).Do(context.Background(), Request{URL: server.URL})
+			if err != nil || string(response.Body) != test.body {
+				t.Fatalf("Do() = (%+v, %v)", response, err)
 			}
 		})
 	}
@@ -259,6 +313,24 @@ func TestClientSupportsAutomaticGzipWithinDecompressedLimit(t *testing.T) {
 	response, err := client.Do(context.Background(), Request{URL: server.URL})
 	if err != nil || string(response.Body) != "compressed fixture" {
 		t.Fatalf("Do() = (%+v, %v)", response, err)
+	}
+}
+
+func TestClientBoundsGzipAfterDecompression(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/plain")
+		writer.Header().Set("Content-Encoding", "gzip")
+		compressed := gzip.NewWriter(writer)
+		_, _ = compressed.Write([]byte(strings.Repeat("x", 4096)))
+		_ = compressed.Close()
+	}))
+	defer server.Close()
+	config := testConfig()
+	config.MaxResponseBytes = 128
+	_, err := newTestClient(t, config, nil, nil, nil).Do(context.Background(), Request{URL: server.URL})
+	if !errors.Is(err, ErrResponseTooLarge) {
+		t.Fatalf("gzip bomb error = %v, want response_too_large", err)
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"unicode"
 )
 
+const maximumSourceLocatorBytes = 8 << 10
+
 var (
 	ErrEmptyID        = errors.New("id is empty")
 	ErrEmptyTimestamp = errors.New("timestamp is empty")
@@ -122,8 +124,12 @@ func normalizeLocator(value string) (string, error) {
 	if strings.TrimSpace(value) == "" {
 		return "", errors.New("source locator is empty")
 	}
-	if value != strings.TrimSpace(value) || strings.IndexFunc(value, unicode.IsSpace) >= 0 {
-		return "", errors.New("source locator contains whitespace")
+	if len(value) > maximumSourceLocatorBytes {
+		return "", errors.New("source locator exceeds bounded length")
+	}
+	if value != strings.TrimSpace(value) ||
+		strings.IndexFunc(value, func(item rune) bool { return unicode.IsSpace(item) || unicode.IsControl(item) }) >= 0 {
+		return "", errors.New("source locator contains whitespace or control characters")
 	}
 	parsed, err := url.Parse(value)
 	if err != nil {
@@ -133,14 +139,44 @@ func normalizeLocator(value string) (string, error) {
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return "", fmt.Errorf("source locator scheme %q is unsupported", parsed.Scheme)
 	}
-	if parsed.Hostname() == "" {
+	if parsed.Hostname() == "" || parsed.Opaque != "" || strings.Contains(parsed.Host, `\`) {
 		return "", errors.New("source locator host is empty")
 	}
 	if parsed.User != nil {
 		return "", errors.New("source locator must not contain credentials")
 	}
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil {
+		return "", errors.New("source locator query is invalid")
+	}
+	for name := range query {
+		if sensitiveLocatorQueryName(name) {
+			return "", errors.New("source locator must not contain credential-like query parameters")
+		}
+	}
+	if strings.Contains(parsed.Fragment, "=") {
+		fragment, fragmentErr := url.ParseQuery(parsed.Fragment)
+		if fragmentErr != nil {
+			return "", errors.New("source locator fragment is invalid")
+		}
+		for name := range fragment {
+			if sensitiveLocatorQueryName(name) {
+				return "", errors.New("source locator must not contain credential-like fragment parameters")
+			}
+		}
+	}
 	parsed.Host = strings.ToLower(parsed.Host)
 	return parsed.String(), nil
+}
+
+func sensitiveLocatorQueryName(name string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(name), "-", "_"), ".", "_"))
+	for _, marker := range []string{"api_key", "apikey", "key", "access_token", "token", "auth", "secret", "password", "credential", "signature", "sig"} {
+		if normalized == marker || strings.HasSuffix(normalized, "_"+marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // SourceVersion is a non-empty version identity shared by source scopes and
