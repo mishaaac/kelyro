@@ -74,6 +74,71 @@ func TestResearchAndSourceServicesUseNarrowMemoryRepositories(t *testing.T) {
 	}
 }
 
+func TestResearchServiceRecordsImmutableReproducibleAuditTrail(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := memory.New()
+	repositories := store.Repositories()
+	service := application.NewResearchService(repositories.Runs)
+	request, run := testRequestRun(t)
+	if err := service.Start(ctx, request, run); err != nil {
+		t.Fatal(err)
+	}
+	first, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: testID(t, "audit.interfaces.running"), RunID: run.ID,
+		RecordedAt: testTimestamp(t, 11), StartedAt: run.StartedAt, Outcome: run.Status,
+		QueryPlannerVersion: "query-planner-v1", TrustPolicyVersion: "trust-policy-v1",
+		FreshnessVersion: research.FreshnessAlgorithmV1, ConflictResolverVersion: research.ConflictResolverAlgorithmV1,
+		NetworkMode: research.ResearchAuditNetworkAuto, Queries: []string{"Go interfaces official documentation"},
+		TargetTechnology: request.Topic.Technology,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordAudit(ctx, first); err != nil {
+		t.Fatalf("RecordAudit(running) error = %v", err)
+	}
+	completedAt := testTimestamp(t, 12)
+	run.Status, run.CompletedAt = research.ResearchRunCompleted, &completedAt
+	if err := service.UpdateRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	final := first
+	final.ID = testID(t, "audit.interfaces.completed")
+	final.RecordedAt = testTimestamp(t, 13)
+	final.Outcome, final.CompletedAt, final.ContentHash = run.Status, run.CompletedAt, ""
+	final, err = research.SealResearchRunAuditV1(final)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordAudit(ctx, final); err != nil {
+		t.Fatalf("RecordAudit(completed) error = %v", err)
+	}
+	trail, err := service.AuditTrail(ctx, run.ID)
+	if err != nil || len(trail) != 2 || trail[0].Outcome != research.ResearchRunRunning || trail[1].Outcome != research.ResearchRunCompleted {
+		t.Fatalf("AuditTrail() = (%+v, %v)", trail, err)
+	}
+	trail[0].Queries[0] = "mutated"
+	again, err := service.AuditTrail(ctx, run.ID)
+	if err != nil || again[0].Queries[0] != "Go interfaces official documentation" {
+		t.Fatalf("AuditTrail() defensive copy = (%+v, %v)", again, err)
+	}
+	if err := service.RecordAudit(ctx, final); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate audit error = %v, want conflict", err)
+	}
+	mismatch := final
+	mismatch.ID = testID(t, "audit.interfaces.mismatch")
+	mismatch.Outcome = research.ResearchRunFailed
+	mismatch.ContentHash = ""
+	mismatch, err = research.SealResearchRunAuditV1(mismatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordAudit(ctx, mismatch); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("mismatched lifecycle error = %v, want invalid state", err)
+	}
+}
+
 func TestMemorySourceRepositoryDefensivelyCopiesSpecializedMetadata(t *testing.T) {
 	t.Parallel()
 	repositories := memory.New().Repositories()

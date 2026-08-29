@@ -187,6 +187,7 @@ Source registry commands:
 Research commands:
   kelyro research topic <topic>
   kelyro research status <run-id>
+  kelyro research show <run-id>
   kelyro research stats
   kelyro research update-scan
   kelyro research cache status
@@ -477,6 +478,8 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatUpdateScan(*result.UpdateScan))
 	} else if result.ResearchView != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatResearchView(*result.ResearchView))
+	} else if result.ResearchAuditView != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchAuditView(*result.ResearchAuditView))
 	} else if result.Source != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatSource(*result.Source))
 	} else if result.Sources != nil && !invocation.quiet {
@@ -1651,6 +1654,15 @@ func parseResearchArguments(result *invocation) error {
 		result.researchRunID = id
 		return nil
 	}
+	if len(result.arguments) == 2 && result.arguments[0] == "show" {
+		id, err := research.NewID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("research show: invalid run id: %w", err)
+		}
+		result.researchOperation = "show"
+		result.researchRunID = id
+		return nil
+	}
 	if len(result.arguments) == 1 && result.arguments[0] == "stats" {
 		result.researchOperation = "stats"
 		return nil
@@ -1664,7 +1676,7 @@ func parseResearchArguments(result *invocation) error {
 		result.researchCacheOperation = result.arguments[1]
 		return nil
 	}
-	return fmt.Errorf("research requires topic <topic>, status <run-id>, stats, update-scan, cache status, or cache clear")
+	return fmt.Errorf("research requires topic <topic>, status <run-id>, show <run-id>, stats, update-scan, cache status, or cache clear")
 }
 
 func formatResearchView(view app.ResearchCLIView) string {
@@ -1714,6 +1726,75 @@ func formatResearchView(view app.ResearchCLIView) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatResearchAuditView(view app.ResearchAuditCLIView) string {
+	lines := []string{
+		"Research audit: " + view.Run.ID.String(),
+		"Topic: " + view.Request.Topic.Subject,
+		"Run status: " + string(view.Run.Status),
+		fmt.Sprintf("Checkpoints: %d", len(view.Records)),
+	}
+	if len(view.Records) == 0 {
+		lines = append(lines, "Audit metadata: not recorded")
+	}
+	for index, record := range view.Records {
+		completed := "not completed"
+		if record.CompletedAt != nil {
+			completed = record.CompletedAt.Time().Format(time.RFC3339)
+		}
+		providers := "none"
+		if len(record.ProvidersUsed) > 0 {
+			providers = strings.Join(record.ProvidersUsed, ", ")
+		}
+		network := string(record.NetworkMode)
+		if record.NetworkAllowed {
+			network += " (allowed)"
+		} else {
+			network += " (disabled by privacy gate)"
+		}
+		lines = append(lines,
+			"",
+			fmt.Sprintf("Checkpoint %d: %s", index+1, record.ID.String()),
+			"Recorded: "+record.RecordedAt.Time().Format(time.RFC3339),
+			"Outcome: "+string(record.Outcome),
+			"Started: "+record.StartedAt.Time().Format(time.RFC3339),
+			"Completed: "+completed,
+			"Query planner: "+record.QueryPlannerVersion,
+			"Trust policy: "+record.TrustPolicyVersion,
+			"Freshness: "+record.FreshnessVersion,
+			"Conflict resolver: "+record.ConflictResolverVersion,
+			"Providers: "+providers,
+			"Network: "+network,
+			fmt.Sprintf("Usage: %d cache hits, %d sources, %d bytes fetched", record.CacheHits, record.SourceCount, record.BytesFetched),
+			"Audit algorithm: "+record.AlgorithmVersion,
+			"Audit hash: "+record.ContentHash,
+		)
+		if record.TargetTechnology != "" {
+			target := record.TargetTechnology
+			if record.TargetVersion != nil {
+				target += " " + record.TargetVersion.String()
+			}
+			lines = append(lines, "Target: "+target)
+		}
+		lines = append(lines, "Queries:")
+		for _, query := range record.Queries {
+			lines = append(lines, "- "+query)
+		}
+		if len(record.Sources) > 0 {
+			lines = append(lines, "Snapshots:")
+			for _, source := range record.Sources {
+				lines = append(lines, fmt.Sprintf("- %s — %s — %s", source.SourceID, source.Locator, source.SnapshotHash))
+			}
+		}
+		if len(record.AdditionalAlgorithms) > 0 {
+			lines = append(lines, "Additional algorithms:")
+			for _, algorithm := range record.AdditionalAlgorithms {
+				lines = append(lines, fmt.Sprintf("- %s: %s", algorithm.Stage, algorithm.Version))
+			}
+		}
+	}
+	return strings.Join(append(lines, "", research.ResearchAuditInternetDisclaimer), "\n")
 }
 
 func formatSources(sources []research.Source) string {

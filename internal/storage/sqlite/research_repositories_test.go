@@ -102,8 +102,12 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 42 {
-		t.Fatalf("schema=(%d,%v), want 42", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 43 {
+		t.Fatalf("schema=(%d,%v), want 43", version, err)
+	}
+	var legacyAuditCount int
+	if err := handle.QueryRow(`SELECT COUNT(*) FROM research_run_audit WHERE run_id='run.legacy'`).Scan(&legacyAuditCount); err != nil || legacyAuditCount != 0 {
+		t.Fatalf("v43 invented legacy audit records: count=%d error=%v", legacyAuditCount, err)
 	}
 	legacyDriftID, _ := research.NewID("drift.legacy")
 	legacyDrift, err := database.Repositories().Research.Drift.Get(context.Background(), legacyDriftID)
@@ -680,6 +684,40 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	source := research.Source{ID: researchTestSourceID(t, "source.registry"), Kind: research.SourceSpecification, Locator: researchTestLocator(t, "https://example.com/spec"), TemporalScope: research.SourceTemporalCurrent, Metadata: research.SourceMetadata{Title: "Specification"}, CreatedAt: at}
 	if err := repositories.Sources.Create(ctx, source); err != nil {
 		t.Fatal(err)
+	}
+	auditSnapshot := research.SourceSnapshot{
+		ID: researchTestID(t, "snapshot.audit"), SourceID: source.ID, Locator: source.Locator, FetchedAt: at,
+		Fetch: research.FetchMetadata{StatusCode: 200, ContentType: "text/html", ContentHash: research.CanonicalContentHashV1([]byte("audited source")), ContentLength: 14, FetchVersion: "source-fetch-v1"},
+	}
+	if err := repositories.Snapshots.Append(ctx, auditSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	audit, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: researchTestID(t, "audit.run-1.completed"), RunID: run.ID,
+		RecordedAt: researchTestTimestamp(t, completed.Time().Add(time.Second)), StartedAt: run.StartedAt, CompletedAt: run.CompletedAt,
+		Outcome: run.Status, QueryPlannerVersion: "query-planner-v1", TrustPolicyVersion: "trust-policy-v1",
+		FreshnessVersion: research.FreshnessAlgorithmV1, ConflictResolverVersion: research.ConflictResolverAlgorithmV1,
+		ProvidersUsed: []string{"fixture-provider"}, NetworkMode: research.ResearchAuditNetworkOnline, NetworkAllowed: true,
+		CacheHits: 1, BytesFetched: auditSnapshot.Fetch.ContentLength, Queries: []string{"Go HTTP caching official specification"},
+		Sources:          []research.ResearchAuditSource{{SourceID: source.ID, Locator: auditSnapshot.Locator, SnapshotID: auditSnapshot.ID, SnapshotHash: auditSnapshot.Fetch.ContentHash}},
+		TargetTechnology: request.Topic.Technology, TargetVersion: request.TargetVersion,
+		AdditionalAlgorithms: []research.ResearchAuditAlgorithm{{Stage: "source_fetch", Version: auditSnapshot.Fetch.FetchVersion}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Runs.AppendAudit(ctx, audit); err != nil {
+		t.Fatalf("AppendAudit() error = %v", err)
+	}
+	trail, err := repositories.Runs.ListAudit(ctx, run.ID)
+	if err != nil || len(trail) != 1 || !reflect.DeepEqual(trail[0], audit) {
+		t.Fatalf("ListAudit() = (%+v, %v), want %+v", trail, err, audit)
+	}
+	if _, err := database.sql.ExecContext(ctx, `UPDATE research_run_audit SET outcome='failed' WHERE id=?`, audit.ID.String()); err == nil {
+		t.Fatal("research audit immutability trigger accepted update")
+	}
+	if _, err := database.sql.ExecContext(ctx, `DELETE FROM research_run_audit WHERE id=?`, audit.ID.String()); err == nil {
+		t.Fatal("research audit immutability trigger accepted delete")
 	}
 	securityClaim := research.ClaimSecurity
 	releaseNotesKind := research.SourceReleaseNotes

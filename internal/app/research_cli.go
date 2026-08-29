@@ -12,6 +12,7 @@ import (
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/research/queryplanner"
 	triggerpolicy "github.com/mishaaac/kelyro/internal/research/trigger"
+	trustpolicy "github.com/mishaaac/kelyro/internal/research/trust"
 )
 
 const researchCLIWorkflowV1 = "research-cli-workflow-v1"
@@ -34,6 +35,12 @@ type SourceCLIView struct {
 	LatestSnapshot *research.SourceSnapshot
 	TrustDecision  *research.TrustDecision
 	Freshness      *researchapp.FreshnessRecord
+}
+
+type ResearchAuditCLIView struct {
+	Request research.ResearchRequest
+	Run     research.ResearchRun
+	Records []research.ResearchRunAudit
 }
 
 func (service *Service) startResearchTopic(ctx context.Context, command Command, store researchapp.SourceRegistryStore) (ResearchCLIView, error) {
@@ -67,7 +74,7 @@ func (service *Service) startResearchTopic(ctx context.Context, command Command,
 	if err != nil {
 		return ResearchCLIView{}, err
 	}
-	requestID, runID, queueID, err := newResearchCLIIDs()
+	requestID, runID, queueID, auditID, err := newResearchCLIIDs()
 	if err != nil {
 		return ResearchCLIView{}, err
 	}
@@ -97,28 +104,54 @@ func (service *Service) startResearchTopic(ctx context.Context, command Command,
 	if err := store.Research().Start(ctx, request, run); err != nil {
 		return ResearchCLIView{}, err
 	}
+	queries := make([]string, len(plan.Queries))
+	for index, query := range plan.Queries {
+		queries[index] = query.Query
+	}
+	audit, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: auditID, RunID: run.ID, RecordedAt: now, StartedAt: run.StartedAt, Outcome: run.Status,
+		QueryPlannerVersion: plan.AlgorithmVersion, TrustPolicyVersion: trustpolicy.PolicyVersionV1,
+		FreshnessVersion: research.FreshnessAlgorithmV1, ConflictResolverVersion: research.ConflictResolverAlgorithmV1,
+		NetworkMode: research.ResearchAuditNetworkAuto, NetworkAllowed: policy.AllowNetwork, Queries: queries,
+		TargetTechnology: request.Topic.Technology, TargetVersion: request.TargetVersion,
+		AdditionalAlgorithms: []research.ResearchAuditAlgorithm{
+			{Stage: "cost_control", Version: research.ResearchCostControlAlgorithmV1},
+			{Stage: "research_trigger", Version: research.ResearchTriggerAlgorithmV1},
+			{Stage: "workflow", Version: researchCLIWorkflowV1},
+		},
+	})
+	if err != nil {
+		return ResearchCLIView{}, fmt.Errorf("build initial research audit: %w", err)
+	}
+	if err := store.Research().RecordAudit(ctx, audit); err != nil {
+		return ResearchCLIView{}, err
+	}
 	return ResearchCLIView{
 		Request: request, Run: run, Plan: &plan, QueueItem: decision.QueueItem, NetworkAllowed: policy.AllowNetwork,
 		DiscoveryPending: true, AlgorithmVersion: researchCLIWorkflowV1,
 	}, nil
 }
 
-func newResearchCLIIDs() (research.ID, research.ID, research.ID, error) {
+func newResearchCLIIDs() (research.ID, research.ID, research.ID, research.ID, error) {
 	var entropy [12]byte
 	if _, err := rand.Read(entropy[:]); err != nil {
-		return research.ID{}, research.ID{}, research.ID{}, fmt.Errorf("generate research identity: %w", err)
+		return research.ID{}, research.ID{}, research.ID{}, research.ID{}, fmt.Errorf("generate research identity: %w", err)
 	}
 	suffix := hex.EncodeToString(entropy[:])
 	requestID, err := research.NewID("request.cli." + suffix)
 	if err != nil {
-		return research.ID{}, research.ID{}, research.ID{}, err
+		return research.ID{}, research.ID{}, research.ID{}, research.ID{}, err
 	}
 	runID, err := research.NewID("run.cli." + suffix)
 	if err != nil {
-		return research.ID{}, research.ID{}, research.ID{}, err
+		return research.ID{}, research.ID{}, research.ID{}, research.ID{}, err
 	}
 	queueID, err := research.NewID("queue.cli." + suffix)
-	return requestID, runID, queueID, err
+	if err != nil {
+		return research.ID{}, research.ID{}, research.ID{}, research.ID{}, err
+	}
+	auditID, err := research.NewID("audit.cli." + suffix + ".planned")
+	return requestID, runID, queueID, auditID, err
 }
 
 func researchStatus(ctx context.Context, store researchapp.SourceRegistryStore, runID research.ID) (ResearchCLIView, error) {
@@ -144,4 +177,23 @@ func researchStatus(ctx context.Context, store researchapp.SourceRegistryStore, 
 		}
 	}
 	return view, nil
+}
+
+func researchAudit(ctx context.Context, store researchapp.SourceRegistryStore, runID research.ID) (ResearchAuditCLIView, error) {
+	if store.Research() == nil {
+		return ResearchAuditCLIView{}, errors.New("research service is unavailable")
+	}
+	run, err := store.Research().Run(ctx, runID)
+	if err != nil {
+		return ResearchAuditCLIView{}, err
+	}
+	request, err := store.Research().Request(ctx, run.RequestID)
+	if err != nil {
+		return ResearchAuditCLIView{}, err
+	}
+	records, err := store.Research().AuditTrail(ctx, runID)
+	if err != nil {
+		return ResearchAuditCLIView{}, err
+	}
+	return ResearchAuditCLIView{Request: request, Run: run, Records: records}, nil
 }

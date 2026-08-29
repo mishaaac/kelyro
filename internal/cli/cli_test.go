@@ -1466,6 +1466,37 @@ func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
 			t.Fatalf("run status = code %d stdout %q stderr %q command %+v", code, stdout.String(), stderr.String(), service.commands[0])
 		}
 	})
+	t.Run("run audit show", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		requestID := cliID(t, "request.cli-audit")
+		runID := cliID(t, "run.cli-audit")
+		topic, _ := research.NewResearchTopic("Audited topic", "software", "Go")
+		record, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+			ID: cliID(t, "audit.cli-audit.planned"), RunID: runID, RecordedAt: at, StartedAt: at,
+			Outcome: research.ResearchRunPlanned, QueryPlannerVersion: "query-planner-v1", TrustPolicyVersion: "trust-policy-v1",
+			FreshnessVersion: research.FreshnessAlgorithmV1, ConflictResolverVersion: research.ConflictResolverAlgorithmV1,
+			NetworkMode: research.ResearchAuditNetworkAuto, Queries: []string{"Go audited topic official documentation"}, TargetTechnology: "Go",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		view := app.ResearchAuditCLIView{
+			Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at},
+			Run:     research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunPlanned, StartedAt: at},
+			Records: []research.ResearchRunAudit{record},
+		}
+		service := &fakeService{result: app.Result{ResearchAuditView: &view}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "show", runID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Research audit: "+runID.String()) ||
+			!strings.Contains(stdout.String(), "Query planner: query-planner-v1") ||
+			!strings.Contains(stdout.String(), "cannot guarantee that the future Internet") {
+			t.Fatalf("run audit show = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if service.commands[0].ResearchOperation != "show" || service.commands[0].ResearchRunID != runID {
+			t.Fatalf("run audit command = %+v", service.commands[0])
+		}
+	})
 	t.Run("stats", func(t *testing.T) {
 		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
 		stats := researchapp.ResearchCostStats{

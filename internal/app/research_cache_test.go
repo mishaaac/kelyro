@@ -100,6 +100,13 @@ func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
 	if err != nil || status.ResearchView == nil || status.ResearchView.Request.Topic.Subject != "Go range over func" || status.ResearchView.Run.Status != research.ResearchRunPlanned {
 		t.Fatalf("research status = (%+v, %v)", status.ResearchView, err)
 	}
+	audit, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "show", ResearchRunID: planned.ResearchView.Run.ID})
+	if err != nil || audit.ResearchAuditView == nil || len(audit.ResearchAuditView.Records) != 1 ||
+		audit.ResearchAuditView.Records[0].QueryPlannerVersion != "query-planner-v1" ||
+		audit.ResearchAuditView.Records[0].Outcome != research.ResearchRunPlanned ||
+		audit.ResearchAuditView.Records[0].NetworkAllowed {
+		t.Fatalf("research audit = (%+v, %v)", audit.ResearchAuditView, err)
+	}
 }
 
 type fakeResearchCostService struct {

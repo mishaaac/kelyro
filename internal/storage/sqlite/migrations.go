@@ -1705,6 +1705,25 @@ WHEN EXISTS (
 			`CREATE INDEX impact_reports_drift_history_idx ON impact_reports (drift_report_id,assessed_at,id)`,
 		},
 	},
+	{
+		version: 43,
+		name:    "reproducible research run audit",
+		statements: []string{
+			`CREATE TABLE research_run_audit (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    run_id TEXT NOT NULL REFERENCES research_runs(id),
+    recorded_at TEXT NOT NULL CHECK (recorded_at GLOB '*Z'),
+    outcome TEXT NOT NULL CHECK (outcome IN ('planned','running','completed','failed','cancelled')),
+    content_hash TEXT NOT NULL CHECK (content_hash GLOB 'sha256:*' AND length(content_hash)=71),
+    metadata_json TEXT NOT NULL CHECK (json_valid(metadata_json) AND json_type(metadata_json)='object' AND length(CAST(metadata_json AS BLOB)) <= 262144),
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version='research-audit-v1'),
+    UNIQUE (run_id, recorded_at)
+)`,
+			`CREATE INDEX research_run_audit_history_idx ON research_run_audit (run_id,recorded_at,id)`,
+			`CREATE TRIGGER research_run_audit_immutable_update BEFORE UPDATE ON research_run_audit BEGIN SELECT RAISE(ABORT, 'research run audit is immutable'); END`,
+			`CREATE TRIGGER research_run_audit_immutable_delete BEFORE DELETE ON research_run_audit BEGIN SELECT RAISE(ABORT, 'research run audit is immutable'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

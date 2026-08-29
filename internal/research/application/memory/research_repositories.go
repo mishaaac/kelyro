@@ -98,6 +98,91 @@ func (repository researchRunRepository) UpdateRun(ctx context.Context, run resea
 	return nil
 }
 
+func (repository researchRunRepository) AppendAudit(ctx context.Context, audit research.ResearchRunAudit) error {
+	const operation = "append memory research run audit"
+	if err := contextError(operation, ctx); err != nil {
+		return err
+	}
+	if err := audit.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	storedRun, exists := repository.store.runs[audit.RunID]
+	if !exists {
+		return notFound(operation)
+	}
+	if storedRun.Status != audit.Outcome || !storedRun.StartedAt.Time().Equal(audit.StartedAt.Time()) || !equalMemoryAuditTimestamp(storedRun.CompletedAt, audit.CompletedAt) {
+		return invalid(operation, errRelationship("audit lifecycle does not match durable research run"))
+	}
+	request := repository.store.requests[storedRun.RequestID]
+	if request.Topic.Technology != audit.TargetTechnology || !equalMemoryAuditVersion(request.TargetVersion, audit.TargetVersion) {
+		return invalid(operation, errRelationship("audit target does not match durable research request"))
+	}
+	for _, item := range audit.Sources {
+		source, sourceExists := repository.store.sources[item.SourceID]
+		snapshot, snapshotExists := repository.store.snapshots[item.SnapshotID]
+		if !sourceExists || !snapshotExists {
+			return notFound(operation)
+		}
+		if snapshot.SourceID != item.SourceID || snapshot.Locator != item.Locator || source.ID != item.SourceID || snapshot.Fetch.ContentHash != item.SnapshotHash {
+			return invalid(operation, errRelationship("audit source snapshot metadata does not match durable research data"))
+		}
+	}
+	for _, stored := range repository.store.runAudit[audit.RunID] {
+		if stored.ID == audit.ID {
+			return conflict(operation)
+		}
+		if stored.RecordedAt.Time().Equal(audit.RecordedAt.Time()) {
+			return conflict(operation)
+		}
+	}
+	repository.store.runAudit[audit.RunID] = append(repository.store.runAudit[audit.RunID], cloneResearchAudit(audit))
+	sort.Slice(repository.store.runAudit[audit.RunID], func(i, j int) bool {
+		left, right := repository.store.runAudit[audit.RunID][i], repository.store.runAudit[audit.RunID][j]
+		if !left.RecordedAt.Time().Equal(right.RecordedAt.Time()) {
+			return left.RecordedAt.Before(right.RecordedAt)
+		}
+		return left.ID.String() < right.ID.String()
+	})
+	return nil
+}
+
+func equalMemoryAuditTimestamp(left, right *research.Timestamp) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Time().Equal(right.Time())
+}
+
+func equalMemoryAuditVersion(left, right *research.SourceVersion) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func (repository researchRunRepository) ListAudit(ctx context.Context, runID research.ID) ([]research.ResearchRunAudit, error) {
+	const operation = "list memory research run audit"
+	if err := contextError(operation, ctx); err != nil {
+		return nil, err
+	}
+	if err := runID.Validate(); err != nil {
+		return nil, invalid(operation, err)
+	}
+	repository.store.mu.RLock()
+	defer repository.store.mu.RUnlock()
+	if _, exists := repository.store.runs[runID]; !exists {
+		return nil, notFound(operation)
+	}
+	stored := repository.store.runAudit[runID]
+	result := make([]research.ResearchRunAudit, len(stored))
+	for index, audit := range stored {
+		result[index] = cloneResearchAudit(audit)
+	}
+	return result, nil
+}
+
 type trustRegistryRepository struct{ store *Store }
 
 func (repository trustRegistryRepository) SaveProfile(ctx context.Context, profile research.AuthorityProfile) error {

@@ -298,3 +298,7 @@ The transport-neutral I-04 research read API, conservative compile-eligibility
 mapping, required reason codes, exact-version behavior, and critical-content
 fail-closed gate are documented in
 [source-driven-compiler-contract.md](source-driven-compiler-contract.md).
+
+The append-only Research Run checkpoints, canonical reproducibility metadata,
+snapshot/hash bindings, legacy-safe SQLite storage, and `research show` view
+are documented in [research-audit-v1.md](research-audit-v1.md).

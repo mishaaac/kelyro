@@ -63,6 +63,8 @@ type ResearchRunRepository interface {
 	GetRequest(context.Context, research.ID) (research.ResearchRequest, error)
 	GetRun(context.Context, research.ID) (research.ResearchRun, error)
 	UpdateRun(context.Context, research.ResearchRun) error
+	AppendAudit(context.Context, research.ResearchRunAudit) error
+	ListAudit(context.Context, research.ID) ([]research.ResearchRunAudit, error)
 }
 
 type CostReservation struct {
@@ -1031,6 +1033,8 @@ type ResearchService interface {
 	Request(context.Context, research.ID) (research.ResearchRequest, error)
 	Run(context.Context, research.ID) (research.ResearchRun, error)
 	UpdateRun(context.Context, research.ResearchRun) error
+	RecordAudit(context.Context, research.ResearchRunAudit) error
+	AuditTrail(context.Context, research.ID) ([]research.ResearchRunAudit, error)
 }
 
 type CostControlReason string

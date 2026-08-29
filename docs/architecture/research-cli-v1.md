@@ -18,6 +18,12 @@ Source Bundle exists, it presents its state, primary/supporting counts,
 conflicts, and verification timestamp. A search result or query plan is never
 counted as a source, claim, or evidence.
 
+`kelyro research show <run-id>` reads the append-only `research-audit-v1`
+checkpoints for the run. It exposes exact queries, algorithm versions,
+providers used, network mode/privacy result, cache/fetch counters, and durable
+locator/snapshot/hash refs. It always distinguishes reproducible stored inputs
+from the external Internet, which may return different content in the future.
+
 `kelyro research update-scan` inventories stored releases, tracked sources,
 freshness schedules, deprecations, and unresolved conflicts. It reports an
 explicit incomplete reason when privacy blocks current lookup or no live
@@ -27,7 +33,8 @@ provider is configured, and never modifies curriculum or student state.
 
 `kelyro research topic <topic>` normalizes and validates the topic, creates a
 durable planned request/run with the default `research-cost-control-v1` budget,
-and builds a bounded provider-neutral query plan. The generic CLI authority
+builds a bounded provider-neutral query plan, and appends the exact planned
+inputs as the initial audit checkpoint. The generic CLI authority
 profile is a planning preference only: it requires corroboration and tier C or
 better, but cannot make any candidate trusted.
 

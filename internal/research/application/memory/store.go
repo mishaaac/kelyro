@@ -24,6 +24,7 @@ type Store struct {
 	provenance      map[research.ClaimID][]research.ProvenanceGraph
 	requests        map[research.ID]research.ResearchRequest
 	runs            map[research.ID]research.ResearchRun
+	runAudit        map[research.ID][]research.ResearchRunAudit
 	profiles        map[research.ID]research.AuthorityProfile
 	registryEntries map[research.ID]research.SourceRegistryEntry
 	decisions       map[research.SourceID][]research.TrustDecision
@@ -51,6 +52,7 @@ func New() *Store {
 		provenance:      make(map[research.ClaimID][]research.ProvenanceGraph),
 		requests:        make(map[research.ID]research.ResearchRequest),
 		runs:            make(map[research.ID]research.ResearchRun),
+		runAudit:        make(map[research.ID][]research.ResearchRunAudit),
 		profiles:        make(map[research.ID]research.AuthorityProfile),
 		registryEntries: make(map[research.ID]research.SourceRegistryEntry),
 		decisions:       make(map[research.SourceID][]research.TrustDecision),
@@ -288,6 +290,17 @@ func cloneClaim(claim research.Claim) research.Claim {
 func cloneFreshness(record application.FreshnessRecord) application.FreshnessRecord {
 	clone := record
 	clone.NextVerifyAt = cloneTimestamp(record.NextVerifyAt)
+	return clone
+}
+
+func cloneResearchAudit(audit research.ResearchRunAudit) research.ResearchRunAudit {
+	clone := audit
+	clone.CompletedAt = cloneTimestamp(audit.CompletedAt)
+	clone.ProvidersUsed = append([]string(nil), audit.ProvidersUsed...)
+	clone.Queries = append([]string(nil), audit.Queries...)
+	clone.Sources = append([]research.ResearchAuditSource(nil), audit.Sources...)
+	clone.TargetVersion = cloneVersion(audit.TargetVersion)
+	clone.AdditionalAlgorithms = append([]research.ResearchAuditAlgorithm(nil), audit.AdditionalAlgorithms...)
 	return clone
 }
 

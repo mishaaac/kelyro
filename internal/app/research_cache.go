@@ -10,7 +10,7 @@ import (
 )
 
 func (service *Service) executeResearch(ctx context.Context, command Command) (Result, error) {
-	if command.ResearchOperation == "topic" || command.ResearchOperation == "status" || command.ResearchOperation == "update-scan" {
+	if command.ResearchOperation == "topic" || command.ResearchOperation == "status" || command.ResearchOperation == "show" || command.ResearchOperation == "update-scan" {
 		if service.researchStores == nil {
 			return Result{}, errors.New("research store is unavailable")
 		}
@@ -45,6 +45,13 @@ func (service *Service) executeResearch(ctx context.Context, command Command) (R
 				return Result{}, scanErr
 			}
 			return Result{UpdateScan: &scan}, nil
+		}
+		if command.ResearchOperation == "show" {
+			view, showErr := researchAudit(ctx, store, command.ResearchRunID)
+			if showErr != nil {
+				return Result{}, showErr
+			}
+			return Result{ResearchAuditView: &view}, nil
 		}
 		var view ResearchCLIView
 		if command.ResearchOperation == "topic" {

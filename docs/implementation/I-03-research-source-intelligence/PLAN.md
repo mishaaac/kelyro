@@ -2697,7 +2697,7 @@ feat(research): define source-driven compiler contract
 
 ## Paso 42 — Implementar Research Audit Trail y reproducibility metadata
 
-- [ ] Paso 42 completado
+- [x] Paso 42 completado
 
 ### Objetivo
 
@@ -3220,8 +3220,8 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 38 — Drift Detection
 - [ ] Paso 39 — Impact Analysis
 - [ ] Paso 40 — Migration contracts
-- [ ] Paso 41 — Compiler contract
-- [ ] Paso 42 — Research Audit
+- [x] Paso 41 — Compiler contract
+- [x] Paso 42 — Research Audit
 - [ ] Paso 43 — Copyright/retention
 - [ ] Paso 44 — Security hardening
 - [ ] Paso 45 — Performance/concurrency
@@ -3317,7 +3317,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 ## Research operations
 
 - [ ] Research runs
-- [ ] Research audit
+- [x] Research audit
 - [ ] Cost stats
 - [ ] Offline cache
 - [ ] Update scan
@@ -3328,7 +3328,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 
 ## I-04 contracts
 
-- [ ] Ready-for-compile status
+- [x] Ready-for-compile status
 - [ ] Source Bundle API
 - [ ] Drift contract
 - [ ] Impact contract
@@ -3372,8 +3372,8 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Impact report funciona
 - [ ] I-03 no modifica curriculum final
 - [ ] I-03 no modifica Student Mastery
-- [ ] I-04 contracts documentados
-- [ ] Research audit registra algoritmos/providers/snapshots
+- [x] I-04 contracts documentados
+- [x] Research audit registra algoritmos/providers/snapshots
 - [ ] Security review pasa
 - [ ] SSRF protections pasan
 - [ ] No secrets en logs

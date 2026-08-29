@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 42
-Last completed step: 41
+Current step: 43
+Last completed step: 42
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3100,3 +3100,75 @@ Release: unreleased
 - El Paso 42 está autorizado a continuación por el usuario.
 - Debe persistir metadata reproducible de Research Runs y exponer `research
   show <run-id>` sin prometer reproducción futura exacta de Internet.
+
+## Step 42 — Research Audit Trail and reproducibility metadata
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Modelo `research-audit-v1` como checkpoints append-only de Research Run, con
+  lifecycle, cuatro versiones de policy/algorithm obligatorias, providers
+  usados, modo/gate de red, cache hits, source count, bytes fetched y outcome.
+- Metadata reproducible acotada para queries ordenadas, target technology/
+  version, algoritmos adicionales y tuples exactos
+  `(source_id, locator, snapshot_id, snapshot_hash)`.
+- Canonicalización determinista, JSON estricto de máximo 256 KiB y content hash
+  SHA-256 del checkpoint completo para detectar corrupción o modificación.
+- `ResearchService.RecordAudit` y `AuditTrail`, con validación contra lifecycle
+  y target durable; memory/SQLite verifican cada locator/hash contra el
+  Snapshot real y devuelven copias/orden deterministas.
+- Migration forward-only v43 con FK a Research Run, timestamp único por run,
+  índice histórico, payload/hash/version acotados y triggers que impiden update
+  o delete de checkpoints.
+- El workflow manual guarda un checkpoint `planned` con sus queries y policies
+  seleccionadas, gate de privacidad y cero actividad live inventada.
+- `kelyro research show <run-id>` con historial detallado, algoritmos,
+  providers, red, contadores, queries, snapshots/hashes y disclaimer explícito
+  sobre la imposibilidad de garantizar el mismo Internet futuro.
+- Contrato documentado en `docs/architecture/research-audit-v1.md` y enlazado
+  desde el índice y la CLI de Research.
+
+### Decisions
+
+- Cada checkpoint es inmutable y un cambio de lifecycle requiere append; no se
+  reescribe el pasado ni se deducen providers/sources al actualizar un run.
+- Las versiones first-class indican policies seleccionadas, no prueban por sí
+  solas que una etapa produjo output; outcome, refs y resultados durables
+  conservan esa distinción.
+- Providers usados y actividad quedan vacíos/cero cuando no ocurrieron. Legacy
+  runs no reciben audit records sintéticos y se muestran como `not recorded`.
+- Solo snapshots con hash canónico pueden entrar al audit v1; candidates no son
+  sources observadas y metadata que no coincide con storage se rechaza.
+- Audit reproduce inputs y decisiones almacenadas, no ejecuta red, no guarda
+  bodies/excerpts y no promete replay byte-identical de servicios externos.
+- No se añadió Compiler, curriculum migration ni mutación de Student Core.
+
+### Verification
+
+- Tests de dominio para canonicalización, round-trip JSON, hash estable,
+  tampering, bounds y combinaciones lifecycle/red/target inválidas.
+- Tests application/memory para checkpoints running/completed, ordering,
+  defensive copies, duplicate conflict y lifecycle mismatch.
+- Tests de migration v43 sin inventar metadata legacy, round-trip SQLite con
+  locator/snapshot/hash durable y enforcement de immutability.
+- Tests app/CLI del checkpoint inicial, coordinación de `research show`,
+  parsing, render completo y disclaimer de reproducibility.
+- `GOCACHE=/home/mishaaac/.cache/kelyro-step42-gocache GOFLAGS=-timeout=20m
+  go test ./...` y `go vet ./...` completos.
+- Quality gate completo con tests, E2E, vet, race, build y smokes CLI; SQLite
+  race completó en 387.079 s. Un intento previo con `GOTMPDIR` forzado bajo
+  `~/.cache` hizo que el fixture de backup incluyera su propio temporal; el
+  retry con el temporal estándar pasó sin cambios de código.
+- Smoke real sobre workspace temporal: `init`, `research topic "Go interfaces"`
+  y `research show <run-id>`, con checkpoint planned, privacy gate disabled,
+  cero actividad inventada, queries/versiones y disclaimer visibles.
+- `gofmt` aplicado y `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 43 es el siguiente paso pendiente y requiere autorización explícita.
+- Debe endurecer copyright, licensing y retention sin ampliar este audit con
+  bodies externos ni modificar migrations publicadas.

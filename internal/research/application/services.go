@@ -70,6 +70,60 @@ func (service *researchService) UpdateRun(ctx context.Context, run research.Rese
 	return repositoryError(operation, service.runs.UpdateRun(ctx, run))
 }
 
+func (service *researchService) RecordAudit(ctx context.Context, audit research.ResearchRunAudit) error {
+	const operation = "record research run audit"
+	if err := audit.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := requireDependency(operation, "research run repository", service.runs); err != nil {
+		return err
+	}
+	run, err := service.runs.GetRun(ctx, audit.RunID)
+	if err != nil {
+		return repositoryError(operation, err)
+	}
+	request, err := service.runs.GetRequest(ctx, run.RequestID)
+	if err != nil {
+		return repositoryError(operation, err)
+	}
+	if audit.Outcome != run.Status || !audit.StartedAt.Time().Equal(run.StartedAt.Time()) || !sameOptionalTimestamp(audit.CompletedAt, run.CompletedAt) {
+		return invalid(operation, fmt.Errorf("audit lifecycle does not match durable research run"))
+	}
+	if audit.TargetTechnology != request.Topic.Technology || !sameOptionalVersion(audit.TargetVersion, request.TargetVersion) {
+		return invalid(operation, fmt.Errorf("audit target does not match durable research request"))
+	}
+	return repositoryError(operation, service.runs.AppendAudit(ctx, audit))
+}
+
+func (service *researchService) AuditTrail(ctx context.Context, runID research.ID) ([]research.ResearchRunAudit, error) {
+	const operation = "list research run audit trail"
+	if err := runID.Validate(); err != nil {
+		return nil, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "research run repository", service.runs); err != nil {
+		return nil, err
+	}
+	if _, err := service.runs.GetRun(ctx, runID); err != nil {
+		return nil, repositoryError(operation, err)
+	}
+	records, err := service.runs.ListAudit(ctx, runID)
+	return records, repositoryError(operation, err)
+}
+
+func sameOptionalTimestamp(left, right *research.Timestamp) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Time().Equal(right.Time())
+}
+
+func sameOptionalVersion(left, right *research.SourceVersion) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
 type discoveryService struct {
 	provider SearchProvider
 	cache    SearchCache
