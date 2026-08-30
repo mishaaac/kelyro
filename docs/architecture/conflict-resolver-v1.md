@@ -102,5 +102,5 @@ Core state.
 Step 49 reconfirmed `conflict-resolver-v1` as the shipped append-only conflict
 contract. Contradictions, version/scope mismatches and unresolved outcomes stay
 visible; the resolver cannot invent a winner or mutate bundles, curriculum, or
-Student Core. Hosted CI for the current source commit remains the final formal
-closure gate.
+Student Core. The hosted closure matrix passed on Linux, macOS and Windows,
+including Linux race coverage.

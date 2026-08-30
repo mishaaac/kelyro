@@ -154,5 +154,5 @@ Step 49 reconfirmed `trust-policy-v1` as the shipped contextual trust contract:
 authority, freshness, relevance, directness, stability and corroboration remain
 separate explainable inputs. Community or experimental material cannot silently
 replace stronger primary evidence, and trust never converts discovery output
-into Evidence. Hosted CI for the current source commit remains the final formal
-closure gate.
+into Evidence. The hosted closure matrix passed on Linux, macOS and Windows,
+including Linux race coverage.

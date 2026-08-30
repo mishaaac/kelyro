@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 49
-Last completed step: 48
+Current step: complete
+Last completed step: 49
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3585,49 +3585,43 @@ Release: unreleased
 
 ## Step 49 — Formal I-03 Research & Source Intelligence closure
 
-Status: pending hosted CI
+Status: completed
 Date: 2026-08-29
-Release at source closure candidate: unreleased; latest published release is
+Release at source closure: unreleased; latest published release is
 `v0.1.0-alpha.3` and does not contain I-03
 
-### Delivered in the closure candidate
+### Delivered
 
 - Auditoría formal de los Pasos 0–48 contra sus 49 registros individuales y
   la historia de commits desde el baseline `498b9fb`; todos están implementados
   y sus checkboxes de ejecución/capacidad fueron reconciliados con evidencia.
-- `README.md` actualizado con el alcance I-03 realmente disponible, la
-  separación entre source completion y el prerelease publicado, los comandos
-  Research/Sources, privacy/offline y las limitaciones previas a I-04.
-- `AGENTS.md` actualizado para tratar I-03 como implementación terminada que
-  solo puede reabrirse por regresión reproducible o cambio de compatibilidad,
-  manteniendo I-04 sujeto a especificación y autorización separadas.
-- Índice arquitectónico y los siete contratos exigidos por el Paso 49
-  actualizados con su estado de cierre y sus límites estables: domain, trust,
-  freshness, conflict, drift, research-to-curriculum y content retention.
+- `README.md`, `AGENTS.md`, el índice arquitectónico y los siete contratos
+  exigidos actualizados con el alcance cerrado, sus límites y el estado real de
+  publicación.
 - Auditoría directa de imports: el dominio raíz `internal/research` conserva
   solo standard library y subpackages Research; no importa Bubble Tea, SQLite,
   `net/http`, Student Core ni adapters de sistema operativo.
-- Checklist final sincronizado hasta la evidencia existente. Los checks hosted
-  CI, Paso 49 y Ready for I-04 permanecen deliberadamente sin marcar.
+- Puerta `race` fortalecida con `-timeout=20m` y jobs de calidad CI/release con
+  30 minutos. El límite cubre la duración observada de SQLite bajo el detector
+  sin relajar assertions ni omitir paquetes.
+- Checklist final sincronizado: Paso 49, CI Linux/Windows/macOS, todos los pasos
+  y Ready for I-04 están respaldados por evidencia y marcados completos.
 
 ### Decisions
 
 - Source completion y publicación siguen siendo eventos distintos. El cierre
   no crea tag ni elige una versión futura: `v0.1.0-alpha.3` es el SemVer real
   publicado, pero contiene I-02 y no se reetiqueta como si incluyera I-03.
-- La matriz `.github/workflows/ci.yml` ejecuta test, E2E, vet, build/smoke en
-  Ubuntu, macOS y Windows, más race en Linux. Configuración y cross-compilation
-  no se registran como un hosted run exitoso.
-- `gh run list --branch I03-KELYRO` devolvió una lista vacía. El último CI
-  hospedado exitoso pertenece a `main` en `498b9fb`, baseline anterior a I-03;
-  por tanto no demuestra el commit candidato actual.
-- Publicar la rama es un cambio remoto fuera del requisito repository-local de
-  commit. El Paso 49 no se marca completo sin autorización para push y un run
-  exitoso del commit de cierre.
+- El primer run alojado del candidato `4407c48` aprobó macOS y Windows, y todos
+  los gates Ubuntu anteriores a race. Race agotó el timeout predeterminado de
+  Go a los 10 minutos dentro de SQLite; el log no reportó data race.
+- El ajuste `ea5c73d` hizo explícito el timeout ya usado en las verificaciones
+  locales y amplió el presupuesto del job. No cambió lógica de producto ni los
+  límites I-03/I-04.
 - No se añadió provider público, Curriculum Compiler, Learning Pack, AI
   Research Reviewer, migración automática ni mutación de Student Core.
 
-### Verification completed locally
+### Verification
 
 - `go mod verify` y `gofmt -l` sobre todos los Go files versionados.
 - Scan de firmas comunes de private keys y tokens sobre archivos versionados,
@@ -3637,16 +3631,42 @@ Release at source closure candidate: unreleased; latest published release is
 - Compilación completa con `-tags=e2e` y `-exec=/bin/true` para
   Windows/amd64 y macOS/amd64, más build del CLI con `CGO_ENABLED=0` para ambos.
 - Opt-in live smoke y dogfooding real completados en los Pasos 47–48.
-- Quality gate completo con unit tests, Foundation/Student/I-03 E2E, vet, race,
-  build y smokes CLI; SQLite race finalizó en 571.559 s.
-- `git diff --check` y clean-tree se verifican al cerrar el commit candidato.
+- Quality gate local completo con unit tests, Foundation/Student/I-03 E2E, vet,
+  race, build y smokes CLI; SQLite race finalizó en 571.559 s.
+- El workflow alojado
+  [CI 33291605315](https://github.com/mishaaac/kelyro/actions/runs/33291605315)
+  aprobó el SHA exacto `ea5c73dd6ef64b7f2b1a470c131fa561705ff3b1`:
+  Ubuntu en 7m53s con race, Windows en 7m51s y macOS en 1m08s.
+- Tests de `tools/quality`, suite general, vet y `git diff --check` pasaron tras
+  el ajuste del timeout; el árbol quedó limpio después de cada commit subido.
 
-### Remaining gate
+### Notes for next implementation
 
-1. Publicar el commit candidato en una rama remota autorizada.
-2. Esperar el workflow `CI` del SHA exacto y comprobar éxito de Ubuntu, macOS,
-   Windows y Linux race.
-3. Solo entonces marcar Paso 49, los tres checks CI, todos-los-pasos y Ready for
-   I-04, y añadir el completion record definitivo.
+- I-03 Research & Source Intelligence está cerrado. Reabrirlo solo por una
+  regresión reproducible o un cambio de compatibilidad explícitamente acotado.
+- I-04 sigue sin estar iniciado: requiere especificación y autorización propias.
 
-I-04 no está autorizado ni iniciado mientras este gate permanezca pendiente.
+## I-03 Research & Source Intelligence Completion
+
+Status: completed
+Release: unreleased (latest published: v0.1.0-alpha.3, which does not contain I-03)
+Completed steps: 0-49
+
+Algorithms:
+- `trust-policy-v1`
+- `query-planner-v1`
+- `freshness-v1`
+- `resource-quality-v1`
+- `conflict-resolver-v1`
+- `research-trigger-v1`
+- `drift-v1`
+
+Known limitations:
+- No configured public search provider.
+- No production Curriculum Compiler yet.
+- No production Learning Packs yet.
+- No AI Research Reviewer required yet.
+- No automatic curriculum migration.
+
+Ready for:
+I-04 Curriculum Compiler & Learning Packs (requires separate spec and authorization)

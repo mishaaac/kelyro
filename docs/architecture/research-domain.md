@@ -354,5 +354,5 @@ The formal Step 49 audit reconfirmed that the root `internal/research` domain
 uses only the Go standard library and Research subpackages. It does not import
 Bubble Tea, SQLite, `net/http`, Student Core, or operating-system adapters, and
 it exposes change intelligence without compiling curriculum or mutating
-learner state. This domain contract is frozen as an I-04 input; hosted CI for
-the current source commit remains the final closure gate.
+learner state. The hosted Linux/macOS/Windows CI matrix passed with Linux race
+coverage, so this domain contract is closed and frozen as an I-04 input.

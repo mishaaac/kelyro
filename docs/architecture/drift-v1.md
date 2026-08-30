@@ -78,5 +78,5 @@ remains readable but cannot masquerade as a new v1 conclusion.
 Step 49 reconfirmed `drift-v1` as the shipped conservative comparison contract.
 A changed representation is not automatically a changed Claim, missing current
 evidence is not invalidation, and all curriculum/learner actions remain outside
-the policy. Hosted CI for the current source commit remains the final formal
-closure gate.
+the policy. The hosted closure matrix passed on Linux, macOS and Windows,
+including Linux race coverage.

@@ -7,12 +7,11 @@ persistence needed to build the product incrementally.
 
 ## Status
 
-I-03 Research & Source Intelligence is complete in source through controlled
-E2E, opt-in live checks, and real-source dogfooding. Formal closure is pending
-a hosted Linux/macOS/Windows CI run for the current source commit. The latest
-published prerelease remains `v0.1.0-alpha.3`; it delivers the completed and
-manually accepted I-02 Student & Learning Core on top of I-01 and does not
-contain I-03.
+I-03 Research & Source Intelligence is formally complete after controlled E2E,
+opt-in live checks, real-source dogfooding, and hosted Linux/macOS/Windows CI
+with Linux race coverage. The latest published prerelease remains
+`v0.1.0-alpha.3`; it delivers the completed and manually accepted I-02 Student
+& Learning Core on top of I-01 and does not contain I-03.
 
 The Research layer now provides transport-neutral requests and runs,
 topic-aware authority and trust, privacy-gated discovery/fetch/release ports,

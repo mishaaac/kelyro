@@ -3054,7 +3054,7 @@ docs(roadmap): record I-03 dogfooding results
 
 ## Paso 49 — Cierre formal de I-03
 
-- [ ] Paso 49 completado
+- [x] Paso 49 completado
 
 ### Objetivo
 
@@ -3228,7 +3228,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 46 — E2E controlled
 - [x] Paso 47 — Live integration opt-in
 - [x] Paso 48 — Dogfooding
-- [ ] Paso 49 — Cierre formal
+- [x] Paso 49 — Cierre formal
 
 ---
 
@@ -3383,20 +3383,20 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] `go test ./...` pasa
 - [x] `go vet ./...` pasa
 - [x] race tests aplicables pasan
-- [ ] CI Linux pasa
-- [ ] CI Windows pasa
-- [ ] CI macOS pasa
+- [x] CI Linux pasa
+- [x] CI Windows pasa
+- [x] CI macOS pasa
 - [x] E2E I-03 pasa
 - [x] Live opt-in smoke realizado
 - [x] Dogfooding realizado
 - [x] Bundles revisados manualmente contra fuentes
 - [x] No bugs críticos/bloqueantes conocidos
-- [ ] Todos los pasos completados marcados `[x]`
+- [x] Todos los pasos completados marcados `[x]`
 - [x] PROGRESS.md actualizado por paso
 - [x] Commits Conventional Commit coherentes
 - [x] Working tree limpio
 - [x] Release final respeta SemVer
-- [ ] Ready for I-04
+- [x] Ready for I-04
 
 ---
 

@@ -94,5 +94,5 @@ not download video/audio, retain captions, or store/export full transcripts.
 Step 49 reconfirmed `source-content-retention-v1` as the shipped storage and
 copyright boundary. SQLite retains metadata, hashes and bounded evidence rather
 than external page bodies; disposable cache limits and `no-store` remain
-enforced, and exports omit raw bodies by default. Hosted CI for the current
-source commit remains the final formal closure gate.
+enforced, and exports omit raw bodies by default. The hosted closure matrix
+passed on Linux, macOS and Windows, including Linux race coverage.

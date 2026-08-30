@@ -281,5 +281,6 @@ of these future writes are authorized.
 Step 49 reconfirmed `research-to-curriculum-update/v1` as an advisory,
 transport-neutral boundary ready for a separately authorized I-04. I-03 emits
 structured evidence, drift and impact identities but cannot compile curriculum,
-bind a learner to a new version, or transfer mastery. Hosted CI for the current
-source commit remains the final formal closure gate.
+bind a learner to a new version, or transfer mastery. The hosted closure matrix
+passed on Linux, macOS and Windows, including Linux race coverage, so this
+contract is closed as an I-04 input.

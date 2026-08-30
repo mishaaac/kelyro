@@ -20,9 +20,8 @@
 - I-01 Foundation and I-02 Student & Learning Core are complete.
 - I-02 shipped in the published `v0.1.0-alpha.3` prerelease after its Linux
   `amd64` manual acceptance pass.
-- I-03 Research & Source Intelligence has completed implementation and
-  dogfooding. Its formal closure remains gated by hosted CI for the current
-  source commit; do not describe that gate as passed without a matching run.
+- I-03 Research & Source Intelligence is formally closed after implementation,
+  dogfooding, and a hosted Linux/macOS/Windows CI pass with Linux race coverage.
 - Reopen I-03 only for a reproducible regression or an explicitly scoped
   compatibility change. Do not begin I-04 or any later implementation without
   its own specification and explicit authorization.

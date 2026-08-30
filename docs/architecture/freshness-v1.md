@@ -124,5 +124,6 @@ Refresh scheduling is specified separately in
 Step 49 reconfirmed `freshness-v1` and its injectable clock as the shipped
 evidence-age contract. Authority remains independent from age, historical and
 version-bound evidence remains explicit, and refresh scheduling supplies the
-next-verification decision without performing network access. Hosted CI for
-the current source commit remains the final formal closure gate.
+next-verification decision without performing network access. The hosted
+closure matrix passed on Linux, macOS and Windows, including Linux race
+coverage.
