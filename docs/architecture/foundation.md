@@ -541,7 +541,13 @@ migration-history validation.
 Restore requires presentation-level confirmation and application-level proof
 of that confirmation. Before touching live state, the adapter verifies the
 manifest and hashes, copies every file to staging, validates the staged
-database read-only, and checks workspace identity. It then swaps the four
+database read-only, and checks workspace identity. Because visible generated
+Markdown is intentionally outside the backup and remains in place, restore
+reconciles its current ownership and content-hash records into the staged
+database. This lets Kelyro regenerate an unchanged projection from restored
+source state while preserving the existing conflict whenever a person edited
+the file. The reconciled database is validated again before commit. Restore
+then swaps the four
 managed components (`learning.db`, project config, metadata, and the complete
 state directory) on the same filesystem. Any failed swap rolls back already
 replaced components; if rollback itself cannot finish, the preserved originals

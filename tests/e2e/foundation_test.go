@@ -191,6 +191,33 @@ func TestFoundationWorkspaceLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("restore keeps generated progress artifacts coherent", func(t *testing.T) {
+		test := newScenario(t, binary)
+		test.mustRun("init")
+		completeSetupWithoutDiagnostic(t, test.workspace)
+		test.mustRun("mastery", "threshold", "set", "90")
+		test.mustRun("progress", "export")
+
+		created := strings.Fields(test.mustRun("backup", "create"))
+		if len(created) < 3 {
+			t.Fatalf("unexpected backup create output: %q", strings.Join(created, " "))
+		}
+		backupID := created[len(created)-1]
+		test.mustRun("mastery", "threshold", "set", "70")
+		test.mustRun("progress", "export")
+		test.mustRun("--yes", "backup", "restore", backupID)
+
+		threshold := test.mustRun("mastery", "threshold")
+		if !strings.Contains(threshold, "Required mastery: 90%") {
+			t.Fatalf("restored source of truth is not 90%%:\n%s", threshold)
+		}
+		test.mustRun("progress", "export")
+		learning := string(readFile(t, filepath.Join(test.workspace, "LEARNING.md")))
+		if !strings.Contains(learning, "Required: 90%") {
+			t.Fatalf("regenerated LEARNING.md is not coherent with restored state:\n%s", learning)
+		}
+	})
+
 	t.Run("full export and import", func(t *testing.T) {
 		test := newScenario(t, binary)
 		test.mustRun("init")

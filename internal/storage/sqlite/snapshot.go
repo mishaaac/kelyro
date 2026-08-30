@@ -16,21 +16,11 @@ import (
 type SnapshotValidator struct{}
 
 func (SnapshotValidator) Validate(ctx context.Context, path string) (int, error) {
-	databaseURL := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
-	if filepath.VolumeName(path) != "" && !strings.HasPrefix(databaseURL.Path, "/") {
-		databaseURL.Path = "/" + databaseURL.Path
-	}
-	query := databaseURL.Query()
-	query.Set("mode", "ro")
-	query.Add("_pragma", "query_only(1)")
-	databaseURL.RawQuery = query.Encode()
-
-	handle, err := sql.Open("sqlite", databaseURL.String())
+	handle, err := openSnapshot(path, true)
 	if err != nil {
-		return 0, fmt.Errorf("open SQLite snapshot: %w", err)
+		return 0, err
 	}
 	defer handle.Close()
-	handle.SetMaxOpenConns(1)
 	if err := handle.PingContext(ctx); err != nil {
 		return 0, fmt.Errorf("connect to SQLite snapshot: %w", err)
 	}
@@ -81,4 +71,109 @@ func (SnapshotValidator) Validate(ctx context.Context, path string) (int, error)
 	return version, nil
 }
 
+type artifactIndexRecord struct {
+	path            string
+	ownership       string
+	createdBy       string
+	contentHash     string
+	createdAt       string
+	lastGeneratedAt string
+	expectedVersion string
+	updatedAt       string
+}
+
+// ReconcileUnbackedArtifacts keeps the current integrity records for visible
+// generated artifacts because those files are deliberately excluded from a
+// machine-state backup and remain in place during restore.
+func (SnapshotValidator) ReconcileUnbackedArtifacts(ctx context.Context, currentPath, restoredPath string) error {
+	current, err := openSnapshot(currentPath, true)
+	if err != nil {
+		return fmt.Errorf("open current SQLite database: %w", err)
+	}
+	defer current.Close()
+	rows, err := current.QueryContext(ctx, `
+SELECT path, ownership, created_by, content_hash, created_at,
+       last_generated_at, expected_version, updated_at
+FROM artifact_index
+WHERE ownership = 'system-generated-human-readable'
+ORDER BY path`)
+	if err != nil {
+		return fmt.Errorf("read current visible artifact index: %w", err)
+	}
+	var records []artifactIndexRecord
+	for rows.Next() {
+		var record artifactIndexRecord
+		if err := rows.Scan(
+			&record.path, &record.ownership, &record.createdBy, &record.contentHash,
+			&record.createdAt, &record.lastGeneratedAt, &record.expectedVersion, &record.updatedAt,
+		); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan current visible artifact index: %w", err)
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("iterate current visible artifact index: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close current visible artifact index: %w", err)
+	}
+
+	restored, err := openSnapshot(restoredPath, false)
+	if err != nil {
+		return fmt.Errorf("open restored SQLite database: %w", err)
+	}
+	defer restored.Close()
+	transaction, err := restored.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin artifact index reconciliation: %w", err)
+	}
+	defer transaction.Rollback()
+	if _, err := transaction.ExecContext(ctx,
+		"DELETE FROM artifact_index WHERE ownership = 'system-generated-human-readable'",
+	); err != nil {
+		return fmt.Errorf("clear restored visible artifact index: %w", err)
+	}
+	for _, record := range records {
+		if _, err := transaction.ExecContext(ctx, `
+INSERT INTO artifact_index (
+    path, ownership, created_by, content_hash, created_at,
+    last_generated_at, expected_version, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			record.path, record.ownership, record.createdBy, record.contentHash,
+			record.createdAt, record.lastGeneratedAt, record.expectedVersion, record.updatedAt,
+		); err != nil {
+			return fmt.Errorf("preserve visible artifact index for %s: %w", record.path, err)
+		}
+	}
+	if err := transaction.Commit(); err != nil {
+		return fmt.Errorf("commit artifact index reconciliation: %w", err)
+	}
+	return nil
+}
+
+func openSnapshot(path string, readOnly bool) (*sql.DB, error) {
+	databaseURL := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+	if filepath.VolumeName(path) != "" && !strings.HasPrefix(databaseURL.Path, "/") {
+		databaseURL.Path = "/" + databaseURL.Path
+	}
+	query := databaseURL.Query()
+	if readOnly {
+		query.Set("mode", "ro")
+		query.Add("_pragma", "query_only(1)")
+	} else {
+		query.Set("mode", "rw")
+	}
+	databaseURL.RawQuery = query.Encode()
+
+	handle, err := sql.Open("sqlite", databaseURL.String())
+	if err != nil {
+		return nil, fmt.Errorf("open SQLite snapshot: %w", err)
+	}
+	handle.SetMaxOpenConns(1)
+	return handle, nil
+}
+
 var _ backup.Validator = SnapshotValidator{}
+var _ backup.RestoreReconciler = SnapshotValidator{}

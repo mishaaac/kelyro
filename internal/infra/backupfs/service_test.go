@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mishaaac/kelyro/internal/artifacts"
 	"github.com/mishaaac/kelyro/internal/backup"
+	"github.com/mishaaac/kelyro/internal/infra/artifactfs"
 	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/storage/sqlite"
 	"github.com/mishaaac/kelyro/internal/workspace"
@@ -119,6 +121,66 @@ func TestRestoreCommitFailureRollsBackEveryOriginal(t *testing.T) {
 	assertFileContent(t, filepath.Join(internal, "state", "session.json"), "current state")
 }
 
+func TestRestoreKeepsGeneratedArtifactsCoherentWithRestoredIndex(t *testing.T) {
+	root := createTestWorkspace(t)
+	service := New("1.2.3", sqlite.SnapshotValidator{})
+	paths := []string{
+		"LEARNING.md",
+		filepath.Join("00-roadmap", "ROADMAP.md"),
+		filepath.Join("00-roadmap", "PROGRESS.md"),
+	}
+	writeGeneratedArtifacts(t, root, paths, "backup state\n")
+
+	created, err := service.Create(context.Background(), root, backup.CreateOptions{Retention: 5})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	writeGeneratedArtifacts(t, root, paths, "newer state\n")
+
+	if _, err := service.Restore(context.Background(), root, created.ID); err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	writeGeneratedArtifacts(t, root, paths, "regenerated restored state\n")
+	for _, path := range paths {
+		assertFileContent(t, filepath.Join(root, path), "regenerated restored state\n")
+	}
+}
+
+func TestRestoreKeepsHumanEditProtectionForUnbackedGeneratedArtifact(t *testing.T) {
+	root := createTestWorkspace(t)
+	service := New("1.2.3", sqlite.SnapshotValidator{})
+	path := "LEARNING.md"
+	writeGeneratedArtifacts(t, root, []string{path}, "backup state\n")
+
+	created, err := service.Create(context.Background(), root, backup.CreateOptions{Retention: 5})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	writeGeneratedArtifacts(t, root, []string{path}, "newer state\n")
+	mustWrite(t, filepath.Join(root, path), "human edit\n")
+
+	if _, err := service.Restore(context.Background(), root, created.ID); err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	store, err := artifactfs.NewFactory("1.2.3").Open(context.Background(), root)
+	if err != nil {
+		t.Fatalf("open artifact store: %v", err)
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close artifact store: %v", err)
+		}
+	}()
+	_, err = store.Write(context.Background(), artifacts.WriteRequest{
+		Path: path, Ownership: artifacts.SystemGeneratedHumanReadable,
+		CreatedBy: "backup-regression", Content: []byte("regenerated restored state\n"), ExpectedVersion: "test/v1",
+	})
+	if !errors.Is(err, artifactfs.ErrModified) {
+		t.Fatalf("Write() error = %v, want ErrModified", err)
+	}
+	assertFileContent(t, filepath.Join(root, path), "human edit\n")
+}
+
 func TestCreateAppliesRetention(t *testing.T) {
 	root := createTestWorkspace(t)
 	service := New("1.2.3", sqlite.SnapshotValidator{})
@@ -194,5 +256,26 @@ func assertFileContent(t *testing.T, path, want string) {
 	}
 	if string(got) != want {
 		t.Fatalf("ReadFile(%s) = %q, want %q", path, got, want)
+	}
+}
+
+func writeGeneratedArtifacts(t *testing.T, root string, paths []string, content string) {
+	t.Helper()
+	store, err := artifactfs.NewFactory("1.2.3").Open(context.Background(), root)
+	if err != nil {
+		t.Fatalf("open artifact store: %v", err)
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("close artifact store: %v", err)
+		}
+	}()
+	for _, path := range paths {
+		if _, err := store.Write(context.Background(), artifacts.WriteRequest{
+			Path: path, Ownership: artifacts.SystemGeneratedHumanReadable,
+			CreatedBy: "backup-regression", Content: []byte(content), ExpectedVersion: "test/v1",
+		}); err != nil {
+			t.Fatalf("write generated artifact %s: %v", path, err)
+		}
 	}
 }

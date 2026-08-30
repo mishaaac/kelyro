@@ -36,6 +36,7 @@ var rootFiles = []string{"learning.db", "config.toml", "workspace.json"}
 type Service struct {
 	appVersion string
 	validator  backup.Validator
+	reconciler backup.RestoreReconciler
 	now        func() time.Time
 	random     io.Reader
 	rename     func(string, string) error
@@ -48,12 +49,14 @@ func New(appVersion string, validator backup.Validator) *Service {
 	if strings.TrimSpace(appVersion) == "" {
 		appVersion = "unknown"
 	}
-	return &Service{
+	service := &Service{
 		appVersion: appVersion,
 		validator:  validator,
 		now:        time.Now, random: rand.Reader,
 		rename: os.Rename, removeAll: os.RemoveAll,
 	}
+	service.reconciler, _ = validator.(backup.RestoreReconciler)
+	return service
 }
 
 func (service *Service) Create(ctx context.Context, root string, options backup.CreateOptions) (result backup.Info, err error) {
@@ -211,6 +214,23 @@ func (service *Service) Restore(ctx context.Context, root, id string) (result ba
 		}
 		if version != manifest.DatabaseSchemaVersion {
 			return backup.Info{}, fmt.Errorf("%w: database schema is %d, manifest records %d", backup.ErrCorrupt, version, manifest.DatabaseSchemaVersion)
+		}
+		if service.reconciler == nil {
+			return backup.Info{}, errors.New("database restore artifact reconciliation is unavailable")
+		}
+		if err := service.reconciler.ReconcileUnbackedArtifacts(
+			ctx,
+			filepath.Join(internal, "learning.db"),
+			filepath.Join(staging, "learning.db"),
+		); err != nil {
+			return backup.Info{}, fmt.Errorf("reconcile unbacked artifacts in restore database: %w", err)
+		}
+		version, err = service.validator.Validate(ctx, filepath.Join(staging, "learning.db"))
+		if err != nil {
+			return backup.Info{}, fmt.Errorf("validate reconciled restore database in staging: %w", err)
+		}
+		if version != manifest.DatabaseSchemaVersion {
+			return backup.Info{}, fmt.Errorf("%w: reconciled database schema is %d, manifest records %d", backup.ErrCorrupt, version, manifest.DatabaseSchemaVersion)
 		}
 	}
 	stagedMetadata, err := readWorkspaceMetadata(filepath.Join(staging, "workspace.json"))

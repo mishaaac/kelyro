@@ -59,6 +59,12 @@ type Validator interface {
 	Validate(ctx context.Context, databasePath string) (schemaVersion int, err error)
 }
 
+// RestoreReconciler preserves integrity metadata for workspace artifacts that
+// intentionally remain outside a backup while a database snapshot is restored.
+type RestoreReconciler interface {
+	ReconcileUnbackedArtifacts(ctx context.Context, currentDatabasePath, restoredDatabasePath string) error
+}
+
 // Service protects the allowlisted machine-owned state of one workspace.
 type Service interface {
 	Create(ctx context.Context, workspaceRoot string, options CreateOptions) (Info, error)
