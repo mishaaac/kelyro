@@ -1566,3 +1566,50 @@ Published: 2026-08-24T13:12:44Z
   claimed or introduced.
 - Final GitHub verification reported `draft=false`, `prerelease=true`, seven
   uploaded assets, and no blocking acceptance defect.
+
+## Post-closure regression — Backup and generated-artifact coherence
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Reproduction
+
+- A manual packaged-binary pass exported generated learning Markdown at a 90%
+  workspace mastery override, created a backup, regenerated the same documents
+  at 70%, and restored the backup.
+- The database correctly returned to 90%, while the visible Markdown correctly
+  remained outside the machine-state backup at 70%.
+- `kelyro progress export` then failed with `generated artifact was modified
+  externally` because the restored database also restored the older
+  `artifact_index` hashes. Kelyro therefore misclassified its own current 70%
+  projection as a human edit.
+
+### Fix
+
+- Restore now reconciles the current integrity records for visible generated
+  artifacts into the staged database before its atomic swap. The staged
+  database receives a second full snapshot validation after reconciliation.
+- Backup contents and format remain unchanged: visible Markdown is still not
+  copied or overwritten by backup restore.
+- A genuine human edit remains protected because its bytes still differ from
+  the preserved current content hash.
+- No migration, educational algorithm, I-03 behavior, or backup allowlist was
+  changed.
+
+### Verification
+
+- Regression tests cover successful regeneration of all three progress
+  documents after restore and continued rejection of a genuine human edit.
+- Foundation E2E covers the exact `90% -> backup -> 70% -> restore -> progress
+  export` CLI path.
+- Full quality gate passed: unit/integration tests, tagged E2E, `go vet`, Linux
+  race suite, build, version smoke, and help smoke.
+- Release tooling built six archives for commit `f412d28`; all entries in
+  `SHA256SUMS` verified, and the installed Linux `amd64` binary was static with
+  correct embedded version, commit, and build date.
+- Manual isolated Linux acceptance passed onboarding through the TUI, the
+  corrected restore/regeneration path, post-restore human-edit protection,
+  full export/dry-run/import, goal pause/resume, learner views, offline update
+  and Research/Source commands, cache maintenance, recalculation dry-run,
+  audit inspection, and final Doctor health.

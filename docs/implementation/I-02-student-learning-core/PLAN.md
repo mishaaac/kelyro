@@ -3139,6 +3139,18 @@ Crear annotated tag únicamente si corresponde a release real.
 
 ---
 
+## Mantenimiento posterior al cierre — Coherencia entre restore y Markdown generado
+
+- [x] Regresión reproducible corregida
+
+Un restore debe conservar el índice de integridad correspondiente a los
+artefactos visibles que permanecen fuera del backup. Después de restaurar una
+fuente de verdad anterior, `kelyro progress export` debe poder regenerar una
+proyección no modificada, sin perder la protección cuando el usuario sí editó
+el Markdown.
+
+---
+
 # Checklist final — I-02 Student & Learning Core
 
 ## Ejecución
