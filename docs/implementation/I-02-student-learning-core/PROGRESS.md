@@ -1613,3 +1613,40 @@ Release: unreleased
   full export/dry-run/import, goal pause/resume, learner views, offline update
   and Research/Source commands, cache maintenance, recalculation dry-run,
   audit inspection, and final Doctor health.
+
+## Post-closure regression — TUI dashboard and session-write serialization
+
+Status: completed
+Date: 2026-08-30
+Release: v0.2.0-alpha.1
+
+### Reproduction
+
+- Release-candidate CI run `33327245490` passed unit tests on Ubuntu but the
+  Foundation/Student/Research E2E failed after onboarding with `SQLITE_BUSY`.
+- The completed-setup view started a dashboard refresh, which may persist the
+  adaptive daily plan. Pressing Enter immediately started a session checkpoint
+  through a second SQLite connection while that refresh was still active.
+- The collision was timing-sensitive: the candidate passed locally and on
+  macOS/Windows, while the slower Ubuntu runner exposed it reliably in that
+  run.
+
+### Fix
+
+- Session checkpoints requested during a dashboard load are now deferred until
+  the dashboard succeeds or fails, then resumed exactly once.
+- Graceful quit follows the same ordering and waits for an active dashboard
+  load before completing the durable session.
+- The change is confined to TUI command coordination. It does not change the
+  SQLite schema, transaction semantics, educational policies, or Research
+  behavior.
+
+### Verification
+
+- Unit regressions prove that onboarding-to-home does not checkpoint while the
+  dashboard command is active and that quit does not complete the session
+  concurrently with that command.
+- The exact failed `reopen_and_resume` E2E path passed 10 consecutive runs.
+- The complete tagged E2E package passed five consecutive runs.
+- The full local quality gate passed: unit/integration tests, tagged E2E,
+  `go vet`, Linux race suite, build, version smoke, and help smoke.
