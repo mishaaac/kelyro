@@ -16,7 +16,7 @@ func TestPlanIndividualGates(t *testing.T) {
 		{name: "test", gate: "test", want: []command{{name: "go", args: []string{"test", "./..."}}}},
 		{name: "e2e", gate: "e2e", want: []command{{name: "go", args: []string{"test", "-tags=e2e", "./tests/e2e"}}}},
 		{name: "vet", gate: "vet", want: []command{{name: "go", args: []string{"vet", "./..."}}}},
-		{name: "race", gate: "race", want: []command{{name: "go", args: []string{"test", "-race", "./..."}}}},
+		{name: "race", gate: "race", want: []command{{name: "go", args: []string{"test", "-race", "-timeout=20m", "./..."}}}},
 		{name: "build and smoke", gate: "build-smoke", want: []command{
 			{name: "go", args: []string{"build", "-o", binary, "./cmd/kelyro"}},
 			{name: binary, args: []string{"--version"}},
@@ -47,7 +47,7 @@ func TestPlanAllPreservesGateOrder(t *testing.T) {
 		{name: "go", args: []string{"test", "./..."}},
 		{name: "go", args: []string{"test", "-tags=e2e", "./tests/e2e"}},
 		{name: "go", args: []string{"vet", "./..."}},
-		{name: "go", args: []string{"test", "-race", "./..."}},
+		{name: "go", args: []string{"test", "-race", "-timeout=20m", "./..."}},
 		{name: "go", args: []string{"build", "-o", binary, "./cmd/kelyro"}},
 		{name: binary, args: []string{"--version"}},
 		{name: binary, args: []string{"--help"}},

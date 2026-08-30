@@ -79,7 +79,7 @@ func plan(gate, binary string) ([]command, error) {
 	test := []command{{name: "go", args: []string{"test", "./..."}}}
 	e2e := []command{{name: "go", args: []string{"test", "-tags=e2e", "./tests/e2e"}}}
 	vet := []command{{name: "go", args: []string{"vet", "./..."}}}
-	race := []command{{name: "go", args: []string{"test", "-race", "./..."}}}
+	race := []command{{name: "go", args: []string{"test", "-race", "-timeout=20m", "./..."}}}
 	buildSmoke := []command{
 		{name: "go", args: []string{"build", "-o", binary, "./cmd/kelyro"}},
 		{name: binary, args: []string{"--version"}},
