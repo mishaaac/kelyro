@@ -96,3 +96,11 @@ V1 does not discover candidate Claims, parse web prose, calculate freshness,
 count independent organizations, verify a Claim from multiple sources, modify
 Source Bundles, compile curriculum, migrate learner content, or change Student
 Core state.
+
+## I-03 closure status
+
+Step 49 reconfirmed `conflict-resolver-v1` as the shipped append-only conflict
+contract. Contradictions, version/scope mismatches and unresolved outcomes stay
+visible; the resolver cannot invent a winner or mutate bundles, curriculum, or
+Student Core. Hosted CI for the current source commit remains the final formal
+closure gate.

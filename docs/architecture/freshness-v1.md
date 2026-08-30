@@ -118,3 +118,11 @@ absent.
 
 Refresh scheduling is specified separately in
 [refresh-scheduling-v1.md](refresh-scheduling-v1.md).
+
+## I-03 closure status
+
+Step 49 reconfirmed `freshness-v1` and its injectable clock as the shipped
+evidence-age contract. Authority remains independent from age, historical and
+version-bound evidence remains explicit, and refresh scheduling supplies the
+next-verification decision without performing network access. Hosted CI for
+the current source commit remains the final formal closure gate.

@@ -3582,3 +3582,71 @@ Release: unreleased
 - El Paso 49 es el siguiente paso pendiente y requiere autorización explícita.
 - El cierre debe consumir este registro y los gates existentes sin reabrir
   dogfooding, añadir un public provider ni comenzar I-04.
+
+## Step 49 — Formal I-03 Research & Source Intelligence closure
+
+Status: pending hosted CI
+Date: 2026-08-29
+Release at source closure candidate: unreleased; latest published release is
+`v0.1.0-alpha.3` and does not contain I-03
+
+### Delivered in the closure candidate
+
+- Auditoría formal de los Pasos 0–48 contra sus 49 registros individuales y
+  la historia de commits desde el baseline `498b9fb`; todos están implementados
+  y sus checkboxes de ejecución/capacidad fueron reconciliados con evidencia.
+- `README.md` actualizado con el alcance I-03 realmente disponible, la
+  separación entre source completion y el prerelease publicado, los comandos
+  Research/Sources, privacy/offline y las limitaciones previas a I-04.
+- `AGENTS.md` actualizado para tratar I-03 como implementación terminada que
+  solo puede reabrirse por regresión reproducible o cambio de compatibilidad,
+  manteniendo I-04 sujeto a especificación y autorización separadas.
+- Índice arquitectónico y los siete contratos exigidos por el Paso 49
+  actualizados con su estado de cierre y sus límites estables: domain, trust,
+  freshness, conflict, drift, research-to-curriculum y content retention.
+- Auditoría directa de imports: el dominio raíz `internal/research` conserva
+  solo standard library y subpackages Research; no importa Bubble Tea, SQLite,
+  `net/http`, Student Core ni adapters de sistema operativo.
+- Checklist final sincronizado hasta la evidencia existente. Los checks hosted
+  CI, Paso 49 y Ready for I-04 permanecen deliberadamente sin marcar.
+
+### Decisions
+
+- Source completion y publicación siguen siendo eventos distintos. El cierre
+  no crea tag ni elige una versión futura: `v0.1.0-alpha.3` es el SemVer real
+  publicado, pero contiene I-02 y no se reetiqueta como si incluyera I-03.
+- La matriz `.github/workflows/ci.yml` ejecuta test, E2E, vet, build/smoke en
+  Ubuntu, macOS y Windows, más race en Linux. Configuración y cross-compilation
+  no se registran como un hosted run exitoso.
+- `gh run list --branch I03-KELYRO` devolvió una lista vacía. El último CI
+  hospedado exitoso pertenece a `main` en `498b9fb`, baseline anterior a I-03;
+  por tanto no demuestra el commit candidato actual.
+- Publicar la rama es un cambio remoto fuera del requisito repository-local de
+  commit. El Paso 49 no se marca completo sin autorización para push y un run
+  exitoso del commit de cierre.
+- No se añadió provider público, Curriculum Compiler, Learning Pack, AI
+  Research Reviewer, migración automática ni mutación de Student Core.
+
+### Verification completed locally
+
+- `go mod verify` y `gofmt -l` sobre todos los Go files versionados.
+- Scan de firmas comunes de private keys y tokens sobre archivos versionados,
+  sin findings; configuración, logs y tests conservan redacción de secretos.
+- Suites dirigidas de privacy, hardened HTTP/fetch/normalization/cache,
+  `internal/research/...`, SQLite y TUI.
+- Compilación completa con `-tags=e2e` y `-exec=/bin/true` para
+  Windows/amd64 y macOS/amd64, más build del CLI con `CGO_ENABLED=0` para ambos.
+- Opt-in live smoke y dogfooding real completados en los Pasos 47–48.
+- Quality gate completo con unit tests, Foundation/Student/I-03 E2E, vet, race,
+  build y smokes CLI; SQLite race finalizó en 571.559 s.
+- `git diff --check` y clean-tree se verifican al cerrar el commit candidato.
+
+### Remaining gate
+
+1. Publicar el commit candidato en una rama remota autorizada.
+2. Esperar el workflow `CI` del SHA exacto y comprobar éxito de Ubuntu, macOS,
+   Windows y Linux race.
+3. Solo entonces marcar Paso 49, los tres checks CI, todos-los-pasos y Ready for
+   I-04, y añadir el completion record definitivo.
+
+I-04 no está autorizado ni iniciado mientras este gate permanezca pendiente.

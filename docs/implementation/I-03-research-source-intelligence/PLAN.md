@@ -3182,49 +3182,49 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Paso 0 — Apertura formal
 - [x] Paso 1 — Research domain
 - [x] Paso 2 — Service boundaries
-- [ ] Paso 3 — Persistence
-- [ ] Paso 4 — Trust Policy
-- [ ] Paso 5 — Authority Profiles
-- [ ] Paso 6 — Trusted Registry
-- [ ] Paso 7 — Privacy/network gate
-- [ ] Paso 8 — HTTP client
-- [ ] Paso 9 — Fetcher/Snapshots
+- [x] Paso 3 — Persistence
+- [x] Paso 4 — Trust Policy
+- [x] Paso 5 — Authority Profiles
+- [x] Paso 6 — Trusted Registry
+- [x] Paso 7 — Privacy/network gate
+- [x] Paso 8 — HTTP client
+- [x] Paso 9 — Fetcher/Snapshots
 - [x] Paso 10 — Normalization
-- [ ] Paso 11 — Discovery abstraction
+- [x] Paso 11 — Discovery abstraction
 - [x] Paso 12 — Query Planner
 - [x] Paso 13 — Evidence/Claims
 - [x] Paso 14 — Provenance
 - [x] Paso 15 — Citations/Deep Links
 - [x] Paso 16 — Freshness
 - [x] Paso 17 — Verification scheduling
-- [ ] Paso 18 — Resource Quality
-- [ ] Paso 19 — Release model
+- [x] Paso 18 — Resource Quality
+- [x] Paso 19 — Release model
 - [x] Paso 20 — Release discovery
 - [x] Paso 21 — Deprecation
 - [x] Paso 22 — Historical sources
-- [ ] Paso 23 — Conflict Resolver
+- [x] Paso 23 — Conflict Resolver
 - [x] Paso 24 — Multi-source Verification
 - [x] Paso 25 — Source Bundle
-- [ ] Paso 26 — Further Reading
+- [x] Paso 26 — Further Reading
 - [x] Paso 27 — Playground/Package/Standards
 - [x] Paso 28 — Community Resources
 - [x] Paso 29 — Video Supplements
 - [x] Paso 30 — Source Diversity
-- [ ] Paso 31 — Real Source Code
-- [ ] Paso 32 — Offline Research Cache
+- [x] Paso 31 — Real Source Code
+- [x] Paso 32 — Offline Research Cache
 - [x] Paso 33 — Cost Control
 - [x] Paso 34 — Trigger Policies
 - [x] Paso 35 — Research/Sources CLI
-- [ ] Paso 36 — TUI Transparency
+- [x] Paso 36 — TUI Transparency
 - [x] Paso 37 — Update Scan
 - [x] Paso 38 — Drift Detection
-- [ ] Paso 39 — Impact Analysis
-- [ ] Paso 40 — Migration contracts
+- [x] Paso 39 — Impact Analysis
+- [x] Paso 40 — Migration contracts
 - [x] Paso 41 — Compiler contract
 - [x] Paso 42 — Research Audit
-- [ ] Paso 43 — Copyright/retention
-- [ ] Paso 44 — Security hardening
-- [ ] Paso 45 — Performance/concurrency
+- [x] Paso 43 — Copyright/retention
+- [x] Paso 44 — Security hardening
+- [x] Paso 45 — Performance/concurrency
 - [x] Paso 46 — E2E controlled
 - [x] Paso 47 — Live integration opt-in
 - [x] Paso 48 — Dogfooding
@@ -3236,33 +3236,33 @@ No asumir número de versión. Usar SemVer real del repositorio.
 
 ## Sources
 
-- [ ] Source identity
-- [ ] Source kinds
-- [ ] Canonical locators
-- [ ] Trusted registry
-- [ ] Authority profiles
-- [ ] Historical status
-- [ ] Version scope
-- [ ] Snapshots
-- [ ] Content hashes
-- [ ] Conditional fetch
+- [x] Source identity
+- [x] Source kinds
+- [x] Canonical locators
+- [x] Trusted registry
+- [x] Authority profiles
+- [x] Historical status
+- [x] Version scope
+- [x] Snapshots
+- [x] Content hashes
+- [x] Conditional fetch
 
 ## Trust
 
-- [ ] Trust Policy v1
-- [ ] Topic-aware authority
-- [ ] Primary Sources First
-- [ ] Supplementary resources
-- [ ] Blocked sources
-- [ ] Trust explanations
+- [x] Trust Policy v1
+- [x] Topic-aware authority
+- [x] Primary Sources First
+- [x] Supplementary resources
+- [x] Blocked sources
+- [x] Trust explanations
 
 ## Discovery
 
-- [ ] SearchProvider abstraction
+- [x] SearchProvider abstraction
 - [x] Query Planner v1
-- [ ] Deduplication
-- [ ] Cost-aware discovery
-- [ ] Offline behavior
+- [x] Deduplication
+- [x] Cost-aware discovery
+- [x] Offline behavior
 
 ## Evidence
 
@@ -3270,132 +3270,132 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [x] Claims
 - [x] Bounded excerpts
 - [x] Provenance
-- [ ] Citations
-- [ ] Deep links
-- [ ] Source bundles
-- [ ] Reproducible hashes
+- [x] Citations
+- [x] Deep links
+- [x] Source bundles
+- [x] Reproducible hashes
 
 ## Verification
 
 - [x] Multi-source verification
-- [ ] Source diversity
-- [ ] Conflict detection
-- [ ] Conflict Resolver v1
-- [ ] Unresolved conflict state
+- [x] Source diversity
+- [x] Conflict detection
+- [x] Conflict Resolver v1
+- [x] Unresolved conflict state
 - [x] Claim confidence
 
 ## Freshness
 
-- [ ] Last verified
-- [ ] Freshness v1
-- [ ] Stale detection
-- [ ] Refresh scheduling
-- [ ] Trigger policies
+- [x] Last verified
+- [x] Freshness v1
+- [x] Stale detection
+- [x] Refresh scheduling
+- [x] Trigger policies
 
 ## Releases
 
-- [ ] Release records
-- [ ] Stable
-- [ ] Preview/beta/rc
-- [ ] Experimental
-- [ ] Legacy/EOL
-- [ ] Release notes
-- [ ] Deprecation
-- [ ] Historical guidance
+- [x] Release records
+- [x] Stable
+- [x] Preview/beta/rc
+- [x] Experimental
+- [x] Legacy/EOL
+- [x] Release notes
+- [x] Deprecation
+- [x] Historical guidance
 
 ## Resource intelligence
 
-- [ ] Resource Quality v1
-- [ ] Further Reading
-- [ ] Package References
-- [ ] Playgrounds
-- [ ] Standards
-- [ ] Community Resources
-- [ ] Video Supplements
-- [ ] Real Source Code
+- [x] Resource Quality v1
+- [x] Further Reading
+- [x] Package References
+- [x] Playgrounds
+- [x] Standards
+- [x] Community Resources
+- [x] Video Supplements
+- [x] Real Source Code
 
 ## Research operations
 
-- [ ] Research runs
+- [x] Research runs
 - [x] Research audit
-- [ ] Cost stats
-- [ ] Offline cache
-- [ ] Update scan
-- [ ] Drift report
-- [ ] Impact report
-- [ ] CLI
-- [ ] TUI source transparency
+- [x] Cost stats
+- [x] Offline cache
+- [x] Update scan
+- [x] Drift report
+- [x] Impact report
+- [x] CLI
+- [x] TUI source transparency
 
 ## I-04 contracts
 
 - [x] Ready-for-compile status
-- [ ] Source Bundle API
-- [ ] Drift contract
-- [ ] Impact contract
-- [ ] Selective migration metadata
-- [ ] Student-safe update boundary
+- [x] Source Bundle API
+- [x] Drift contract
+- [x] Impact contract
+- [x] Selective migration metadata
+- [x] Student-safe update boundary
 
 ---
 
 # Definition of Done — I-03
 
-- [ ] I-01/I-02 sin regresiones críticas
-- [ ] Research domain independiente de HTTP/SQLite/UI
-- [ ] `privacy.allow_network=false` bloquea todo live research
-- [ ] Offline cache funciona
-- [ ] Offline evidence permanece consultable
-- [ ] Search result nunca se trata directamente como evidence
-- [ ] Primary Sources First implementado
-- [ ] Trust decisions son explicables
-- [ ] Authority depende del tópico
-- [ ] Source snapshots son inmutables
-- [ ] Content hashes son reproducibles
+- [x] I-01/I-02 sin regresiones críticas
+- [x] Research domain independiente de HTTP/SQLite/UI
+- [x] `privacy.allow_network=false` bloquea todo live research
+- [x] Offline cache funciona
+- [x] Offline evidence permanece consultable
+- [x] Search result nunca se trata directamente como evidence
+- [x] Primary Sources First implementado
+- [x] Trust decisions son explicables
+- [x] Authority depende del tópico
+- [x] Source snapshots son inmutables
+- [x] Content hashes son reproducibles
 - [x] Claims requieren evidence
 - [x] Evidence tiene provenance
-- [ ] Citations tienen source/snapshot
+- [x] Citations tienen source/snapshot
 - [x] Excerpts respetan política bounded
-- [ ] No se exportan bodies externos por defecto
-- [ ] Freshness usa clock injectable
-- [ ] Historical ≠ current
-- [ ] Release status distingue stable/preview/experimental/legacy
-- [ ] Deprecation requiere evidence
-- [ ] Conflict no se oculta
+- [x] No se exportan bodies externos por defecto
+- [x] Freshness usa clock injectable
+- [x] Historical ≠ current
+- [x] Release status distingue stable/preview/experimental/legacy
+- [x] Deprecation requiere evidence
+- [x] Conflict no se oculta
 - [x] Multi-source verification funciona
 - [x] Same organization no cuenta automáticamente como múltiples fuentes independientes
-- [ ] Resource quality separado de authority
-- [ ] Community resources etiquetados
-- [ ] Video es supplementary por defecto
-- [ ] Source code usa permalinks cuando se usa como evidence
-- [ ] Research cost bounded
-- [ ] Update Scan funciona
-- [ ] Drift detection funciona
-- [ ] Impact report funciona
-- [ ] I-03 no modifica curriculum final
-- [ ] I-03 no modifica Student Mastery
+- [x] Resource quality separado de authority
+- [x] Community resources etiquetados
+- [x] Video es supplementary por defecto
+- [x] Source code usa permalinks cuando se usa como evidence
+- [x] Research cost bounded
+- [x] Update Scan funciona
+- [x] Drift detection funciona
+- [x] Impact report funciona
+- [x] I-03 no modifica curriculum final
+- [x] I-03 no modifica Student Mastery
 - [x] I-04 contracts documentados
 - [x] Research audit registra algoritmos/providers/snapshots
-- [ ] Security review pasa
-- [ ] SSRF protections pasan
-- [ ] No secrets en logs
-- [ ] No prompt instructions desde fuentes externas
-- [ ] Large fixture razonable
-- [ ] Concurrency bounded
-- [ ] `go test ./...` pasa
-- [ ] `go vet ./...` pasa
-- [ ] race tests aplicables pasan
+- [x] Security review pasa
+- [x] SSRF protections pasan
+- [x] No secrets en logs
+- [x] No prompt instructions desde fuentes externas
+- [x] Large fixture razonable
+- [x] Concurrency bounded
+- [x] `go test ./...` pasa
+- [x] `go vet ./...` pasa
+- [x] race tests aplicables pasan
 - [ ] CI Linux pasa
 - [ ] CI Windows pasa
 - [ ] CI macOS pasa
-- [ ] E2E I-03 pasa
-- [ ] Live opt-in smoke realizado
-- [ ] Dogfooding realizado
-- [ ] Bundles revisados manualmente contra fuentes
-- [ ] No bugs críticos/bloqueantes conocidos
+- [x] E2E I-03 pasa
+- [x] Live opt-in smoke realizado
+- [x] Dogfooding realizado
+- [x] Bundles revisados manualmente contra fuentes
+- [x] No bugs críticos/bloqueantes conocidos
 - [ ] Todos los pasos completados marcados `[x]`
-- [ ] PROGRESS.md actualizado por paso
-- [ ] Commits Conventional Commit coherentes
-- [ ] Working tree limpio
-- [ ] Release final respeta SemVer
+- [x] PROGRESS.md actualizado por paso
+- [x] Commits Conventional Commit coherentes
+- [x] Working tree limpio
+- [x] Release final respeta SemVer
 - [ ] Ready for I-04
 
 ---

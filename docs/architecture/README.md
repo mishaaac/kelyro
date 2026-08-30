@@ -4,10 +4,12 @@ Kelyro is being built as a local-first, cross-platform system whose core stays
 independent from presentation frameworks, storage engines, external services,
 AI providers, and operating-system details.
 
-I-02 Student & Learning Core is complete in source. The records below are the
-stable v1 contracts and adapter boundaries that later implementations consume;
-they do not imply that Research, production Learning Packs, generated
-exercises, or AI runtime behavior already exist.
+I-02 Student & Learning Core and the I-03 Research & Source Intelligence
+implementation are complete in source. I-03 formal closure still requires a
+hosted Linux/macOS/Windows CI run for its current source commit. The records
+below are stable v1 contracts and adapter boundaries for later implementations;
+they do not imply that a production Curriculum Compiler, Learning Packs,
+generated exercises, automatic learner migration, or AI runtime already exist.
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

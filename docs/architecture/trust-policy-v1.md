@@ -147,3 +147,12 @@ not invent missing facts. It does not persist its output; existing
 `TrustRegistryRepository.SaveDecision` adapters own persistence. It does not
 perform multi-source verification, calculate freshness, resolve conflicts,
 score resource quality, fetch sources, or modify curriculum/student state.
+
+## I-03 closure status
+
+Step 49 reconfirmed `trust-policy-v1` as the shipped contextual trust contract:
+authority, freshness, relevance, directness, stability and corroboration remain
+separate explainable inputs. Community or experimental material cannot silently
+replace stronger primary evidence, and trust never converts discovery output
+into Evidence. Hosted CI for the current source commit remains the final formal
+closure gate.

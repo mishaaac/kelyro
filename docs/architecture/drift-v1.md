@@ -72,3 +72,11 @@ remains readable but cannot masquerade as a new v1 conclusion.
   observations before Drift v1 can classify them.
 - Step 39 owns impact analysis. Step 38 does not identify lessons/concepts,
   compile curriculum, migrate content, or mutate Student Core/mastery.
+
+## I-03 closure status
+
+Step 49 reconfirmed `drift-v1` as the shipped conservative comparison contract.
+A changed representation is not automatically a changed Claim, missing current
+evidence is not invalidation, and all curriculum/learner actions remain outside
+the policy. Hosted CI for the current source commit remains the final formal
+closure gate.

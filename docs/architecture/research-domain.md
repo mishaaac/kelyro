@@ -347,3 +347,12 @@ The following remain intentionally absent from this step:
 
 These boundaries keep Step 01 a domain-language foundation rather than a
 premature Research Engine implementation.
+
+## I-03 closure status
+
+The formal Step 49 audit reconfirmed that the root `internal/research` domain
+uses only the Go standard library and Research subpackages. It does not import
+Bubble Tea, SQLite, `net/http`, Student Core, or operating-system adapters, and
+it exposes change intelligence without compiling curriculum or mutating
+learner state. This domain contract is frozen as an I-04 input; hosted CI for
+the current source commit remains the final closure gate.

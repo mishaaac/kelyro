@@ -275,3 +275,11 @@ Step 40 does not implement:
 Step 41 separately defines the source-driven compiler request/response API.
 I-04 must specify and implement compilation and migration behavior before any
 of these future writes are authorized.
+
+## I-03 closure status
+
+Step 49 reconfirmed `research-to-curriculum-update/v1` as an advisory,
+transport-neutral boundary ready for a separately authorized I-04. I-03 emits
+structured evidence, drift and impact identities but cannot compile curriculum,
+bind a learner to a new version, or transfer mastery. Hosted CI for the current
+source commit remains the final formal closure gate.
