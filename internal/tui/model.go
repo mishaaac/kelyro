@@ -222,11 +222,11 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.dashboard = message.dashboard
 		model.dashboardLoading = false
 		model.dashboardErr = nil
-		return model, nil
+		return model.finishDashboardLoad()
 	case dashboardLoadFailedMsg:
 		model.dashboardLoading = false
 		model.dashboardErr = message.err
-		return model, nil
+		return model.finishDashboardLoad()
 	case configSavedMsg:
 		model.snapshot.Settings = cloneSettings(model.snapshot.Settings)
 		model.snapshot.Settings[message.key] = message.value
@@ -622,6 +622,10 @@ func (model Model) queueCheckpoint() (tea.Model, tea.Cmd) {
 	if !model.sessionReady || model.quitting {
 		return model, nil
 	}
+	if model.dashboardLoading {
+		model.checkpointPending = true
+		return model, nil
+	}
 	if model.checkpointing {
 		model.checkpointPending = true
 		return model, nil
@@ -647,6 +651,17 @@ func (model Model) checkpointFinished(err error) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
+func (model Model) finishDashboardLoad() (tea.Model, tea.Cmd) {
+	if model.quitting {
+		return model, completeSessionCmd(model.ctx, model.service, model.command, model.session)
+	}
+	if model.checkpointPending && !model.checkpointing {
+		model.checkpointPending = false
+		return model.queueCheckpoint()
+	}
+	return model, nil
+}
+
 func (model Model) beginQuit() (tea.Model, tea.Cmd) {
 	if model.quitting {
 		return model, nil
@@ -660,7 +675,7 @@ func (model Model) beginQuit() (tea.Model, tea.Cmd) {
 	}
 	model.quitting = true
 	model.checkpointPending = false
-	if model.checkpointing {
+	if model.checkpointing || model.dashboardLoading {
 		return model, nil
 	}
 	return model, completeSessionCmd(model.ctx, model.service, model.command, model.session)

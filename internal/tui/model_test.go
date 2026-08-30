@@ -484,6 +484,66 @@ func TestCompletedOnboardingLoadsDashboardBeforeReturningHome(t *testing.T) {
 	}
 }
 
+func TestCompletedOnboardingDefersSessionWriteUntilDashboardLoadFinishes(t *testing.T) {
+	t.Parallel()
+	dashboard := tuiDashboard()
+	service := &fakeService{result: app.Result{Dashboard: &dashboard}}
+	model := readyModel(service)
+	model.screen = screenOnboarding
+	model.sessionReady = true
+	model.session.LastView = session.ViewOnboarding
+
+	completed, dashboardCommand := model.Update(onboardingLoadedMsg{view: learningapp.LearnerSetupView{
+		Setup: learning.LearnerSetup{Status: learning.SetupCompleted},
+	}})
+	if dashboardCommand == nil || !completed.(Model).dashboardLoading {
+		t.Fatal("completed onboarding did not start the dashboard load")
+	}
+
+	home, checkpointCommand := completed.(Model).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	deferred := home.(Model)
+	if checkpointCommand != nil || !deferred.checkpointPending || deferred.checkpointing {
+		t.Fatalf("session checkpoint was not deferred while the dashboard was loading: %+v", deferred)
+	}
+	if len(service.checkpoints) != 0 {
+		t.Fatalf("session checkpoint raced dashboard load: %+v", service.checkpoints)
+	}
+
+	loaded, checkpointCommand := deferred.Update(dashboardCommand())
+	if checkpointCommand == nil || loaded.(Model).dashboardLoading || !loaded.(Model).checkpointing {
+		t.Fatalf("dashboard completion did not release the deferred checkpoint: %+v", loaded)
+	}
+	checkpointed, _ := loaded.(Model).Update(checkpointCommand())
+	if checkpointed.(Model).checkpointing || len(service.checkpoints) != 1 || service.checkpoints[0].LastView != session.ViewHome {
+		t.Fatalf("deferred checkpoint = model %+v checkpoints %+v", checkpointed, service.checkpoints)
+	}
+}
+
+func TestQuitWaitsForDashboardLoadBeforeCompletingSession(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{}
+	model := readyModel(service)
+	model.sessionReady = true
+	model.dashboardLoading = true
+
+	quitting, completeCommand := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if completeCommand != nil || !quitting.(Model).quitting || len(service.completed) != 0 {
+		t.Fatalf("quit raced dashboard load: model %+v completed %+v", quitting, service.completed)
+	}
+
+	settled, completeCommand := quitting.(Model).Update(dashboardLoadFailedMsg{err: errors.New("dashboard unavailable")})
+	if completeCommand == nil || settled.(Model).dashboardLoading {
+		t.Fatalf("dashboard completion did not release quit: %+v", settled)
+	}
+	finished, quitCommand := settled.(Model).Update(completeCommand())
+	if len(service.completed) != 1 || quitCommand == nil {
+		t.Fatalf("deferred completion = model %+v completed %+v", finished, service.completed)
+	}
+	if _, ok := quitCommand().(tea.QuitMsg); !ok {
+		t.Fatalf("quit command message = %T, want tea.QuitMsg", quitCommand())
+	}
+}
+
 func TestStudentCoreEmptyAndLockedStatesAreExplicit(t *testing.T) {
 	t.Parallel()
 	model := readyModel(&fakeService{})
