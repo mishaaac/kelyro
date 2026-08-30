@@ -7,8 +7,9 @@ not a cryptographic signature or proof of publisher identity.
 
 Release-specific scope and limitations are recorded under [`docs/releases/`](releases/).
 The latest published prerelease is
-[`v0.1.0-alpha.3`](releases/v0.1.0-alpha.3.md), which delivers the completed and
-manually accepted I-02 Student & Learning Core.
+[`v0.2.0-alpha.1`](releases/v0.2.0-alpha.1.md), which delivers the completed and
+manually accepted I-03 Research & Source Intelligence layer on top of I-01 and
+I-02.
 
 ## Manual installation
 

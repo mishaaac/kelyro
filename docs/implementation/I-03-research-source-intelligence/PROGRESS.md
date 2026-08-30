@@ -4,7 +4,7 @@
 
 Current step: complete
 Last completed step: 49
-Current release: v0.1.0-alpha.3 (published prerelease)
+Current release: v0.2.0-alpha.1 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
 ## Registro
@@ -3649,7 +3649,7 @@ Release at source closure: unreleased; latest published release is
 ## I-03 Research & Source Intelligence Completion
 
 Status: completed
-Release: unreleased (latest published: v0.1.0-alpha.3, which does not contain I-03)
+Release: v0.2.0-alpha.1 (published prerelease)
 Completed steps: 0-49
 
 Algorithms:
@@ -3670,3 +3670,51 @@ Known limitations:
 
 Ready for:
 I-04 Curriculum Compiler & Learning Packs (requires separate spec and authorization)
+
+## Published prerelease v0.2.0-alpha.1
+
+Status: published; manual acceptance passed
+Date: 2026-08-30
+Release: v0.2.0-alpha.1
+Published: 2026-08-30T18:52:22Z
+
+### Delivered
+
+- Canonical SemVer prerelease selected for the completed I-03 Research &
+  Source Intelligence milestone, with no intentional breaking CLI, workspace,
+  or published-migration change since `v0.1.0-alpha.3`.
+- Annotated tag targets accepted release commit
+  `361adacfc53a5aef77561dee61e5a1a1c4029c19` on `main`.
+- The protected release workflow created six Linux/macOS/Windows archives and
+  `SHA256SUMS`; the reviewed draft was published explicitly as a prerelease
+  with the scoped I-03 notes and limitations.
+
+### Verification
+
+- The final `main` candidate passed hosted
+  [CI 33327862100](https://github.com/mishaaac/kelyro/actions/runs/33327862100)
+  on Ubuntu, macOS, and Windows, including Linux race coverage.
+- The tagged source independently passed
+  [Release 33328522856](https://github.com/mishaaac/kelyro/actions/runs/33328522856),
+  including source/tag validation, the three-platform quality matrix, Linux
+  race, archive construction, checksum generation, and packaged Linux smoke.
+- All six downloaded official archives matched `SHA256SUMS`. The accepted
+  Linux `amd64` archive has SHA-256
+  `71fd3abb5def7c23996485ee1642b6bc126da07f3616e3740add81fd70895ce0`.
+- The official Linux binary was static and reported the exact version, commit,
+  and build date. Isolated acceptance passed initialization, Doctor, Research
+  cache/status and privacy-blocked planning.
+- A second packaged-binary onboarding pass exercised the release-blocking
+  regression fix through immediate setup-to-dashboard navigation, rendered
+  `Study this week: 0m` without `SQLITE_BUSY`, persisted setup/goal/curriculum,
+  and exited cleanly.
+- Final GitHub verification reported `draft=false`, `prerelease=true`, seven
+  uploaded assets, and publication timestamp `2026-08-30T18:52:22Z`.
+
+### Boundaries retained
+
+- No configured public search provider, production Curriculum Compiler,
+  production Learning Packs, AI Research Reviewer, or automatic curriculum
+  migration was claimed or introduced.
+- I-04 remains unstarted and requires a separate specification and explicit
+  authorization.
