@@ -2980,7 +2980,7 @@ test(research): add opt-in live source integration checks
 
 ## Paso 48 — Dogfooding de Research & Source Intelligence
 
-- [ ] Paso 48 completado
+- [x] Paso 48 completado
 
 ### Objetivo
 
@@ -3227,7 +3227,7 @@ No asumir número de versión. Usar SemVer real del repositorio.
 - [ ] Paso 45 — Performance/concurrency
 - [x] Paso 46 — E2E controlled
 - [x] Paso 47 — Live integration opt-in
-- [ ] Paso 48 — Dogfooding
+- [x] Paso 48 — Dogfooding
 - [ ] Paso 49 — Cierre formal
 
 ---

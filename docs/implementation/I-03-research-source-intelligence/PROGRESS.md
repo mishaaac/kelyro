@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 48
-Last completed step: 47
+Current step: 49
+Last completed step: 48
 Current release: v0.1.0-alpha.3 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
@@ -3504,3 +3504,81 @@ Release: unreleased
 - El Paso 48 es el siguiente paso pendiente y requiere autorización explícita.
 - Dogfooding debe consumir los contratos ya cerrados; no convertir estos live
   smokes en CI obligatorio ni comenzar I-04.
+
+## Step 48 — Dogfooding de Research & Source Intelligence
+
+Status: completed
+Date: 2026-08-29
+Release: unreleased
+
+### Delivered
+
+- Sesión real documentada en `DOGFOOD.md` con los ocho perfiles exigidos:
+  concepto estable, API/version behavior, release reciente, feature
+  experimental, API deprecada, security guidance, comportamiento histórico y
+  tópico dominado por contenido comunitario.
+- Nueve captures live mediante privacy gate, hardened HTTP client, fetch
+  adapter y snapshot service; normalización HTML/text para fuentes de contenido
+  y parsing con el Atom provider real para el feed de releases.
+- Inventario de locators, tamaños y hashes canónicos. Las representaciones
+  source/Markdown/README se fijaron a commits exactos; el RFC se mantuvo en su
+  locator normativo y los documentos/feed mutables conservaron el hash de la
+  observación.
+- Segunda ejecución live con hashes idénticos y lectura de cada cuerpo desde el
+  cache filesystem en `ResearchModeOffline`, verificando que el hash recalculado
+  coincidiera con el snapshot sin invocar red.
+- Comparación humana claim por claim contra la sección primaria: 8/8
+  sustentados, cero inventados, cero contradichos y cero sin qualifier temporal
+  o de lifecycle requerido.
+- Matriz explícita de discovery, authority, primary selection, snapshots,
+  citations/provenance, freshness, conflicts, release state, Source Bundle,
+  CLI/TUI, offline y update scan, más auditoría de los ocho blockers del paso.
+
+### Decisions
+
+- I-03 no incorpora un public search provider durante dogfooding. Se revisó el
+  plan provider-neutral de `query-planner-v1` y se seleccionaron candidatos
+  manualmente; un candidate siguió sin ser Evidence hasta pasar trust, fetch,
+  normalización y extracción.
+- El README de `golang-standards/project-layout` quedó como tier D
+  suplementario y fue contrastado con la guía oficial de layout. Su propia
+  etiqueta no-oficial se conservó; no se promovió como estándar ni se trató una
+  diferencia de scope como conflicto factual.
+- La semántica pre-Go 1.22 y Go 1.22 de loop variables permaneció
+  version-bound. La antigüedad de RFC 2606 no convirtió automáticamente una BCP
+  todavía aplicable en guidance histórica.
+- La release `golangci-lint` `v2.13.2` fue parseada como stable por el Atom
+  provider y coincidió con la página oficial marcada latest al momento de la
+  observación. El feed conserva TTL corto y su hash es una observación mutable.
+- El HTML renderizado completo de Go 1.22 alcanzó correctamente
+  `output_limit`; se eligió el Markdown oficial más acotado y commit-pinned.
+  Rechazar output excesivo sin truncarlo silenciosamente y usar una
+  representación primaria acotada es el fallback esperado, no un bug.
+- No se conservó el harness one-off para evitar assertions frágiles sobre
+  fuentes mutables en CI. Los contratos repetibles siguen en live opt-in, E2E
+  controlado y tests application/TUI.
+- No se detectó defecto de producto que requiriera el ciclo
+  reproduce/regression/fix. No se modificó Student Core ni se inició I-04.
+
+### Verification
+
+- Harness one-off live ejecutado dos veces sobre las ocho categorías; la
+  ejecución final incluyó nueve snapshots, normalización/parsing y roundtrip
+  offline de todos los cuerpos con igualdad de hash.
+- Comparación manual con RFC Editor, documentación/release notes/security de
+  Go, source/package docs de Go, releases oficiales de golangci-lint y las dos
+  fuentes del perfil community-heavy.
+- `KELYRO_LIVE_RESEARCH_TESTS=1 go test ./tests/live -count=1 -v`.
+- `go test -tags=e2e ./tests/e2e -run
+  TestResearchEngineEvidencePipelineEndToEnd -count=1 -v`.
+- Tests dirigidos de application y TUI para update scan, citations, Source
+  Bundle, source transparency, conflicts y provenance.
+- `go test ./...`, `go vet ./...` y quality gate completo.
+- `gofmt` aplicado al harness temporal antes de ejecutarlo; harness eliminado y
+  `git diff --check` sin errores.
+
+### Notes for next session
+
+- El Paso 49 es el siguiente paso pendiente y requiere autorización explícita.
+- El cierre debe consumir este registro y los gates existentes sin reabrir
+  dogfooding, añadir un public provider ni comenzar I-04.
