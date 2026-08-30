@@ -7,9 +7,24 @@ persistence needed to build the product incrementally.
 
 ## Status
 
-The latest published prerelease is `v0.1.0-alpha.3`, which delivers the
-completed and manually accepted I-02 Student & Learning Core on top of the I-01
-Foundation. The executable provides workspace
+I-03 Research & Source Intelligence is formally complete after controlled E2E,
+opt-in live checks, real-source dogfooding, and hosted Linux/macOS/Windows CI
+with Linux race coverage. The latest published prerelease remains
+`v0.1.0-alpha.3`; it delivers the completed and manually accepted I-02 Student
+& Learning Core on top of I-01 and does not contain I-03.
+
+The Research layer now provides transport-neutral requests and runs,
+topic-aware authority and trust, privacy-gated discovery/fetch/release ports,
+bounded snapshots and evidence, provenance and citations, freshness,
+verification and explicit conflicts, release/deprecation intelligence, source
+bundles, offline cache, update/drift/impact reports, audit metadata, and
+Research/Sources CLI and TUI transparency. It intentionally has no configured
+public search provider, production Curriculum Compiler, production Learning
+Pack, AI Research Reviewer, or automatic curriculum/student-state migration.
+See the [I-03 progress record](docs/implementation/I-03-research-source-intelligence/PROGRESS.md)
+and [dogfooding report](docs/implementation/I-03-research-source-intelligence/DOGFOOD.md).
+
+The executable also provides workspace
 initialization, global/project configuration, secret management, safe opening
 of Foundation documents, portability and recovery operations, and an
 interactive TUI with resumable onboarding, a learning goal, mastery policy, an
@@ -88,7 +103,10 @@ artifacts can be verified by checksum/signature and installed with explicit
 consent.
 
 The TUI and the `status`, `progress`, `roadmap`, `today`, `doctor`, `config`,
-`backup`, and `export` commands remain local. `kelyro roadmap` renders the
+`backup`, and `export` commands remain local. Stored Research evidence,
+snapshots, bundles, conflicts, freshness and cache inventory also remain
+available offline. Live Research discovery, fetch, release lookup and update
+providers require the same explicit network permission. `kelyro roadmap` renders the
 active curriculum, while `kelyro progress export` safely regenerates
 `LEARNING.md`, `00-roadmap/ROADMAP.md`, and `00-roadmap/PROGRESS.md` from local
 state. Documentation links shown by Doctor are never fetched or opened
@@ -142,15 +160,17 @@ go run ./tools/quality all
 
 The Go-native quality runner requires no Make installation and works from the
 repository root on Linux, macOS, and Windows. The `all` gate runs unit tests,
-the isolated Foundation and Student Core lifecycle E2E suite, `vet`, race
-detection, a CLI build, and `--version`/`--help` smoke tests. Individual gates
-are also available as `test`, `e2e`, `vet`, `race`, and `build-smoke`. The E2E
-gate builds the real CLI with deterministic fake secret and release-provider
-adapters, so it never contacts a host keychain or the network.
+the isolated Foundation, Student Core, and controlled Research Engine E2E
+suites, `vet`, race detection, a CLI build, and `--version`/`--help` smoke
+tests. Individual gates are also available as `test`, `e2e`, `vet`, `race`,
+and `build-smoke`. The E2E gate builds the real CLI with deterministic fake
+secret/release adapters and a loopback-only Research fixture, so it never
+contacts a host keychain or the public Internet. Public-source adapter checks
+remain a separate explicit opt-in suite.
 
-GitHub Actions runs tests, Foundation and Student Core E2E, `vet`, the build,
-and smoke tests on Linux, macOS, and Windows. The required race gate runs on
-Linux because Go's race detector requires CGO and a supported C toolchain;
+GitHub Actions runs tests, Foundation/Student Core/Research E2E, `vet`, the
+build, and smoke tests on Linux, macOS, and Windows. The required race gate runs
+on Linux because Go's race detector requires CGO and a supported C toolchain;
 contributors on other platforms can run `go run ./tools/quality race` when
 their local toolchain supports it.
 

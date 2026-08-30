@@ -16,6 +16,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
+	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/update"
 )
 
@@ -1333,6 +1335,316 @@ func TestRunnerQuietSuppressesSuccessfulOutput(t *testing.T) {
 	}
 	if len(service.commands) != 1 || service.commands[0].Action != app.ActionStatus {
 		t.Errorf("commands = %#v, want one status command", service.commands)
+	}
+}
+
+func TestRunnerParsesAndRendersSourceRegistryCommands(t *testing.T) {
+	t.Parallel()
+	entry := cliRegistryEntry(t)
+	t.Run("sources alias", func(t *testing.T) {
+		source := cliSource(t)
+		service := &fakeService{result: app.Result{Sources: []research.Source{source}}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Example docs") {
+			t.Fatalf("sources = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if service.commands[0].SourceRegistryOperation != "sources-list" {
+			t.Fatalf("sources command = %+v", service.commands[0])
+		}
+	})
+	t.Run("source show", func(t *testing.T) {
+		source := cliSource(t)
+		service := &fakeService{result: app.Result{Source: &app.SourceCLIView{Source: source}}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "show", source.ID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Latest snapshot: not available") {
+			t.Fatalf("source show = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if service.commands[0].SourceID != source.ID || service.commands[0].SourceRegistryOperation != "source-show" {
+			t.Fatalf("source show command = %+v", service.commands[0])
+		}
+	})
+	t.Run("conflicts", func(t *testing.T) {
+		service := &fakeService{result: app.Result{SourceConflicts: []research.Conflict{}}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "conflicts"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "No unresolved conflicts") || service.commands[0].SourceRegistryOperation != "conflicts" {
+			t.Fatalf("conflicts = code %d stdout %q stderr %q command %+v", code, stdout.String(), stderr.String(), service.commands[0])
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		service := &fakeService{result: app.Result{SourceRegistryEntries: []research.SourceRegistryEntry{entry}}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "registry", "list"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "registry.blocked-example [blocked]") {
+			t.Fatalf("list = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].Action != app.ActionSources || service.commands[0].SourceRegistryOperation != "list" {
+			t.Fatalf("list command = %+v", service.commands)
+		}
+	})
+	t.Run("show", func(t *testing.T) {
+		service := &fakeService{result: app.Result{SourceRegistryEntry: &entry}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "registry", "show", entry.ID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Status: blocked") || !strings.Contains(stdout.String(), "not evidence") {
+			t.Fatalf("show = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].SourceRegistryID != entry.ID || service.commands[0].SourceRegistryOperation != "show" {
+			t.Fatalf("show command = %+v", service.commands)
+		}
+	})
+	t.Run("trace", func(t *testing.T) {
+		graph := cliProvenanceGraph(t)
+		service := &fakeService{result: app.Result{ProvenanceGraph: &graph}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "trace", graph.ClaimID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Claim provenance: claim.cli-trace") || !strings.Contains(stdout.String(), "historical snapshot") {
+			t.Fatalf("trace = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ProvenanceClaimID != graph.ClaimID || service.commands[0].SourceRegistryOperation != "trace" {
+			t.Fatalf("trace command = %+v", service.commands)
+		}
+	})
+	t.Run("stale", func(t *testing.T) {
+		last, _ := research.NewTimestamp(time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC))
+		dueAt, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+		score, _ := research.NewFreshnessScore(.4)
+		record := researchapp.FreshnessRecord{
+			SubjectID: cliID(t, "claim.cli-stale"), State: research.FreshnessStale, Score: score,
+			LastVerifiedAt: last, NextVerifyAt: &dueAt, VerificationReason: research.VerificationManualRequest,
+			Priority: research.VerificationPriorityCritical, AlgorithmVersion: research.FreshnessAlgorithmV1,
+			SchedulingAlgorithmVersion: research.RefreshSchedulingAlgorithmV1,
+		}
+		service := &fakeService{result: app.Result{StaleSources: []researchapp.FreshnessRecord{record}}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"sources", "stale"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "claim.cli-stale [critical]") || !strings.Contains(stdout.String(), "manual_request") {
+			t.Fatalf("stale = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].SourceRegistryOperation != "stale" {
+			t.Fatalf("stale command = %+v", service.commands)
+		}
+	})
+	for _, args := range [][]string{{"sources", "registry"}, {"sources", "registry", "show"}, {"sources", "registry", "delete", "id"}, {"sources", "trace"}, {"sources", "show"}} {
+		var stderr bytes.Buffer
+		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) code = %d, want usage; stderr=%q", args, code, stderr.String())
+		}
+	}
+}
+
+func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("topic", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		requestID := cliID(t, "request.cli-topic")
+		runID := cliID(t, "run.cli-topic")
+		topic, _ := research.NewResearchTopic("Go range over func", "general", "")
+		view := app.ResearchCLIView{Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at}, Run: research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunPlanned, StartedAt: at}, DiscoveryPending: true}
+		service := &fakeService{result: app.Result{ResearchView: &view}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "topic", "Go", "range", "over", "func"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Research: Go range over func") || !strings.Contains(stdout.String(), "blocked by privacy.allow_network") {
+			t.Fatalf("topic = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if service.commands[0].ResearchOperation != "topic" || service.commands[0].ResearchTopic != "Go range over func" {
+			t.Fatalf("topic command = %+v", service.commands[0])
+		}
+	})
+	t.Run("run status", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		requestID := cliID(t, "request.cli-status")
+		runID := cliID(t, "run.cli-status")
+		topic, _ := research.NewResearchTopic("Status topic", "general", "")
+		view := app.ResearchCLIView{Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at}, Run: research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunRunning, StartedAt: at}}
+		service := &fakeService{result: app.Result{ResearchView: &view}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "status", runID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Status: running") || service.commands[0].ResearchRunID != runID {
+			t.Fatalf("run status = code %d stdout %q stderr %q command %+v", code, stdout.String(), stderr.String(), service.commands[0])
+		}
+	})
+	t.Run("run audit show", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		requestID := cliID(t, "request.cli-audit")
+		runID := cliID(t, "run.cli-audit")
+		topic, _ := research.NewResearchTopic("Audited topic", "software", "Go")
+		record, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+			ID: cliID(t, "audit.cli-audit.planned"), RunID: runID, RecordedAt: at, StartedAt: at,
+			Outcome: research.ResearchRunPlanned, QueryPlannerVersion: "query-planner-v1", TrustPolicyVersion: "trust-policy-v1",
+			FreshnessVersion: research.FreshnessAlgorithmV1, ConflictResolverVersion: research.ConflictResolverAlgorithmV1,
+			NetworkMode: research.ResearchAuditNetworkAuto, Queries: []string{"Go audited topic official documentation"}, TargetTechnology: "Go",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		view := app.ResearchAuditCLIView{
+			Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at},
+			Run:     research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunPlanned, StartedAt: at},
+			Records: []research.ResearchRunAudit{record},
+		}
+		service := &fakeService{result: app.Result{ResearchAuditView: &view}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "show", runID.String()})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Research audit: "+runID.String()) ||
+			!strings.Contains(stdout.String(), "Query planner: query-planner-v1") ||
+			!strings.Contains(stdout.String(), "cannot guarantee that the future Internet") {
+			t.Fatalf("run audit show = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if service.commands[0].ResearchOperation != "show" || service.commands[0].ResearchRunID != runID {
+			t.Fatalf("run audit command = %+v", service.commands[0])
+		}
+	})
+	t.Run("stats", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		stats := researchapp.ResearchCostStats{
+			Used:      research.ResearchCostUsage{SearchRequests: 3, FetchRequests: 2, Bytes: 4096, ProviderAPICalls: 5},
+			TodayUsed: research.ResearchCostUsage{SearchRequests: 1}, CacheSavings: research.ResearchCostUsage{SearchRequests: 2},
+			Runs: 2, BudgetStoppedRuns: 1, AsOf: at, AlgorithmVersion: research.ResearchCostControlAlgorithmV1,
+		}
+		service := &fakeService{result: app.Result{ResearchCostStats: &stats}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "stats"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Research cost stats") || !strings.Contains(stdout.String(), "3 searches") || !strings.Contains(stdout.String(), "1 stopped by budget") {
+			t.Fatalf("stats = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ResearchOperation != "stats" {
+			t.Fatalf("stats command = %+v", service.commands)
+		}
+	})
+	t.Run("update scan", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC))
+		scan := research.UpdateScan{
+			ScannedAt: at,
+			Inventory: research.UpdateScanInventory{KnownTechnologies: 1, KnownReleases: 2, TrackedSources: 3, FreshnessDue: 1},
+			Signals: []research.UpdateSignal{{
+				Type: research.UpdateSignalChangedSource, Reference: "source.docs", Detail: "content hash changed",
+				Origin: research.UpdateSignalStoredMetadata, ObservedAt: at,
+			}},
+			IncompleteReasons: []research.UpdateScanIncompleteReason{research.UpdateScanNetworkDisabled},
+			AlgorithmVersion:  research.UpdateScanAlgorithmV1,
+		}
+		service := &fakeService{result: app.Result{UpdateScan: &scan}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "update-scan"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "incomplete (network_disabled)") ||
+			!strings.Contains(stdout.String(), "changed_source: source.docs") || !strings.Contains(stdout.String(), "does not modify curriculum") {
+			t.Fatalf("update scan = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ResearchOperation != "update-scan" {
+			t.Fatalf("update scan command = %+v", service.commands)
+		}
+	})
+	t.Run("status", func(t *testing.T) {
+		status := researchapp.ResearchCacheStatus{
+			AlgorithmVersion: researchapp.ResearchCacheAlgorithmV1,
+			TotalEntries:     3, TotalPayloadBytes: 240, StaleEntries: 1, CorruptEntries: 1, CorruptBytes: 12,
+			Layers: []researchapp.CacheLayerStatus{
+				{Layer: researchapp.CacheLayerDiscovery, Entries: 2, PayloadBytes: 120, StaleEntries: 1},
+				{Layer: researchapp.CacheLayerSourceBundle, Entries: 1, PayloadBytes: 120},
+			},
+		}
+		service := &fakeService{result: app.Result{ResearchCacheStatus: &status}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "cache", "status"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Algorithm: research-cache-v1") ||
+			!strings.Contains(stdout.String(), "discovery: 2 entries") || !strings.Contains(stdout.String(), "Corrupt: 1 entries") {
+			t.Fatalf("status = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].Action != app.ActionResearch || service.commands[0].ResearchCacheOperation != "status" {
+			t.Fatalf("status command = %+v", service.commands)
+		}
+	})
+	t.Run("clear", func(t *testing.T) {
+		cleared := researchapp.ResearchCacheClearResult{RemovedEntries: 4, RemovedBytes: 512}
+		service := &fakeService{result: app.Result{ResearchCacheCleared: &cleared}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "cache", "clear"})
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Removed: 4 entries, 512 bytes") ||
+			!strings.Contains(stdout.String(), "evidence were not modified") {
+			t.Fatalf("clear = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+		}
+		if len(service.commands) != 1 || service.commands[0].ResearchCacheOperation != "clear" {
+			t.Fatalf("clear command = %+v", service.commands)
+		}
+	})
+	for _, args := range [][]string{{"research"}, {"research", "cache"}, {"research", "cache", "delete"}, {"research", "status"}} {
+		var stderr bytes.Buffer
+		if code := NewRunner(&fakeService{}, &bytes.Buffer{}, &stderr).Run(context.Background(), args); code != ExitUsage {
+			t.Fatalf("Run(%v) code = %d, want usage; stderr=%q", args, code, stderr.String())
+		}
+	}
+}
+
+func cliID(t *testing.T, value string) research.ID {
+	t.Helper()
+	result, err := research.NewID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func cliSource(t *testing.T) research.Source {
+	t.Helper()
+	id, err := research.NewSourceID("source.cli-doc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	locator, err := research.NewSourceLocator("https://example.test/docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+	return research.Source{ID: id, Kind: research.SourceOfficialDocumentation, Locator: locator,
+		TemporalScope: research.SourceTemporalCurrent, Metadata: research.SourceMetadata{Title: "Example docs", Publisher: "Example"}, CreatedAt: at}
+}
+
+func cliProvenanceGraph(t *testing.T) research.ProvenanceGraph {
+	t.Helper()
+	id := func(value string) research.ID {
+		result, err := research.NewID(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	claimID, _ := research.NewClaimID("claim.cli-trace")
+	claimNode := id(claimID.String())
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+	recorded, _ := research.NewTimestamp(at.Time().Add(time.Hour))
+	request, run, source := id("request.cli-trace"), id("run.cli-trace"), id("source.cli-trace")
+	snapshot, evidence := id("snapshot.cli-trace"), id("evidence.cli-trace")
+	return research.ProvenanceGraph{
+		ID: id("graph.cli-trace"), ClaimID: claimID, RecordedAt: recorded, AlgorithmVersion: research.ProvenanceGraphAlgorithmV1,
+		Nodes: []research.ProvenanceNode{
+			{ID: request, Kind: research.ProvenanceRequest, Label: "trace request", OccurredAt: at},
+			{ID: run, Kind: research.ProvenanceRun, Label: "trace run", OccurredAt: at},
+			{ID: source, Kind: research.ProvenanceSource, Label: "manual source", OccurredAt: at},
+			{ID: snapshot, Kind: research.ProvenanceSnapshot, Label: "historical snapshot", OccurredAt: at, ToolVersion: "fetch/v1"},
+			{ID: evidence, Kind: research.ProvenanceEvidence, Label: "section 1", OccurredAt: at, ToolVersion: "extract/v1"},
+			{ID: claimNode, Kind: research.ProvenanceClaim, Label: "traceable claim", OccurredAt: at},
+		},
+		Edges: []research.ProvenanceEdge{
+			{From: request, To: run}, {From: run, To: source}, {From: source, To: snapshot},
+			{From: snapshot, To: evidence}, {From: evidence, To: claimNode},
+		},
+	}
+}
+
+func cliRegistryEntry(t *testing.T) research.SourceRegistryEntry {
+	t.Helper()
+	id, _ := research.NewID("registry.blocked-example")
+	domain, _ := research.NewCanonicalDomain("blocked.example")
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC))
+	return research.SourceRegistryEntry{
+		ID: id, Organization: "Blocked Example", CanonicalDomains: []research.CanonicalDomain{domain},
+		SourceKinds:     []research.SourceKind{research.SourceOther},
+		AuthorityHints:  []research.RegistryAuthorityHint{{SourceKind: research.SourceOther, Tier: research.AuthorityTierE, Reason: "Explicitly blocked fixture."}},
+		ResearchDomains: []string{"*"}, TopicPatterns: []string{"*"}, Notes: "Do not use.",
+		Status: research.RegistryBlocked, AddedAt: at, LastReviewedAt: at,
 	}
 }
 

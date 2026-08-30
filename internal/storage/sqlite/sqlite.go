@@ -15,6 +15,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/artifacts"
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/platform"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/storage"
 	sqliteDriver "modernc.org/sqlite"
 )
@@ -89,6 +90,7 @@ type Repositories struct {
 	WorkspaceMeta storage.WorkspaceMetaStore
 	Artifacts     artifacts.Index
 	Audit         audit.Trail
+	Research      researchapp.Repositories
 }
 
 // Database owns one workspace-local SQLite connection pool. It is not a global

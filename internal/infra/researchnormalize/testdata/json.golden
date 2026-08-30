@@ -1,0 +1,27 @@
+normalization_version: source-normalization-v1
+source_id: source.normalization-fixture
+locator: https://docs.example.dev/reference/page.html
+content_type: application/json
+title: "Widget API"
+canonical: https://docs.example.dev/api/widget
+language: en-us
+published_at: 2026-03-04T10:00:00Z
+updated_at: 2026-08-24T12:00:00Z
+version_hints: 3.7.1
+headings:
+segments:
+- "$/canonical_url: /api/widget"
+- "$/documentation_url: ../docs/widget#usage"
+- "$/features/0: read"
+- "$/features/1: write"
+- "$/language: en-US"
+- "$/published_at: 2026-03-04T10:00:00Z"
+- "$/stable: true"
+- "$/title: Widget API"
+- "$/updated_at: 2026-08-24T12:00:00Z"
+- "$/version: 3.7.1"
+code_blocks:
+- language= content="widget.Open()\nwidget.Close()"
+links:
+- "canonical_url" -> https://docs.example.dev/api/widget
+- "documentation_url" -> https://docs.example.dev/docs/widget#usage

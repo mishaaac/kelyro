@@ -78,6 +78,7 @@ func TestWorkspacePaths(t *testing.T) {
 			assertPathHelper(t, "WorkspaceConfigPath", WorkspaceConfigPath, test.root, filepath.Join(root, ".kelyro", "config.toml"))
 			assertPathHelper(t, "WorkspaceStatePath", WorkspaceStatePath, test.root, filepath.Join(root, ".kelyro", "state"))
 			assertPathHelper(t, "WorkspaceCacheDir", WorkspaceCacheDir, test.root, filepath.Join(root, ".kelyro", "cache"))
+			assertPathHelper(t, "WorkspaceResearchCacheDir", WorkspaceResearchCacheDir, test.root, filepath.Join(root, ".kelyro", "cache", "research"))
 			assertPathHelper(t, "WorkspaceBackupDir", WorkspaceBackupDir, test.root, filepath.Join(root, ".kelyro", "backups"))
 			assertPathHelper(t, "WorkspaceLogDir", WorkspaceLogDir, test.root, filepath.Join(root, ".kelyro", "logs"))
 			assertPathHelper(t, "WorkspaceLearningPath", WorkspaceLearningPath, test.root, filepath.Join(root, "LEARNING.md"))
@@ -99,6 +100,7 @@ func TestWorkspacePathsRejectEmptyRoot(t *testing.T) {
 		{name: "WorkspaceConfigPath", call: WorkspaceConfigPath},
 		{name: "WorkspaceStatePath", call: WorkspaceStatePath},
 		{name: "WorkspaceCacheDir", call: WorkspaceCacheDir},
+		{name: "WorkspaceResearchCacheDir", call: WorkspaceResearchCacheDir},
 		{name: "WorkspaceBackupDir", call: WorkspaceBackupDir},
 		{name: "WorkspaceLogDir", call: WorkspaceLogDir},
 		{name: "WorkspaceLearningPath", call: WorkspaceLearningPath},

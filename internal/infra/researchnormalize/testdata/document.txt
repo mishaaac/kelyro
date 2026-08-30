@@ -1,0 +1,5 @@
+Kelyro protocol version v4.2 is stable.
+
+Use bounded transport metadata.   Whitespace is normalized.
+
+No markup is executed or inferred.

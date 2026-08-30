@@ -5,6 +5,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
+	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -66,3 +68,18 @@ type sessionCheckpointFailedMsg struct{ err error }
 type sessionCompletedMsg struct{}
 
 type sessionCompleteFailedMsg struct{ err error }
+
+type researchLoadedMsg struct{ stats researchapp.ResearchCostStats }
+type researchLoadFailedMsg struct{ err error }
+type sourcesLoadedMsg struct{ sources []app.SourceCLIView }
+type sourcesLoadFailedMsg struct{ err error }
+type sourceDetailLoadedMsg struct{ source app.SourceCLIView }
+type sourceDetailLoadFailedMsg struct{ err error }
+type sourceURLOpenedMsg struct{}
+type sourceURLOpenFailedMsg struct{ err error }
+type conflictsLoadedMsg struct{ conflicts []research.Conflict }
+type conflictsLoadFailedMsg struct{ err error }
+type claimLoadedMsg struct{ graph research.ProvenanceGraph }
+type claimLoadFailedMsg struct{ err error }
+type freshnessLoadedMsg struct{ records []researchapp.FreshnessRecord }
+type freshnessLoadFailedMsg struct{ err error }

@@ -1142,6 +1142,588 @@ WHEN NOT EXISTS (
 BEGIN SELECT RAISE(ABORT, 'diagnostic observation ownership mismatch'); END`,
 		},
 	},
+	{
+		version: 23,
+		name:    "research and source intelligence persistence",
+		statements: []string{
+			`CREATE TABLE research_topics (
+    request_id TEXT PRIMARY KEY CHECK (length(trim(request_id)) > 0),
+    subject TEXT NOT NULL CHECK (length(trim(subject)) > 0),
+    domain TEXT NOT NULL DEFAULT '',
+    technology TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL CHECK (purpose IN ('concept_definition','current_usage','version_behavior','release_status','deprecation_check','prerequisite_research','production_practice','security_guidance')),
+    target_version TEXT,
+    requested_at TEXT NOT NULL CHECK (requested_at GLOB '*Z')
+)`,
+			`CREATE TABLE research_runs (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    request_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('planned','running','completed','failed','cancelled')),
+    started_at TEXT NOT NULL CHECK (started_at GLOB '*Z'),
+    completed_at TEXT CHECK (completed_at IS NULL OR completed_at GLOB '*Z'),
+    FOREIGN KEY (request_id) REFERENCES research_topics(request_id),
+    CHECK ((status IN ('completed','failed','cancelled') AND completed_at IS NOT NULL) OR
+           (status IN ('planned','running') AND completed_at IS NULL)),
+    CHECK (completed_at IS NULL OR completed_at >= started_at)
+)`,
+			`CREATE INDEX research_runs_request_idx ON research_runs (request_id, started_at, id)`,
+			`CREATE TABLE sources (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    kind TEXT NOT NULL CHECK (kind IN ('official_documentation','specification','standard','release_notes','official_blog','package_reference','official_tutorial','source_code','issue_tracker','community_article','community_forum','video','paper','book_reference','other')),
+    locator TEXT NOT NULL UNIQUE CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    version TEXT,
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+    publisher TEXT NOT NULL DEFAULT '',
+    language TEXT NOT NULL DEFAULT '',
+    published_at TEXT CHECK (published_at IS NULL OR published_at GLOB '*Z'),
+    updated_at TEXT CHECK (updated_at IS NULL OR updated_at GLOB '*Z'),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    CHECK (published_at IS NULL OR updated_at IS NULL OR updated_at >= published_at)
+)`,
+			`CREATE INDEX sources_locator_idx ON sources (locator)`,
+			`CREATE TABLE source_aliases (
+    locator TEXT PRIMARY KEY CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    source_id TEXT NOT NULL,
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX source_aliases_source_idx ON source_aliases (source_id, locator)`,
+			`CREATE TABLE source_snapshots (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    source_id TEXT NOT NULL,
+    locator TEXT NOT NULL CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    fetched_at TEXT NOT NULL CHECK (fetched_at GLOB '*Z'),
+    status_code INTEGER NOT NULL CHECK (status_code BETWEEN 100 AND 599),
+    content_type TEXT NOT NULL DEFAULT '',
+    etag TEXT NOT NULL DEFAULT '',
+    last_modified TEXT NOT NULL DEFAULT '',
+    content_hash TEXT NOT NULL DEFAULT '',
+    content_length INTEGER NOT NULL CHECK (content_length >= 0),
+    fetch_version TEXT NOT NULL CHECK (length(trim(fetch_version)) > 0),
+    UNIQUE (id, source_id),
+    FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX source_snapshots_latest_idx ON source_snapshots (source_id, fetched_at DESC, id DESC)`,
+			`CREATE TABLE authority_profiles (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    domain TEXT NOT NULL CHECK (length(trim(domain)) > 0),
+    topic_pattern TEXT NOT NULL DEFAULT '',
+    preferred_kinds_json TEXT NOT NULL CHECK (json_valid(preferred_kinds_json) AND json_type(preferred_kinds_json) = 'array' AND json_array_length(preferred_kinds_json) > 0),
+    minimum_tier TEXT NOT NULL CHECK (minimum_tier IN ('A','B','C','D','E')),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z')
+)`,
+			`CREATE TABLE trust_registry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('accepted','accepted_as_supplement','requires_verification','rejected')),
+    tier TEXT NOT NULL CHECK (tier IN ('A','B','C','D','E')),
+    reasons_json TEXT NOT NULL CHECK (json_valid(reasons_json) AND json_type(reasons_json) = 'array' AND json_array_length(reasons_json) > 0),
+    policy_version TEXT NOT NULL CHECK (length(trim(policy_version)) > 0),
+    evaluated_at TEXT NOT NULL CHECK (evaluated_at GLOB '*Z'),
+    FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX trust_registry_latest_idx ON trust_registry (source_id, evaluated_at DESC, id DESC)`,
+			`CREATE TABLE evidence (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    source_id TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    location TEXT NOT NULL CHECK (length(trim(location)) > 0),
+    excerpt TEXT NOT NULL CHECK (length(trim(excerpt)) > 0 AND length(CAST(excerpt AS BLOB)) <= 8192),
+    excerpt_hash TEXT NOT NULL CHECK (length(trim(excerpt_hash)) > 0),
+    extracted_at TEXT NOT NULL CHECK (extracted_at GLOB '*Z'),
+    extractor_version TEXT NOT NULL CHECK (length(trim(extractor_version)) > 0),
+    FOREIGN KEY (snapshot_id, source_id) REFERENCES source_snapshots(id, source_id) ON DELETE CASCADE
+)`,
+			`CREATE INDEX evidence_source_idx ON evidence (source_id, id)`,
+			`CREATE INDEX evidence_snapshot_idx ON evidence (snapshot_id, id)`,
+			`CREATE TABLE claims (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    topic_subject TEXT NOT NULL CHECK (length(trim(topic_subject)) > 0),
+    topic_domain TEXT NOT NULL DEFAULT '',
+    topic_technology TEXT NOT NULL DEFAULT '',
+    statement TEXT NOT NULL CHECK (length(trim(statement)) > 0),
+    claim_type TEXT NOT NULL CHECK (claim_type IN ('definition','requirement','behavior','version_change','deprecation','recommendation','warning','example','compatibility','security','historical')),
+    version_scope TEXT,
+    confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    evidence_ids_json TEXT NOT NULL CHECK (json_valid(evidence_ids_json) AND json_type(evidence_ids_json) = 'array' AND json_array_length(evidence_ids_json) > 0),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z')
+)`,
+			`CREATE INDEX claims_topic_idx ON claims (topic_subject, topic_domain, topic_technology, created_at, id)`,
+			`CREATE TABLE claim_sources (
+    claim_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (claim_id, source_id),
+    UNIQUE (claim_id, position),
+    FOREIGN KEY (claim_id) REFERENCES claims(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_id) REFERENCES sources(id)
+)`,
+			`CREATE TABLE citations (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    source_id TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    evidence_id TEXT NOT NULL,
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+    locator TEXT NOT NULL CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    deep_link_locator TEXT,
+    deep_link_label TEXT NOT NULL DEFAULT '',
+    snapshot_date TEXT NOT NULL CHECK (snapshot_date GLOB '*Z'),
+    last_verified TEXT NOT NULL CHECK (last_verified GLOB '*Z' AND last_verified >= snapshot_date),
+    FOREIGN KEY (snapshot_id, source_id) REFERENCES source_snapshots(id, source_id),
+    FOREIGN KEY (evidence_id) REFERENCES evidence(id)
+)`,
+			`CREATE INDEX citations_last_verified_idx ON citations (last_verified, id)`,
+			`CREATE TABLE source_bundles (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    run_id TEXT NOT NULL,
+    topic_subject TEXT NOT NULL CHECK (length(trim(topic_subject)) > 0),
+    topic_domain TEXT NOT NULL DEFAULT '',
+    topic_technology TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL CHECK (purpose IN ('concept_definition','current_usage','version_behavior','release_status','deprecation_check','prerequisite_research','production_practice','security_guidance')),
+    target_version TEXT,
+    state TEXT NOT NULL CHECK (state IN ('ready','ready_with_caveats','incomplete','conflicted')),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z'),
+    FOREIGN KEY (run_id) REFERENCES research_runs(id)
+)`,
+			`CREATE TABLE source_bundle_items (
+    bundle_id TEXT NOT NULL,
+    item_type TEXT NOT NULL CHECK (item_type IN ('claim','source')),
+    item_id TEXT NOT NULL CHECK (length(trim(item_id)) > 0),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (bundle_id, item_type, item_id),
+    UNIQUE (bundle_id, item_type, position),
+    FOREIGN KEY (bundle_id) REFERENCES source_bundles(id) ON DELETE CASCADE
+)`,
+			`CREATE TABLE release_records (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    technology_id TEXT NOT NULL CHECK (length(trim(technology_id)) > 0),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    channel TEXT NOT NULL CHECK (channel IN ('stable','preview','beta','rc','experimental','nightly','unknown')),
+    status TEXT NOT NULL CHECK (status IN ('current','superseded','legacy','eol','unknown')),
+    source_ids_json TEXT NOT NULL CHECK (json_valid(source_ids_json) AND json_type(source_ids_json) = 'array' AND json_array_length(source_ids_json) > 0),
+    released_at TEXT CHECK (released_at IS NULL OR released_at GLOB '*Z'),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z')
+)`,
+			`CREATE INDEX release_records_technology_version_idx ON release_records (technology_id, version, verified_at, id)`,
+			`CREATE TABLE deprecation_records (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    subject TEXT NOT NULL CHECK (length(trim(subject)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('deprecated','removed','legacy','historical_only','superseded')),
+    introduced_in TEXT, deprecated_in TEXT, removed_in TEXT, replacement TEXT NOT NULL DEFAULT '',
+    source_ids_json TEXT NOT NULL CHECK (json_valid(source_ids_json) AND json_array_length(source_ids_json) > 0),
+    evidence_ids_json TEXT NOT NULL CHECK (json_valid(evidence_ids_json) AND json_array_length(evidence_ids_json) > 0),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z')
+)`,
+			`CREATE INDEX deprecation_records_verified_idx ON deprecation_records (verified_at, id)`,
+			`CREATE TABLE freshness_state (
+    subject_id TEXT PRIMARY KEY CHECK (length(trim(subject_id)) > 0),
+    state TEXT NOT NULL CHECK (state IN ('fresh','aging','stale','unknown')),
+    score REAL NOT NULL CHECK (score BETWEEN 0 AND 1),
+    last_verified_at TEXT NOT NULL CHECK (last_verified_at GLOB '*Z'),
+    next_verify_at TEXT CHECK (next_verify_at IS NULL OR (next_verify_at GLOB '*Z' AND next_verify_at >= last_verified_at)),
+    algorithm_version TEXT NOT NULL CHECK (length(trim(algorithm_version)) > 0)
+)`,
+			`CREATE INDEX freshness_state_due_idx ON freshness_state (next_verify_at, subject_id) WHERE next_verify_at IS NOT NULL`,
+			`CREATE INDEX freshness_state_last_verified_idx ON freshness_state (last_verified_at, subject_id)`,
+			`CREATE TABLE verification_results (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    claim_id TEXT NOT NULL CHECK (length(trim(claim_id)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('verified','verified_with_caveat','insufficient_evidence','conflicted','rejected')),
+    source_ids_json TEXT NOT NULL CHECK (json_valid(source_ids_json) AND json_type(source_ids_json) = 'array' AND json_array_length(source_ids_json) > 0),
+    confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z')
+)`,
+			`CREATE INDEX verification_results_claim_idx ON verification_results (claim_id, verified_at DESC, id DESC)`,
+			`CREATE TABLE source_conflicts (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    conflict_type TEXT NOT NULL CHECK (conflict_type IN ('direct_contradiction','version_mismatch','temporal_mismatch','scope_mismatch','recommendation_disagreement','authority_mismatch')),
+    claim_ids_json TEXT NOT NULL CHECK (json_valid(claim_ids_json) AND json_array_length(claim_ids_json) >= 2),
+    resolution TEXT NOT NULL DEFAULT '', unresolved INTEGER NOT NULL CHECK (unresolved IN (0,1)),
+    detected_at TEXT NOT NULL CHECK (detected_at GLOB '*Z'),
+    CHECK ((unresolved = 1 AND resolution = '') OR (unresolved = 0 AND length(trim(resolution)) > 0))
+)`,
+			`CREATE TABLE research_cache_entries (
+    cache_key TEXT PRIMARY KEY CHECK (length(trim(cache_key)) > 0),
+    payload BLOB NOT NULL CHECK (length(payload) BETWEEN 1 AND 1048576),
+    content_hash TEXT NOT NULL CHECK (length(trim(content_hash)) > 0),
+    stored_at TEXT NOT NULL CHECK (stored_at GLOB '*Z'),
+    expires_at TEXT CHECK (expires_at IS NULL OR (expires_at GLOB '*Z' AND expires_at >= stored_at))
+)`,
+			`CREATE INDEX research_cache_expiry_idx ON research_cache_entries (expires_at, cache_key) WHERE expires_at IS NOT NULL`,
+			`CREATE TABLE drift_reports (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0), old_bundle_id TEXT NOT NULL,
+    new_bundle_id TEXT, drift_type TEXT NOT NULL CHECK (drift_type IN ('source_changed','claim_invalidated','version_superseded','recommendation_changed','deprecation_introduced','scope_changed')),
+    severity TEXT NOT NULL CHECK (severity IN ('informational','minor','important','critical')),
+    affected_claim_ids_json TEXT NOT NULL CHECK (json_valid(affected_claim_ids_json) AND json_array_length(affected_claim_ids_json) > 0),
+    old_evidence_ids_json TEXT NOT NULL CHECK (json_valid(old_evidence_ids_json) AND json_array_length(old_evidence_ids_json) > 0),
+    new_evidence_ids_json TEXT NOT NULL CHECK (json_valid(new_evidence_ids_json)),
+    detected_at TEXT NOT NULL CHECK (detected_at GLOB '*Z')
+)`,
+			`CREATE TABLE impact_reports (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0), drift_report_id TEXT NOT NULL,
+    affected_bundle_ids_json TEXT NOT NULL CHECK (json_valid(affected_bundle_ids_json) AND json_array_length(affected_bundle_ids_json) > 0),
+    affected_claim_ids_json TEXT NOT NULL CHECK (json_valid(affected_claim_ids_json) AND json_array_length(affected_claim_ids_json) > 0),
+    severity TEXT NOT NULL CHECK (severity IN ('informational','minor','important','critical')),
+    recommended_action TEXT NOT NULL CHECK (recommended_action IN ('no_action','reverify','review_curriculum','recompile_future','manual_review')),
+    assessed_at TEXT NOT NULL CHECK (assessed_at GLOB '*Z'),
+    FOREIGN KEY (drift_report_id) REFERENCES drift_reports(id) ON DELETE CASCADE
+)`,
+		},
+	},
+	{
+		version: 24,
+		name:    "topic-aware authority profiles",
+		statements: []string{
+			`ALTER TABLE authority_profiles ADD COLUMN preferred_domains_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(preferred_domains_json) AND json_type(preferred_domains_json) = 'array')`,
+			`ALTER TABLE authority_profiles ADD COLUMN preferred_organizations_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(preferred_organizations_json) AND json_type(preferred_organizations_json) = 'array')`,
+			`ALTER TABLE authority_profiles ADD COLUMN minimum_corroboration INTEGER NOT NULL DEFAULT 1 CHECK (minimum_corroboration >= 1)`,
+			`ALTER TABLE authority_profiles ADD COLUMN supplementary_kinds_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(supplementary_kinds_json) AND json_type(supplementary_kinds_json) = 'array')`,
+		},
+	},
+	{
+		version: 25,
+		name:    "trusted source registry",
+		statements: []string{
+			`CREATE TABLE source_registry_entries (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    organization TEXT NOT NULL CHECK (length(trim(organization)) > 0),
+    canonical_domains_json TEXT NOT NULL CHECK (json_valid(canonical_domains_json) AND json_type(canonical_domains_json) = 'array' AND json_array_length(canonical_domains_json) > 0),
+    source_kinds_json TEXT NOT NULL CHECK (json_valid(source_kinds_json) AND json_type(source_kinds_json) = 'array' AND json_array_length(source_kinds_json) > 0),
+    authority_hints_json TEXT NOT NULL CHECK (json_valid(authority_hints_json) AND json_type(authority_hints_json) = 'array' AND json_array_length(authority_hints_json) > 0),
+    research_domains_json TEXT NOT NULL CHECK (json_valid(research_domains_json) AND json_type(research_domains_json) = 'array' AND json_array_length(research_domains_json) > 0),
+    topic_patterns_json TEXT NOT NULL CHECK (json_valid(topic_patterns_json) AND json_type(topic_patterns_json) = 'array' AND json_array_length(topic_patterns_json) > 0),
+    notes TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('trusted','conditional','historical','deprecated','blocked')),
+    added_at TEXT NOT NULL CHECK (added_at GLOB '*Z'),
+    last_reviewed_at TEXT NOT NULL CHECK (last_reviewed_at GLOB '*Z' AND last_reviewed_at >= added_at)
+)`,
+			`CREATE INDEX source_registry_status_idx ON source_registry_entries (status, organization, id)`,
+			`CREATE TRIGGER source_registry_domains_insert_guard
+BEFORE INSERT ON source_registry_entries
+WHEN EXISTS (
+    SELECT 1 FROM source_registry_entries AS existing,
+                  json_each(existing.canonical_domains_json) AS old_domain,
+                  json_each(NEW.canonical_domains_json) AS new_domain
+    WHERE existing.id <> NEW.id
+      AND lower(old_domain.value) = lower(new_domain.value)
+)
+BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
+			`CREATE TRIGGER source_registry_domains_update_guard
+BEFORE UPDATE OF canonical_domains_json ON source_registry_entries
+WHEN EXISTS (
+    SELECT 1 FROM source_registry_entries AS existing,
+                  json_each(existing.canonical_domains_json) AS old_domain,
+                  json_each(NEW.canonical_domains_json) AS new_domain
+    WHERE existing.id <> NEW.id
+      AND lower(old_domain.value) = lower(new_domain.value)
+)
+BEGIN SELECT RAISE(ABORT, 'duplicate source registry domain'); END`,
+		},
+	},
+	{
+		version: 26,
+		name:    "structured evidence and claim scopes",
+		statements: []string{
+			`ALTER TABLE evidence ADD COLUMN context_before TEXT NOT NULL DEFAULT '' CHECK ((context_before = '' OR length(trim(context_before)) > 0) AND length(CAST(context_before AS BLOB)) <= 2048)`,
+			`ALTER TABLE evidence ADD COLUMN context_after TEXT NOT NULL DEFAULT '' CHECK ((context_after = '' OR length(trim(context_after)) > 0) AND length(CAST(context_after AS BLOB)) <= 2048)`,
+			`ALTER TABLE claims ADD COLUMN scope TEXT NOT NULL DEFAULT 'general' CHECK (length(trim(scope)) > 0 AND length(CAST(scope AS BLOB)) <= 1024)`,
+			`ALTER TABLE claims ADD COLUMN status_scope TEXT NOT NULL DEFAULT 'all' CHECK (status_scope IN ('all','stable','preview','experimental','legacy'))`,
+		},
+	},
+	{
+		version: 27,
+		name:    "claim provenance graphs",
+		statements: []string{
+			`CREATE TABLE provenance_graphs (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    claim_id TEXT NOT NULL CHECK (length(trim(claim_id)) > 0),
+    graph_json TEXT NOT NULL CHECK (json_valid(graph_json) AND length(CAST(graph_json AS BLOB)) <= 262144),
+    recorded_at TEXT NOT NULL CHECK (recorded_at GLOB '*Z'),
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version = 'provenance-graph-v1'),
+    CHECK (COALESCE(json_type(graph_json, '$.graph_id') = 'text' AND json_extract(graph_json, '$.graph_id') = id, 0)),
+    CHECK (COALESCE(json_type(graph_json, '$.claim_id') = 'text' AND json_extract(graph_json, '$.claim_id') = claim_id, 0)),
+    CHECK (COALESCE(json_type(graph_json, '$.algorithm_version') = 'text' AND json_extract(graph_json, '$.algorithm_version') = algorithm_version, 0))
+)`,
+			`CREATE INDEX provenance_graphs_claim_latest_idx ON provenance_graphs (claim_id, recorded_at DESC, id DESC)`,
+		},
+	},
+	{
+		version: 28,
+		name:    "stable citation deep links",
+		statements: []string{
+			`ALTER TABLE citations ADD COLUMN link_strategy TEXT NOT NULL DEFAULT 'canonical_fallback' CHECK (link_strategy IN ('url_anchor','package_symbol','spec_section','release_heading','source_permalink','canonical_fallback'))`,
+			`ALTER TABLE citations ADD COLUMN section TEXT NOT NULL DEFAULT 'unspecified' CHECK (length(trim(section)) > 0 AND length(CAST(section AS BLOB)) <= 2048)`,
+			`ALTER TABLE citations ADD COLUMN version_scope TEXT`,
+			`ALTER TABLE citations ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'citation-v1' CHECK (algorithm_version = 'citation-v1')`,
+			`UPDATE citations SET link_strategy='url_anchor',deep_link_label=CASE WHEN deep_link_label='' THEN section ELSE deep_link_label END WHERE deep_link_locator IS NOT NULL`,
+			`CREATE TRIGGER citations_deep_link_insert BEFORE INSERT ON citations WHEN length(CAST(NEW.deep_link_label AS BLOB)) > 2048 OR (NEW.link_strategy='canonical_fallback' AND NEW.deep_link_locator IS NOT NULL) OR (NEW.link_strategy<>'canonical_fallback' AND NEW.deep_link_locator IS NULL) BEGIN SELECT RAISE(ABORT, 'invalid citation deep link'); END`,
+			`CREATE TRIGGER citations_deep_link_update BEFORE UPDATE ON citations WHEN length(CAST(NEW.deep_link_label AS BLOB)) > 2048 OR (NEW.link_strategy='canonical_fallback' AND NEW.deep_link_locator IS NOT NULL) OR (NEW.link_strategy<>'canonical_fallback' AND NEW.deep_link_locator IS NULL) BEGIN SELECT RAISE(ABORT, 'invalid citation deep link'); END`,
+			`CREATE INDEX citations_evidence_idx ON citations (evidence_id, id)`,
+		},
+	},
+	{
+		version: 29,
+		name:    "authority freshness TTL hints",
+		statements: []string{
+			`ALTER TABLE authority_profiles ADD COLUMN freshness_ttl_hints_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(freshness_ttl_hints_json) AND json_type(freshness_ttl_hints_json) = 'array' AND json_array_length(freshness_ttl_hints_json) <= 64)`,
+		},
+	},
+	{
+		version: 30,
+		name:    "refresh scheduling metadata",
+		statements: []string{
+			`ALTER TABLE freshness_state ADD COLUMN scheduling_json TEXT NOT NULL DEFAULT '{"verification_reason":"ttl_expired","priority":"normal","algorithm_version":"refresh-scheduling-v1"}' CHECK (json_valid(scheduling_json) AND json_type(scheduling_json) = 'object' AND length(CAST(scheduling_json AS BLOB)) <= 256 AND json_remove(scheduling_json,'$.verification_reason','$.priority','$.algorithm_version') = '{}' AND COALESCE(json_extract(scheduling_json,'$.verification_reason') IN ('ttl_expired','new_release_detected','source_changed','conflict_unresolved','security_sensitive','manual_request'),0) AND COALESCE(json_extract(scheduling_json,'$.priority') IN ('normal','high','critical'),0) AND COALESCE(json_extract(scheduling_json,'$.algorithm_version') = 'refresh-scheduling-v1',0))`,
+		},
+	},
+	{
+		version: 31,
+		name:    "versioned deprecation intelligence",
+		statements: []string{
+			`ALTER TABLE deprecation_records ADD COLUMN determination TEXT NOT NULL DEFAULT 'legacy_unclassified' CHECK (determination IN ('explicit_evidence','multi_source_strong_inference','legacy_unclassified'))`,
+			`ALTER TABLE deprecation_records ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'deprecation-unversioned-legacy' CHECK ((algorithm_version = 'deprecation-intelligence-v1' AND determination IN ('explicit_evidence','multi_source_strong_inference')) OR (algorithm_version = 'deprecation-unversioned-legacy' AND determination = 'legacy_unclassified')) CHECK (determination <> 'multi_source_strong_inference' OR (json_array_length(source_ids_json) >= 2 AND json_array_length(evidence_ids_json) >= 2))`,
+			`CREATE INDEX deprecation_records_subject_history_idx ON deprecation_records (subject, verified_at, id)`,
+		},
+	},
+	{
+		version: 32,
+		name:    "historical source temporal scopes",
+		statements: []string{
+			`ALTER TABLE sources ADD COLUMN temporal_scope TEXT NOT NULL DEFAULT 'current' CHECK (temporal_scope IN ('current','historical','version_bound','archived')) CHECK (temporal_scope <> 'version_bound' OR version IS NOT NULL)`,
+			`ALTER TABLE citations ADD COLUMN temporal_scope TEXT NOT NULL DEFAULT 'current' CHECK (temporal_scope IN ('current','historical','version_bound','archived')) CHECK (temporal_scope <> 'version_bound' OR version_scope IS NOT NULL)`,
+			`ALTER TABLE citations ADD COLUMN temporal_warning TEXT NOT NULL DEFAULT '' CHECK ((temporal_scope = 'current' AND temporal_warning = '') OR (temporal_scope <> 'current' AND length(trim(temporal_warning)) > 0))`,
+			`ALTER TABLE citations ADD COLUMN temporal_algorithm_version TEXT NOT NULL DEFAULT 'source-temporal-legacy-current' CHECK ((temporal_algorithm_version = 'source-temporal-legacy-current' AND temporal_scope = 'current' AND temporal_warning = '') OR temporal_algorithm_version = 'source-temporal-policy-v1')`,
+			`ALTER TABLE source_bundle_items ADD COLUMN temporal_scope TEXT CHECK (temporal_scope IS NULL OR temporal_scope IN ('current','historical','version_bound','archived'))`,
+			`UPDATE source_bundle_items SET temporal_scope='current' WHERE item_type='source'`,
+			`CREATE TRIGGER source_bundle_item_temporal_insert_guard BEFORE INSERT ON source_bundle_items WHEN (NEW.item_type='source' AND NEW.temporal_scope IS NULL) OR (NEW.item_type='claim' AND NEW.temporal_scope IS NOT NULL) BEGIN SELECT RAISE(ABORT, 'invalid source bundle temporal scope'); END`,
+			`CREATE TRIGGER source_bundle_item_temporal_update_guard BEFORE UPDATE ON source_bundle_items WHEN (NEW.item_type='source' AND NEW.temporal_scope IS NULL) OR (NEW.item_type='claim' AND NEW.temporal_scope IS NOT NULL) BEGIN SELECT RAISE(ABORT, 'invalid source bundle temporal scope'); END`,
+		},
+	},
+	{
+		version: 33,
+		name:    "versioned conflict resolver outcomes",
+		statements: []string{
+			`ALTER TABLE source_conflicts ADD COLUMN confidence REAL NOT NULL DEFAULT 0 CHECK (confidence BETWEEN 0 AND 1)`,
+			`ALTER TABLE source_conflicts ADD COLUMN reason TEXT NOT NULL DEFAULT 'Legacy conflict record without a resolver explanation.' CHECK (length(trim(reason)) > 0)`,
+			`ALTER TABLE source_conflicts ADD COLUMN winning_claim_id TEXT`,
+			`ALTER TABLE source_conflicts ADD COLUMN winning_source_id TEXT`,
+			`ALTER TABLE source_conflicts ADD COLUMN winning_scope TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE source_conflicts ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'conflict-unversioned-legacy' CHECK (algorithm_version IN ('conflict-resolver-v1','conflict-unversioned-legacy')) CHECK (algorithm_version <> 'conflict-resolver-v1' OR json_array_length(claim_ids_json) = 2) CHECK ((winning_claim_id IS NULL) = (winning_source_id IS NULL)) CHECK ((winning_claim_id IS NULL AND winning_scope = '') OR (winning_claim_id IS NOT NULL AND length(trim(winning_scope)) > 0)) CHECK (unresolved = 0 OR winning_claim_id IS NULL) CHECK (algorithm_version <> 'conflict-unversioned-legacy' OR winning_claim_id IS NULL)`,
+			`CREATE INDEX source_conflicts_detected_idx ON source_conflicts (detected_at, id)`,
+		},
+	},
+	{
+		version: 34,
+		name:    "versioned multi-source verification",
+		statements: []string{
+			`ALTER TABLE verification_results ADD COLUMN requirement TEXT NOT NULL DEFAULT 'legacy_unclassified' CHECK (requirement IN ('normative_primary','production_recommendation','security_authority','community_corroboration','general_support','legacy_unclassified'))`,
+			`ALTER TABLE verification_results ADD COLUMN source_count INTEGER NOT NULL DEFAULT 0 CHECK (source_count >= 0)`,
+			`ALTER TABLE verification_results ADD COLUMN independent_organization_count INTEGER NOT NULL DEFAULT 0 CHECK (independent_organization_count BETWEEN 0 AND source_count)`,
+			`ALTER TABLE verification_results ADD COLUMN authority_distribution_json TEXT NOT NULL DEFAULT '{"tier_a":0,"tier_b":0,"tier_c":0,"tier_d":0,"tier_e":0,"unknown":0}' CHECK (json_valid(authority_distribution_json) AND json_type(authority_distribution_json) = 'object' AND json_remove(authority_distribution_json,'$.tier_a','$.tier_b','$.tier_c','$.tier_d','$.tier_e','$.unknown') = '{}' AND COALESCE(json_extract(authority_distribution_json,'$.tier_a') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_b') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_c') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_d') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_e') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.unknown') >= 0,0))`,
+			`ALTER TABLE verification_results ADD COLUMN scope_consistent INTEGER NOT NULL DEFAULT 0 CHECK (scope_consistent IN (0,1))`,
+			`ALTER TABLE verification_results ADD COLUMN reason_codes_json TEXT NOT NULL DEFAULT '["legacy_unclassified"]' CHECK (json_valid(reason_codes_json) AND json_type(reason_codes_json) = 'array' AND json_array_length(reason_codes_json) > 0)`,
+			`ALTER TABLE verification_results ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'verification-unversioned-legacy' CHECK (algorithm_version IN ('multi-source-verification-v1','verification-unversioned-legacy')) CHECK ((algorithm_version = 'verification-unversioned-legacy' AND requirement = 'legacy_unclassified' AND source_count = 0 AND independent_organization_count = 0 AND authority_distribution_json = '{"tier_a":0,"tier_b":0,"tier_c":0,"tier_d":0,"tier_e":0,"unknown":0}' AND scope_consistent = 0 AND reason_codes_json = '["legacy_unclassified"]') OR (algorithm_version = 'multi-source-verification-v1' AND requirement <> 'legacy_unclassified' AND source_count = json_array_length(source_ids_json) AND source_count = COALESCE(json_extract(authority_distribution_json,'$.tier_a'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_b'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_c'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_d'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_e'),-1) + COALESCE(json_extract(authority_distribution_json,'$.unknown'),-1) AND reason_codes_json <> '["legacy_unclassified"]'))`,
+		},
+	},
+	{
+		version: 35,
+		name:    "versioned source bundles",
+		statements: []string{
+			`ALTER TABLE source_bundles ADD COLUMN summary TEXT NOT NULL DEFAULT 'Legacy source bundle without a canonical v1 summary.' CHECK (length(trim(summary)) > 0 AND length(CAST(summary AS BLOB)) <= 8192)`,
+			`ALTER TABLE source_bundles ADD COLUMN bundle_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(bundle_json AS BLOB)) <= 262144)`,
+			`ALTER TABLE source_bundles ADD COLUMN content_hash TEXT NOT NULL DEFAULT '' CHECK (content_hash = '' OR content_hash GLOB 'sha256:*')`,
+			`ALTER TABLE source_bundles ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'source-bundle-unversioned-legacy' CHECK ((algorithm_version = 'source-bundle-unversioned-legacy' AND bundle_json = '' AND content_hash = '') OR (algorithm_version = 'source-bundle-v1' AND json_valid(bundle_json) AND json_type(bundle_json) = 'object' AND length(content_hash) = 71))`,
+			`ALTER TABLE source_bundle_items ADD COLUMN source_role TEXT CHECK (source_role IS NULL OR source_role IN ('primary','supporting','historical','unclassified'))`,
+			`ALTER TABLE source_bundle_items ADD COLUMN version_scope TEXT`,
+			`ALTER TABLE source_bundle_items ADD COLUMN warning TEXT NOT NULL DEFAULT '' CHECK (length(CAST(warning AS BLOB)) <= 2048)`,
+			`UPDATE source_bundle_items SET source_role='unclassified' WHERE item_type='source'`,
+			`CREATE TRIGGER source_bundle_item_v1_insert_guard BEFORE INSERT ON source_bundle_items WHEN (NEW.item_type='claim' AND (NEW.source_role IS NOT NULL OR NEW.version_scope IS NOT NULL OR NEW.warning <> '')) OR (NEW.item_type='source' AND NEW.source_role IS NULL) OR (NEW.item_type='source' AND NEW.source_role='historical' AND NEW.temporal_scope='current') OR (NEW.item_type='source' AND NEW.source_role<>'historical' AND NEW.temporal_scope IN ('historical','archived')) OR (NEW.item_type='source' AND NEW.source_role='unclassified' AND COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=NEW.bundle_id),'')='source-bundle-v1') BEGIN SELECT RAISE(ABORT, 'invalid versioned source bundle item'); END`,
+			`CREATE TRIGGER source_bundle_item_v1_update_guard BEFORE UPDATE ON source_bundle_items WHEN (NEW.item_type='claim' AND (NEW.source_role IS NOT NULL OR NEW.version_scope IS NOT NULL OR NEW.warning <> '')) OR (NEW.item_type='source' AND NEW.source_role IS NULL) OR (NEW.item_type='source' AND NEW.source_role='historical' AND NEW.temporal_scope='current') OR (NEW.item_type='source' AND NEW.source_role<>'historical' AND NEW.temporal_scope IN ('historical','archived')) OR (NEW.item_type='source' AND NEW.source_role='unclassified' AND COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=NEW.bundle_id),'')='source-bundle-v1') BEGIN SELECT RAISE(ABORT, 'invalid versioned source bundle item'); END`,
+			`CREATE TRIGGER source_bundles_v1_immutable_update BEFORE UPDATE ON source_bundles WHEN OLD.algorithm_version='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 is immutable'); END`,
+			`CREATE TRIGGER source_bundles_v1_immutable_delete BEFORE DELETE ON source_bundles WHEN OLD.algorithm_version='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 is immutable'); END`,
+			`CREATE TRIGGER source_bundle_items_v1_immutable_update BEFORE UPDATE ON source_bundle_items WHEN COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=OLD.bundle_id),'')='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 item is immutable'); END`,
+			`CREATE TRIGGER source_bundle_items_v1_immutable_delete BEFORE DELETE ON source_bundle_items WHEN COALESCE((SELECT algorithm_version FROM source_bundles WHERE id=OLD.bundle_id),'')='source-bundle-v1' BEGIN SELECT RAISE(ABORT, 'source bundle v1 item is immutable'); END`,
+			`CREATE INDEX source_bundles_run_history_idx ON source_bundles (run_id, verified_at, id)`,
+		},
+	},
+	{
+		version: 36,
+		name:    "specialized technical source metadata",
+		statements: []string{
+			`ALTER TABLE sources ADD COLUMN specialized_kind TEXT CHECK (specialized_kind IS NULL OR specialized_kind IN ('playground','package_reference','standard'))`,
+			`ALTER TABLE sources ADD COLUMN specialized_metadata_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(specialized_metadata_json AS BLOB)) <= 8192 AND ((specialized_kind IS NULL AND specialized_metadata_json = '') OR (specialized_kind IS NOT NULL AND json_valid(specialized_metadata_json) AND json_type(specialized_metadata_json) = 'object')) AND (specialized_kind IS NULL OR (specialized_kind = 'playground' AND kind = 'other') OR specialized_kind = kind))`,
+			`CREATE INDEX sources_specialized_kind_idx ON sources (specialized_kind, id)`,
+		},
+	},
+	{
+		version: 37,
+		name:    "video supplement metadata",
+		statements: []string{
+			`ALTER TABLE sources ADD COLUMN video_metadata_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(video_metadata_json AS BLOB)) <= 16384 AND (video_metadata_json = '' OR (kind = 'video' AND json_valid(video_metadata_json) AND json_type(video_metadata_json) = 'object')))`,
+		},
+	},
+	{
+		version: 38,
+		name:    "reproducible source code evidence",
+		statements: []string{
+			`ALTER TABLE evidence ADD COLUMN source_code_locator_json TEXT NOT NULL DEFAULT '' CHECK (length(CAST(source_code_locator_json AS BLOB)) <= 8192 AND (source_code_locator_json = '' OR (json_valid(source_code_locator_json) AND json_type(source_code_locator_json) = 'object')))`,
+			`CREATE TRIGGER evidence_source_code_locator_insert_guard BEFORE INSERT ON evidence WHEN NEW.source_code_locator_json <> '' AND COALESCE((SELECT kind FROM sources WHERE id=NEW.source_id),'') <> 'source_code' BEGIN SELECT RAISE(ABORT, 'source code locator requires source_code source'); END`,
+			`CREATE TRIGGER evidence_source_code_locator_update_guard BEFORE UPDATE ON evidence WHEN NEW.source_code_locator_json <> '' AND COALESCE((SELECT kind FROM sources WHERE id=NEW.source_id),'') <> 'source_code' BEGIN SELECT RAISE(ABORT, 'source code locator requires source_code source'); END`,
+		},
+	},
+	{
+		version: 39,
+		name:    "bounded research cost controls",
+		statements: []string{
+			`CREATE TABLE research_cost_controls (
+    run_id TEXT PRIMARY KEY REFERENCES research_runs(id) ON DELETE CASCADE,
+    run_search_limit INTEGER NOT NULL CHECK (run_search_limit >= 0),
+    run_fetch_limit INTEGER NOT NULL CHECK (run_fetch_limit >= 0),
+    run_bytes_limit INTEGER NOT NULL CHECK (run_bytes_limit >= 0),
+    run_provider_limit INTEGER NOT NULL CHECK (run_provider_limit >= 0),
+    run_model_limit INTEGER NOT NULL CHECK (run_model_limit >= 0),
+    topic_search_limit INTEGER NOT NULL CHECK (topic_search_limit >= run_search_limit),
+    topic_fetch_limit INTEGER NOT NULL CHECK (topic_fetch_limit >= run_fetch_limit),
+    topic_bytes_limit INTEGER NOT NULL CHECK (topic_bytes_limit >= run_bytes_limit),
+    topic_provider_limit INTEGER NOT NULL CHECK (topic_provider_limit >= run_provider_limit),
+    topic_model_limit INTEGER NOT NULL CHECK (topic_model_limit >= run_model_limit),
+    daily_search_limit INTEGER CHECK (daily_search_limit IS NULL OR daily_search_limit >= 0),
+    daily_fetch_limit INTEGER CHECK (daily_fetch_limit IS NULL OR daily_fetch_limit >= 0),
+    daily_bytes_limit INTEGER CHECK (daily_bytes_limit IS NULL OR daily_bytes_limit >= 0),
+    daily_provider_limit INTEGER CHECK (daily_provider_limit IS NULL OR daily_provider_limit >= 0),
+    daily_model_limit INTEGER CHECK (daily_model_limit IS NULL OR daily_model_limit >= 0),
+    cache_search_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_search_saved >= 0),
+    cache_fetch_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_fetch_saved >= 0),
+    cache_bytes_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_bytes_saved >= 0),
+    cache_provider_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_provider_saved >= 0),
+    cache_model_saved INTEGER NOT NULL DEFAULT 0 CHECK (cache_model_saved >= 0),
+    stopped_by_budget INTEGER NOT NULL DEFAULT 0 CHECK (stopped_by_budget IN (0,1)),
+    stop_scope TEXT NOT NULL DEFAULT '' CHECK (stop_scope IN ('','run','topic','daily')),
+    stop_reason TEXT NOT NULL DEFAULT '',
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version = 'research-cost-control-v1'),
+    CHECK ((stopped_by_budget = 0 AND stop_scope = '' AND stop_reason = '') OR
+           (stopped_by_budget = 1 AND stop_scope <> '' AND length(trim(stop_reason)) > 0)),
+    CHECK ((daily_search_limit IS NULL) = (daily_fetch_limit IS NULL) AND
+           (daily_search_limit IS NULL) = (daily_bytes_limit IS NULL) AND
+           (daily_search_limit IS NULL) = (daily_provider_limit IS NULL) AND
+           (daily_search_limit IS NULL) = (daily_model_limit IS NULL))
+)`,
+			`CREATE TABLE research_cost_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL REFERENCES research_cost_controls(run_id) ON DELETE CASCADE,
+    occurred_at TEXT NOT NULL CHECK (occurred_at GLOB '*Z'),
+    search_requests INTEGER NOT NULL CHECK (search_requests >= 0),
+    fetch_requests INTEGER NOT NULL CHECK (fetch_requests >= 0),
+    bytes INTEGER NOT NULL CHECK (bytes >= 0),
+    provider_api_calls INTEGER NOT NULL CHECK (provider_api_calls >= 0),
+    model_calls INTEGER NOT NULL CHECK (model_calls >= 0),
+    CHECK (search_requests + fetch_requests + bytes + provider_api_calls + model_calls > 0)
+)`,
+			`CREATE INDEX research_cost_events_run_idx ON research_cost_events (run_id,id)`,
+			`CREATE INDEX research_cost_events_day_idx ON research_cost_events (substr(occurred_at,1,10),id)`,
+			`CREATE TRIGGER research_cost_run_budget BEFORE INSERT ON research_cost_events
+WHEN EXISTS (
+    SELECT 1 FROM research_cost_controls c WHERE c.run_id=NEW.run_id AND (
+      COALESCE((SELECT SUM(search_requests) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.search_requests > c.run_search_limit OR
+      COALESCE((SELECT SUM(fetch_requests) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.fetch_requests > c.run_fetch_limit OR
+      COALESCE((SELECT SUM(bytes) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.bytes > c.run_bytes_limit OR
+      COALESCE((SELECT SUM(provider_api_calls) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.provider_api_calls > c.run_provider_limit OR
+      COALESCE((SELECT SUM(model_calls) FROM research_cost_events WHERE run_id=NEW.run_id),0)+NEW.model_calls > c.run_model_limit
+    )
+) BEGIN SELECT RAISE(ABORT, 'research cost budget exceeded'); END`,
+			`CREATE TRIGGER research_cost_topic_budget BEFORE INSERT ON research_cost_events
+WHEN EXISTS (
+    SELECT 1 FROM research_cost_controls c
+    JOIN research_runs current_run ON current_run.id=c.run_id
+    JOIN research_topics current_topic ON current_topic.request_id=current_run.request_id
+    WHERE c.run_id=NEW.run_id AND (
+      COALESCE((SELECT SUM(e.search_requests) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.search_requests > c.topic_search_limit OR
+      COALESCE((SELECT SUM(e.fetch_requests) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.fetch_requests > c.topic_fetch_limit OR
+      COALESCE((SELECT SUM(e.bytes) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.bytes > c.topic_bytes_limit OR
+      COALESCE((SELECT SUM(e.provider_api_calls) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.provider_api_calls > c.topic_provider_limit OR
+      COALESCE((SELECT SUM(e.model_calls) FROM research_cost_events e JOIN research_runs r ON r.id=e.run_id JOIN research_topics t ON t.request_id=r.request_id WHERE t.subject=current_topic.subject AND t.domain=current_topic.domain AND t.technology=current_topic.technology),0)+NEW.model_calls > c.topic_model_limit
+    )
+) BEGIN SELECT RAISE(ABORT, 'research cost budget exceeded'); END`,
+			`CREATE TRIGGER research_cost_daily_budget BEFORE INSERT ON research_cost_events
+WHEN EXISTS (
+    SELECT 1 FROM research_cost_controls c WHERE c.run_id=NEW.run_id AND c.daily_search_limit IS NOT NULL AND (
+      COALESCE((SELECT SUM(search_requests) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.search_requests > c.daily_search_limit OR
+      COALESCE((SELECT SUM(fetch_requests) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.fetch_requests > c.daily_fetch_limit OR
+      COALESCE((SELECT SUM(bytes) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.bytes > c.daily_bytes_limit OR
+      COALESCE((SELECT SUM(provider_api_calls) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.provider_api_calls > c.daily_provider_limit OR
+      COALESCE((SELECT SUM(model_calls) FROM research_cost_events WHERE substr(occurred_at,1,10)=substr(NEW.occurred_at,1,10)),0)+NEW.model_calls > c.daily_model_limit
+    )
+) BEGIN SELECT RAISE(ABORT, 'research cost budget exceeded'); END`,
+		},
+	},
+	{
+		version: 40,
+		name:    "research trigger policy queue",
+		statements: []string{
+			`CREATE TABLE research_trigger_queue (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    request_id TEXT NOT NULL CHECK (length(trim(request_id)) > 0),
+    subject TEXT NOT NULL CHECK (length(trim(subject)) > 0),
+    domain TEXT NOT NULL DEFAULT '',
+    technology TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL CHECK (purpose IN ('concept_definition','current_usage','version_behavior','release_status','deprecation_check','prerequisite_research','production_practice','security_guidance')),
+    target_version TEXT,
+    requested_at TEXT NOT NULL CHECK (requested_at GLOB '*Z'),
+    triggers_json TEXT NOT NULL CHECK (json_valid(triggers_json) AND json_type(triggers_json)='array' AND json_array_length(triggers_json) BETWEEN 1 AND 8),
+    priority TEXT NOT NULL CHECK (priority IN ('normal','high','critical')),
+    dedupe_key TEXT NOT NULL CHECK (dedupe_key GLOB 'trigger:*' AND length(dedupe_key)=72),
+    status TEXT NOT NULL CHECK (status IN ('queued','dispatched','cancelled')),
+    queued_at TEXT NOT NULL CHECK (queued_at GLOB '*Z'),
+    status_changed_at TEXT,
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version='research-trigger-v1'),
+    CHECK ((status='queued' AND status_changed_at IS NULL) OR (status<>'queued' AND status_changed_at GLOB '*Z')),
+    CHECK (queued_at >= requested_at),
+    CHECK (status_changed_at IS NULL OR status_changed_at >= queued_at)
+)`,
+			`CREATE UNIQUE INDEX research_trigger_queue_active_dedupe_idx ON research_trigger_queue (dedupe_key) WHERE status='queued'`,
+			`CREATE INDEX research_trigger_queue_order_idx ON research_trigger_queue (status,priority,queued_at,id)`,
+		},
+	},
+	{
+		version: 41,
+		name:    "versioned evidence drift reports",
+		statements: []string{
+			`ALTER TABLE drift_reports ADD COLUMN confidence REAL NOT NULL DEFAULT 0 CHECK (confidence BETWEEN 0 AND 1)`,
+			`ALTER TABLE drift_reports ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'drift-unversioned-legacy' CHECK (algorithm_version IN ('drift-unversioned-legacy','drift-v1'))`,
+			`CREATE INDEX drift_reports_bundle_type_idx ON drift_reports (old_bundle_id,drift_type,detected_at,id)`,
+		},
+	},
+	{
+		version: 42,
+		name:    "versioned research impact analysis",
+		statements: []string{
+			`ALTER TABLE impact_reports ADD COLUMN affected_evidence_ids_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(affected_evidence_ids_json) AND json_type(affected_evidence_ids_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN future_concept_refs_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(future_concept_refs_json) AND json_type(future_concept_refs_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN future_lesson_refs_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(future_lesson_refs_json) AND json_type(future_lesson_refs_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN technology_version_refs_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(technology_version_refs_json) AND json_type(technology_version_refs_json)='array')`,
+			`ALTER TABLE impact_reports ADD COLUMN algorithm_version TEXT NOT NULL DEFAULT 'impact-unversioned-legacy' CHECK (algorithm_version IN ('impact-unversioned-legacy','impact-analysis-v1'))`,
+			`CREATE INDEX impact_reports_drift_history_idx ON impact_reports (drift_report_id,assessed_at,id)`,
+		},
+	},
+	{
+		version: 43,
+		name:    "reproducible research run audit",
+		statements: []string{
+			`CREATE TABLE research_run_audit (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    run_id TEXT NOT NULL REFERENCES research_runs(id),
+    recorded_at TEXT NOT NULL CHECK (recorded_at GLOB '*Z'),
+    outcome TEXT NOT NULL CHECK (outcome IN ('planned','running','completed','failed','cancelled')),
+    content_hash TEXT NOT NULL CHECK (content_hash GLOB 'sha256:*' AND length(content_hash)=71),
+    metadata_json TEXT NOT NULL CHECK (json_valid(metadata_json) AND json_type(metadata_json)='object' AND length(CAST(metadata_json AS BLOB)) <= 262144),
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version='research-audit-v1'),
+    UNIQUE (run_id, recorded_at)
+)`,
+			`CREATE INDEX research_run_audit_history_idx ON research_run_audit (run_id,recorded_at,id)`,
+			`CREATE TRIGGER research_run_audit_immutable_update BEFORE UPDATE ON research_run_audit BEGIN SELECT RAISE(ABORT, 'research run audit is immutable'); END`,
+			`CREATE TRIGGER research_run_audit_immutable_delete BEFORE DELETE ON research_run_audit BEGIN SELECT RAISE(ABORT, 'research run audit is immutable'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

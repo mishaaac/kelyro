@@ -12,7 +12,7 @@ jobs:
   quality:
     name: Quality (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -39,7 +39,7 @@ jobs:
       - name: Test
         run: go run ./tools/quality test
 
-      - name: Foundation and Student Core E2E
+      - name: Foundation, Student Core, and Research Engine E2E
         run: go run ./tools/quality e2e
 
       - name: Vet

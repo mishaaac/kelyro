@@ -622,7 +622,8 @@ func TestViewsRemainWithinTerminalWidth(t *testing.T) {
 		model := readyModel(&fakeService{})
 		model.width = width
 		for _, current := range []screen{screenHome, screenDoctor, screenConfig, screenRoadmap, screenToday, screenProgress,
-			screenConcept, screenReviews, screenHistory, screenGoal, screenProfile, screenStreak, screenOnboarding} {
+			screenConcept, screenReviews, screenHistory, screenGoal, screenProfile, screenStreak, screenOnboarding,
+			screenResearch, screenSources, screenSourceDetail, screenClaimDetail, screenConflicts, screenFreshness} {
 			model.screen = current
 			for _, line := range strings.Split(model.View(), "\n") {
 				if got := lipgloss.Width(line); got > width {

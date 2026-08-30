@@ -20,7 +20,10 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/learningdb"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
+	"github.com/mishaaac/kelyro/internal/infra/platformos"
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
+	"github.com/mishaaac/kelyro/internal/infra/researchcachefs"
+	"github.com/mishaaac/kelyro/internal/infra/researchdb"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/updatecache"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
@@ -72,10 +75,12 @@ func main() {
 		WithBackups(backups).
 		WithPortability(portable).
 		WithUpdates(updates).
+		WithResearchStores(researchdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
+		WithResearchCaches(researchcachefs.NewFactory()).
 		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).
-		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout))
+		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New()))
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

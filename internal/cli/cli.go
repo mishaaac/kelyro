@@ -18,6 +18,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/portability"
+	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/version"
 )
@@ -63,6 +65,8 @@ Commands:
   time     Show intentional active study time
   reviews  Show scheduled or currently due reviews
   streak   Show study consistency without affecting progress
+  sources  Inspect sources, conflicts, provenance, and stale evidence
+  research Plan and inspect Research runs, costs, and the offline cache
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -170,6 +174,25 @@ Review commands:
 Streak command:
   kelyro streak
 
+Source registry commands:
+  kelyro sources
+  kelyro sources list
+  kelyro sources show <source-id>
+  kelyro sources registry list
+  kelyro sources registry show <id>
+  kelyro sources trace <claim-id>
+  kelyro sources stale
+  kelyro sources conflicts
+
+Research commands:
+  kelyro research topic <topic>
+  kelyro research status <run-id>
+  kelyro research show <run-id>
+  kelyro research stats
+  kelyro research update-scan
+  kelyro research cache status
+  kelyro research cache clear
+
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
 `
@@ -200,6 +223,8 @@ var actions = map[string]app.Action{
 	"time":        app.ActionTime,
 	"reviews":     app.ActionReviews,
 	"streak":      app.ActionStreak,
+	"sources":     app.ActionSources,
+	"research":    app.ActionResearch,
 	"maintenance": app.ActionMaintenance,
 }
 
@@ -285,37 +310,45 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	command := app.Command{
-		Action:               action,
-		Workspace:            invocation.workspace,
-		AllowNested:          invocation.allowNested,
-		ConfigScope:          invocation.configScope,
-		OpenTarget:           invocation.openTarget,
-		DoctorExplain:        invocation.doctorExplain,
-		LogOperation:         invocation.logOperation,
-		BackupOperation:      invocation.backupOperation,
-		BackupID:             invocation.backupID,
-		ExportMode:           invocation.exportMode,
-		ExportOutput:         invocation.exportOutput,
-		ImportArchive:        invocation.importArchive,
-		ImportDryRun:         invocation.importDryRun,
-		ImportConflicts:      invocation.importConflicts,
-		UpdateOperation:      invocation.updateOperation,
-		ProfileOperation:     invocation.profileOperation,
-		ProfileChanges:       invocation.profileChanges,
-		GoalOperation:        invocation.goalOperation,
-		GoalInput:            invocation.goalInput,
-		MasteryOperation:     invocation.masteryOperation,
-		MasteryThreshold:     invocation.masteryThreshold,
-		SetupOperation:       invocation.setupOperation,
-		MistakeOperation:     invocation.mistakeOperation,
-		MistakeID:            invocation.mistakeID,
-		SessionOperation:     invocation.sessionOperation,
-		HistoryToday:         invocation.historyToday,
-		ProgressOperation:    invocation.progressOperation,
-		MaintenanceOperation: invocation.maintenanceOperation,
-		MaintenanceDryRun:    invocation.maintenanceDryRun,
-		ReviewsDue:           invocation.reviewsDue,
-		Verbose:              invocation.verbose,
+		Action:                  action,
+		Workspace:               invocation.workspace,
+		AllowNested:             invocation.allowNested,
+		ConfigScope:             invocation.configScope,
+		OpenTarget:              invocation.openTarget,
+		DoctorExplain:           invocation.doctorExplain,
+		LogOperation:            invocation.logOperation,
+		BackupOperation:         invocation.backupOperation,
+		BackupID:                invocation.backupID,
+		ExportMode:              invocation.exportMode,
+		ExportOutput:            invocation.exportOutput,
+		ImportArchive:           invocation.importArchive,
+		ImportDryRun:            invocation.importDryRun,
+		ImportConflicts:         invocation.importConflicts,
+		UpdateOperation:         invocation.updateOperation,
+		ProfileOperation:        invocation.profileOperation,
+		ProfileChanges:          invocation.profileChanges,
+		GoalOperation:           invocation.goalOperation,
+		GoalInput:               invocation.goalInput,
+		MasteryOperation:        invocation.masteryOperation,
+		MasteryThreshold:        invocation.masteryThreshold,
+		SetupOperation:          invocation.setupOperation,
+		MistakeOperation:        invocation.mistakeOperation,
+		MistakeID:               invocation.mistakeID,
+		SessionOperation:        invocation.sessionOperation,
+		HistoryToday:            invocation.historyToday,
+		ProgressOperation:       invocation.progressOperation,
+		MaintenanceOperation:    invocation.maintenanceOperation,
+		MaintenanceDryRun:       invocation.maintenanceDryRun,
+		ReviewsDue:              invocation.reviewsDue,
+		SourceRegistryOperation: invocation.sourceRegistryOperation,
+		ResearchCacheOperation:  invocation.researchCacheOperation,
+		ResearchOperation:       invocation.researchOperation,
+		ResearchTopic:           invocation.researchTopic,
+		ResearchRunID:           invocation.researchRunID,
+		SourceID:                invocation.sourceID,
+		SourceRegistryID:        invocation.sourceRegistryID,
+		ProvenanceClaimID:       invocation.provenanceClaimID,
+		Verbose:                 invocation.verbose,
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
@@ -433,6 +466,37 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(r.stdout, formatReviews(*result.Reviews))
 	} else if result.Streak != nil && !invocation.quiet {
 		fmt.Fprintln(r.stdout, formatStreak(*result.Streak))
+	} else if result.StaleSources != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatStaleSources(result.StaleSources))
+	} else if result.ResearchCacheStatus != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchCacheStatus(*result.ResearchCacheStatus))
+	} else if result.ResearchCacheCleared != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchCacheClear(*result.ResearchCacheCleared))
+	} else if result.ResearchCostStats != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchCostStats(*result.ResearchCostStats))
+	} else if result.UpdateScan != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatUpdateScan(*result.UpdateScan))
+	} else if result.ResearchView != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchView(*result.ResearchView))
+	} else if result.ResearchAuditView != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatResearchAuditView(*result.ResearchAuditView))
+	} else if result.Source != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSource(*result.Source))
+	} else if result.Sources != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSources(result.Sources))
+	} else if result.SourceConflicts != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSourceConflicts(result.SourceConflicts))
+	} else if result.SourceRegistryEntry != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSourceRegistryEntry(*result.SourceRegistryEntry))
+	} else if result.SourceRegistryEntries != nil && !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatSourceRegistryEntries(result.SourceRegistryEntries))
+	} else if result.ProvenanceGraph != nil && !invocation.quiet {
+		explanation, explainErr := result.ProvenanceGraph.Explain()
+		if explainErr != nil {
+			fmt.Fprintf(r.stderr, "kelyro %s: explain provenance: %v\n", commandName, explainErr)
+			return ExitFailure
+		}
+		fmt.Fprintln(r.stdout, explanation)
 	} else if !invocation.quiet && result.Message != "" {
 		fmt.Fprintln(r.stdout, result.Message)
 	}
@@ -1066,51 +1130,59 @@ func formatDiagnostics(report doctor.Report) string {
 }
 
 type invocation struct {
-	command              string
-	workspace            string
-	help                 bool
-	version              bool
-	noColor              bool
-	verbose              bool
-	quiet                bool
-	allowNested          bool
-	arguments            []string
-	configScope          config.Scope
-	configOperation      string
-	configKey            string
-	configValue          string
-	secretOperation      string
-	secretName           string
-	openTarget           string
-	doctorExplain        string
-	logOperation         string
-	backupOperation      string
-	backupID             string
-	yes                  bool
-	exportMode           portability.Mode
-	exportOutput         string
-	importArchive        string
-	importDryRun         bool
-	importConflicts      portability.ConflictStrategy
-	conflictSet          bool
-	updateOperation      string
-	profileOperation     string
-	profileChanges       learningapp.ProfileChanges
-	profileFlagsSet      bool
-	goalOperation        string
-	goalInput            learningapp.SetGoalInput
-	goalFlagsSet         bool
-	masteryOperation     string
-	masteryThreshold     learning.MasteryThreshold
-	setupOperation       string
-	mistakeOperation     string
-	mistakeID            learning.ID
-	sessionOperation     string
-	historyToday         bool
-	progressOperation    string
-	maintenanceOperation string
-	maintenanceDryRun    bool
-	reviewsDue           bool
+	command                 string
+	workspace               string
+	help                    bool
+	version                 bool
+	noColor                 bool
+	verbose                 bool
+	quiet                   bool
+	allowNested             bool
+	arguments               []string
+	configScope             config.Scope
+	configOperation         string
+	configKey               string
+	configValue             string
+	secretOperation         string
+	secretName              string
+	openTarget              string
+	doctorExplain           string
+	logOperation            string
+	backupOperation         string
+	backupID                string
+	yes                     bool
+	exportMode              portability.Mode
+	exportOutput            string
+	importArchive           string
+	importDryRun            bool
+	importConflicts         portability.ConflictStrategy
+	conflictSet             bool
+	updateOperation         string
+	profileOperation        string
+	profileChanges          learningapp.ProfileChanges
+	profileFlagsSet         bool
+	goalOperation           string
+	goalInput               learningapp.SetGoalInput
+	goalFlagsSet            bool
+	masteryOperation        string
+	masteryThreshold        learning.MasteryThreshold
+	setupOperation          string
+	mistakeOperation        string
+	mistakeID               learning.ID
+	sessionOperation        string
+	historyToday            bool
+	progressOperation       string
+	maintenanceOperation    string
+	maintenanceDryRun       bool
+	reviewsDue              bool
+	sourceRegistryOperation string
+	researchCacheOperation  string
+	researchOperation       string
+	researchTopic           string
+	researchRunID           research.ID
+	sourceID                research.SourceID
+	sourceRegistryID        research.ID
+	provenanceClaimID       research.ClaimID
 }
 
 func parse(args []string) (invocation, error) {
@@ -1467,6 +1539,14 @@ func parse(args []string) (invocation, error) {
 		if len(result.arguments) != 0 {
 			return invocation{}, fmt.Errorf("streak does not accept positional arguments")
 		}
+	case "sources":
+		if err := parseSourcesArguments(&result); err != nil {
+			return invocation{}, err
+		}
+	case "research":
+		if err := parseResearchArguments(&result); err != nil {
+			return invocation{}, err
+		}
 	case "maintenance":
 		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
 			return invocation{}, fmt.Errorf("maintenance requires recalculate")
@@ -1506,6 +1586,371 @@ func parse(args []string) (invocation, error) {
 	}
 
 	return result, nil
+}
+
+func parseSourcesArguments(result *invocation) error {
+	if len(result.arguments) == 0 || (len(result.arguments) == 1 && result.arguments[0] == "list") {
+		result.sourceRegistryOperation = "sources-list"
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "show" {
+		id, err := research.NewSourceID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("sources show: invalid source id: %w", err)
+		}
+		result.sourceRegistryOperation = "source-show"
+		result.sourceID = id
+		return nil
+	}
+	if len(result.arguments) == 1 && result.arguments[0] == "conflicts" {
+		result.sourceRegistryOperation = "conflicts"
+		return nil
+	}
+	if len(result.arguments) == 1 && result.arguments[0] == "stale" {
+		result.sourceRegistryOperation = "stale"
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "trace" {
+		id, err := research.NewClaimID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("sources trace: invalid claim id: %w", err)
+		}
+		result.sourceRegistryOperation = "trace"
+		result.provenanceClaimID = id
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "registry" && result.arguments[1] == "list" {
+		result.sourceRegistryOperation = "list"
+		return nil
+	}
+	if len(result.arguments) == 3 && result.arguments[0] == "registry" && result.arguments[1] == "show" {
+		id, err := research.NewID(result.arguments[2])
+		if err != nil {
+			return fmt.Errorf("sources registry show: invalid id: %w", err)
+		}
+		result.sourceRegistryOperation = "show"
+		result.sourceRegistryID = id
+		return nil
+	}
+	return fmt.Errorf("sources requires list, show <source-id>, conflicts, registry list, registry show <id>, trace <claim-id>, or stale")
+}
+
+func parseResearchArguments(result *invocation) error {
+	if len(result.arguments) >= 2 && result.arguments[0] == "topic" {
+		topic := strings.Join(result.arguments[1:], " ")
+		if strings.TrimSpace(topic) == "" {
+			return fmt.Errorf("research topic requires a topic")
+		}
+		result.researchOperation = "topic"
+		result.researchTopic = topic
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "status" {
+		id, err := research.NewID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("research status: invalid run id: %w", err)
+		}
+		result.researchOperation = "status"
+		result.researchRunID = id
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "show" {
+		id, err := research.NewID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("research show: invalid run id: %w", err)
+		}
+		result.researchOperation = "show"
+		result.researchRunID = id
+		return nil
+	}
+	if len(result.arguments) == 1 && result.arguments[0] == "stats" {
+		result.researchOperation = "stats"
+		return nil
+	}
+	if len(result.arguments) == 1 && result.arguments[0] == "update-scan" {
+		result.researchOperation = "update-scan"
+		return nil
+	}
+	if len(result.arguments) == 2 && result.arguments[0] == "cache" &&
+		(result.arguments[1] == "status" || result.arguments[1] == "clear") {
+		result.researchCacheOperation = result.arguments[1]
+		return nil
+	}
+	return fmt.Errorf("research requires topic <topic>, status <run-id>, show <run-id>, stats, update-scan, cache status, or cache clear")
+}
+
+func formatResearchView(view app.ResearchCLIView) string {
+	status := string(view.Run.Status)
+	primary, supporting, conflicts := 0, 0, 0
+	lastVerified := "not available"
+	if view.Bundle != nil {
+		status = strings.ReplaceAll(string(view.Bundle.State), "_", " ")
+		for _, source := range view.Bundle.Sources {
+			switch source.Role {
+			case research.BundleSourcePrimary:
+				primary++
+			case research.BundleSourceSupporting:
+				supporting++
+			}
+		}
+		conflicts = len(view.Bundle.ConflictIDs)
+		lastVerified = view.Bundle.VerifiedAt.Time().Format(time.RFC3339)
+	}
+	lines := []string{
+		"Research: " + view.Request.Topic.Subject,
+		"Run: " + view.Run.ID.String(),
+		"", "Status: " + status,
+		fmt.Sprintf("Primary sources: %d", primary),
+		fmt.Sprintf("Supporting sources: %d", supporting),
+		fmt.Sprintf("Conflicts: %d", conflicts),
+		"Last verified: " + lastVerified,
+	}
+	if view.DiscoveryPending {
+		policy := "blocked by privacy.allow_network"
+		if view.NetworkAllowed {
+			policy = "allowed; no live discovery adapter configured"
+		}
+		lines = append(lines, "Discovery: pending ("+policy+")")
+	}
+	if view.QueueItem != nil {
+		triggers := make([]string, len(view.QueueItem.Triggers))
+		for index, trigger := range view.QueueItem.Triggers {
+			triggers[index] = string(trigger)
+		}
+		lines = append(lines, "Trigger: "+strings.Join(triggers, ", ")+" ("+string(view.QueueItem.Priority)+")")
+	}
+	if view.Plan != nil {
+		lines = append(lines, "Query plan: "+view.Plan.AlgorithmVersion)
+		for _, query := range view.Plan.Queries {
+			lines = append(lines, fmt.Sprintf("- %d. %s [%s, tier %s+]", query.Priority, query.Query, query.DesiredSourceKind, query.RequiredAuthority))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatResearchAuditView(view app.ResearchAuditCLIView) string {
+	lines := []string{
+		"Research audit: " + view.Run.ID.String(),
+		"Topic: " + view.Request.Topic.Subject,
+		"Run status: " + string(view.Run.Status),
+		fmt.Sprintf("Checkpoints: %d", len(view.Records)),
+	}
+	if len(view.Records) == 0 {
+		lines = append(lines, "Audit metadata: not recorded")
+	}
+	for index, record := range view.Records {
+		completed := "not completed"
+		if record.CompletedAt != nil {
+			completed = record.CompletedAt.Time().Format(time.RFC3339)
+		}
+		providers := "none"
+		if len(record.ProvidersUsed) > 0 {
+			providers = strings.Join(record.ProvidersUsed, ", ")
+		}
+		network := string(record.NetworkMode)
+		if record.NetworkAllowed {
+			network += " (allowed)"
+		} else {
+			network += " (disabled by privacy gate)"
+		}
+		lines = append(lines,
+			"",
+			fmt.Sprintf("Checkpoint %d: %s", index+1, record.ID.String()),
+			"Recorded: "+record.RecordedAt.Time().Format(time.RFC3339),
+			"Outcome: "+string(record.Outcome),
+			"Started: "+record.StartedAt.Time().Format(time.RFC3339),
+			"Completed: "+completed,
+			"Query planner: "+record.QueryPlannerVersion,
+			"Trust policy: "+record.TrustPolicyVersion,
+			"Freshness: "+record.FreshnessVersion,
+			"Conflict resolver: "+record.ConflictResolverVersion,
+			"Providers: "+providers,
+			"Network: "+network,
+			fmt.Sprintf("Usage: %d cache hits, %d sources, %d bytes fetched", record.CacheHits, record.SourceCount, record.BytesFetched),
+			"Audit algorithm: "+record.AlgorithmVersion,
+			"Audit hash: "+record.ContentHash,
+		)
+		if record.TargetTechnology != "" {
+			target := record.TargetTechnology
+			if record.TargetVersion != nil {
+				target += " " + record.TargetVersion.String()
+			}
+			lines = append(lines, "Target: "+target)
+		}
+		lines = append(lines, "Queries:")
+		for _, query := range record.Queries {
+			lines = append(lines, "- "+query)
+		}
+		if len(record.Sources) > 0 {
+			lines = append(lines, "Snapshots:")
+			for _, source := range record.Sources {
+				lines = append(lines, fmt.Sprintf("- %s — %s — %s", source.SourceID, source.Locator, source.SnapshotHash))
+			}
+		}
+		if len(record.AdditionalAlgorithms) > 0 {
+			lines = append(lines, "Additional algorithms:")
+			for _, algorithm := range record.AdditionalAlgorithms {
+				lines = append(lines, fmt.Sprintf("- %s: %s", algorithm.Stage, algorithm.Version))
+			}
+		}
+	}
+	return strings.Join(append(lines, "", research.ResearchAuditInternetDisclaimer), "\n")
+}
+
+func formatSources(sources []research.Source) string {
+	lines := []string{"Research sources"}
+	if len(sources) == 0 {
+		return strings.Join(append(lines, "No sources recorded."), "\n")
+	}
+	for _, source := range sources {
+		lines = append(lines, fmt.Sprintf("- %s [%s, %s] — %s — %s", source.ID, source.Kind, source.TemporalScope, source.Metadata.Title, source.Locator))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSource(view app.SourceCLIView) string {
+	source := view.Source
+	lines := []string{
+		"Research source", "ID: " + source.ID.String(), "Title: " + source.Metadata.Title,
+		"Kind: " + string(source.Kind), "Temporal scope: " + string(source.TemporalScope),
+		"Locator: " + source.Locator.String(), "Publisher: " + source.Metadata.Publisher,
+	}
+	if view.LatestSnapshot == nil {
+		lines = append(lines, "Latest snapshot: not available")
+	} else {
+		lines = append(lines, "Latest snapshot: "+view.LatestSnapshot.ID.String(), "Fetched: "+view.LatestSnapshot.FetchedAt.Time().Format(time.RFC3339), "Content hash: "+view.LatestSnapshot.Fetch.ContentHash)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSourceConflicts(conflicts []research.Conflict) string {
+	lines := []string{"Unresolved source conflicts"}
+	if len(conflicts) == 0 {
+		return strings.Join(append(lines, "No unresolved conflicts."), "\n")
+	}
+	for _, conflict := range conflicts {
+		claims := make([]string, len(conflict.ClaimIDs))
+		for index, claimID := range conflict.ClaimIDs {
+			claims[index] = claimID.String()
+		}
+		lines = append(lines, fmt.Sprintf("- %s [%s] — claims %s — %s", conflict.ID, conflict.Type, strings.Join(claims, ", "), conflict.Reason))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatResearchCostStats(stats researchapp.ResearchCostStats) string {
+	return strings.Join([]string{
+		"Research cost stats",
+		"Algorithm: " + stats.AlgorithmVersion,
+		fmt.Sprintf("Runs: %d (%d stopped by budget)", stats.Runs, stats.BudgetStoppedRuns),
+		fmt.Sprintf("Used: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.Used.SearchRequests, stats.Used.FetchRequests, stats.Used.Bytes, stats.Used.ProviderAPICalls, stats.Used.ModelCalls),
+		fmt.Sprintf("Today: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.TodayUsed.SearchRequests, stats.TodayUsed.FetchRequests, stats.TodayUsed.Bytes, stats.TodayUsed.ProviderAPICalls, stats.TodayUsed.ModelCalls),
+		fmt.Sprintf("Saved by valid cache: %d searches, %d fetches, %d bytes, %d provider API calls, %d model calls", stats.CacheSavings.SearchRequests, stats.CacheSavings.FetchRequests, stats.CacheSavings.Bytes, stats.CacheSavings.ProviderAPICalls, stats.CacheSavings.ModelCalls),
+	}, "\n")
+}
+
+func formatUpdateScan(scan research.UpdateScan) string {
+	status := "complete"
+	if !scan.Complete() {
+		reasons := make([]string, len(scan.IncompleteReasons))
+		for index, reason := range scan.IncompleteReasons {
+			reasons[index] = string(reason)
+		}
+		status = "incomplete (" + strings.Join(reasons, ", ") + ")"
+	}
+	lines := []string{
+		"Research update scan",
+		"Status: " + status,
+		"Scanned: " + scan.ScannedAt.Time().Format(time.RFC3339),
+		fmt.Sprintf("Inventory: %d technologies, %d releases, %d tracked sources, %d freshness due",
+			scan.Inventory.KnownTechnologies, scan.Inventory.KnownReleases,
+			scan.Inventory.TrackedSources, scan.Inventory.FreshnessDue),
+		fmt.Sprintf("Signals: %d", len(scan.Signals)),
+	}
+	for _, signal := range scan.Signals {
+		lines = append(lines, fmt.Sprintf("- %s: %s — %s [%s]", signal.Type, signal.Reference, signal.Detail, signal.Origin))
+	}
+	if len(scan.Signals) == 0 {
+		lines = append(lines, "No stored change signals found.")
+	}
+	lines = append(lines, "Algorithm: "+scan.AlgorithmVersion, "This report does not modify curriculum or student state.")
+	return strings.Join(lines, "\n")
+}
+
+func formatResearchCacheStatus(status researchapp.ResearchCacheStatus) string {
+	lines := []string{
+		"Research cache",
+		"Algorithm: " + status.AlgorithmVersion,
+		fmt.Sprintf("Total: %d entries, %d bytes, %d stale", status.TotalEntries, status.TotalPayloadBytes, status.StaleEntries),
+		fmt.Sprintf("Corrupt: %d entries, %d bytes", status.CorruptEntries, status.CorruptBytes),
+	}
+	for _, layer := range status.Layers {
+		lines = append(lines, fmt.Sprintf("- %s: %d entries, %d bytes, %d stale", layer.Layer, layer.Entries, layer.PayloadBytes, layer.StaleEntries))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatResearchCacheClear(result researchapp.ResearchCacheClearResult) string {
+	return fmt.Sprintf("Research cache cleared\nRemoved: %d entries, %d bytes\nPersisted snapshots and evidence were not modified.", result.RemovedEntries, result.RemovedBytes)
+}
+
+func formatStaleSources(records []researchapp.FreshnessRecord) string {
+	lines := []string{"Sources and claims due for reverification"}
+	if len(records) == 0 {
+		return strings.Join(append(lines, "Nothing is currently due."), "\n")
+	}
+	for _, record := range records {
+		lines = append(lines, fmt.Sprintf("- %s [%s] — %s — due %s — last verified %s",
+			record.SubjectID, record.Priority, record.VerificationReason,
+			record.NextVerifyAt.Time().Format(time.RFC3339), record.LastVerifiedAt.Time().Format(time.RFC3339)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSourceRegistryEntries(entries []research.SourceRegistryEntry) string {
+	lines := []string{"Trusted source registry"}
+	if len(entries) == 0 {
+		return strings.Join(append(lines, "No registry entries."), "\n")
+	}
+	for _, entry := range entries {
+		domains := make([]string, len(entry.CanonicalDomains))
+		for index, domain := range entry.CanonicalDomains {
+			domains[index] = domain.String()
+		}
+		lines = append(lines, fmt.Sprintf("- %s [%s] — %s — %s", entry.ID, entry.Status, entry.Organization, strings.Join(domains, ", ")))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatSourceRegistryEntry(entry research.SourceRegistryEntry) string {
+	domains := make([]string, len(entry.CanonicalDomains))
+	for index, domain := range entry.CanonicalDomains {
+		domains[index] = domain.String()
+	}
+	kinds := make([]string, len(entry.SourceKinds))
+	for index, kind := range entry.SourceKinds {
+		kinds[index] = string(kind)
+	}
+	lines := []string{
+		"Trusted source registry entry",
+		"ID: " + entry.ID.String(),
+		"Organization: " + entry.Organization,
+		"Status: " + string(entry.Status),
+		"Canonical domains: " + strings.Join(domains, ", "),
+		"Source kinds: " + strings.Join(kinds, ", "),
+		"Research domains: " + strings.Join(entry.ResearchDomains, ", "),
+		"Topic patterns: " + strings.Join(entry.TopicPatterns, ", "),
+		"Added: " + entry.AddedAt.Time().Format(time.RFC3339),
+		"Last reviewed: " + entry.LastReviewedAt.Time().Format(time.RFC3339),
+	}
+	for _, hint := range entry.AuthorityHints {
+		lines = append(lines, fmt.Sprintf("Authority hint: %s → tier %s — %s", hint.SourceKind, hint.Tier, hint.Reason))
+	}
+	if entry.Notes != "" {
+		lines = append(lines, "Notes: "+entry.Notes)
+	}
+	lines = append(lines, "Registry metadata is contextual input, not evidence or an automatic trust decision.")
+	return strings.Join(lines, "\n")
 }
 
 func parseMistakeArguments(result *invocation) error {

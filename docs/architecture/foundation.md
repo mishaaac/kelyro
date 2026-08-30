@@ -215,6 +215,9 @@ Workspace data never moves into those global directories:
 `WorkspaceInternalDir` resolves `<workspace>/.kelyro`, the database is
 `learning.db`, metadata is `workspace.json`, state is under `state`, disposable
 cache is under `cache`, backups are under `backups`, and logs are under `logs`.
+`WorkspaceResearchCacheDir` further scopes I-03 disposable records to
+`.kelyro/cache/research` so cache clear/eviction cannot target the database or
+another component's cache.
 `WorkspaceConfigPath` resolves `.kelyro/config.toml`, and
 `WorkspaceLearningPath` resolves the visible `LEARNING.md` document and
 `WorkspaceRoadmapPath` resolves `00-roadmap/ROADMAP.md`. These
@@ -405,6 +408,12 @@ external access requires `allow_network`. Sending AI content or usage telemetry
 also requires its dedicated opt-in; enabling either dedicated setting without
 general network access does not bypass offline mode. The `updates.check`
 preference expresses interest in checks, but it cannot bypass the privacy gate.
+
+Research discovery, source fetch, and release lookup consume this same resolved
+gate through their application services. Their `online` mode cannot override a
+denial; `auto` falls back only to explicitly offline cache ports, and `offline`
+never invokes a live provider. Stored evidence, source registry data, and
+freshness metadata remain readable without network permission.
 
 Authorization requests and denial-specific metadata contain only a bounded
 stable operation identifier and a declared purpose. URLs, filesystem paths,

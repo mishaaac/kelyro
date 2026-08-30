@@ -69,6 +69,7 @@ func newRepositories(target executor, timeout time.Duration, now func() time.Tim
 		WorkspaceMeta: &workspaceMetaRepository{executor: target, timeout: timeout, now: now},
 		Artifacts:     &artifactRepository{executor: target, timeout: timeout, now: now},
 		Audit:         &auditRepository{executor: target, timeout: timeout, now: now, version: version},
+		Research:      newResearchRepositories(target, timeout),
 	}
 }
 

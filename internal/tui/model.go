@@ -9,6 +9,9 @@ import (
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
+	"github.com/mishaaac/kelyro/internal/platform"
+	"github.com/mishaaac/kelyro/internal/research"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/session"
 )
 
@@ -28,6 +31,12 @@ const (
 	screenProfile
 	screenStreak
 	screenOnboarding
+	screenResearch
+	screenSources
+	screenSourceDetail
+	screenClaimDetail
+	screenConflicts
+	screenFreshness
 )
 
 // Model contains terminal-only state. It never discovers a workspace or reads
@@ -35,6 +44,7 @@ const (
 type Model struct {
 	ctx               context.Context
 	service           Service
+	platform          platform.Platform
 	command           app.Command
 	snapshot          app.FoundationSnapshot
 	screen            screen
@@ -76,6 +86,26 @@ type Model struct {
 	checkpointPending bool
 	quitting          bool
 	forceNoColor      bool
+	researchStats     researchapp.ResearchCostStats
+	researchLoading   bool
+	researchErr       error
+	sources           []app.SourceCLIView
+	sourcesLoading    bool
+	sourcesErr        error
+	sourceCursor      int
+	sourceDetail      *app.SourceCLIView
+	sourceDetailErr   error
+	conflicts         []research.Conflict
+	conflictsLoading  bool
+	conflictsErr      error
+	conflictCursor    int
+	claimCursor       int
+	claimGraph        *research.ProvenanceGraph
+	claimLoading      bool
+	claimErr          error
+	staleSources      []researchapp.FreshnessRecord
+	freshnessLoading  bool
+	freshnessErr      error
 	styles            styles
 }
 
@@ -290,6 +320,73 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model.queueCheckpoint()
 		}
 		return model, nil
+	case researchLoadedMsg:
+		model.researchStats = message.stats
+		model.researchLoading = false
+		model.researchErr = nil
+		return model, nil
+	case researchLoadFailedMsg:
+		model.researchLoading = false
+		model.researchErr = message.err
+		return model, nil
+	case sourcesLoadedMsg:
+		model.sources = append([]app.SourceCLIView(nil), message.sources...)
+		model.sourcesLoading = false
+		model.sourcesErr = nil
+		model.sourceCursor = min(max(0, model.sourceCursor), max(0, len(model.sources)-1))
+		return model, nil
+	case sourcesLoadFailedMsg:
+		model.sourcesLoading = false
+		model.sourcesErr = message.err
+		return model, nil
+	case sourceDetailLoadedMsg:
+		view := message.source
+		model.sourceDetail = &view
+		model.sourcesLoading = false
+		model.sourceDetailErr = nil
+		return model, nil
+	case sourceDetailLoadFailedMsg:
+		model.sourcesLoading = false
+		model.sourceDetailErr = message.err
+		return model, nil
+	case sourceURLOpenedMsg:
+		model.opening = false
+		model.notice = "Opened source in the default browser."
+		return model, nil
+	case sourceURLOpenFailedMsg:
+		model.opening = false
+		model.notice = "Could not open source: " + message.err.Error()
+		return model, nil
+	case conflictsLoadedMsg:
+		model.conflicts = append([]research.Conflict(nil), message.conflicts...)
+		model.conflictsLoading = false
+		model.conflictsErr = nil
+		model.conflictCursor = min(max(0, model.conflictCursor), max(0, len(model.conflicts)-1))
+		model.claimCursor = 0
+		return model, nil
+	case conflictsLoadFailedMsg:
+		model.conflictsLoading = false
+		model.conflictsErr = message.err
+		return model, nil
+	case claimLoadedMsg:
+		graph := message.graph
+		model.claimGraph = &graph
+		model.claimLoading = false
+		model.claimErr = nil
+		return model, nil
+	case claimLoadFailedMsg:
+		model.claimLoading = false
+		model.claimErr = message.err
+		return model, nil
+	case freshnessLoadedMsg:
+		model.staleSources = append([]researchapp.FreshnessRecord(nil), message.records...)
+		model.freshnessLoading = false
+		model.freshnessErr = nil
+		return model, nil
+	case freshnessLoadFailedMsg:
+		model.freshnessLoading = false
+		model.freshnessErr = message.err
+		return model, nil
 	case onboardingLoadedMsg:
 		model.setup = message.view
 		if message.view.Onboarding != nil {
@@ -345,6 +442,16 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 
+	if model.isResearchScreen() && (keyName == "esc" || keyName == "backspace") {
+		model.researchBack()
+		return model, nil
+	}
+	if model.isResearchScreen() && keyName == "h" {
+		model.screen = screenHome
+		model.scrollOffset = 0
+		model.notice = ""
+		return model, nil
+	}
 	if model.screen != screenOnboarding && model.screen != screenHome && (keyName == "esc" || keyName == "backspace" || keyName == "h") {
 		changed := model.screen != screenHome
 		model.screen = screenHome
@@ -405,6 +512,12 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.onboardingLoading = true
 			model.onboardingErr = nil
 			return model, onboardingCmd(model.ctx, model.service, model.command, "start")
+		case "R":
+			model.screen = screenResearch
+			model.scrollOffset = 0
+			model.researchLoading = true
+			model.researchErr = nil
+			return model, loadResearchCmd(model.ctx, model.service, model.command)
 		case "f":
 			if model.snapshot.LearningPath && !model.dashboardLoading {
 				model.dashboardLoading = true
@@ -420,7 +533,7 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if updated, handled := model.updateScroll(keyName); handled {
 			return updated, nil
 		}
-	case screenConfig, screenOnboarding:
+	case screenConfig, screenOnboarding, screenSources, screenConflicts:
 		// These screens reserve navigation keys for selection and text input.
 	default:
 		if updated, handled := model.updateScroll(keyName); handled {
@@ -481,6 +594,26 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case screenOnboarding:
 		return model.updateOnboarding(key)
+	case screenResearch:
+		return model.updateResearch(keyName)
+	case screenSources:
+		return model.updateSources(keyName)
+	case screenSourceDetail:
+		return model.updateSourceDetail(keyName)
+	case screenClaimDetail:
+		if keyName == "r" && model.claimGraph != nil && !model.claimLoading {
+			model.claimLoading = true
+			model.claimErr = nil
+			return model, loadClaimCmd(model.ctx, model.service, model.command, model.claimGraph.ClaimID)
+		}
+	case screenConflicts:
+		return model.updateConflicts(keyName)
+	case screenFreshness:
+		if keyName == "r" && !model.freshnessLoading {
+			model.freshnessLoading = true
+			model.freshnessErr = nil
+			return model, loadFreshnessCmd(model.ctx, model.service, model.command)
+		}
 	}
 	return model, nil
 }

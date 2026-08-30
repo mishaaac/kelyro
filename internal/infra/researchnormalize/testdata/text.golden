@@ -1,0 +1,17 @@
+normalization_version: source-normalization-v1
+source_id: source.normalization-fixture
+locator: https://docs.example.dev/reference/page.html
+content_type: text/plain
+title: ""
+canonical: https://docs.example.dev/reference/page.html
+language: ""
+published_at: ""
+updated_at: ""
+version_hints: 4.2
+headings:
+segments:
+- "Kelyro protocol version v4.2 is stable."
+- "Use bounded transport metadata. Whitespace is normalized."
+- "No markup is executed or inferred."
+code_blocks:
+links:

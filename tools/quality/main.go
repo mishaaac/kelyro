@@ -18,7 +18,7 @@ const usage = `Usage: go run ./tools/quality <gate>
 
 Gates:
   test         Run all tests
-  e2e          Run the isolated Foundation and Student Core lifecycle tests
+  e2e          Run isolated Foundation, Student Core, and Research Engine tests
   vet          Run Go static analysis
   race         Run all tests with the race detector
   build-smoke  Build the CLI and run version/help smoke tests
@@ -79,7 +79,7 @@ func plan(gate, binary string) ([]command, error) {
 	test := []command{{name: "go", args: []string{"test", "./..."}}}
 	e2e := []command{{name: "go", args: []string{"test", "-tags=e2e", "./tests/e2e"}}}
 	vet := []command{{name: "go", args: []string{"vet", "./..."}}}
-	race := []command{{name: "go", args: []string{"test", "-race", "./..."}}}
+	race := []command{{name: "go", args: []string{"test", "-race", "-timeout=20m", "./..."}}}
 	buildSmoke := []command{
 		{name: "go", args: []string{"build", "-o", binary, "./cmd/kelyro"}},
 		{name: binary, args: []string{"--version"}},
