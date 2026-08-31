@@ -78,6 +78,17 @@ type Brave struct {
 	observer PageObserver
 }
 
+// String and GoString keep diagnostic formatting from reflecting the
+// in-memory credential held by the adapter.
+func (provider *Brave) String() string {
+	if provider == nil {
+		return "<nil brave search provider>"
+	}
+	return "brave search provider"
+}
+
+func (provider *Brave) GoString() string { return provider.String() }
+
 // NewBrave constructs the adapter without resolving credentials or enabling
 // network access. Those application boundaries are wired in later steps.
 func NewBrave(client HTTPClient, token string, options ...Option) (*Brave, error) {
@@ -217,7 +228,9 @@ func (provider *Brave) searchPage(ctx context.Context, query string, offset, cou
 }
 
 func validateToken(token string) error {
-	if token == "" || len(token) > maximumTokenBytes || strings.IndexFunc(token, unicode.IsControl) >= 0 {
+	if token == "" || len(token) > maximumTokenBytes || strings.IndexFunc(token, func(character rune) bool {
+		return unicode.IsControl(character) || unicode.IsSpace(character)
+	}) >= 0 {
 		return errors.New("brave search credential is missing or invalid")
 	}
 	return nil

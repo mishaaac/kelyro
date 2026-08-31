@@ -580,7 +580,7 @@ fix(security): harden research search transport
 
 ## Paso 8 — Secrets integration
 
-- [ ] Paso 8 completado
+- [x] Paso 8 completado
 
 Resolver credenciales con Foundation Secrets.
 

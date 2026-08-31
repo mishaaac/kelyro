@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 8
-Last completed step: 7
+Current step: 9
+Last completed step: 8
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -414,3 +414,56 @@ Release: unreleased
 - El Paso 8 es el siguiente paso pendiente y requiere autorización explícita.
 - Resolver `research.search.brave.api_key` solo mediante Foundation Secrets;
   no añadir la key a config, SQLite, logs, doctor output o fixtures.
+
+## Step 08 — Foundation Secrets integration
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- `NewBraveFromSecrets` añadido como factory acotada que solicita únicamente
+  `research.search.brave.api_key` mediante el contrato Foundation Secrets.
+- Compatibilidad directa con la precedencia existente del secret store:
+  `KELYRO_SECRET_RESEARCH_SEARCH_BRAVE_API_KEY` primero y keychain nativo como
+  fallback, sin duplicar lógica de credenciales en Research.
+- API key validada y transferida solo al adapter en memoria; no existe DTO,
+  getter, config field, persistence path ni status que devuelva el valor.
+- Estados seguros `available`, `missing`, `unavailable` e `invalid`, con mapping
+  al readiness provider-neutral de `ResearchSearchConfig`.
+- Resumen permitido congelado como `Provider: configured` y
+  `Credential: available`, sin provider key, referencia interna o valor.
+- Errores de backend sanitizados y formatting normal/Go del provider redacted
+  para impedir que una inspección diagnóstica accidental refleje el token.
+- Tests deterministas para referencia exacta, construcción, uso del header,
+  readiness, missing/unavailable/invalid, sanitización y ausencia de lectura
+  cuando el transporte no está configurado.
+
+### Decisions
+
+- Se reutiliza `storage.SecretStore.Get` mediante un port local de solo lectura;
+  el adapter no enumera `Status` ni depende de backends Linux/macOS/Windows.
+- Un secret store nativo no disponible no bloquea el fallback por variable de
+  entorno, porque esa precedencia sigue perteneciendo al adapter Foundation.
+- Errores desconocidos del backend se convierten en
+  `ErrCredentialUnavailable` sin copiar su texto potencialmente sensible.
+- El estado `invalid` tampoco incluye longitud, prefijo ni ningún fragmento de
+  la key.
+- No se añadió production assembly, Doctor, privacy gate, búsqueda live, cost
+  wiring ni cambios de persistencia; pertenecen a pasos posteriores.
+
+### Verification
+
+- `go test -race ./internal/infra/researchsearch -count=1`.
+- `go vet ./internal/infra/researchsearch`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 9 es el siguiente paso pendiente y requiere autorización explícita.
+- Antes de cualquier `Search`, el flujo productivo debe comprobar
+  `privacy.allow_network`; una denegación debe producir `network_disabled` y
+  cero llamadas al provider.

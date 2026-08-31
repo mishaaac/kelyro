@@ -55,8 +55,9 @@ is available for lifecycle shutdown.
 
 - `DiscoveryService` and the privacy policy decide whether a live request may
   run before this transport is invoked.
-- Foundation Secrets will resolve the subscription token in I-03C Step 8; the
-  transport only holds the in-memory header value for the duration of a call.
+- Foundation Secrets resolves `research.search.brave.api_key` before adapter
+  construction; the transport only carries its in-memory header value for the
+  duration of a call.
 - Cost/audit wiring will count each observed page as one provider API call in a
   later step. The transport does not persist counters or response metadata.
 - Result locators remain candidates, not Sources, Evidence, Claims, trust

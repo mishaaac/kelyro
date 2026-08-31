@@ -43,15 +43,39 @@ persists a secret value.
 
 ## Secrets and privacy boundaries
 
-Provider credentials are not configuration. Future Secrets wiring uses the
-reference contract:
+Provider credentials are not configuration. The Step 8 Foundation Secrets
+integration uses exactly this reference:
 
 ```text
 research.search.<provider>.api_key
 ```
 
-That reference is reserved for Step 8. The strict configuration schema rejects
+The production secret store resolves the matching environment reference first:
+
+```text
+KELYRO_SECRET_RESEARCH_SEARCH_BRAVE_API_KEY
+```
+
+and otherwise uses the native OS keychain. The credential can be populated via
+`kelyro secrets set research.search.brave.api_key`; the CLI reads its value
+without terminal echo. The strict configuration schema continues to reject
 `research.search.api_key` and any other credential-shaped unknown key.
+
+`researchsearch.NewBraveFromSecrets` requests only the exact reference, passes
+the value directly into the in-memory adapter, and returns no value-bearing DTO.
+It does not call `Status`, persist the response, or include backend details in
+errors. Missing, unavailable and invalid credentials remain distinct safe
+states.
+
+The only permitted readiness rendering is state-only, for example:
+
+```text
+Provider: configured
+Credential: available
+```
+
+The provider value, errors, TOML, SQLite, logs, audit, cache, Doctor and
+diagnostic formatting never contain the API key.
 
 Selecting a provider does not grant network access. Every live search must
 still pass through `DiscoveryService` and the Foundation
@@ -65,5 +89,7 @@ roundtrips live in `internal/infra/configfs`. Vendor-specific identifiers may be
 interpreted only by future infra/config/Doctor wiring. Research domain and the
 `SearchProvider` application port remain vendor-neutral.
 
-This step does not select a reference provider, implement an adapter, resolve
-credentials, add Doctor checks or execute search.
+Provider selection, adapter implementation, transport hardening and credential
+resolution are now implemented by I-03C Steps 5–8. Production assembly,
+privacy authorization, Doctor checks and live search execution remain separate
+later steps.
