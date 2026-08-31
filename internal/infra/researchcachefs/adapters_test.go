@@ -41,6 +41,33 @@ func TestOfflineAdapterRejectsNoStoreFetchedBodiesBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestOfflineAdapterRejectsEncodedBodyAboveCacheLayerBeforeAnyWrite(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := &testClock{now: fsTimestamp(t, time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC))}
+	cache, err := NewFactory().WithClock(clock).Open(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := NewOfflineAdapter(cache)
+	sourceID, _ := research.NewSourceID("source.encoded-oversize")
+	locator, _ := research.NewSourceLocator("https://docs.example.test/encoded-oversize")
+	body := make([]byte, application.MaximumCachedSourceBodyBytes)
+	fetched := application.FetchedSource{
+		SourceID: sourceID, Locator: locator, FetchedAt: clock.now, Body: body, Origin: application.FetchOriginLive,
+		Metadata: research.FetchMetadata{StatusCode: 200, ContentType: "text/plain", ContentHash: research.CanonicalContentHashV1(body),
+			ContentLength: int64(len(body)), FetchVersion: "fetch/v1"},
+	}
+	request := application.FetchRequest{SourceID: sourceID, Locator: locator, MaximumBytes: int64(len(body))}
+	if err := adapter.CacheFetched(ctx, request, fetched); err == nil {
+		t.Fatal("encoded source above cache layer was accepted")
+	}
+	status, err := cache.Status(ctx)
+	if err != nil || status.TotalEntries != 0 {
+		t.Fatalf("cache after rejected encoded body = (%+v,%v)", status, err)
+	}
+}
+
 func TestOfflineAdapterFeedsDiscoveryFetchAndReleaseWithoutLiveCalls(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

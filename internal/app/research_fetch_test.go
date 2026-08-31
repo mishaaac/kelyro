@@ -10,13 +10,14 @@ import (
 	"github.com/mishaaac/kelyro/internal/privacy"
 	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
+	"github.com/mishaaac/kelyro/internal/research/application/memory"
 )
 
 func TestServiceAssemblesProductionResearchFetchBehindResolvedPrivacy(t *testing.T) {
 	t.Parallel()
 	configs := &recordingConfigStore{project: config.Settings{config.KeyAllowNetwork: config.BoolValue(true)}}
 	fetcher := &recordingProductionSourceFetcher{at: time.Date(2026, 8, 31, 15, 0, 0, 0, time.UTC)}
-	service := NewService(nil, nil).WithConfig(configs).WithResearchFetcher(fetcher)
+	service := NewService(nil, nil).WithConfig(configs).WithResearchFetcher(fetcher).WithResearchSourceCaches(&appSourceFetchCacheFactory{})
 	stage, err := service.researchFetchForRun(context.Background(), Command{}, "/workspace")
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +35,7 @@ func TestServiceResearchFetchPrivacyDenialNeverReachesAdapter(t *testing.T) {
 	t.Parallel()
 	configs := &recordingConfigStore{project: config.Settings{config.KeyAllowNetwork: config.BoolValue(false)}}
 	fetcher := &recordingProductionSourceFetcher{at: time.Date(2026, 8, 31, 15, 0, 0, 0, time.UTC)}
-	service := NewService(nil, nil).WithConfig(configs).WithResearchFetcher(fetcher)
+	service := NewService(nil, nil).WithConfig(configs).WithResearchFetcher(fetcher).WithResearchSourceCaches(&appSourceFetchCacheFactory{})
 	stage, err := service.researchFetchForRun(context.Background(), Command{}, "/workspace")
 	if err != nil {
 		t.Fatal(err)
@@ -46,6 +47,37 @@ func TestServiceResearchFetchPrivacyDenialNeverReachesAdapter(t *testing.T) {
 	if !errors.Is(err, researchapp.ErrNetworkResearchBlocked) || !errors.Is(err, privacy.ErrNetworkBlocked) ||
 		len(artifacts.FetchFailures) != 1 || fetcher.calls != 0 {
 		t.Fatalf("blocked production fetch = (%+v,%v), calls=%d", artifacts, err, fetcher.calls)
+	}
+}
+
+func TestServiceAssemblesSnapshotStageFromWorkspaceStoreAndSourceCache(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	memoryStore := memory.New()
+	repositories := memoryStore.Repositories()
+	source := appResearchFetchSource(t, "source.app-snapshot")
+	if err := repositories.Sources.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	capture := researchapp.NewSnapshotCaptureService(repositories.Sources, repositories.Snapshots, nil)
+	cache := &recordingAppSourceFetchCache{}
+	service := NewService(nil, nil).WithResearchSourceCaches(&appSourceFetchCacheFactory{cache: cache})
+	stage, err := service.researchSnapshotForRun(ctx, "/workspace", &fakeSourceRegistryStore{snapshots: capture})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("fixture")
+	fetchedAt, _ := research.NewTimestamp(time.Date(2026, 8, 31, 15, 0, 0, 0, time.UTC))
+	fetched := researchapp.FetchedSource{
+		SourceID: source.ID, Locator: source.Locator, FetchedAt: fetchedAt, Body: body, Origin: researchapp.FetchOriginLive,
+		Metadata: research.FetchMetadata{StatusCode: 200, ContentType: "text/plain", ContentHash: research.CanonicalContentHashV1(body),
+			ContentLength: int64(len(body)), FetchVersion: "fixture-fetch-v1"},
+	}
+	artifacts, err := stage.Execute(ctx, researchapp.LiveResearchStageInput{Artifacts: researchapp.LiveResearchArtifacts{
+		Sources: []research.Source{source}, FetchedSources: []researchapp.FetchedSource{fetched}, FetchMaximumBytes: 4096,
+	}})
+	if err != nil || len(artifacts.Snapshots) != 1 || len(artifacts.NormalizationInputs) != 1 || cache.writes != 1 {
+		t.Fatalf("production snapshot stage = (%+v,%v), cache writes=%d", artifacts, err, cache.writes)
 	}
 }
 
@@ -84,3 +116,35 @@ func appResearchFetchSource(t *testing.T, idValue string) research.Source {
 }
 
 var _ researchapp.SourceFetcher = (*recordingProductionSourceFetcher)(nil)
+
+type appSourceFetchCacheFactory struct {
+	cache researchapp.SourceFetchCacheAdapter
+}
+
+func (factory *appSourceFetchCacheFactory) OpenSourceFetchCache(context.Context, string) (researchapp.SourceFetchCacheAdapter, error) {
+	if factory.cache != nil {
+		return factory.cache, nil
+	}
+	return appSourceFetchCache{}, nil
+}
+
+type appSourceFetchCache struct{}
+
+func (appSourceFetchCache) FetchCached(context.Context, researchapp.FetchRequest) (researchapp.FetchedSource, error) {
+	return researchapp.FetchedSource{}, researchapp.Classify(researchapp.ErrorNotFound, "fixture source cache", errors.New("cache miss"))
+}
+
+func (appSourceFetchCache) CacheFetched(context.Context, researchapp.FetchRequest, researchapp.FetchedSource) error {
+	return nil
+}
+
+type recordingAppSourceFetchCache struct{ writes int }
+
+func (*recordingAppSourceFetchCache) FetchCached(context.Context, researchapp.FetchRequest) (researchapp.FetchedSource, error) {
+	return researchapp.FetchedSource{}, researchapp.Classify(researchapp.ErrorNotFound, "fixture source cache", errors.New("cache miss"))
+}
+
+func (cache *recordingAppSourceFetchCache) CacheFetched(context.Context, researchapp.FetchRequest, researchapp.FetchedSource) error {
+	cache.writes++
+	return nil
+}

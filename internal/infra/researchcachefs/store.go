@@ -66,6 +66,16 @@ func (factory *Factory) Open(ctx context.Context, root string) (application.Rese
 	return service, nil
 }
 
+// OpenSourceFetchCache exposes the existing offline encoding through the
+// application-owned read/write port used by live snapshot wiring.
+func (factory *Factory) OpenSourceFetchCache(ctx context.Context, root string) (application.SourceFetchCacheAdapter, error) {
+	cache, err := factory.Open(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	return NewOfflineAdapter(cache), nil
+}
+
 type systemClock struct{}
 
 func (systemClock) Now() research.Timestamp {
@@ -464,6 +474,7 @@ func persistence(operation string, err error) error {
 }
 
 var (
-	_ application.ResearchCacheStore          = (*Store)(nil)
-	_ application.ResearchCacheServiceFactory = (*Factory)(nil)
+	_ application.ResearchCacheStore             = (*Store)(nil)
+	_ application.ResearchCacheServiceFactory    = (*Factory)(nil)
+	_ application.SourceFetchCacheAdapterFactory = (*Factory)(nil)
 )

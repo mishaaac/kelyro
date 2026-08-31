@@ -704,6 +704,17 @@ type SourceFetchCache interface {
 	FetchCached(context.Context, FetchRequest) (FetchedSource, error)
 }
 
+// SourceFetchCacheAdapter adds the explicit live-write side used after a
+// durable snapshot exists. Cache data remains disposable and outside SQLite.
+type SourceFetchCacheAdapter interface {
+	SourceFetchCache
+	CacheFetched(context.Context, FetchRequest, FetchedSource) error
+}
+
+type SourceFetchCacheAdapterFactory interface {
+	OpenSourceFetchCache(context.Context, string) (SourceFetchCacheAdapter, error)
+}
+
 type ReleaseLookupQuery struct {
 	TechnologyID research.ID
 	Channel      research.ReleaseChannel
@@ -1360,6 +1371,12 @@ type SnapshotCapture struct {
 
 type SnapshotCaptureService interface {
 	Capture(context.Context, ResearchMode, SnapshotCaptureRequest) (SnapshotCapture, error)
+	CaptureFetched(context.Context, FetchedSource, SnapshotCaptureRequest) (SnapshotCapture, error)
+}
+
+type LiveSourceSnapshotService interface {
+	SnapshotSources(context.Context, LiveSourceSnapshotRequest) (LiveSourceSnapshotResult, error)
+	LiveResearchStageService
 }
 
 type ReleaseLookupService interface {
@@ -1397,6 +1414,7 @@ type ProvenanceService interface {
 // workspace database lifetime without exposing SQLite to presentation.
 type SourceRegistryStore interface {
 	Sources() SourceService
+	Snapshots() SnapshotCaptureService
 	Registry() SourceRegistryService
 	TrustDecisions() TrustDecisionService
 	Provenance() ProvenanceService

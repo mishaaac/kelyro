@@ -95,6 +95,7 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 
 type fakeSourceRegistryStoreFactory struct {
 	sources    researchapp.SourceService
+	snapshots  researchapp.SnapshotCaptureService
 	registry   researchapp.SourceRegistryService
 	trust      researchapp.TrustDecisionService
 	provenance researchapp.ProvenanceService
@@ -111,11 +112,12 @@ type fakeSourceRegistryStoreFactory struct {
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
 	sources    researchapp.SourceService
+	snapshots  researchapp.SnapshotCaptureService
 	registry   researchapp.SourceRegistryService
 	trust      researchapp.TrustDecisionService
 	provenance researchapp.ProvenanceService
@@ -133,6 +135,9 @@ func (store *fakeSourceRegistryStore) Registry() researchapp.SourceRegistryServi
 	return store.registry
 }
 func (store *fakeSourceRegistryStore) Sources() researchapp.SourceService { return store.sources }
+func (store *fakeSourceRegistryStore) Snapshots() researchapp.SnapshotCaptureService {
+	return store.snapshots
+}
 func (store *fakeSourceRegistryStore) TrustDecisions() researchapp.TrustDecisionService {
 	return store.trust
 }

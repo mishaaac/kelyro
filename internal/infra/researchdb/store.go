@@ -30,6 +30,7 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	registry := application.NewSourceRegistryService(database.Repositories().Research.SourceRegistry)
 	trust := application.NewTrustDecisionService(database.Repositories().Research.TrustRegistry)
 	sources := application.NewSourceService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots)
+	snapshots := application.NewSnapshotCaptureService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots, nil)
 	provenance := application.NewProvenanceService(database.Repositories().Research.Provenance)
 	freshness := application.NewFreshnessService(database.Repositories().Research.Freshness)
 	researchService := application.NewResearchService(database.Repositories().Research.Runs)
@@ -46,12 +47,13 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	)
 	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, registry: registry, trust: trust, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
+	return &store{database: database, sources: sources, snapshots: snapshots, registry: registry, trust: trust, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }
 
 type store struct {
 	database   *sqlite.Database
 	sources    application.SourceService
+	snapshots  application.SnapshotCaptureService
 	registry   application.SourceRegistryService
 	trust      application.TrustDecisionService
 	provenance application.ProvenanceService
@@ -65,6 +67,7 @@ type store struct {
 }
 
 func (store *store) Sources() application.SourceService               { return store.sources }
+func (store *store) Snapshots() application.SnapshotCaptureService    { return store.snapshots }
 func (store *store) Registry() application.SourceRegistryService      { return store.registry }
 func (store *store) TrustDecisions() application.TrustDecisionService { return store.trust }
 func (store *store) Provenance() application.ProvenanceService        { return store.provenance }

@@ -923,7 +923,7 @@ feat(research): fetch discovered sources through existing adapter
 
 ## Paso 21 — Snapshot + Cache wiring
 
-- [ ] Paso 21 completado
+- [x] Paso 21 completado
 
 Reusar:
 
@@ -1828,7 +1828,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 18 — Deduplication
 - [x] Paso 19 — Source Registry
 - [x] Paso 20 — Fetcher
-- [ ] Paso 21 — Snapshot/cache
+- [x] Paso 21 — Snapshot/cache
 - [ ] Paso 22 — Normalizer
 - [ ] Paso 23 — Evidence design
 - [ ] Paso 24 — Evidence implementation

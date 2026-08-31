@@ -74,14 +74,58 @@ func (service *snapshotCaptureService) Capture(ctx context.Context, mode Researc
 	if err != nil {
 		return SnapshotCapture{}, err
 	}
+	return service.CaptureFetched(ctx, fetched, request)
+}
+
+// CaptureFetched persists or resolves an already privacy-gated fetch result.
+// Live results append history; cached results may only reuse matching durable
+// history and never fabricate a new fetched_at observation.
+func (service *snapshotCaptureService) CaptureFetched(ctx context.Context, fetched FetchedSource, request SnapshotCaptureRequest) (SnapshotCapture, error) {
+	const operation = "capture fetched source snapshot"
+	if ctx == nil {
+		return SnapshotCapture{}, invalid(operation, errors.New("context is nil"))
+	}
+	if err := ctx.Err(); err != nil {
+		return SnapshotCapture{}, Classify(ErrorUnavailable, operation, err)
+	}
+	if err := request.Validate(); err != nil {
+		return SnapshotCapture{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "source repository", service.sources); err != nil {
+		return SnapshotCapture{}, err
+	}
+	if err := requireDependency(operation, "snapshot repository", service.snapshots); err != nil {
+		return SnapshotCapture{}, err
+	}
 	if err := fetched.Validate(); err != nil {
 		return SnapshotCapture{}, invalid(operation, fmt.Errorf("fetched source: %w", err))
 	}
-	if fetched.Origin != FetchOriginLive {
-		return SnapshotCapture{}, invalid(operation, fmt.Errorf("cached source retrieval is not a new fetch observation"))
-	}
 	if fetched.SourceID != request.SourceID {
 		return SnapshotCapture{}, invalid(operation, fmt.Errorf("fetched source identity does not match request"))
+	}
+	if int64(len(fetched.Body)) > request.MaximumBytes {
+		return SnapshotCapture{}, invalid(operation, fmt.Errorf("fetched source body exceeds snapshot maximum"))
+	}
+	source, err := service.sources.Get(ctx, request.SourceID)
+	if err != nil {
+		return SnapshotCapture{}, repositoryError(operation, err)
+	}
+	previous, hasPrevious, err := service.latest(ctx, request.SourceID)
+	if err != nil {
+		return SnapshotCapture{}, err
+	}
+	if fetched.Origin == FetchOriginCache {
+		if !hasPrevious || previous.Locator != fetched.Locator || previous.Fetch.ContentHash == "" ||
+			previous.Fetch.ContentHash != fetched.Metadata.ContentHash {
+			return SnapshotCapture{}, invalid(operation, errors.New("cached source does not match durable snapshot history"))
+		}
+		return snapshotCaptureBodyPolicy(previous, fetched, request.BodyPolicy, true), nil
+	}
+	if fetched.Origin != FetchOriginLive {
+		return SnapshotCapture{}, invalid(operation, fmt.Errorf("unsupported fetched source origin %q", fetched.Origin))
+	}
+	if source.ID != fetched.SourceID {
+		return SnapshotCapture{}, invalid(operation, errors.New("fetched source does not match registered source"))
 	}
 	metadata, revalidated, err := snapshotMetadata(fetched, previous, hasPrevious)
 	if err != nil {
@@ -101,26 +145,30 @@ func (service *snapshotCaptureService) Capture(ctx context.Context, mode Researc
 	if err := service.snapshots.Append(ctx, snapshot); err != nil {
 		return SnapshotCapture{}, repositoryError(operation, err)
 	}
-	result := SnapshotCapture{Snapshot: snapshot}
+	result := snapshotCaptureBodyPolicy(snapshot, fetched, request.BodyPolicy, false)
 	if revalidated {
 		previousID := previous.ID
 		result.RevalidatedSnapshotID = &previousID
 	}
-	switch request.BodyPolicy {
+	return result, nil
+}
+
+func snapshotCaptureBodyPolicy(snapshot research.SourceSnapshot, fetched FetchedSource, policy SnapshotBodyPolicy, cached bool) SnapshotCapture {
+	result := SnapshotCapture{Snapshot: snapshot}
+	switch policy {
 	case SnapshotNormalizedExcerpt:
 		if len(fetched.Body) > 0 {
-			normalizationInput := fetched
-			normalizationInput.Body = append([]byte(nil), fetched.Body...)
+			normalizationInput := cloneFetchedSource(fetched)
 			result.NormalizationInput = &normalizationInput
 		}
 	case SnapshotBoundedCachedBody:
-		if fetched.NoStore {
+		if fetched.NoStore || cached {
 			result.CacheSuppressed = true
 		} else {
 			result.CacheCandidate = append([]byte(nil), fetched.Body...)
 		}
 	}
-	return result, nil
+	return result
 }
 
 func (service *snapshotCaptureService) latest(ctx context.Context, sourceID research.SourceID) (research.SourceSnapshot, bool, error) {

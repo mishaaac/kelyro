@@ -173,27 +173,28 @@ type FoundationService interface {
 // Service coordinates implemented Foundation operations while retaining
 // explicit placeholders for operations assigned to later steps.
 type Service struct {
-	workspaces       workspace.Service
-	configs          config.Store
-	secrets          storage.SecretStore
-	artifactStores   artifacts.WorkspaceStoreFactory
-	sessionStores    session.WorkspaceStoreFactory
-	editors          editor.Service
-	diagnostics      DoctorRunner
-	loggers          logging.WorkspaceFactory
-	audits           audit.WorkspaceStoreFactory
-	backups          backup.Service
-	portability      portability.Service
-	updates          update.Checker
-	profiles         learningapp.ProfileStoreFactory
-	researchStores   researchapp.SourceRegistryStoreFactory
-	researchCaches   researchapp.ResearchCacheServiceFactory
-	researchSearch   researchapp.LiveSearchProviderFactory
-	researchFetcher  researchapp.SourceFetcher
-	researchExecutor ResearchTopicExecutor
-	researchClock    func() time.Time
-	currentDirectory func() (string, error)
-	bootstrap        BootstrapService
+	workspaces           workspace.Service
+	configs              config.Store
+	secrets              storage.SecretStore
+	artifactStores       artifacts.WorkspaceStoreFactory
+	sessionStores        session.WorkspaceStoreFactory
+	editors              editor.Service
+	diagnostics          DoctorRunner
+	loggers              logging.WorkspaceFactory
+	audits               audit.WorkspaceStoreFactory
+	backups              backup.Service
+	portability          portability.Service
+	updates              update.Checker
+	profiles             learningapp.ProfileStoreFactory
+	researchStores       researchapp.SourceRegistryStoreFactory
+	researchCaches       researchapp.ResearchCacheServiceFactory
+	researchSourceCaches researchapp.SourceFetchCacheAdapterFactory
+	researchSearch       researchapp.LiveSearchProviderFactory
+	researchFetcher      researchapp.SourceFetcher
+	researchExecutor     ResearchTopicExecutor
+	researchClock        func() time.Time
+	currentDirectory     func() (string, error)
+	bootstrap            BootstrapService
 }
 
 // WithBackups attaches safe workspace backup and restore operations.
@@ -229,6 +230,16 @@ func (service *Service) WithResearchStores(stores researchapp.SourceRegistryStor
 // WithResearchCaches attaches workspace-local disposable Research cache.
 func (service *Service) WithResearchCaches(caches researchapp.ResearchCacheServiceFactory) *Service {
 	service.researchCaches = caches
+	if sourceCaches, ok := caches.(researchapp.SourceFetchCacheAdapterFactory); ok {
+		service.researchSourceCaches = sourceCaches
+	}
+	return service
+}
+
+// WithResearchSourceCaches attaches the offline fetch cache adapter boundary
+// used by live fetch/snapshot composition.
+func (service *Service) WithResearchSourceCaches(caches researchapp.SourceFetchCacheAdapterFactory) *Service {
+	service.researchSourceCaches = caches
 	return service
 }
 

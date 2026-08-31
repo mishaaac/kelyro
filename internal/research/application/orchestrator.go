@@ -64,7 +64,11 @@ type LiveResearchArtifacts struct {
 	Sources                []research.Source
 	FetchedSources         []FetchedSource
 	FetchFailures          []SourceFetchFailure
+	FetchMaximumBytes      int64
 	Snapshots              []research.SourceSnapshot
+	NormalizationInputs    []FetchedSource
+	SnapshotFailures       []SourceSnapshotFailure
+	CacheFailures          []SourceSnapshotFailure
 	NormalizedSources      []NormalizedSource
 	Evidence               []research.Evidence
 	Claims                 []research.Claim
@@ -316,6 +320,12 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 		result.FetchedSources[index] = cloneFetchedSource(fetched)
 	}
 	result.FetchFailures = append([]SourceFetchFailure(nil), artifacts.FetchFailures...)
+	result.NormalizationInputs = make([]FetchedSource, len(artifacts.NormalizationInputs))
+	for index, fetched := range artifacts.NormalizationInputs {
+		result.NormalizationInputs[index] = cloneFetchedSource(fetched)
+	}
+	result.SnapshotFailures = append([]SourceSnapshotFailure(nil), artifacts.SnapshotFailures...)
+	result.CacheFailures = append([]SourceSnapshotFailure(nil), artifacts.CacheFailures...)
 	result.Snapshots = append([]research.SourceSnapshot(nil), artifacts.Snapshots...)
 	result.NormalizedSources = append([]NormalizedSource(nil), artifacts.NormalizedSources...)
 	result.Evidence = append([]research.Evidence(nil), artifacts.Evidence...)

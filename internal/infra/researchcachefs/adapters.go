@@ -119,6 +119,12 @@ func (adapter *OfflineAdapter) CacheFetched(ctx context.Context, request applica
 	if source.SourceID != request.SourceID {
 		return errors.New("fetched source does not match cache request")
 	}
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("cache fetch request: %w", err)
+	}
+	if int64(len(source.Body)) > request.MaximumBytes {
+		return errors.New("fetched source exceeds cache request maximum")
+	}
 	if source.NoStore {
 		return errors.New("fetched source forbids cache storage")
 	}
@@ -135,6 +141,11 @@ func (adapter *OfflineAdapter) CacheFetched(ctx context.Context, request applica
 	bodyJSON, err := json.Marshal(fetchedBodyJSON{Body: source.Body})
 	if err != nil {
 		return err
+	}
+	metadataPolicy, _ := application.CachePolicyV1(application.CacheLayerFetchMetadata)
+	bodyPolicy, _ := application.CachePolicyV1(application.CacheLayerBoundedSource)
+	if len(metadataJSON) > metadataPolicy.MaximumBytes || len(bodyJSON) > bodyPolicy.MaximumBytes {
+		return errors.New("fetched source exceeds bounded cache encoding")
 	}
 	key := fetchCacheKey(request)
 	if err := adapter.cache.Put(ctx, application.CacheLayerFetchMetadata, key, metadataJSON); err != nil {

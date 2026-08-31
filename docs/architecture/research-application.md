@@ -128,6 +128,10 @@ The initial services are deliberately thin:
 - `live-source-fetch-v1` maps registered Sources to bounded `FetchRequest`
   values, preserves per-Source failures for partial success, and delegates all
   privacy and transport behavior to `FetchService` and the hardened adapter;
+- `live-source-snapshot-v1` persists successful fetched observations with
+  `SnapshotCaptureService`, writes bounded disposable bodies through the
+  existing filesystem cache, resolves cache/304 normalization inputs without
+  duplicating history, and preserves partial snapshot/cache failures;
 - `ResearchProcessingService` executes prepared discovery and fetch work in
   separate bounded pools, preserves input-index result ordering, and enforces
   the versioned whole-run candidate, fetch, Claim, and byte budget;

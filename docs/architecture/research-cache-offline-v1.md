@@ -70,6 +70,20 @@ The adapter also exposes normalized-source bytes and canonical Source Bundle
 JSON through their dedicated layers. Source Bundles are parsed and their stable
 identity must match the requested cache key.
 
+I-03C `live-source-snapshot-v1` reuses this same adapter after a successful
+privacy-gated fetch. A body is cached only after its immutable SourceSnapshot
+has been appended; `no-store` remains an explicit suppression. Predictable
+oversize encodings are rejected before either half of the split metadata/body
+record is written. Cache write failure is observable partial stage data, while
+SQLite snapshot history remains authoritative.
+
+Cache lookup uses the registered Source locator even when the hardened HTTP
+adapter records a different final redirect locator in the snapshot. An offline
+hit is admitted to normalization only when its final locator and canonical
+content hash match latest durable history. A `304` similarly uses the cached
+prior body transiently while keeping the new revalidation snapshot as the sole
+new historical record.
+
 In `ResearchModeOffline`, the application privacy boundary never calls the
 Foundation network gate or live provider. Integration tests exercise stale
 discovery, fetched source, release lookup, and normalized cache data after eight

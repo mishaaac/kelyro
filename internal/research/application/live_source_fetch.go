@@ -222,6 +222,7 @@ func (service *liveSourceFetchService) Execute(ctx context.Context, input LiveRe
 		artifacts.FetchedSources[index] = cloneFetchedSource(fetched)
 	}
 	artifacts.FetchFailures = append([]SourceFetchFailure(nil), result.Failures...)
+	artifacts.FetchMaximumBytes = result.MaximumBytesEach
 	return artifacts, err
 }
 

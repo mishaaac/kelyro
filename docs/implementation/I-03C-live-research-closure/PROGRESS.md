@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 21
-Last completed step: 20
+Current step: 22
+Last completed step: 21
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1125,3 +1125,56 @@ Release: unreleased
   `researchcachefs`, y mantener bodies fuera de SQLite.
 - Partial failures deben acompañar los successes sin fabricar snapshot para la
   Source fallida.
+
+## Step 21 — Snapshot + Cache wiring
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-source-snapshot-v1` consume los fetches exitosos del stage anterior y
+  reutiliza `SnapshotCaptureService` sin repetir requests de red.
+- `CaptureFetched` separa observaciones live de datos cacheados: live agrega
+  historial inmutable; cache solo puede reutilizar el latest snapshot durable
+  con locator final y hash canónico coincidentes.
+- Bodies live bounded se escriben en el `researchcachefs` existente solo
+  después del snapshot durable; `no-store` suprime la escritura y los fallos de
+  cache quedan como failure data parcial.
+- Revalidación `304` agrega exactamente un nuevo snapshot y recupera el body
+  previo desde cache únicamente como input transitorio de normalización.
+- La clave de cache usa el locator registrado de Source aunque el adapter HTTP
+  termine en otro locator seguro tras redirects.
+- La composición por workspace abre el mismo adapter para fallback de fetch y
+  escritura post-snapshot, manteniendo cuerpos fuera de SQLite.
+- Artifacts transportan snapshots, inputs defensivos de normalización y fallos
+  bounded de snapshot/cache para conservar provenance y partial success.
+
+### Decisions
+
+- Un cache hit sin historia durable coincidente es `invalid_state`; cache es
+  aceleración descartable y nunca inventa una observación `fetched_at`.
+- El body no forma parte de `SourceSnapshot`. Solo metadata/hash quedan en
+  SQLite; el normalizador posterior recibe una copia transitoria.
+- Snapshot failure por Source permite continuar si otra Source produjo
+  snapshot; si todas fallan, el stage termina con persistence failure.
+- Cache failure no invalida un snapshot ya durable. El resultado lo conserva
+  para audit posterior y puede continuar a normalización con el body live.
+- El adapter verifica el tamaño JSON/base64 antes de escribir metadata para
+  evitar una media entrada predecible cuando el encoding excede la policy.
+- No se crean Evidence, Claims, trust ni comportamiento de I-04.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/infra/researchcachefs ./internal/infra/researchdb ./internal/app -run 'Test(LiveSourceSnapshot|SnapshotCapture|OfflineAdapter|ServiceAssemblesSnapshot|ServiceAssemblesProductionResearchFetch|ServiceResearchFetchPrivacy)' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 22 debe consumir exclusivamente `Artifacts.NormalizationInputs`, que
+  ya resuelve body live, cache hit y revalidación `304` contra historia durable.
+- Debe reutilizar los normalizadores HTML/Markdown/JSON/text existentes sin
+  persistir raw content ni comenzar Evidence extraction.

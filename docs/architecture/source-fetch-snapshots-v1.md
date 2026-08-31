@@ -32,8 +32,29 @@ Source succeeds, the stage returns its successful bodies plus
 fails, the lowest-index classified error remains terminal. Cancellation is
 always terminal, even after an earlier Source succeeded.
 
-This stage performs no snapshot or cache write. Those responsibilities remain
-with the following I-03C step and the existing `SnapshotCaptureService`.
+This fetch stage performs no snapshot or cache write. The following
+`live-source-snapshot-v1` stage consumes its successful `FetchedSource` values,
+uses `SnapshotCaptureService.CaptureFetched` so it never repeats the network
+request, and appends one immutable snapshot for each live observation.
+
+The stage opens the existing workspace `researchcachefs` adapter through an
+application-owned read/write port. It writes a bounded body only after the
+snapshot is durable, suppresses writes for `Cache-Control: no-store`, and keeps
+cache-write failures as bounded partial failure data instead of invalidating
+the durable snapshot. Cache encoding is checked against both the fetch request
+limit and the filesystem layer limit before either metadata or body is written.
+
+An offline cache hit may only reuse a latest durable snapshot whose final
+locator and canonical content hash match; it never appends fabricated history.
+For a live `304`, the new revalidation snapshot is appended exactly once and
+the matching cached prior body is recovered only as transient normalization
+input. The cache key continues to use the registered Source locator, not a
+redirect target, so later offline requests address the same entry.
+
+Together with the durable discovery observations and registered Source from
+the preceding stages, the snapshot preserves the chain
+query/result observation → Source → SourceSnapshot. Search snippets and
+rank remain candidate metadata and do not become snapshot content or Evidence.
 
 ## Fetch adapter contract
 
@@ -69,7 +90,9 @@ validators to the privacy-gated fetch service.
 The stable `SourceID` must match the request, while a different final locator is
 valid after a hardened redirect. Only an origin marked `live` is a new fetch
 observation and may append history. An offline/cache result is reusable data,
-not a new snapshot, and capture rejects it rather than falsifying `fetched_at`.
+not a new snapshot; `CaptureFetched` accepts it only when it matches latest
+durable history and returns that existing snapshot rather than falsifying
+`fetched_at`.
 
 Every successful observation appends a new `SourceSnapshot`; no repository
 operation updates an existing snapshot. For a body-bearing `2xx` response, the
@@ -97,7 +120,7 @@ declares one disposition:
 | --- | --- |
 | `metadata_only` | Discard the body after hash/length verification. |
 | `normalized_excerpt` | Return a defensive transient `FetchedSource` as `NormalizationInput` for the Step 10 pipeline; snapshot capture does not parse or persist it. |
-| `bounded_cached_body` | Return a defensive `CacheCandidate`, limited to 1 MiB, for the future Step 32 cache; Step 09 does not write cache entries. |
+| `bounded_cached_body` | Return a defensive `CacheCandidate`, limited to 1 MiB, for the Step 32 cache; Step 09 itself does not write cache entries. |
 
 Step 43 hardens this disposition for copyright and response policy. An
 explicit `Cache-Control: no-store` response can still be normalized
