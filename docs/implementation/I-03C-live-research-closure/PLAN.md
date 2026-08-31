@@ -387,7 +387,7 @@ docs(research): define query-to-bundle acceptance contract
 
 ## Paso 3 — Revisar y congelar SearchProvider contract
 
-- [ ] Paso 3 completado
+- [x] Paso 3 completado
 
 Revisar:
 

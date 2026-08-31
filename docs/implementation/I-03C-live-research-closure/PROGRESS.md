@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 3
-Last completed step: 2
+Current step: 4
+Last completed step: 3
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -152,3 +152,50 @@ Release: unreleased
 - El Paso 3 debe revisar y congelar el contrato `SearchProvider` existente.
 - No implementar configuración, selección o adapter de producción reservados a
   los Pasos 4–6.
+
+## Step 03 — SearchProvider contract estabilizado
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- Contrato `SearchProvider` revisado contra query, limit, results, title,
+  locator, snippet opcional y provider metadata requeridos por el plan.
+- Comentarios del port y sus DTOs ampliados para congelar provenance,
+  normalización, bounds, optionality, cancellation y la separación candidate
+  vs Evidence/trust/ranking.
+- Contract tests nuevos para campos requeridos y opcionales, inputs/results
+  inválidos y el cruce completo de la frontera `DiscoveryService`.
+- Cobertura explícita de `Provider`, `Rank` y `PublishedHint` como metadata
+  neutral suficiente para el adapter inicial.
+
+### Decisions
+
+- No se cambió la firma ni se añadió metadata: `SearchQuery`, `SearchOptions` y
+  `SearchResult` ya contienen todo lo imprescindible del Paso 3.
+- `RequestID` preserva el enlace de provenance; `DesiredKind` y
+  `TargetVersion` son hints, mientras `Limit` es obligatorio y bounded.
+- `Provider` es un identificador estable no secreto, `Rank` conserva el orden
+  observado del provider y nunca equivale a authority.
+- `Snippet` y `PublishedHint` permanecen opcionales y nunca son Evidence.
+- `DiscoveryService` normaliza inputs/outputs, clona pointers, elimina
+  fragments de locator, limita/deduplica candidates y limpia metadata cache en
+  resultados live.
+- No se añadieron crawler, browser, LLM, ranking engine, configuración ni
+  adapter de producción.
+
+### Verification
+
+- `go test ./internal/research/application -run 'SearchProviderContract|Discovery' -count=1`.
+- `go vet ./internal/research/application`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 4 es el siguiente paso pendiente y requiere autorización explícita.
+- El Paso 4 debe definir configuración v1 sin seleccionar ni implementar aún el
+  provider de referencia reservado a los Pasos 5–6.

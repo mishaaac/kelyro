@@ -364,10 +364,14 @@ type Repositories struct {
 }
 
 // SearchQuery, SearchOptions, and SearchResult keep provider-specific
-// request/response types outside the application and domain packages.
+// request/response types outside the application and domain packages. They are
+// the stable, provider-neutral discovery boundary: results are candidates, not
+// sources, evidence, authority decisions, or provider ranking policy.
 type SearchQuery struct {
+	// RequestID preserves the request -> query -> candidate provenance edge.
 	RequestID research.ID
-	Text      string
+	// Text is normalized by DiscoveryService before crossing the provider port.
+	Text string
 }
 
 func (query SearchQuery) Validate() error {
@@ -378,9 +382,13 @@ func (query SearchQuery) Validate() error {
 }
 
 type SearchOptions struct {
+	// DesiredKind and TargetVersion are optional provider hints. A provider may
+	// ignore unsupported hints but must not reinterpret them as trust decisions.
 	DesiredKind   *research.SourceKind
 	TargetVersion *research.SourceVersion
-	Limit         int
+	// Limit is mandatory and bounded. DiscoveryService also enforces the limit
+	// defensively on returned candidates.
+	Limit int
 }
 
 func (options SearchOptions) Validate() error {
@@ -404,15 +412,21 @@ func (options SearchOptions) Validate() error {
 }
 
 type SearchResult struct {
-	Title         string
-	Locator       research.SourceLocator
-	Snippet       string
+	// Title, Locator, and Provider are required. Snippet and PublishedHint are
+	// optional observations supplied by the provider and are never evidence.
+	Title   string
+	Locator research.SourceLocator
+	Snippet string
+	// Provider is a stable, non-secret adapter/provider identifier. Rank is the
+	// provider's non-negative ordering metadata, not an authority score.
 	Provider      string
 	Rank          int
 	PublishedHint *research.Timestamp
-	CacheHit      bool
-	CacheStale    bool
-	CacheWarning  CacheWarning
+	// Cache fields are owned by the discovery/cache boundary. Live providers do
+	// not need to set them and DiscoveryService clears them on live results.
+	CacheHit     bool
+	CacheStale   bool
+	CacheWarning CacheWarning
 }
 
 const MaximumSearchResults = 100
@@ -448,6 +462,11 @@ func (result SearchResult) Validate() error {
 }
 
 type SearchProvider interface {
+	// Search receives a validated, normalized query and validated bounded
+	// options from DiscoveryService. Implementations should honor Limit at the
+	// remote boundary and must return no more than MaximumSearchResults. They
+	// must observe context cancellation and must not perform trust, fetching,
+	// crawling, evidence extraction, claim extraction, or ranking replacement.
 	Search(context.Context, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
 
