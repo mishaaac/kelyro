@@ -860,7 +860,7 @@ feat(research): convert web search results into source candidates
 
 ## Paso 18 — Candidate deduplication
 
-- [ ] Paso 18 completado
+- [x] Paso 18 completado
 
 Dedup por:
 
@@ -1825,7 +1825,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 15 — Queue consumer
 - [x] Paso 16 — Execution path
 - [x] Paso 17 — Search candidates
-- [ ] Paso 18 — Deduplication
+- [x] Paso 18 — Deduplication
 - [ ] Paso 19 — Source Registry
 - [ ] Paso 20 — Fetcher
 - [ ] Paso 21 — Snapshot/cache

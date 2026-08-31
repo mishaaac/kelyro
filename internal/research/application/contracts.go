@@ -1279,6 +1279,10 @@ type DiscoveryService interface {
 	Search(context.Context, ResearchMode, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
 
+type SourceCandidateDeduplicationService interface {
+	Deduplicate(context.Context, []SourceCandidate) (SourceCandidateDeduplicationResult, error)
+}
+
 type FetchService interface {
 	Fetch(context.Context, ResearchMode, FetchRequest) (FetchedSource, error)
 }

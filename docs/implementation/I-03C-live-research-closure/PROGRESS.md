@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 18
-Last completed step: 17
+Current step: 19
+Last completed step: 18
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -956,3 +956,61 @@ Release: unreleased
 - El Paso 18 debe normalizar/deduplicar candidates entre queries y contra
   Sources existentes, preservando todas las observaciones de discovery.
 - El Paso 18 no debe registrar nuevas Sources ni asignar trust.
+
+## Step 18 — Candidate deduplication
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- Servicio `source-candidate-deduplication-v1` añadido sobre el
+  `SourceRepository` existente, sin nueva persistencia ni segunda registry.
+- Canonicalización conservadora fusiona scheme/host equivalentes, elimina
+  fragments, quita puertos HTTP(S) default y representa el root con `/`.
+- Candidates multi-query se agrupan en orden de primera aparición y conservan
+  cada observación distinta de query/provider/rank/time/title/snippet/cache.
+- Observaciones exactamente repetidas se eliminan sin perder discoveries de
+  otra query o provider.
+- Sources ya persistidas se indexan por el mismo locator canónico; el resultado
+  enlaza su `SourceID` sin modificarla ni crear otra Source.
+- Resultado bounded incluye input/duplicate/existing/discovery counts y se
+  transporta defensivamente en `LiveResearchArtifacts`.
+- Tests cubren canonical URL, default port/root path, fragments, multi-query
+  provenance, exact duplicates, existing Source, query-string distinction,
+  bounds, cancellation, persistence failure y ownership defensivo.
+
+### Decisions
+
+- Path, trailing slash no vacía y query string permanecen significativos. No
+  se eliminan tracker params, no se reordenan queries y no se adivinan URLs
+  equivalentes más allá de reglas sintácticas seguras.
+- La referencia a “existing registry” del plan se resuelve contra las Sources
+  estables del `SourceRepository`, cuyo locator es único. El catálogo
+  `SourceRegistryEntry` describe familias/organizaciones y no contiene URLs de
+  recursos individuales.
+- Una colisión canónica ambigua entre dos Sources existentes es invalid state;
+  nunca se elige una identidad durable arbitrariamente.
+- Existing Source match no implica trust, freshness, authority ni Evidence;
+  solo evita crear una identidad duplicada en el Paso 19.
+- El servicio es read-only, no hace red y no registra candidates. Ingestion
+  permanece reservada al Paso 19.
+- El total de inputs y discoveries se limita a 500 por run; empty input evita
+  una lectura innecesaria del repository.
+
+### Verification
+
+- `go test -race ./internal/research/application -run 'SourceCandidate' -count=1`.
+- `go test ./internal/research/application -run 'SourceCandidate' -count=1`.
+- `go test ./internal/research/application -count=1`.
+- `go vet ./internal/research/application`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 19 debe consumir `DeduplicatedSourceCandidate`, reutilizar
+  `ExistingSourceID` cuando exista y registrar únicamente nuevas Sources.
+- Registration debe persistir discovery metadata sin derivar trust automático.

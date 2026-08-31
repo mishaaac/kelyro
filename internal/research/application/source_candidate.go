@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/research"
 )
 
 const SourceCandidateMapperV1 = "source-candidate-mapper-v1"
+
+const SourceCandidateDeduplicationV1 = "source-candidate-deduplication-v1"
 
 // SourceCandidateDiscovery is one provider observation that led to a URL.
 // Provider snippets, ranks, and publication hints remain untrusted metadata;
@@ -174,3 +179,247 @@ func cloneTimestamp(timestamp *research.Timestamp) *research.Timestamp {
 	clone := *timestamp
 	return &clone
 }
+
+type DeduplicatedSourceCandidate struct {
+	Candidate        SourceCandidate
+	ExistingSourceID *research.SourceID
+}
+
+func (candidate DeduplicatedSourceCandidate) Validate() error {
+	if err := candidate.Candidate.Validate(); err != nil {
+		return err
+	}
+	canonical, err := canonicalSourceCandidateLocatorV1(candidate.Candidate.Locator)
+	if err != nil {
+		return err
+	}
+	if canonical != candidate.Candidate.Locator {
+		return errors.New("deduplicated source candidate locator is not canonical")
+	}
+	if candidate.ExistingSourceID != nil {
+		if err := candidate.ExistingSourceID.Validate(); err != nil {
+			return fmt.Errorf("deduplicated candidate existing source: %w", err)
+		}
+	}
+	return nil
+}
+
+type SourceCandidateDeduplicationResult struct {
+	Candidates       []DeduplicatedSourceCandidate
+	InputCount       int
+	DuplicateCount   int
+	ExistingCount    int
+	DiscoveryCount   int
+	AlgorithmVersion string
+}
+
+func (result SourceCandidateDeduplicationResult) Validate() error {
+	if result.InputCount < 0 || result.DuplicateCount < 0 || result.ExistingCount < 0 || result.DiscoveryCount < 0 {
+		return errors.New("source candidate deduplication counts are negative")
+	}
+	if result.InputCount > MaximumDiscoveryCandidatesPerRun || result.DuplicateCount != result.InputCount-len(result.Candidates) ||
+		result.ExistingCount > len(result.Candidates) || result.DiscoveryCount > MaximumDiscoveryCandidatesPerRun {
+		return errors.New("source candidate deduplication counts are inconsistent")
+	}
+	seen := make(map[string]struct{}, len(result.Candidates))
+	existing := 0
+	discoveries := 0
+	for index, candidate := range result.Candidates {
+		if err := candidate.Validate(); err != nil {
+			return fmt.Errorf("deduplicated source candidate %d: %w", index, err)
+		}
+		key := candidate.Candidate.Locator.String()
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("deduplicated source candidates repeat locator %q", key)
+		}
+		seen[key] = struct{}{}
+		discoveries += len(candidate.Candidate.Discoveries)
+		observations := make(map[sourceCandidateDiscoveryIdentity]struct{}, len(candidate.Candidate.Discoveries))
+		for _, discovery := range candidate.Candidate.Discoveries {
+			identity := sourceCandidateDiscoveryKey(discovery)
+			if _, duplicate := observations[identity]; duplicate {
+				return fmt.Errorf("deduplicated source candidate %q repeats a discovery observation", key)
+			}
+			observations[identity] = struct{}{}
+		}
+		if candidate.ExistingSourceID != nil {
+			existing++
+		}
+	}
+	if existing != result.ExistingCount || discoveries != result.DiscoveryCount {
+		return errors.New("source candidate deduplication summaries are inconsistent")
+	}
+	if result.AlgorithmVersion != SourceCandidateDeduplicationV1 {
+		return fmt.Errorf("source candidate deduplication algorithm must be %q", SourceCandidateDeduplicationV1)
+	}
+	return nil
+}
+
+type sourceCandidateDeduplicationService struct{ sources SourceRepository }
+
+func NewSourceCandidateDeduplicationService(sources SourceRepository) (SourceCandidateDeduplicationService, error) {
+	if err := requireDependency("configure source candidate deduplication", "source repository", sources); err != nil {
+		return nil, err
+	}
+	return &sourceCandidateDeduplicationService{sources: sources}, nil
+}
+
+func (service *sourceCandidateDeduplicationService) Deduplicate(ctx context.Context, candidates []SourceCandidate) (SourceCandidateDeduplicationResult, error) {
+	const operation = "deduplicate source candidates"
+	if ctx == nil {
+		return SourceCandidateDeduplicationResult{}, invalid(operation, errors.New("context is nil"))
+	}
+	if err := ctx.Err(); err != nil {
+		return SourceCandidateDeduplicationResult{}, Classify(ErrorUnavailable, operation, err)
+	}
+	if len(candidates) > MaximumDiscoveryCandidatesPerRun {
+		return SourceCandidateDeduplicationResult{}, invalid(operation, fmt.Errorf("candidate count exceeds %d", MaximumDiscoveryCandidatesPerRun))
+	}
+	if len(candidates) == 0 {
+		result := SourceCandidateDeduplicationResult{AlgorithmVersion: SourceCandidateDeduplicationV1}
+		return result, nil
+	}
+	totalDiscoveries := 0
+	for index, candidate := range candidates {
+		if err := candidate.Validate(); err != nil {
+			return SourceCandidateDeduplicationResult{}, invalid(operation, fmt.Errorf("candidate %d: %w", index, err))
+		}
+		totalDiscoveries += len(candidate.Discoveries)
+		if totalDiscoveries > MaximumDiscoveryCandidatesPerRun {
+			return SourceCandidateDeduplicationResult{}, invalid(operation, fmt.Errorf("candidate discoveries exceed %d", MaximumDiscoveryCandidatesPerRun))
+		}
+	}
+	existingSources, err := service.sources.List(ctx)
+	if err != nil {
+		return SourceCandidateDeduplicationResult{}, boundaryError(ErrorPersistenceFailure, operation, err)
+	}
+	existingByLocator, err := canonicalExistingSourceLocators(existingSources)
+	if err != nil {
+		return SourceCandidateDeduplicationResult{}, invalid(operation, err)
+	}
+
+	result := SourceCandidateDeduplicationResult{InputCount: len(candidates), AlgorithmVersion: SourceCandidateDeduplicationV1}
+	positions := make(map[string]int, len(candidates))
+	discoveryKeys := make(map[string]map[sourceCandidateDiscoveryIdentity]struct{}, len(candidates))
+	for index, candidate := range candidates {
+		if err := ctx.Err(); err != nil {
+			return SourceCandidateDeduplicationResult{}, Classify(ErrorUnavailable, operation, err)
+		}
+		canonical, err := canonicalSourceCandidateLocatorV1(candidate.Locator)
+		if err != nil {
+			return SourceCandidateDeduplicationResult{}, invalid(operation, fmt.Errorf("candidate %d: %w", index, err))
+		}
+		candidate.Locator = canonical
+		key := canonical.String()
+		position, duplicate := positions[key]
+		if !duplicate {
+			position = len(result.Candidates)
+			positions[key] = position
+			discoveryKeys[key] = make(map[sourceCandidateDiscoveryIdentity]struct{}, len(candidate.Discoveries))
+			item := DeduplicatedSourceCandidate{Candidate: SourceCandidate{Locator: canonical, AlgorithmVersion: candidate.AlgorithmVersion}}
+			if sourceID, exists := existingByLocator[key]; exists {
+				id := sourceID
+				item.ExistingSourceID = &id
+				result.ExistingCount++
+			}
+			result.Candidates = append(result.Candidates, item)
+		}
+		item := &result.Candidates[position]
+		for _, discovery := range candidate.Discoveries {
+			identity := sourceCandidateDiscoveryKey(discovery)
+			if _, exists := discoveryKeys[key][identity]; exists {
+				continue
+			}
+			discoveryKeys[key][identity] = struct{}{}
+			cloned := discovery
+			cloned.PublishedHint = cloneTimestamp(discovery.PublishedHint)
+			item.Candidate.Discoveries = append(item.Candidate.Discoveries, cloned)
+			result.DiscoveryCount++
+		}
+	}
+	result.DuplicateCount = result.InputCount - len(result.Candidates)
+	if err := result.Validate(); err != nil {
+		return SourceCandidateDeduplicationResult{}, invalid(operation, err)
+	}
+	return cloneSourceCandidateDeduplicationResult(result), nil
+}
+
+func canonicalExistingSourceLocators(sources []research.Source) (map[string]research.SourceID, error) {
+	result := make(map[string]research.SourceID, len(sources))
+	for index, source := range sources {
+		if err := source.Validate(); err != nil {
+			return nil, fmt.Errorf("existing source %d: %w", index, err)
+		}
+		locator, err := canonicalSourceCandidateLocatorV1(source.Locator)
+		if err != nil {
+			return nil, fmt.Errorf("existing source %q: %w", source.ID, err)
+		}
+		key := locator.String()
+		if previous, collision := result[key]; collision && previous != source.ID {
+			return nil, fmt.Errorf("existing sources %q and %q share canonical locator %q", previous, source.ID, key)
+		}
+		result[key] = source.ID
+	}
+	return result, nil
+}
+
+func canonicalSourceCandidateLocatorV1(locator research.SourceLocator) (research.SourceLocator, error) {
+	normalized, err := normalizeDiscoveryLocator(locator)
+	if err != nil {
+		return research.SourceLocator{}, err
+	}
+	parsed, err := url.Parse(normalized.String())
+	if err != nil {
+		return research.SourceLocator{}, fmt.Errorf("parse candidate locator: %w", err)
+	}
+	if (parsed.Scheme == "https" && parsed.Port() == "443") || (parsed.Scheme == "http" && parsed.Port() == "80") {
+		hostname := parsed.Hostname()
+		if strings.Contains(hostname, ":") {
+			hostname = "[" + hostname + "]"
+		}
+		parsed.Host = hostname
+	}
+	if parsed.Path == "" {
+		parsed.Path = "/"
+	}
+	canonical, err := research.NewSourceLocator(parsed.String())
+	if err != nil {
+		return research.SourceLocator{}, fmt.Errorf("canonical candidate locator: %w", err)
+	}
+	return canonical, nil
+}
+
+type sourceCandidateDiscoveryIdentity struct {
+	requestID, query, title, snippet, provider, discoveredAt, publishedHint string
+	rank                                                                    int
+	cacheHit, cacheStale                                                    bool
+	cacheWarning                                                            CacheWarning
+}
+
+func sourceCandidateDiscoveryKey(discovery SourceCandidateDiscovery) sourceCandidateDiscoveryIdentity {
+	published := ""
+	if discovery.PublishedHint != nil {
+		published = discovery.PublishedHint.Time().Format(time.RFC3339Nano)
+	}
+	return sourceCandidateDiscoveryIdentity{
+		requestID: discovery.Query.RequestID.String(), query: discovery.Query.Text, title: discovery.Title,
+		snippet: discovery.Snippet, provider: discovery.Provider, rank: discovery.Rank,
+		discoveredAt: discovery.DiscoveredAt.Time().Format(time.RFC3339Nano), publishedHint: published,
+		cacheHit: discovery.CacheHit, cacheStale: discovery.CacheStale, cacheWarning: discovery.CacheWarning,
+	}
+}
+
+func cloneSourceCandidateDeduplicationResult(result SourceCandidateDeduplicationResult) SourceCandidateDeduplicationResult {
+	clone := result
+	clone.Candidates = make([]DeduplicatedSourceCandidate, len(result.Candidates))
+	for index, candidate := range result.Candidates {
+		clone.Candidates[index].Candidate = cloneSourceCandidate(candidate.Candidate)
+		if candidate.ExistingSourceID != nil {
+			id := *candidate.ExistingSourceID
+			clone.Candidates[index].ExistingSourceID = &id
+		}
+	}
+	return clone
+}
+
+var _ SourceCandidateDeduplicationService = (*sourceCandidateDeduplicationService)(nil)

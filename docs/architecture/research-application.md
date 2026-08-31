@@ -82,6 +82,9 @@ from entering domain or services:
 - `source-candidate-mapper-v1` converts provider DTOs into explicit transient
   candidates with query/provider/rank/time provenance; it performs no
   registration, trust, Evidence, or Claim work.
+- `source-candidate-deduplication-v1` merges canonical URLs across queries,
+  preserves all distinct discovery observations, and read-only matches stable
+  Source locators before registration.
 - `SourceFetcher` accepts a bounded `FetchRequest` and returns `FetchedSource`
   bytes plus transport-neutral `FetchMetadata`; the privacy-gated service marks
   the result origin as `live` or `cache`.

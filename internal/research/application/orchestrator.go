@@ -57,16 +57,17 @@ func (request LiveResearchOrchestrationRequest) Validate() error {
 // Fetched bodies and normalized content are transient and bounded by the
 // services that create them.
 type LiveResearchArtifacts struct {
-	SearchResults     []SearchResult
-	Candidates        []SourceCandidate
-	Sources           []research.Source
-	FetchedSources    []FetchedSource
-	Snapshots         []research.SourceSnapshot
-	NormalizedSources []NormalizedSource
-	Evidence          []research.Evidence
-	Claims            []research.Claim
-	Verifications     []research.VerificationResult
-	Bundle            *research.SourceBundle
+	SearchResults          []SearchResult
+	Candidates             []SourceCandidate
+	DeduplicatedCandidates []DeduplicatedSourceCandidate
+	Sources                []research.Source
+	FetchedSources         []FetchedSource
+	Snapshots              []research.SourceSnapshot
+	NormalizedSources      []NormalizedSource
+	Evidence               []research.Evidence
+	Claims                 []research.Claim
+	Verifications          []research.VerificationResult
+	Bundle                 *research.SourceBundle
 }
 
 type LiveResearchStageInput struct {
@@ -293,6 +294,14 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 	result.Candidates = make([]SourceCandidate, len(artifacts.Candidates))
 	for index, candidate := range artifacts.Candidates {
 		result.Candidates[index] = cloneSourceCandidate(candidate)
+	}
+	result.DeduplicatedCandidates = make([]DeduplicatedSourceCandidate, len(artifacts.DeduplicatedCandidates))
+	for index, candidate := range artifacts.DeduplicatedCandidates {
+		result.DeduplicatedCandidates[index].Candidate = cloneSourceCandidate(candidate.Candidate)
+		if candidate.ExistingSourceID != nil {
+			id := *candidate.ExistingSourceID
+			result.DeduplicatedCandidates[index].ExistingSourceID = &id
+		}
 	}
 	result.Sources = append([]research.Source(nil), artifacts.Sources...)
 	result.FetchedSources = append([]FetchedSource(nil), artifacts.FetchedSources...)

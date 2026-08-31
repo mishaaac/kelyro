@@ -87,6 +87,12 @@ I-03C maps each result into the explicit transient
 candidate adds query and discovery-time provenance without changing this
 candidate-only lifecycle.
 
+Cross-query candidates then pass through
+`source-candidate-deduplication-v1`, which preserves every discovery query and
+matches existing stable Source locators without assigning trust or persisting a
+new Source. The full contract is in
+[source-candidates-v1.md](source-candidates-v1.md).
+
 ## Deferred work
 
 Step 11 adds no live search adapter, API credentials, query planner, source
