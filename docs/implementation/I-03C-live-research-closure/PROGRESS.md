@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 17
-Last completed step: 16
+Current step: 18
+Last completed step: 17
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -907,3 +907,52 @@ Release: unreleased
   luego podrá conectarse como primer stage concreto al executor.
 - Production composition seguirá sin activar el executor hasta que sus stages
   obligatorios existan; no usar placeholders que completen trabajo falso.
+
+## Step 17 — Search Result to Source Candidate
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- DTO transitorio `SourceCandidate` añadido con locator normalizado y una lista
+  bounded de observaciones `SourceCandidateDiscovery`.
+- Mapper puro `source-candidate-mapper-v1` convierte cada `SearchResult` uno a
+  uno y en orden estable, sin deduplicar ni persistir anticipadamente.
+- Cada observación conserva request/query, title, snippet, provider, rank,
+  `discovered_at`, published hint opcional y metadata cache defensiva.
+- Query, title, snippet y provider se normalizan con la política existente;
+  fragments se eliminan del locator mediante el mismo boundary de discovery.
+- `LiveResearchArtifacts` transporta candidates defensivamente entre stages y
+  clona slices/pointers de provenance.
+- Tests cubren mapping completo, orden, duplicados todavía separados,
+  normalización, bounds, cancellation y ownership defensivo de timestamps.
+
+### Decisions
+
+- Candidate es application data transitoria: no tiene `SourceID`, `SourceKind`,
+  authority tier, trust decision, Evidence ni Claim.
+- Title, snippet, published hint y rank siguen siendo observaciones no
+  confiables del provider. Search rank nunca se convierte en authority.
+- Un candidate contiene una lista de discoveries desde su creación para que el
+  Paso 18 pueda fusionar URLs multi-query sin perder provenance.
+- El mapper no consulta repositories, no registra sources, no hace red y no
+  deduplica. Esas responsabilidades permanecen en los Pasos 18–20.
+- Los cache flags se preservan porque describen el origen de discovery, pero no
+  cambian el estatus candidate-only del resultado.
+
+### Verification
+
+- `go test -race ./internal/research/application -count=1`.
+- `go test ./internal/research/application`.
+- `go vet ./internal/research/application`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 18 debe normalizar/deduplicar candidates entre queries y contra
+  Sources existentes, preservando todas las observaciones de discovery.
+- El Paso 18 no debe registrar nuevas Sources ni asignar trust.

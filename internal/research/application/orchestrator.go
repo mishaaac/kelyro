@@ -58,6 +58,7 @@ func (request LiveResearchOrchestrationRequest) Validate() error {
 // services that create them.
 type LiveResearchArtifacts struct {
 	SearchResults     []SearchResult
+	Candidates        []SourceCandidate
 	Sources           []research.Source
 	FetchedSources    []FetchedSource
 	Snapshots         []research.SourceSnapshot
@@ -289,6 +290,10 @@ func sameLiveResearchRequest(left, right research.ResearchRequest) bool {
 func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArtifacts {
 	result := artifacts
 	result.SearchResults = append([]SearchResult(nil), artifacts.SearchResults...)
+	result.Candidates = make([]SourceCandidate, len(artifacts.Candidates))
+	for index, candidate := range artifacts.Candidates {
+		result.Candidates[index] = cloneSourceCandidate(candidate)
+	}
 	result.Sources = append([]research.Source(nil), artifacts.Sources...)
 	result.FetchedSources = append([]FetchedSource(nil), artifacts.FetchedSources...)
 	result.Snapshots = append([]research.SourceSnapshot(nil), artifacts.Snapshots...)

@@ -834,7 +834,7 @@ feat(research): execute queued research without background daemon
 
 ## Paso 17 — Search Result → Source Candidate
 
-- [ ] Paso 17 completado
+- [x] Paso 17 completado
 
 Mapear:
 
@@ -1824,7 +1824,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [ ] Paso 14 — Run lifecycle
 - [x] Paso 15 — Queue consumer
 - [x] Paso 16 — Execution path
-- [ ] Paso 17 — Search candidates
+- [x] Paso 17 — Search candidates
 - [ ] Paso 18 — Deduplication
 - [ ] Paso 19 — Source Registry
 - [ ] Paso 20 — Fetcher

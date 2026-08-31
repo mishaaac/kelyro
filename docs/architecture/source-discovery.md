@@ -82,6 +82,11 @@ A search result is neither a registered `Source` nor `Evidence`. It cannot be
 used to support a claim merely because a provider ranked it highly or supplied
 a snippet or publication hint.
 
+I-03C maps each result into the explicit transient
+[`source-candidate-mapper-v1`](source-candidates-v1.md) representation. The
+candidate adds query and discovery-time provenance without changing this
+candidate-only lifecycle.
+
 ## Deferred work
 
 Step 11 adds no live search adapter, API credentials, query planner, source

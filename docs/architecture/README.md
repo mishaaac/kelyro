@@ -52,6 +52,10 @@ single run lifecycle to the live orchestrator. The manual topic command can
 invoke an assembled worker synchronously with a bounded context, without a
 daemon.
 
+The [Source Candidates v1](source-candidates-v1.md) boundary preserves
+query/provider/rank/time provenance while keeping web search results separate
+from registered Sources, trust, and Evidence.
+
 The reusable Research HTTP transport, bounded retry policy, response limits,
 safe hooks, compression behavior, redaction boundary, and SSRF defenses are
 documented in [research-http-client.md](research-http-client.md).

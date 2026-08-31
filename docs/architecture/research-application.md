@@ -79,6 +79,9 @@ from entering domain or services:
   `SearchOptions`, then returns candidate `SearchResult` values. Results remain
   candidates, never evidence. The service deterministically normalizes and
   deduplicates locators while preserving provider order and ranks.
+- `source-candidate-mapper-v1` converts provider DTOs into explicit transient
+  candidates with query/provider/rank/time provenance; it performs no
+  registration, trust, Evidence, or Claim work.
 - `SourceFetcher` accepts a bounded `FetchRequest` and returns `FetchedSource`
   bytes plus transport-neutral `FetchMetadata`; the privacy-gated service marks
   the result origin as `live` or `cache`.
