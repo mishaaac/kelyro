@@ -159,8 +159,8 @@ func TestStudentCoreDatabaseMigratesToResearchWithoutLosingState(t *testing.T) {
 	if string(value) != "ok" {
 		t.Fatalf("preserved value=%q", value)
 	}
-	if version, err := database.SchemaVersion(context.Background()); err != nil || version != 43 {
-		t.Fatalf("schema=(%d,%v), want 43", version, err)
+	if version, err := database.SchemaVersion(context.Background()); err != nil || version != LatestSchemaVersion() {
+		t.Fatalf("schema=(%d,%v), want %d", version, err, LatestSchemaVersion())
 	}
 	var legacyAuditCount int
 	if err := handle.QueryRow(`SELECT COUNT(*) FROM research_run_audit WHERE run_id='run.legacy'`).Scan(&legacyAuditCount); err != nil || legacyAuditCount != 0 {

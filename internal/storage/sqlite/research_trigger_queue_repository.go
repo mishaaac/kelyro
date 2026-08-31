@@ -80,7 +80,7 @@ func (repository *researchTriggerQueueRepository) ListQueued(ctx context.Context
 		return nil, err
 	}
 	defer cancel()
-	rows, err := repository.executor.QueryContext(opCtx, researchTriggerSelect+` WHERE status='queued' ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,queued_at,id`)
+	rows, err := repository.executor.QueryContext(opCtx, researchTriggerSelect+` WHERE status='queued' AND execution_status IN ('pending','retry') ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,queued_at,id`)
 	if err != nil {
 		return nil, researchPersistence(operation, err)
 	}
@@ -120,6 +120,123 @@ func (repository *researchTriggerQueueRepository) Update(ctx context.Context, it
 		return researchInvalid(operation, errors.New("research queue transition is invalid"))
 	}
 	result, err := repository.executor.ExecContext(opCtx, `UPDATE research_trigger_queue SET status=?,status_changed_at=? WHERE id=? AND status='queued'`, string(item.Status), optionalTimestampText(item.StatusChangedAt), item.ID.String())
+	if err != nil {
+		return researchPersistence(operation, err)
+	}
+	if err := requireAffected(result); errors.Is(err, sql.ErrNoRows) {
+		return researchConflict(operation)
+	} else if err != nil {
+		return researchPersistence(operation, err)
+	}
+	return nil
+}
+
+func (repository *researchTriggerQueueRepository) ClaimExecution(ctx context.Context, claim application.ResearchQueueExecutionClaim) (application.ResearchQueueExecutionClaimResult, error) {
+	const operation = "claim SQLite research queue execution"
+	if err := claim.Validate(); err != nil {
+		return application.ResearchQueueExecutionClaimResult{}, researchInvalid(operation, err)
+	}
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return application.ResearchQueueExecutionClaimResult{}, err
+	}
+	defer cancel()
+	result, err := repository.executor.ExecContext(opCtx, `UPDATE research_trigger_queue
+SET execution_status='claimed',execution_run_id=?,execution_attempts=execution_attempts+1,
+    execution_changed_at=?,execution_failure_kind=NULL
+WHERE id=? AND status='queued' AND execution_status IN ('pending','retry')`,
+		claim.RunID.String(), timestampText(claim.At), claim.QueueItemID.String())
+	if err != nil {
+		return application.ResearchQueueExecutionClaimResult{}, researchPersistence(operation, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return application.ResearchQueueExecutionClaimResult{}, researchPersistence(operation, err)
+	}
+	execution, getErr := repository.getExecution(opCtx, claim.QueueItemID, operation)
+	if getErr != nil {
+		return application.ResearchQueueExecutionClaimResult{}, getErr
+	}
+	return application.ResearchQueueExecutionClaimResult{Execution: execution, Acquired: rows == 1}, nil
+}
+
+func (repository *researchTriggerQueueRepository) GetExecution(ctx context.Context, id research.ID) (application.ResearchQueueExecution, error) {
+	const operation = "get SQLite research queue execution"
+	if err := id.Validate(); err != nil {
+		return application.ResearchQueueExecution{}, researchInvalid(operation, err)
+	}
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return application.ResearchQueueExecution{}, err
+	}
+	defer cancel()
+	return repository.getExecution(opCtx, id, operation)
+}
+
+func (repository *researchTriggerQueueRepository) getExecution(ctx context.Context, id research.ID, operation string) (application.ResearchQueueExecution, error) {
+	var runID, status, changedAt, algorithm string
+	var attempts int
+	var failureKind sql.NullString
+	err := repository.executor.QueryRowContext(ctx, `SELECT execution_run_id,execution_status,execution_attempts,execution_changed_at,execution_failure_kind,execution_algorithm_version
+FROM research_trigger_queue WHERE id=? AND execution_status<>'pending'`, id.String()).Scan(&runID, &status, &attempts, &changedAt, &failureKind, &algorithm)
+	if errors.Is(err, sql.ErrNoRows) {
+		return application.ResearchQueueExecution{}, researchNotFound(operation)
+	}
+	if err != nil {
+		return application.ResearchQueueExecution{}, researchPersistence(operation, err)
+	}
+	run, err := research.NewID(runID)
+	if err != nil {
+		return application.ResearchQueueExecution{}, researchPersistence(operation, err)
+	}
+	changed, err := scanTimestamp(changedAt)
+	if err != nil {
+		return application.ResearchQueueExecution{}, researchPersistence(operation, err)
+	}
+	execution := application.ResearchQueueExecution{
+		QueueItemID: id, RunID: run, Status: application.ResearchQueueExecutionStatus(status), Attempts: attempts,
+		ChangedAt: changed, FailureKind: application.ErrorKind(failureKind.String), AlgorithmVersion: algorithm,
+	}
+	if err := execution.Validate(); err != nil {
+		return application.ResearchQueueExecution{}, researchPersistence(operation, err)
+	}
+	return execution, nil
+}
+
+func (repository *researchTriggerQueueRepository) UpdateExecution(ctx context.Context, expected application.ResearchQueueExecutionStatus, execution application.ResearchQueueExecution) error {
+	const operation = "update SQLite research queue execution"
+	if err := expected.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	if err := execution.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	queueStatus := research.ResearchQueueQueued
+	var statusChanged any
+	switch execution.Status {
+	case application.ResearchQueueExecutionRetry:
+		statusChanged = nil
+	case application.ResearchQueueExecutionCompleted, application.ResearchQueueExecutionFailed:
+		queueStatus, statusChanged = research.ResearchQueueDispatched, timestampText(execution.ChangedAt)
+	case application.ResearchQueueExecutionCancelled:
+		queueStatus, statusChanged = research.ResearchQueueCancelled, timestampText(execution.ChangedAt)
+	default:
+		return researchInvalid(operation, errors.New("research queue execution settlement is invalid"))
+	}
+	var failureKind any
+	if execution.FailureKind != "" {
+		failureKind = string(execution.FailureKind)
+	}
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	result, err := repository.executor.ExecContext(opCtx, `UPDATE research_trigger_queue
+SET status=?,status_changed_at=?,execution_status=?,execution_changed_at=?,execution_failure_kind=?
+WHERE id=? AND status='queued' AND execution_status=? AND execution_run_id=? AND execution_attempts=? AND execution_changed_at<=?`,
+		string(queueStatus), statusChanged, string(execution.Status), timestampText(execution.ChangedAt), failureKind,
+		execution.QueueItemID.String(), string(expected), execution.RunID.String(), execution.Attempts, timestampText(execution.ChangedAt))
 	if err != nil {
 		return researchPersistence(operation, err)
 	}

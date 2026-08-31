@@ -58,6 +58,6 @@ semantics. Concurrent duplicate inserts converge on the existing active row.
 
 This queue is not an external scheduler and does not execute work. It performs
 no discovery, fetch, release lookup, model call, curriculum compile, or Student
-Core mutation. Step 35 may explicitly dispatch manual CLI work through the
-same application boundary while still honoring privacy and cost controls.
-
+Core mutation. I-03C Step 15 adds worker execution metadata to the same durable
+row without changing this trigger policy; claim/retry/ack behavior is specified
+separately in [research-queue-worker-v1.md](research-queue-worker-v1.md).

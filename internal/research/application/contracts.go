@@ -137,6 +137,9 @@ type ResearchTriggerQueueRepository interface {
 	Get(context.Context, research.ID) (research.ResearchQueueItem, error)
 	ListQueued(context.Context) ([]research.ResearchQueueItem, error)
 	Update(context.Context, research.ResearchQueueItem) error
+	ClaimExecution(context.Context, ResearchQueueExecutionClaim) (ResearchQueueExecutionClaimResult, error)
+	GetExecution(context.Context, research.ID) (ResearchQueueExecution, error)
+	UpdateExecution(context.Context, ResearchQueueExecutionStatus, ResearchQueueExecution) error
 }
 
 type TrustRegistryRepository interface {
@@ -1211,6 +1214,10 @@ type LiveResearchOrchestrator interface {
 	Execute(context.Context, LiveResearchOrchestrationRequest) (LiveResearchOrchestrationResult, error)
 }
 
+type ResearchQueueConsumer interface {
+	Consume(context.Context, ResearchQueueConsumeRequest) (ResearchQueueConsumeResult, error)
+}
+
 type CostControlReason string
 
 const (
@@ -1263,6 +1270,9 @@ type ResearchTriggerService interface {
 	Queued(context.Context) ([]research.ResearchQueueItem, error)
 	MarkDispatched(context.Context, research.ID, research.Timestamp) (research.ResearchQueueItem, error)
 	Cancel(context.Context, research.ID, research.Timestamp) (research.ResearchQueueItem, error)
+	ClaimExecution(context.Context, ResearchQueueExecutionClaim) (ResearchQueueExecutionClaimResult, error)
+	Execution(context.Context, research.ID) (ResearchQueueExecution, error)
+	SettleExecution(context.Context, ResearchQueueExecutionStatus, ResearchQueueExecution) (ResearchQueueExecution, error)
 }
 
 type DiscoveryService interface {

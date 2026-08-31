@@ -49,6 +49,52 @@ func TestSQLiteResearchTriggerQueuePersistsDeduplicatesAndOrdersMetadata(t *test
 	}
 }
 
+func TestSQLiteResearchTriggerQueueClaimsRetriesAndAcknowledgesAtomically(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	ctx := context.Background()
+	service := application.NewResearchTriggerService(database.Repositories().Research.TriggerQueue)
+	input := sqliteTriggerInput(t, "request.sqlite-worker", "queue.sqlite-worker", "worker topic", 0)
+	input.Signals = trigger.Signals{Manual: true, EvidenceCount: 0}
+	decision, err := service.Evaluate(ctx, input)
+	if err != nil || decision.QueueItem == nil {
+		t.Fatalf("queue = (%+v,%v)", decision, err)
+	}
+	runOne, _ := research.NewID("run.sqlite-worker-one")
+	claim, err := service.ClaimExecution(ctx, application.ResearchQueueExecutionClaim{QueueItemID: decision.QueueItem.ID, RunID: runOne, At: input.AsOf})
+	if err != nil || !claim.Acquired || claim.Execution.Attempts != 1 {
+		t.Fatalf("first claim = (%+v,%v)", claim, err)
+	}
+	repeated, err := service.ClaimExecution(ctx, application.ResearchQueueExecutionClaim{QueueItemID: decision.QueueItem.ID, RunID: runOne, At: input.AsOf})
+	if err != nil || repeated.Acquired || repeated.Execution.RunID != runOne {
+		t.Fatalf("repeated claim = (%+v,%v)", repeated, err)
+	}
+	retry := claim.Execution
+	retry.Status = application.ResearchQueueExecutionRetry
+	retry.FailureKind = application.ErrorExternalFailure
+	if _, err := service.SettleExecution(ctx, application.ResearchQueueExecutionClaimed, retry); err != nil {
+		t.Fatal(err)
+	}
+	queued, err := service.Queued(ctx)
+	if err != nil || len(queued) != 1 {
+		t.Fatalf("retry queue = (%+v,%v)", queued, err)
+	}
+	runTwo, _ := research.NewID("run.sqlite-worker-two")
+	second, err := service.ClaimExecution(ctx, application.ResearchQueueExecutionClaim{QueueItemID: decision.QueueItem.ID, RunID: runTwo, At: input.AsOf})
+	if err != nil || !second.Acquired || second.Execution.Attempts != 2 || second.Execution.RunID != runTwo {
+		t.Fatalf("second claim = (%+v,%v)", second, err)
+	}
+	completed := second.Execution
+	completed.Status = application.ResearchQueueExecutionCompleted
+	if _, err := service.SettleExecution(ctx, application.ResearchQueueExecutionClaimed, completed); err != nil {
+		t.Fatal(err)
+	}
+	item, err := service.Get(ctx, decision.QueueItem.ID)
+	stored, executionErr := service.Execution(ctx, decision.QueueItem.ID)
+	if err != nil || executionErr != nil || item.Status != research.ResearchQueueDispatched || stored.Status != application.ResearchQueueExecutionCompleted || stored.Attempts != 2 {
+		t.Fatalf("settled queue = item(%+v,%v), execution(%+v,%v)", item, err, stored, executionErr)
+	}
+}
+
 func sqliteTriggerInput(t *testing.T, requestValue, queueValue, subject string, offset time.Duration) trigger.Input {
 	t.Helper()
 	requested, _ := research.NewTimestamp(time.Date(2026, 8, 28, 10, 0, 0, 0, time.UTC).Add(offset))

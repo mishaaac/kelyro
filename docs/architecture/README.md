@@ -46,6 +46,10 @@ lookup, including offline/online/auto semantics and explicit cache fallbacks,
 is documented in
 [research-network-privacy.md](research-network-privacy.md).
 
+The [Research queue worker v1](research-queue-worker-v1.md) atomically claims
+and settles work from the existing durable trigger queue while delegating the
+single run lifecycle to the live orchestrator.
+
 The reusable Research HTTP transport, bounded retry policy, response limits,
 safe hooks, compression behavior, redaction boundary, and SSRF defenses are
 documented in [research-http-client.md](research-http-client.md).

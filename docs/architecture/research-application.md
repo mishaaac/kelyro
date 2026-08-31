@@ -176,7 +176,10 @@ application boundaries. `ResearchService.TransitionRun` applies the single
 `research-run-lifecycle-v1` policy: the orchestrator enters `running` before
 stage work, persists `failed`/`cancelled` on an unsuccessful return, and marks
 `completed` only after the bundle stage has returned a durable matching bundle.
-It does not claim or acknowledge queue items.
+It does not claim or acknowledge queue items. `ResearchQueueConsumer` owns
+that outer boundary through the versioned
+[`research-queue-worker-v1`](research-queue-worker-v1.md) contract and invokes
+the orchestrator at most once for each acquired claim.
 
 Step 45 adds only bounded execution over already prepared discovery and fetch
 inputs. It does not make a discovery candidate Evidence or decide which

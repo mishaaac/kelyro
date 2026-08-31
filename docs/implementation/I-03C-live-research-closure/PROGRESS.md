@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 15
-Last completed step: 14
+Current step: 16
+Last completed step: 15
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -784,3 +784,69 @@ Release: unreleased
 - El Paso 15 debe consumir la queue existente y delegar la ejecución al
   orchestrator; no debe recrear lifecycle, stage ordering ni otra queue.
 - Ack/retry debe preservar la identidad lógica y no reabrir runs terminales.
+
+## Step 15 — Existing queue consumer
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `ResearchQueueConsumer` añadido sobre `ResearchTriggerService`,
+  `ResearchService` y `LiveResearchOrchestrator`, sin crear otra queue ni
+  duplicar el lifecycle del run.
+- Semántica durable `claim → execute → ack/retry/fail/cancel` implementada con
+  metadata de ejecución versionada en la fila existente de
+  `research_trigger_queue`.
+- Claim atómico y observable: un solo consumer adquiere el trabajo; consumers
+  repetidos reciben `in_flight` o el resultado terminal idempotente sin volver
+  a invocar el orchestrator.
+- Success persiste execution `completed` y conserva `dispatched` como ack de
+  queue; failure permanente hace `failed/dispatched`; cancellation hace
+  `cancelled/cancelled`; failure transitorio vuelve a `retry/queued`.
+- Retry conserva queue/request y permite que una ejecución posterior use un
+  nuevo `ResearchRun` de la misma request, incrementando el attempt count.
+- Migración forward-only 44 incorpora únicamente columnas de execution state
+  e índice claimable; no modifica migraciones publicadas ni reconstruye la
+  tabla.
+- Adapters memory y SQLite, tests del consumer y roundtrip SQLite cubren
+  success, replay idempotente, claim concurrente, retry, fallo permanente y
+  cancelación sin Internet.
+
+### Decisions
+
+- Los estados originales de trigger queue siguen siendo
+  `queued/dispatched/cancelled`; la metadata `research-queue-worker-v1`
+  distingue claim, retry, ack y failure sin reinterpretar ni reemplazar
+  `research-trigger-v1`.
+- `dispatched` continúa siendo el estado terminal de la queue existente y
+  funciona como ack durable. El execution status diferencia un ack exitoso de
+  un fallo permanente sin ampliar el enum histórico.
+- Un claim permanece en la misma fila queued, pero queda fuera de
+  `ListQueued`; el dedupe key sigue activo durante la ejecución y evita otra
+  identidad lógica.
+- `unavailable`, `persistence_failure`, `external_failure` y `conflict` son
+  retryables en este boundary. El consumer no hace un loop automático: deja el
+  item queued y cada reintento posterior vuelve a pasar por orchestration,
+  privacy y cost control.
+- Las causas persistidas se limitan al `ErrorKind` estable; no se guardan
+  mensajes externos, headers, bodies ni secretos.
+- El Paso 15 no ensambla stages productivos ni conecta todavía el comando CLI;
+  esa ejecución síncrona y acotada corresponde al Paso 16.
+
+### Verification
+
+- `go test -race ./internal/research/application -count=1`.
+- `go test -race ./internal/storage/sqlite -run 'ResearchTriggerQueue' -count=1`.
+- `go test ./internal/research/application ./internal/storage/sqlite`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 16 debe invocar este consumer desde `research topic` con un deadline
+  acotado y devolver el resultado en el mismo proceso, sin daemon ni goroutine
+  detached.
+- Los stages concretos query-to-bundle siguen reservados a los Pasos 17–31.

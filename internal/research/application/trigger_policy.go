@@ -67,6 +67,61 @@ func (service *researchTriggerService) Cancel(ctx context.Context, id research.I
 	return service.transition(ctx, id, at, research.ResearchQueueCancelled)
 }
 
+func (service *researchTriggerService) ClaimExecution(ctx context.Context, claim ResearchQueueExecutionClaim) (ResearchQueueExecutionClaimResult, error) {
+	const operation = "claim research queue execution"
+	if err := claim.Validate(); err != nil {
+		return ResearchQueueExecutionClaimResult{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "research trigger queue repository", service.repository); err != nil {
+		return ResearchQueueExecutionClaimResult{}, err
+	}
+	result, err := service.repository.ClaimExecution(ctx, claim)
+	if err != nil {
+		return ResearchQueueExecutionClaimResult{}, repositoryError(operation, err)
+	}
+	if err := result.Execution.Validate(); err != nil {
+		return ResearchQueueExecutionClaimResult{}, repositoryError(operation, err)
+	}
+	return result, nil
+}
+
+func (service *researchTriggerService) Execution(ctx context.Context, id research.ID) (ResearchQueueExecution, error) {
+	const operation = "get research queue execution"
+	if err := id.Validate(); err != nil {
+		return ResearchQueueExecution{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "research trigger queue repository", service.repository); err != nil {
+		return ResearchQueueExecution{}, err
+	}
+	execution, err := service.repository.GetExecution(ctx, id)
+	return execution, repositoryError(operation, err)
+}
+
+func (service *researchTriggerService) SettleExecution(ctx context.Context, expected ResearchQueueExecutionStatus, execution ResearchQueueExecution) (ResearchQueueExecution, error) {
+	const operation = "settle research queue execution"
+	if err := expected.Validate(); err != nil {
+		return ResearchQueueExecution{}, invalid(operation, err)
+	}
+	if expected != ResearchQueueExecutionClaimed {
+		return ResearchQueueExecution{}, invalid(operation, fmt.Errorf("research queue settlement must start from %q", ResearchQueueExecutionClaimed))
+	}
+	if err := execution.Validate(); err != nil {
+		return ResearchQueueExecution{}, invalid(operation, err)
+	}
+	switch execution.Status {
+	case ResearchQueueExecutionRetry, ResearchQueueExecutionCompleted, ResearchQueueExecutionFailed, ResearchQueueExecutionCancelled:
+	default:
+		return ResearchQueueExecution{}, invalid(operation, fmt.Errorf("research queue execution cannot settle as %q", execution.Status))
+	}
+	if err := requireDependency(operation, "research trigger queue repository", service.repository); err != nil {
+		return ResearchQueueExecution{}, err
+	}
+	if err := service.repository.UpdateExecution(ctx, expected, execution); err != nil {
+		return ResearchQueueExecution{}, repositoryError(operation, err)
+	}
+	return execution, nil
+}
+
 func (service *researchTriggerService) transition(ctx context.Context, id research.ID, at research.Timestamp, status research.ResearchQueueStatus) (research.ResearchQueueItem, error) {
 	const operation = "transition research trigger queue item"
 	if err := id.Validate(); err != nil {

@@ -1724,6 +1724,19 @@ WHEN EXISTS (
 			`CREATE TRIGGER research_run_audit_immutable_delete BEFORE DELETE ON research_run_audit BEGIN SELECT RAISE(ABORT, 'research run audit is immutable'); END`,
 		},
 	},
+	{
+		version: 44,
+		name:    "research queue execution state",
+		statements: []string{
+			`ALTER TABLE research_trigger_queue ADD COLUMN execution_status TEXT NOT NULL DEFAULT 'pending' CHECK (execution_status IN ('pending','claimed','retry','completed','failed','cancelled'))`,
+			`ALTER TABLE research_trigger_queue ADD COLUMN execution_run_id TEXT`,
+			`ALTER TABLE research_trigger_queue ADD COLUMN execution_attempts INTEGER NOT NULL DEFAULT 0 CHECK (execution_attempts >= 0)`,
+			`ALTER TABLE research_trigger_queue ADD COLUMN execution_changed_at TEXT`,
+			`ALTER TABLE research_trigger_queue ADD COLUMN execution_failure_kind TEXT CHECK (execution_failure_kind IS NULL OR execution_failure_kind IN ('not_found','conflict','invalid_state','unavailable','persistence_failure','external_failure','network_research_blocked','budget_exceeded'))`,
+			`ALTER TABLE research_trigger_queue ADD COLUMN execution_algorithm_version TEXT NOT NULL DEFAULT 'research-queue-worker-v1' CHECK (execution_algorithm_version='research-queue-worker-v1')`,
+			`CREATE INDEX research_trigger_queue_claimable_idx ON research_trigger_queue (status,execution_status,priority,queued_at,id)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

@@ -783,7 +783,7 @@ feat(research): complete live research run lifecycle
 
 ## Paso 15 — Consumir queue existente
 
-- [ ] Paso 15 completado
+- [x] Paso 15 completado
 
 Worker semantics:
 

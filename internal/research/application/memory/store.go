@@ -39,6 +39,7 @@ type Store struct {
 	cache           map[string]application.CacheEntry
 	costEvents      map[research.ID][]costEvent
 	triggerQueue    map[research.ID]research.ResearchQueueItem
+	queueExecutions map[research.ID]application.ResearchQueueExecution
 }
 
 func New() *Store {
@@ -67,6 +68,7 @@ func New() *Store {
 		cache:           make(map[string]application.CacheEntry),
 		costEvents:      make(map[research.ID][]costEvent),
 		triggerQueue:    make(map[research.ID]research.ResearchQueueItem),
+		queueExecutions: make(map[research.ID]application.ResearchQueueExecution),
 	}
 }
 
