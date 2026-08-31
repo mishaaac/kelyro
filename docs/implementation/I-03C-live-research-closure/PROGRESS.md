@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 6
-Last completed step: 5
+Current step: 7
+Last completed step: 6
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -307,3 +307,55 @@ Release: unreleased
 - Implementar el adapter Brave en infra con fixtures deterministas, sin tocar
   Secrets integration, production wiring ni transport hardening de pasos
   posteriores.
+
+## Step 06 — Production SearchProvider adapter
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- Adapter `researchsearch.Brave` añadido como implementación de
+  `application.SearchProvider` sobre el endpoint Web Search seleccionado.
+- Mapping bounded de `q`, `count` y `offset` a `SearchResult`, con title,
+  locator sin fragment, snippet opcional, provider ID, rank posicional y
+  `PublishedHint` solo para timestamps RFC3339 válidos.
+- Paginación limitada a 20 resultados por página, offsets 0–9 y hard cap de
+  100 candidates; `more_results_available` evita requests innecesarias.
+- Errores tipados para authentication, rate limit, invalid request,
+  unavailable, malformed response y transport sin incluir query, body, URL ni
+  credential en el texto.
+- Metadata bounded de los cuatro headers `X-RateLimit-*` disponible en errores
+  y observaciones de página no secretas para audit/cost posteriores.
+- Fixtures JSON y contract tests deterministas para request/auth, mapping,
+  normalización, paginación, límites, status mapping, metadata y cancellation.
+
+### Decisions
+
+- El adapter acepta un `HTTPClient` mínimo inyectado. El cliente de producción
+  hardened se incorpora en el Paso 7 sin acoplar domain/application a HTTP.
+- La API key entra al constructor en memoria, pero no se resuelve todavía:
+  Foundation Secrets permanece reservado al Paso 8.
+- `DesiredKind` y `TargetVersion` se ignoran como hints no soportados; no se
+  convierten en parámetros vendor ni decisiones de trust/authority.
+- La response JSON completa es transient y bounded a 1 MiB; no se persiste.
+- Cada observación equivale a una página/API call. El conteo durable sigue
+  reservado al wiring de cost/audit, sin duplicar ese servicio en el adapter.
+- No se añadió SDK, dependencia externa, privacy wiring, fetch, evidence,
+  claims, bundle u orchestration.
+
+### Verification
+
+- `go test ./internal/infra/researchsearch -count=1`.
+- `go vet ./internal/infra/researchsearch`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 7 debe proveer y auditar el transporte HTTP de producción usado por
+  este adapter, con endpoint/origin fijos y redacción de credenciales.
+- No integrar Secrets, privacy gates ni production assembly todavía; están
+  reservados a los Pasos 8–10.

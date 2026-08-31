@@ -1,0 +1,305 @@
+package researchsearch
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/mishaaac/kelyro/internal/research"
+	"github.com/mishaaac/kelyro/internal/research/application"
+)
+
+func TestBraveSearchMapsAndPaginatesBoundedResults(t *testing.T) {
+	t.Parallel()
+	client := &fixtureClient{responses: []*http.Response{
+		fixtureResponse(t, "brave_page_1.json", http.Header{
+			"X-Ratelimit-Limit":     {"50"},
+			"X-Ratelimit-Policy":    {"50;w=1"},
+			"X-Ratelimit-Remaining": {"49"},
+			"X-Ratelimit-Reset":     {"1"},
+		}),
+		fixtureResponse(t, "brave_page_2.json", nil),
+	}}
+	observer := &recordingObserver{}
+	provider, err := NewBrave(client, "fixture-token", WithPageObserver(observer))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 3})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("Search() returned %d results, want 3", len(results))
+	}
+	if results[0].Title != "The Go Programming Language Specification" ||
+		results[0].Locator.String() != "https://go.dev/ref/spec" ||
+		results[0].Snippet != "Interface types define type sets." ||
+		results[0].Provider != ProviderID || results[0].Rank != 0 || results[0].PublishedHint == nil {
+		t.Fatalf("first result not normalized and mapped: %+v", results[0])
+	}
+	if results[2].Rank != 3 || results[2].PublishedHint != nil {
+		t.Fatalf("second page rank/hint = %d/%v, want 3/nil", results[2].Rank, results[2].PublishedHint)
+	}
+
+	requests := client.Requests()
+	if len(requests) != 2 {
+		t.Fatalf("HTTP calls = %d, want 2", len(requests))
+	}
+	assertRequest(t, requests[0], "Go interfaces", "3", "0")
+	assertRequest(t, requests[1], "Go interfaces", "3", "1")
+	if requests[0].Header.Get(credentialHeader) != "fixture-token" {
+		t.Fatal("credential header was not set")
+	}
+	if requests[0].Header.Get("Accept") != "application/json" {
+		t.Fatal("JSON accept header was not set")
+	}
+
+	events := observer.Events()
+	if len(events) != 2 || events[0].RequestedCount != 3 || events[0].Offset != 0 ||
+		events[0].RateLimit.Remaining != "49" || events[1].RequestedCount != 3 {
+		t.Fatalf("page observations = %+v", events)
+	}
+}
+
+func TestBraveSearchHonorsResultAndPaginationBounds(t *testing.T) {
+	t.Parallel()
+	client := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		count := request.URL.Query().Get("count")
+		offset := request.URL.Query().Get("offset")
+		if count != "20" {
+			return nil, fmt.Errorf("page count = %s, want 20", count)
+		}
+		return jsonResponse(http.StatusOK, fmt.Sprintf(`{
+			"query":{"more_results_available":true},
+			"web":{"results":[{"title":"result %s","url":"https://example.test/%s"}]}
+		}`, offset, offset), nil), nil
+	})
+	provider, err := NewBrave(client, "fixture-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 100})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(results) != 10 {
+		t.Fatalf("results = %d, want one per each of 10 bounded pages", len(results))
+	}
+	if results[9].Rank != 180 {
+		t.Fatalf("last rank = %d, want 180", results[9].Rank)
+	}
+}
+
+func TestBraveSearchMapsProviderStatusWithoutLeakingPayload(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		status int
+		want   error
+	}{
+		{http.StatusUnauthorized, ErrAuthentication},
+		{http.StatusForbidden, ErrAuthentication},
+		{http.StatusTooManyRequests, ErrRateLimited},
+		{http.StatusBadRequest, ErrInvalidRequest},
+		{http.StatusServiceUnavailable, ErrUnavailable},
+		{http.StatusTeapot, ErrResponse},
+	}
+	for _, test := range tests {
+		t.Run(http.StatusText(test.status), func(t *testing.T) {
+			t.Parallel()
+			client := roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return jsonResponse(test.status, `{"secret":"fixture-token","query":"Go interfaces"}`, http.Header{
+					"X-Ratelimit-Remaining": {"0"},
+				}), nil
+			})
+			provider, err := NewBrave(client, "fixture-token")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 1})
+			if !errors.Is(err, test.want) {
+				t.Fatalf("Search() error = %v, want %v", err, test.want)
+			}
+			if strings.Contains(err.Error(), "fixture-token") || strings.Contains(err.Error(), "Go interfaces") {
+				t.Fatalf("provider error leaked sensitive data: %v", err)
+			}
+			var providerErr *Error
+			if !errors.As(err, &providerErr) || providerErr.RateLimit.Remaining != "0" {
+				t.Fatalf("rate metadata missing from error: %+v", providerErr)
+			}
+		})
+	}
+}
+
+func TestBraveSearchRejectsMalformedOrOversizeResponses(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "malformed JSON", body: `{`},
+		{name: "trailing JSON", body: `{"web":{"results":[]}} {}`},
+		{name: "invalid result", body: `{"web":{"results":[{"title":"","url":"https://example.test"}]}}`},
+		{name: "too many results", body: `{"web":{"results":[{"title":"one","url":"https://example.test/1"},{"title":"two","url":"https://example.test/2"}]}}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			provider, err := NewBrave(staticClient(jsonResponse(http.StatusOK, test.body, nil)), "fixture-token")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 1})
+			if !errors.Is(err, ErrResponse) {
+				t.Fatalf("Search() error = %v, want response error", err)
+			}
+		})
+	}
+
+	oversize := strings.Repeat("x", maximumResponseBytes+1)
+	provider, err := NewBrave(staticClient(jsonResponse(http.StatusOK, oversize, nil)), "fixture-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 1})
+	if !errors.Is(err, ErrResponse) {
+		t.Fatalf("oversize response error = %v, want response error", err)
+	}
+}
+
+func TestBraveSearchValidatesInputsAndCancellation(t *testing.T) {
+	t.Parallel()
+	if _, err := NewBrave(nil, "fixture-token"); err == nil {
+		t.Fatal("NewBrave accepted nil client")
+	}
+	if _, err := NewBrave(staticClient(nil), ""); err == nil {
+		t.Fatal("NewBrave accepted empty credential")
+	}
+
+	calls := 0
+	client := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		return jsonResponse(http.StatusOK, `{"web":{"results":[]}}`, nil), nil
+	})
+	provider, err := NewBrave(client, "fixture-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := validQuery(t)
+	query.Text = strings.Repeat("a", maximumQueryRunes+1)
+	if _, err := provider.Search(context.Background(), query, application.SearchOptions{Limit: 1}); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("oversize query error = %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("invalid query performed %d calls", calls)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := provider.Search(ctx, validQuery(t), application.SearchOptions{Limit: 1}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled search error = %v", err)
+	}
+}
+
+func validQuery(t *testing.T) application.SearchQuery {
+	t.Helper()
+	id, err := research.NewID("request.brave-fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return application.SearchQuery{RequestID: id, Text: "Go interfaces"}
+}
+
+func assertRequest(t *testing.T, request *http.Request, query, count, offset string) {
+	t.Helper()
+	if request.Method != http.MethodGet || request.URL.Scheme != "https" || request.URL.Host != "api.search.brave.com" ||
+		request.URL.Path != "/res/v1/web/search" {
+		t.Fatalf("unexpected request target: %s %s", request.Method, request.URL)
+	}
+	parameters := request.URL.Query()
+	if parameters.Get("q") != query || parameters.Get("count") != count || parameters.Get("offset") != offset {
+		t.Fatalf("query parameters = %v", parameters)
+	}
+	if len(parameters) != 3 {
+		t.Fatalf("unexpected provider parameters = %v", parameters)
+	}
+}
+
+func fixtureResponse(t *testing.T, name string, header http.Header) *http.Response {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return jsonResponse(http.StatusOK, string(body), header)
+}
+
+func jsonResponse(status int, body string, header http.Header) *http.Response {
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/json")
+	return &http.Response{StatusCode: status, Header: header, Body: io.NopCloser(strings.NewReader(body))}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) Do(request *http.Request) (*http.Response, error) {
+	return function(request)
+}
+
+func staticClient(response *http.Response) HTTPClient {
+	return roundTripFunc(func(*http.Request) (*http.Response, error) { return response, nil })
+}
+
+type fixtureClient struct {
+	mu        sync.Mutex
+	responses []*http.Response
+	requests  []*http.Request
+}
+
+func (client *fixtureClient) Do(request *http.Request) (*http.Response, error) {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	clone := request.Clone(context.Background())
+	clone.Header = request.Header.Clone()
+	client.requests = append(client.requests, clone)
+	if len(client.responses) == 0 {
+		return nil, errors.New("fixture responses exhausted")
+	}
+	response := client.responses[0]
+	client.responses = client.responses[1:]
+	return response, nil
+}
+
+func (client *fixtureClient) Requests() []*http.Request {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return append([]*http.Request(nil), client.requests...)
+}
+
+type recordingObserver struct {
+	mu     sync.Mutex
+	events []PageObservation
+}
+
+func (observer *recordingObserver) ObserveSearchPage(_ context.Context, event PageObservation) {
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	observer.events = append(observer.events, event)
+}
+
+func (observer *recordingObserver) Events() []PageObservation {
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	return append([]PageObservation(nil), observer.events...)
+}

@@ -501,7 +501,7 @@ docs(research): select reference production search provider
 
 ## Paso 6 — Implement production SearchProvider adapter
 
-- [ ] Paso 6 completado
+- [x] Paso 6 completado
 
 Ubicación sugerida:
 

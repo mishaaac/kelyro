@@ -1,0 +1,15 @@
+{
+  "query": {
+    "more_results_available": false
+  },
+  "web": {
+    "results": [
+      {
+        "title": "Go blog: interfaces",
+        "url": "https://go.dev/blog/laws-of-reflection",
+        "description": "Reflection builds on interfaces.",
+        "age": "not-an-rfc3339-instant"
+      }
+    ]
+  }
+}

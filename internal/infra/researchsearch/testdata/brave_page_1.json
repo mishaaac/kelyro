@@ -1,0 +1,20 @@
+{
+  "query": {
+    "more_results_available": true
+  },
+  "web": {
+    "results": [
+      {
+        "title": "  The Go Programming Language\nSpecification ",
+        "url": "https://go.dev/ref/spec#Interface_types",
+        "description": " Interface types define type sets. ",
+        "age": "2026-08-29T10:30:00Z"
+      },
+      {
+        "title": "Effective Go",
+        "url": "https://go.dev/doc/effective_go",
+        "description": "Idiomatic guidance for Go programs."
+      }
+    ]
+  }
+}
