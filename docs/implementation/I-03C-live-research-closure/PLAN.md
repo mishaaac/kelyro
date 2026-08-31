@@ -287,7 +287,7 @@ docs(research): open I-03C live research closure
 
 ## Paso 1 — Congelar baseline funcional
 
-- [ ] Paso 1 completado
+- [x] Paso 1 completado
 
 Documentar componentes existentes y confirmar qué se reutiliza:
 
