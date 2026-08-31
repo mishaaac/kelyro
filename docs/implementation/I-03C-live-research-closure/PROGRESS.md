@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 2
-Last completed step: 1
+Current step: 3
+Last completed step: 2
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -106,3 +106,49 @@ Release: unreleased
 - El Paso 2 es el siguiente paso pendiente y requiere autorización explícita.
 - El Paso 2 debe definir el acceptance contract query-to-bundle; no implementar
   aún provider, worker, orchestrator ni extractors.
+
+## Step 02 — Acceptance contract query-to-bundle
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- `ACCEPTANCE.md` creado con el pipeline obligatorio desde topic hasta bundle y
+  `ResearchRun` completed.
+- Invariantes de aceptación definidas para planning, discovery, candidates,
+  registration, fetch, snapshots, normalization, evidence, claims, trust,
+  verification, bundle, audit y cost.
+- Success mínimo congelado con métricas durables y roundtrip del workspace.
+- Las diez failure classes requeridas documentadas con condición, terminalidad,
+  privacidad, fallback y comportamiento parcial.
+- Ocho escenarios mínimos definidos para futuros acceptance tests sin Internet
+  público.
+
+### Decisions
+
+- Search results siguen siendo candidates y no Evidence; el contrato exige la
+  cadena durable source → snapshot → evidence antes de aceptar Claims.
+- Un run offline puede completar mediante cache suficiente, pero audit y
+  métricas deben distinguirlo de red live.
+- `fetch_failed_partial` puede coexistir con success cuando otra fuente permite
+  verification y bundle; todas las demás causas terminales impiden completed.
+- `completed` se persiste únicamente después de un bundle durable `ready` o
+  `ready_with_caveats`.
+- Este paso estabiliza nombres y resultados observables, no introduce todavía
+  tipos Go, provider configuration, error mapping ni orchestration.
+
+### Verification
+
+- Reconciliación directa con los modelos y servicios I-03 existentes.
+- Revisión contra el baseline funcional congelado en `BASELINE.md`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 3 debe revisar y congelar el contrato `SearchProvider` existente.
+- No implementar configuración, selección o adapter de producción reservados a
+  los Pasos 4–6.

@@ -332,7 +332,7 @@ test(research): freeze I-03 live research baseline
 
 ## Paso 2 — Definir acceptance contract query-to-bundle
 
-- [ ] Paso 2 completado
+- [x] Paso 2 completado
 
 Pipeline obligatorio:
 
