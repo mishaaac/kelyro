@@ -161,6 +161,9 @@ func validateFetchedSource(operation string, request FetchRequest, fetched Fetch
 	if err == nil && fetched.SourceID != request.SourceID {
 		err = errors.New("fetched source identity does not match request")
 	}
+	if err == nil && int64(len(fetched.Body)) > request.MaximumBytes {
+		err = errors.New("fetched source body exceeds request limit")
+	}
 	if err == nil {
 		return fetched, nil
 	}

@@ -1301,6 +1301,11 @@ type FetchService interface {
 	Fetch(context.Context, ResearchMode, FetchRequest) (FetchedSource, error)
 }
 
+type LiveSourceFetchService interface {
+	FetchSources(context.Context, LiveSourceFetchRequest) (LiveSourceFetchResult, error)
+	LiveResearchStageService
+}
+
 type SnapshotBodyPolicy string
 
 const (

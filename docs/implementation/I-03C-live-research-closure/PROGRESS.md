@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 20
-Last completed step: 19
+Current step: 21
+Last completed step: 20
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1068,3 +1068,60 @@ Release: unreleased
   `FetchService`/adapter HTTP ya hardened.
 - Los fallos por Source deben conservarse de forma bounded y permitir success
   parcial; snapshot/cache permanecen reservados al Paso 21.
+
+## Step 20 — Existing HTTP Fetcher wiring
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-source-fetch-v1` añadido como stage entre `Artifacts.Sources` y el
+  `FetchService` existente, sin duplicar transport ni abrir red directamente.
+- Policy bounded reutiliza `research-processing-limits-v1`: máximo 200 Sources,
+  8 fetches concurrentes por defecto (hard cap 32), 64 MiB por run y allocation
+  de hasta 4 MiB por Source repartida dentro del presupuesto total.
+- Success parcial conserva bodies exitosos y fallos individuales bounded por
+  Source ID/locator/error kind; si todos fallan, el error clasificado de menor
+  índice termina el stage.
+- Cancellation sigue siendo terminal aunque otra Source ya haya respondido;
+  outputs/failures mantienen orden estable y ownership defensivo.
+- `FetchService` endurecido para rechazar bodies que excedan el
+  `FetchRequest.MaximumBytes`, aun si un adapter viola su contrato.
+- El orchestrator conserva artifacts parciales devueltos por un stage fallido,
+  permitiendo que failure/audit posterior observe los fetch failures.
+- Composición del binario conecta `researchhttp.Client` →
+  `researchfetch.Fetcher` → `FetchService` → live fetch stage, resolviendo la
+  privacy gate por workspace/comando antes de cualquier llamada.
+- Tests cubren partial success, all-failed, privacy denied con cero adapter
+  calls, allocation/bounds, body oversize y composición productiva.
+
+### Decisions
+
+- El stage depende del port `FetchService`; no conoce HTTP. Por ello SSRF,
+  redirects, content types, retries y timeouts permanecen exclusivamente en el
+  adapter hardened ya probado.
+- La composición inicial no inyecta `SourceFetchCache`: Snapshot + Cache wiring
+  está reservado al Paso 21 y no se simula con un fallback vacío.
+- Failure artifacts no retienen mensajes externos, headers, URLs redirigidas ni
+  bodies; la taxonomía estable es suficiente para `fetch_failed_partial`.
+- El request-specific limit puede reducir pero nunca elevar el límite global
+  del HTTP client. La división del presupuesto evita pedir un aggregate mayor
+  a 64 MiB incluso con el máximo de Sources.
+- No se crean snapshots, Evidence, Claims ni trust durante fetch.
+
+### Verification
+
+- `go test -race ./internal/research/application -run 'Test(LiveSourceFetch|FetchService)' -count=1`.
+- `go test -race ./internal/app ./internal/research/application ./internal/infra/researchfetch ./internal/infra/researchhttp ./cmd/kelyro -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 21 debe consumir `Artifacts.FetchedSources`, reutilizar snapshot y
+  `researchcachefs`, y mantener bodies fuera de SQLite.
+- Partial failures deben acompañar los successes sin fabricar snapshot para la
+  Source fallida.

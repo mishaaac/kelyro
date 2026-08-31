@@ -125,6 +125,9 @@ The initial services are deliberately thin:
   canonical locators as unclassified `other` Sources, and appends immutable
   request/query/provider discovery observations without assigning trust;
 - `FetchService` applies the same boundary to live/cached source retrieval;
+- `live-source-fetch-v1` maps registered Sources to bounded `FetchRequest`
+  values, preserves per-Source failures for partial success, and delegates all
+  privacy and transport behavior to `FetchService` and the hardened adapter;
 - `ResearchProcessingService` executes prepared discovery and fetch work in
   separate bounded pools, preserves input-index result ordering, and enforces
   the versioned whole-run candidate, fetch, Claim, and byte budget;

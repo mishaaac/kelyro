@@ -63,6 +63,7 @@ type LiveResearchArtifacts struct {
 	Discoveries            []research.DiscoveredSource
 	Sources                []research.Source
 	FetchedSources         []FetchedSource
+	FetchFailures          []SourceFetchFailure
 	Snapshots              []research.SourceSnapshot
 	NormalizedSources      []NormalizedSource
 	Evidence               []research.Evidence
@@ -176,6 +177,7 @@ func (orchestrator *liveResearchOrchestrator) Execute(ctx context.Context, reque
 			Artifacts: cloneLiveResearchArtifacts(result.Artifacts),
 		})
 		if stageErr != nil {
+			result.Artifacts = cloneLiveResearchArtifacts(artifacts)
 			classified := boundaryError(ErrorUnavailable, "execute live research stage "+string(stage), stageErr)
 			status := research.ResearchRunFailed
 			if errors.Is(stageErr, context.Canceled) || errors.Is(stageErr, context.DeadlineExceeded) || ctx.Err() != nil {
@@ -309,7 +311,11 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 	for index, discovery := range artifacts.Discoveries {
 		result.Discoveries[index] = cloneDiscoveredSource(discovery)
 	}
-	result.FetchedSources = append([]FetchedSource(nil), artifacts.FetchedSources...)
+	result.FetchedSources = make([]FetchedSource, len(artifacts.FetchedSources))
+	for index, fetched := range artifacts.FetchedSources {
+		result.FetchedSources[index] = cloneFetchedSource(fetched)
+	}
+	result.FetchFailures = append([]SourceFetchFailure(nil), artifacts.FetchFailures...)
 	result.Snapshots = append([]research.SourceSnapshot(nil), artifacts.Snapshots...)
 	result.NormalizedSources = append([]NormalizedSource(nil), artifacts.NormalizedSources...)
 	result.Evidence = append([]research.Evidence(nil), artifacts.Evidence...)

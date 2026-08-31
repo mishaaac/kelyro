@@ -116,6 +116,19 @@ func TestFetchServiceAcceptsHardenedRedirectLocatorAndMarksLiveOrigin(t *testing
 	}
 }
 
+func TestFetchServiceRejectsAdapterBodyAboveRequestLimit(t *testing.T) {
+	t.Parallel()
+	fixture := networkFixture(t)
+	fixture.fetchRequest.MaximumBytes = int64(len(fixture.fetched.Body) - 1)
+	service := application.NewFetchService(
+		&recordingSourceFetcher{fetched: fixture.fetched}, nil,
+		application.NetworkResearchAccess{Gate: &recordingNetworkGate{}},
+	)
+	if _, err := service.Fetch(context.Background(), application.ResearchModeOnline, fixture.fetchRequest); !errors.Is(err, application.ErrExternalFailure) {
+		t.Fatalf("oversized adapter response error = %v", err)
+	}
+}
+
 func TestNetworkResearchModesKeepOfflineOfflineAndAllowAuthorizedLiveCalls(t *testing.T) {
 	t.Parallel()
 

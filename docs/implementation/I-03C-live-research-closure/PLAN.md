@@ -898,7 +898,7 @@ feat(research): register live discovered sources
 
 ## Paso 20 — Wiring del HTTP Fetcher existente
 
-- [ ] Paso 20 completado
+- [x] Paso 20 completado
 
 Usar fetcher ya probado con:
 
@@ -1826,8 +1826,8 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 16 — Execution path
 - [x] Paso 17 — Search candidates
 - [x] Paso 18 — Deduplication
-- [ ] Paso 19 — Source Registry
-- [ ] Paso 20 — Fetcher
+- [x] Paso 19 — Source Registry
+- [x] Paso 20 — Fetcher
 - [ ] Paso 21 — Snapshot/cache
 - [ ] Paso 22 — Normalizer
 - [ ] Paso 23 — Evidence design

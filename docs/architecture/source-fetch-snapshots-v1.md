@@ -9,6 +9,32 @@ The live call still passes through the Step 07 `FetchService`. The adapter does
 not authorize itself and cannot bypass `privacy.allow_network` or the selected
 `offline`, `online`, or `auto` mode.
 
+## Live source stage
+
+`live-source-fetch-v1` is the I-03C bridge from registered Sources to that
+existing fetch boundary. The production binary constructs `researchhttp.Client`
+with its conservative defaults, wraps it with `researchfetch.Fetcher`, and
+injects only the `SourceFetcher` port. Per-run assembly resolves the Foundation
+privacy gate before constructing `FetchService`; attaching the adapter itself
+does not start network work.
+
+The stage accepts at most 200 unique registered Sources. It divides the 64 MiB
+whole-run byte ceiling across every requested Source, capped at 4 MiB each, and
+uses the existing bounded fetch concurrency. Returned bodies are defensively
+copied. `FetchService` additionally rejects a provider/cache body larger than
+the request-specific allocation even if an adapter violates its contract.
+
+Failures are recorded in stable input order as bounded Source ID, original
+locator, and application error kind; external error text, response bodies,
+headers, and credentials are not copied into artifacts. When at least one
+Source succeeds, the stage returns its successful bodies plus
+`fetch_failed_partial` data for later audit and continues. When every Source
+fails, the lowest-index classified error remains terminal. Cancellation is
+always terminal, even after an earlier Source succeeded.
+
+This stage performs no snapshot or cache write. Those responsibilities remain
+with the following I-03C step and the existing `SnapshotCaptureService`.
+
 ## Fetch adapter contract
 
 `source-fetch-v1` maps a validated `FetchRequest` to one GET through

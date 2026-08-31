@@ -189,6 +189,7 @@ type Service struct {
 	researchStores   researchapp.SourceRegistryStoreFactory
 	researchCaches   researchapp.ResearchCacheServiceFactory
 	researchSearch   researchapp.LiveSearchProviderFactory
+	researchFetcher  researchapp.SourceFetcher
 	researchExecutor ResearchTopicExecutor
 	researchClock    func() time.Time
 	currentDirectory func() (string, error)
@@ -235,6 +236,13 @@ func (service *Service) WithResearchCaches(caches researchapp.ResearchCacheServi
 // The factory remains idle until a run explicitly requests discovery.
 func (service *Service) WithResearchSearch(search researchapp.LiveSearchProviderFactory) *Service {
 	service.researchSearch = search
+	return service
+}
+
+// WithResearchFetcher attaches the hardened production source-fetch adapter.
+// Privacy is resolved per command before the adapter can be invoked.
+func (service *Service) WithResearchFetcher(fetcher researchapp.SourceFetcher) *Service {
+	service.researchFetcher = fetcher
 	return service
 }
 

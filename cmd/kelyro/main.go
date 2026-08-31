@@ -24,6 +24,8 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
 	"github.com/mishaaac/kelyro/internal/infra/researchcachefs"
 	"github.com/mishaaac/kelyro/internal/infra/researchdb"
+	"github.com/mishaaac/kelyro/internal/infra/researchfetch"
+	"github.com/mishaaac/kelyro/internal/infra/researchhttp"
 	"github.com/mishaaac/kelyro/internal/infra/researchsearch"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/updatecache"
@@ -48,6 +50,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "kelyro: initialize research search:", err)
 		os.Exit(1)
 	}
+	fetchTransport := researchhttp.DefaultConfig()
+	fetchTransport.UserAgent = "Kelyro/" + version.Version
+	researchHTTP, err := researchhttp.New(fetchTransport, nil, nil)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "kelyro: initialize research fetch:", err)
+		os.Exit(1)
+	}
+	researchFetcher := researchfetch.New(researchHTTP)
 	migrationBackup := func(ctx context.Context, databasePath string, migration sqlite.MigrationInfo) error {
 		root := filepath.Dir(filepath.Dir(databasePath))
 		global, err := configs.LoadGlobal()
@@ -87,6 +97,7 @@ func main() {
 		WithResearchStores(researchdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithResearchCaches(researchcachefs.NewFactory()).
 		WithResearchSearch(researchSearch).
+		WithResearchFetcher(researchFetcher).
 		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).

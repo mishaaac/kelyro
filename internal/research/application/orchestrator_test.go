@@ -76,6 +76,26 @@ func TestLiveResearchOrchestratorStopsAtFirstFailedStage(t *testing.T) {
 	}
 }
 
+func TestLiveResearchOrchestratorPreservesFailedStageArtifacts(t *testing.T) {
+	t.Parallel()
+	queue, service, queueItem, run := liveResearchOrchestrationFixture(t)
+	var calls []application.LiveResearchStage
+	dependencies := liveResearchDependencies(queue, service, &calls, "")
+	source := testSource(t, "orchestrator-partial-fetch")
+	dependencies.Fetch = partialFailureLiveResearchStage{source: source, calls: &calls}
+	orchestrator, err := application.NewLiveResearchOrchestrator(dependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := orchestrator.Execute(context.Background(), application.LiveResearchOrchestrationRequest{
+		QueueItemID: queueItem.ID, RunID: run.ID, Mode: application.ResearchModeOnline,
+	})
+	if err == nil || result.Run.Status != research.ResearchRunFailed || len(result.Artifacts.FetchFailures) != 1 ||
+		result.Artifacts.FetchFailures[0].SourceID != source.ID {
+		t.Fatalf("failed stage artifacts = (%+v,%v)", result, err)
+	}
+}
+
 func TestLiveResearchOrchestratorRejectsMismatchedOrCancelledWork(t *testing.T) {
 	t.Parallel()
 	queue, service, queueItem, run := liveResearchOrchestrationFixture(t)
@@ -174,6 +194,19 @@ type recordingLiveResearchStage struct {
 }
 
 type passthroughLiveResearchStage struct{}
+
+type partialFailureLiveResearchStage struct {
+	source research.Source
+	calls  *[]application.LiveResearchStage
+}
+
+func (stage partialFailureLiveResearchStage) Execute(_ context.Context, input application.LiveResearchStageInput) (application.LiveResearchArtifacts, error) {
+	*stage.calls = append(*stage.calls, application.LiveResearchStageFetch)
+	input.Artifacts.FetchFailures = []application.SourceFetchFailure{{
+		SourceID: stage.source.ID, Locator: stage.source.Locator, Kind: application.ErrorExternalFailure,
+	}}
+	return input.Artifacts, errors.New("fixture fetch failure")
+}
 
 func (passthroughLiveResearchStage) Execute(_ context.Context, input application.LiveResearchStageInput) (application.LiveResearchArtifacts, error) {
 	return input.Artifacts, nil
