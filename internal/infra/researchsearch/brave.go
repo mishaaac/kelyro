@@ -108,6 +108,27 @@ func NewBrave(client HTTPClient, token string, options ...Option) (*Brave, error
 }
 
 func (provider *Brave) Search(ctx context.Context, query application.SearchQuery, options application.SearchOptions) ([]application.SearchResult, error) {
+	return provider.search(ctx, query, options, nil)
+}
+
+func (provider *Brave) SearchWithCostControl(
+	ctx context.Context,
+	query application.SearchQuery,
+	options application.SearchOptions,
+	authorize application.ProviderCallAuthorizer,
+) ([]application.SearchResult, error) {
+	if authorize == nil {
+		return nil, errors.New("brave search provider call authorizer is unavailable")
+	}
+	return provider.search(ctx, query, options, authorize)
+}
+
+func (provider *Brave) search(
+	ctx context.Context,
+	query application.SearchQuery,
+	options application.SearchOptions,
+	authorize application.ProviderCallAuthorizer,
+) ([]application.SearchResult, error) {
 	if provider == nil || provider.client == nil || provider.endpoint == "" {
 		return nil, errors.New("brave search provider is unavailable")
 	}
@@ -130,7 +151,7 @@ func (provider *Brave) Search(ctx context.Context, query application.SearchQuery
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		page, more, err := provider.searchPage(ctx, query.Text, offset, pageSize, offset*pageSize)
+		page, more, err := provider.searchPage(ctx, query.Text, offset, pageSize, offset*pageSize, authorize)
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +166,14 @@ func (provider *Brave) Search(ctx context.Context, query application.SearchQuery
 	return results, nil
 }
 
-func (provider *Brave) searchPage(ctx context.Context, query string, offset, count, rankBase int) ([]application.SearchResult, bool, error) {
+var _ application.CostControlledSearchProvider = (*Brave)(nil)
+
+func (provider *Brave) searchPage(
+	ctx context.Context,
+	query string,
+	offset, count, rankBase int,
+	authorize application.ProviderCallAuthorizer,
+) ([]application.SearchResult, bool, error) {
 	requestURL, err := url.Parse(provider.endpoint)
 	if err != nil {
 		return nil, false, &Error{Kind: ErrorInvalidRequest}
@@ -162,6 +190,11 @@ func (provider *Brave) searchPage(ctx context.Context, query string, offset, cou
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set(credentialHeader, provider.token)
+	if authorize != nil {
+		if err := authorize(ctx); err != nil {
+			return nil, false, err
+		}
+	}
 
 	response, err := provider.client.Do(request)
 	if err != nil {

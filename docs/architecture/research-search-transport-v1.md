@@ -58,8 +58,11 @@ is available for lifecycle shutdown.
 - Foundation Secrets resolves `research.search.brave.api_key` before adapter
   construction; the transport only carries its in-memory header value for the
   duration of a call.
-- Cost/audit wiring will count each observed page as one provider API call in a
-  later step. The transport does not persist counters or response metadata.
+- Cost-controlled discovery reserves the logical search before entering the
+  adapter. The adapter then requests one durable provider-call reservation
+  immediately before every page request; denial stops before HTTP. Page
+  observations remain bounded audit metadata and the transport itself does not
+  persist counters or response metadata.
 - Result locators remain candidates, not Sources, Evidence, Claims, trust
   decisions or authority signals.
 

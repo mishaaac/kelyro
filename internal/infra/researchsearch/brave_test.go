@@ -127,6 +127,54 @@ func TestBraveSearchHonorsResultAndPaginationBounds(t *testing.T) {
 	}
 }
 
+func TestBraveSearchAuthorizesEveryProviderCallBeforePagination(t *testing.T) {
+	t.Parallel()
+
+	client := &fixtureClient{responses: []*http.Response{
+		fixtureResponse(t, "brave_page_1.json", nil),
+		fixtureResponse(t, "brave_page_2.json", nil),
+	}}
+	provider, err := NewBrave(client, "fixture-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorizations := 0
+	results, err := provider.SearchWithCostControl(
+		context.Background(), validQuery(t), application.SearchOptions{Limit: 3},
+		func(context.Context) error {
+			authorizations++
+			return nil
+		},
+	)
+	if err != nil || len(results) != 3 || authorizations != 2 || len(client.Requests()) != 2 {
+		t.Fatalf("SearchWithCostControl() = (%d results, %v), authorizations/requests = %d/%d", len(results), err, authorizations, len(client.Requests()))
+	}
+
+	client = &fixtureClient{responses: []*http.Response{
+		fixtureResponse(t, "brave_page_1.json", nil),
+		fixtureResponse(t, "brave_page_2.json", nil),
+	}}
+	provider, err = NewBrave(client, "fixture-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := application.Classify(application.ErrorBudgetExceeded, "authorize fixture call", errors.New("fixture budget"))
+	authorizations = 0
+	_, err = provider.SearchWithCostControl(
+		context.Background(), validQuery(t), application.SearchOptions{Limit: 3},
+		func(context.Context) error {
+			authorizations++
+			if authorizations == 2 {
+				return want
+			}
+			return nil
+		},
+	)
+	if !errors.Is(err, application.ErrBudgetExceeded) || authorizations != 2 || len(client.Requests()) != 1 {
+		t.Fatalf("blocked pagination = (%v), authorizations/requests = %d/%d", err, authorizations, len(client.Requests()))
+	}
+}
+
 func TestBraveSearchMapsProviderStatusWithoutLeakingPayload(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 10
-Last completed step: 9
+Current step: 11
+Last completed step: 10
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -512,3 +512,58 @@ Release: unreleased
 
 - El Paso 10 debe aplicar el cost control I-03 antes de cada búsqueda real y
   mantener bounded queries, resultados y provider API calls.
+
+## Step 10 — Cost Control on live searches
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- `NewCostControlledDiscoveryService` añadido como frontera live scoped a un
+  `ResearchRun`, reutilizando `ResearchCostService` y su ledger durable.
+- Cada búsqueda lógica reserva exactamente una unidad `SearchRequests` después
+  de privacy y antes de entrar al provider.
+- Contrato companion `CostControlledSearchProvider` añadido sin modificar
+  `SearchProvider`; exige autorización inmediatamente antes de cada API call.
+- Brave implementa el contrato y reserva una unidad `ProviderAPICalls` antes de
+  cada page request, incluida paginación; una denegación evita la request y
+  detiene trabajo adicional.
+- `live-search-cost-policy-v1` aplica `max_results_per_query`; los límites
+  durables del run aplican max searches y max provider calls de forma atómica.
+- Clasificación estable `budget_exceeded` añadida para que orchestration pueda
+  distinguir un stop presupuestario de fallos externos o de privacidad.
+- Tests deterministas prueban reserva previa, límite de resultados, privacy
+  antes de cost, límite por búsqueda, corte de paginación y conteo exacto de
+  páginas Brave sin Internet público.
+
+### Decisions
+
+- Se cuentan API calls reales inmediatamente antes del intento HTTP en vez de
+  reservar una estimación máxima de páginas que podría sobrecargar el ledger.
+- Una búsqueda que alcanza el provider consume una unidad lógica aunque el
+  presupuesto impida su primera página; la API call denegada consume cero.
+- La factory cost-controlled exige el companion contract; un provider que no
+  puede demostrar autorización por call queda unavailable en producción.
+- Brave no ofrece un coste monetario confiable por response. Se conservan
+  unidades provider-neutral y no se deriva moneda desde pricing externo
+  mutable.
+- El constructor legacy `NewDiscoveryService` permanece para adapters offline,
+  fixtures y compatibilidad; production wiring debe elegir explícitamente la
+  variante cost-controlled en el Paso 11.
+- No se añadió composition root, Doctor, orchestrator, worker ni ejecución CLI.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/infra/researchsearch -count=1`.
+- `go vet ./internal/research/application ./internal/infra/researchsearch`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 11 debe ensamblar config, Secrets, privacy, Brave y la variante
+  cost-controlled de discovery; nunca debe seleccionar el provider static de
+  fixtures en producción.

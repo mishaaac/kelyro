@@ -629,7 +629,7 @@ fix(privacy): gate live research search behind network policy
 
 ## Paso 10 — Cost Control sobre búsquedas reales
 
-- [ ] Paso 10 completado
+- [x] Paso 10 completado
 
 Reusar I-03 cost-control:
 

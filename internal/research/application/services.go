@@ -128,10 +128,69 @@ type discoveryService struct {
 	provider SearchProvider
 	cache    SearchCache
 	access   networkResearchAccess
+	costs    ResearchCostService
+	clock    Clock
+	policy   *LiveSearchCostPolicy
 }
 
 func NewDiscoveryService(provider SearchProvider, cache SearchCache, access NetworkResearchAccess) DiscoveryService {
 	return &discoveryService{provider: provider, cache: cache, access: newNetworkResearchAccess(access)}
+}
+
+const LiveSearchCostPolicyV1 = "live-search-cost-policy-v1"
+
+// LiveSearchCostPolicy binds a cost-controlled discovery service to one
+// durable run. The run's ResearchCostBudget owns the maximum searches and
+// provider calls; MaxResultsPerQuery owns the independent candidate bound.
+type LiveSearchCostPolicy struct {
+	RunID              research.ID
+	MaxResultsPerQuery int
+	AlgorithmVersion   string
+}
+
+func (policy LiveSearchCostPolicy) Validate() error {
+	if err := policy.RunID.Validate(); err != nil {
+		return fmt.Errorf("live search cost run: %w", err)
+	}
+	if policy.MaxResultsPerQuery < 1 || policy.MaxResultsPerQuery > MaximumSearchResults {
+		return fmt.Errorf("live search maximum results per query must be between 1 and %d", MaximumSearchResults)
+	}
+	if policy.AlgorithmVersion != LiveSearchCostPolicyV1 {
+		return fmt.Errorf("live search cost policy algorithm must be %q", LiveSearchCostPolicyV1)
+	}
+	return nil
+}
+
+// NewCostControlledDiscoveryService constructs the live discovery boundary
+// used by production assembly. A policy is scoped to one run so every search
+// reservation is attributed to the correct durable cost ledger.
+func NewCostControlledDiscoveryService(
+	provider SearchProvider,
+	cache SearchCache,
+	access NetworkResearchAccess,
+	costs ResearchCostService,
+	clock Clock,
+	policy LiveSearchCostPolicy,
+) (DiscoveryService, error) {
+	if err := policy.Validate(); err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return nil, fmt.Errorf("live search provider is not configured")
+	}
+	if _, ok := provider.(CostControlledSearchProvider); !ok {
+		return nil, fmt.Errorf("live search provider cost-control boundary is not configured")
+	}
+	if costs == nil {
+		return nil, fmt.Errorf("research cost service is not configured")
+	}
+	if clock == nil {
+		return nil, fmt.Errorf("research cost clock is not configured")
+	}
+	return &discoveryService{
+		provider: provider, cache: cache, access: newNetworkResearchAccess(access),
+		costs: costs, clock: clock, policy: &policy,
+	}, nil
 }
 
 func (service *discoveryService) Search(ctx context.Context, mode ResearchMode, query SearchQuery, options SearchOptions) ([]SearchResult, error) {
@@ -144,6 +203,12 @@ func (service *discoveryService) Search(ctx context.Context, mode ResearchMode, 
 		return nil, invalid(operation, err)
 	}
 	options = cloneSearchOptions(options)
+	if service.policy != nil && options.Limit > service.policy.MaxResultsPerQuery {
+		return nil, invalid(operation, fmt.Errorf(
+			"search result limit %d exceeds configured maximum %d",
+			options.Limit, service.policy.MaxResultsPerQuery,
+		))
+	}
 	decision, err := service.access.decide(ctx, mode, NetworkOperationDiscovery)
 	if err != nil {
 		return nil, err
@@ -161,11 +226,67 @@ func (service *discoveryService) Search(ctx context.Context, mode ResearchMode, 
 	if err := requireDependency(operation, "search provider", service.provider); err != nil {
 		return nil, err
 	}
-	results, err := service.provider.Search(ctx, query, options)
+	if service.policy != nil {
+		if err := service.reserveLiveSearch(ctx, operation); err != nil {
+			return nil, err
+		}
+	}
+	var results []SearchResult
+	if service.policy == nil {
+		results, err = service.provider.Search(ctx, query, options)
+	} else {
+		provider := service.provider.(CostControlledSearchProvider)
+		results, err = provider.SearchWithCostControl(ctx, query, options, service.reserveProviderCall)
+	}
 	if err != nil {
 		return nil, externalError(operation, err)
 	}
 	return normalizeSearchResults(ctx, operation, results, options.Limit, false)
+}
+
+func (service *discoveryService) reserveLiveSearch(
+	ctx context.Context,
+	operation string,
+) error {
+	at := service.clock.Now()
+	if err := at.Validate(); err != nil {
+		return invalid(operation, fmt.Errorf("research cost clock: %w", err))
+	}
+	decision, err := service.costs.Evaluate(ctx, CostControlRequest{
+		RunID:         service.policy.RunID,
+		ProposedUsage: research.ResearchCostUsage{SearchRequests: 1}, At: at,
+	})
+	if err != nil {
+		return boundaryError(ErrorPersistenceFailure, operation, err)
+	}
+	return costControlError(operation, decision)
+}
+
+func (service *discoveryService) reserveProviderCall(ctx context.Context) error {
+	const operation = "authorize search provider API call"
+	at := service.clock.Now()
+	if err := at.Validate(); err != nil {
+		return invalid(operation, fmt.Errorf("research cost clock: %w", err))
+	}
+	decision, err := service.costs.Evaluate(ctx, CostControlRequest{
+		RunID:         service.policy.RunID,
+		ProposedUsage: research.ResearchCostUsage{ProviderAPICalls: 1}, At: at,
+	})
+	if err != nil {
+		return boundaryError(ErrorPersistenceFailure, operation, err)
+	}
+	return costControlError(operation, decision)
+}
+
+func costControlError(operation string, decision CostControlDecision) error {
+	if decision.NetworkAllowed {
+		return nil
+	}
+	reason := decision.UserExplanation
+	if reason == "" {
+		reason = "research search budget was not authorized"
+	}
+	return Classify(ErrorBudgetExceeded, operation, fmt.Errorf("%s", reason))
 }
 
 func normalizeSearchResults(ctx context.Context, operation string, results []SearchResult, limit int, cached bool) ([]SearchResult, error) {

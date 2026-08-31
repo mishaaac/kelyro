@@ -470,6 +470,19 @@ type SearchProvider interface {
 	Search(context.Context, SearchQuery, SearchOptions) ([]SearchResult, error)
 }
 
+// ProviderCallAuthorizer reserves one provider API call immediately before a
+// production adapter attempts it. This keeps pagination and future retries
+// inside the durable run budget.
+type ProviderCallAuthorizer func(context.Context) error
+
+// CostControlledSearchProvider is the production companion to SearchProvider.
+// SearchWithCostControl must invoke authorize exactly once immediately before
+// every provider API request and must stop when authorization fails.
+type CostControlledSearchProvider interface {
+	SearchProvider
+	SearchWithCostControl(context.Context, SearchQuery, SearchOptions, ProviderCallAuthorizer) ([]SearchResult, error)
+}
+
 // SearchCache reads previously cached discovery output without network access.
 // It is deliberately distinct from SearchProvider so offline fallback cannot
 // accidentally invoke a live adapter.

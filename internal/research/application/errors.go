@@ -16,6 +16,7 @@ const (
 	ErrorPersistenceFailure     ErrorKind = "persistence_failure"
 	ErrorExternalFailure        ErrorKind = "external_failure"
 	ErrorNetworkResearchBlocked ErrorKind = "network_research_blocked"
+	ErrorBudgetExceeded         ErrorKind = "budget_exceeded"
 )
 
 // Error carries a stable application classification while preserving its
@@ -60,6 +61,7 @@ var (
 	ErrPersistenceFailure     error = &Error{Kind: ErrorPersistenceFailure}
 	ErrExternalFailure        error = &Error{Kind: ErrorExternalFailure}
 	ErrNetworkResearchBlocked error = &Error{Kind: ErrorNetworkResearchBlocked}
+	ErrBudgetExceeded         error = &Error{Kind: ErrorBudgetExceeded}
 	// ErrNetworkDisabled is the stable live-research failure reason used when
 	// privacy policy or explicit offline mode prevents required network work.
 	// The broader ErrNetworkResearchBlocked classification remains available
@@ -78,7 +80,8 @@ func KindOf(err error) (ErrorKind, bool) {
 	}
 	switch classified.Kind {
 	case ErrorNotFound, ErrorConflict, ErrorInvalidState, ErrorUnavailable,
-		ErrorPersistenceFailure, ErrorExternalFailure, ErrorNetworkResearchBlocked:
+		ErrorPersistenceFailure, ErrorExternalFailure, ErrorNetworkResearchBlocked,
+		ErrorBudgetExceeded:
 		return classified.Kind, true
 	default:
 		return "", false

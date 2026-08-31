@@ -42,6 +42,22 @@ fetch, release, and future model adapters remain responsible for presenting
 their proposed units before invoking a provider. Fetch callers must keep their
 bounded byte request within the remaining authorization they reserve.
 
+I-03C applies this contract to production search through
+`NewCostControlledDiscoveryService`. One `SearchRequests` unit is reserved
+after privacy authorization and before entering the provider. The production
+provider then requests one `ProviderAPICalls` reservation immediately before
+each HTTP request, including every pagination request; a denied reservation
+stops pagination before the transport is invoked. This records actual attempted
+API calls instead of assuming that one logical search equals one paid request.
+
+`live-search-cost-policy-v1` independently caps results per query. Maximum
+searches and provider calls remain the durable `ResearchCostBudget.PerRun`
+dimensions, so their enforcement is atomic and survives process restarts.
+Invalid bounds, privacy denial, missing cost dependencies, and budget denial
+all produce zero unreserved provider requests. Brave exposes no trustworthy
+per-response currency estimate, so v1 persists exact provider-neutral units
+and deliberately does not invent a money value from mutable public pricing.
+
 ## Persistence and concurrency
 
 Forward-only migration v39 adds `research_cost_controls` and the append-only
@@ -67,4 +83,3 @@ by budget, and units saved by valid cache. It does not estimate money.
 The policy does not add a paid provider, scheduler, model integration, network
 permission bypass, Curriculum Compiler behavior, or Student Core mutation.
 Research Trigger Policies belong to Step 34.
-
