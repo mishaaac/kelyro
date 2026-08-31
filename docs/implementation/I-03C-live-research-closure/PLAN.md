@@ -882,7 +882,7 @@ feat(research): deduplicate discovered source candidates
 
 ## Paso 19 — Source Registry ingestion
 
-- [ ] Paso 19 completado
+- [x] Paso 19 completado
 
 Reusar Source Registry.
 

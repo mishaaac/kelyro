@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/research/application/memory"
 )
@@ -53,6 +54,72 @@ func TestMapSearchResultsToSourceCandidatesPreservesUntrustedDiscoveryMetadata(t
 	}
 	if err := first.Validate(); err != nil {
 		t.Fatalf("candidate validation = %v", err)
+	}
+}
+
+func TestSourceCandidateRegistrationPersistsDiscoveriesWithoutAssigningTrust(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := memory.New()
+	repositories := store.Repositories()
+	request, run := testRequestRun(t)
+	if err := repositories.Runs.Create(ctx, request, run); err != nil {
+		t.Fatal(err)
+	}
+	existing := testSource(t, "registration-existing")
+	existing.Locator = discoveryLocator(t, "https://known.example.test/docs")
+	if err := repositories.Sources.Create(ctx, existing); err != nil {
+		t.Fatal(err)
+	}
+	deduplicator, err := application.NewSourceCandidateDeduplicationService(repositories.Sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newCandidate := mappedCandidate(t, "request.interfaces", "new docs", "https://new.example.test/docs", 1)
+	published := testTimestamp(t, 8)
+	newCandidate.Discoveries[0].Snippet = "Provider-only snippet"
+	newCandidate.Discoveries[0].PublishedHint = &published
+	existingCandidate := mappedCandidate(t, "request.interfaces", "known docs", "https://known.example.test/docs", 2)
+	deduplicated, err := deduplicator.Deduplicate(ctx, []application.SourceCandidate{newCandidate, existingCandidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := application.NewSourceCandidateRegistrationService(repositories.Sources, repositories.SourceDiscoveries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Register(ctx, application.SourceCandidateRegistrationRequest{RequestID: request.ID, Candidates: deduplicated.Candidates})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.CreatedCount != 1 || result.ExistingCount != 1 || len(result.Sources) != 2 || len(result.Discoveries) != 2 ||
+		result.AlgorithmVersion != application.SourceCandidateRegistrationV1 {
+		t.Fatalf("registration result = %+v", result)
+	}
+	created := result.Sources[0]
+	if created.Kind != research.SourceOther || created.TemporalScope != research.SourceTemporalCurrent || created.Metadata.Title != "Result for new docs" ||
+		created.Metadata.PublishedAt != nil || created.ID == existing.ID {
+		t.Fatalf("registered unclassified source = %+v", created)
+	}
+	discovery := result.Discoveries[0]
+	if discovery.SourceID != created.ID || discovery.RequestID != request.ID || discovery.Query != "new docs" || discovery.Provider != "fixture" ||
+		discovery.Snippet != "Provider-only snippet" || discovery.PublishedHint == nil || discovery.PublishedHint.Time() != published.Time() {
+		t.Fatalf("persisted discovery = %+v", discovery)
+	}
+	persisted, err := repositories.SourceDiscoveries.ListBySource(ctx, created.ID)
+	if err != nil || len(persisted) != 1 || persisted[0].ID != discovery.ID {
+		t.Fatalf("durable discoveries = (%+v,%v)", persisted, err)
+	}
+	if _, err := repositories.TrustRegistry.LatestDecision(ctx, created.ID); !errors.Is(err, application.ErrNotFound) {
+		t.Fatalf("registration assigned trust: %v", err)
+	}
+
+	replayed, err := service.Register(ctx, application.SourceCandidateRegistrationRequest{RequestID: request.ID, Candidates: deduplicated.Candidates})
+	if err != nil || replayed.CreatedCount != 0 || replayed.ExistingCount != 2 || len(replayed.Discoveries) != 2 {
+		t.Fatalf("idempotent registration replay = (%+v,%v)", replayed, err)
+	}
+	if source, err := repositories.Sources.Get(ctx, existing.ID); err != nil || source.Kind != research.SourceOfficialDocumentation {
+		t.Fatalf("existing source was reclassified = (%+v,%v)", source, err)
 	}
 }
 

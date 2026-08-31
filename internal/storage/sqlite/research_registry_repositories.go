@@ -13,32 +13,34 @@ import (
 
 func newResearchRepositories(target executor, timeout time.Duration) application.Repositories {
 	return application.Repositories{
-		Sources:          &researchSourceRepository{target, timeout},
-		Snapshots:        &researchSnapshotRepository{target, timeout},
-		Evidence:         &researchEvidenceRepository{target, timeout},
-		Claims:           &researchClaimRepository{target, timeout},
-		Citations:        &researchCitationRepository{target, timeout},
-		Provenance:       &researchProvenanceRepository{target, timeout},
-		Runs:             &researchRunRepository{target, timeout},
-		Costs:            &researchCostRepository{target, timeout},
-		TriggerQueue:     &researchTriggerQueueRepository{target, timeout},
-		TrustRegistry:    &researchTrustRegistryRepository{target, timeout},
-		SourceRegistry:   &researchSourceRegistryRepository{target, timeout},
-		Releases:         &researchReleaseRepository{target, timeout},
-		ReleaseIngestion: &researchReleaseIngestionRepository{target, timeout},
-		Deprecations:     &researchDeprecationRepository{target, timeout},
-		Freshness:        &researchFreshnessRepository{target, timeout},
-		Verification:     &researchVerificationRepository{target, timeout},
-		Conflicts:        &researchConflictRepository{target, timeout},
-		Bundles:          &researchSourceBundleRepository{target, timeout},
-		Drift:            &researchDriftRepository{target, timeout},
-		Impact:           &researchImpactRepository{target, timeout},
-		Cache:            &researchCacheRepository{target, timeout},
+		Sources:           &researchSourceRepository{target, timeout},
+		SourceDiscoveries: &researchSourceDiscoveryRepository{target, timeout},
+		Snapshots:         &researchSnapshotRepository{target, timeout},
+		Evidence:          &researchEvidenceRepository{target, timeout},
+		Claims:            &researchClaimRepository{target, timeout},
+		Citations:         &researchCitationRepository{target, timeout},
+		Provenance:        &researchProvenanceRepository{target, timeout},
+		Runs:              &researchRunRepository{target, timeout},
+		Costs:             &researchCostRepository{target, timeout},
+		TriggerQueue:      &researchTriggerQueueRepository{target, timeout},
+		TrustRegistry:     &researchTrustRegistryRepository{target, timeout},
+		SourceRegistry:    &researchSourceRegistryRepository{target, timeout},
+		Releases:          &researchReleaseRepository{target, timeout},
+		ReleaseIngestion:  &researchReleaseIngestionRepository{target, timeout},
+		Deprecations:      &researchDeprecationRepository{target, timeout},
+		Freshness:         &researchFreshnessRepository{target, timeout},
+		Verification:      &researchVerificationRepository{target, timeout},
+		Conflicts:         &researchConflictRepository{target, timeout},
+		Bundles:           &researchSourceBundleRepository{target, timeout},
+		Drift:             &researchDriftRepository{target, timeout},
+		Impact:            &researchImpactRepository{target, timeout},
+		Cache:             &researchCacheRepository{target, timeout},
 	}
 }
 
 var (
 	_ application.SourceRepository               = (*researchSourceRepository)(nil)
+	_ application.SourceDiscoveryRepository      = (*researchSourceDiscoveryRepository)(nil)
 	_ application.SnapshotRepository             = (*researchSnapshotRepository)(nil)
 	_ application.EvidenceRepository             = (*researchEvidenceRepository)(nil)
 	_ application.ClaimRepository                = (*researchClaimRepository)(nil)

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 19
-Last completed step: 18
+Current step: 20
+Last completed step: 19
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1014,3 +1014,57 @@ Release: unreleased
 - El Paso 19 debe consumir `DeduplicatedSourceCandidate`, reutilizar
   `ExistingSourceID` cuando exista y registrar únicamente nuevas Sources.
 - Registration debe persistir discovery metadata sin derivar trust automático.
+
+## Step 19 — Source Registry ingestion
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `source-candidate-registration-v1` reutiliza el `SourceRepository` estable,
+  conserva Sources existentes y registra únicamente locators canónicos nuevos.
+- Nuevas Sources live se crean de forma conservadora como `other/current`, con
+  título observado y sin convertir rank, snippet ni published hint en
+  clasificación, authority o trust.
+- `DiscoveredSource` completado con vínculo a Source y metadata bounded de
+  request/query/title/snippet/provider/rank/time/publication/cache.
+- Repositorio append-only de discoveries añadido a memory y SQLite, con
+  migración forward-only 45, foreign keys, locator guard e inmutabilidad.
+- IDs estables hacen idempotentes los retries; una carrera de inserción por
+  locator se resuelve reutilizando la Source durable, no creando duplicados.
+- Los artifacts del orchestrator transportan las discoveries durables para la
+  provenance posterior sin convertirlas en Evidence.
+- Tests cubren registro nuevo/existente, replay, metadata durable, roundtrip
+  SQLite, bounds y ausencia explícita de trust automático.
+
+### Decisions
+
+- El Source Registry del paso es el repositorio de identidades `Source`; el
+  catálogo `SourceRegistryEntry` conserva su función separada de metadata
+  revisada por organización y no se altera con resultados web.
+- `SourceOther` es la única clasificación segura antes de fetch/normalize y de
+  políticas posteriores; el provider no decide `SourceKind`.
+- Published hints permanecen únicamente en la observación de discovery. No se
+  escriben en `Source.Metadata.PublishedAt` hasta que contenido posterior las
+  sustente.
+- Registration no depende de `TrustRegistryRepository` y no puede escribir una
+  `TrustDecision`; authority/trust siguen reservados a pasos posteriores.
+- Un fallo después de crear Source es recuperable: el siguiente retry reconoce
+  la Source por locator e inserta las observations faltantes con IDs estables.
+
+### Verification
+
+- `go test -race ./internal/research/application -count=1`.
+- `go test -race ./internal/storage/sqlite -run 'Test(SourceDiscoveryRoundTripSQLite|OpenCreatesAndMigratesNewDatabase)$' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 20 debe consumir `Artifacts.Sources` y usar exclusivamente el
+  `FetchService`/adapter HTTP ya hardened.
+- Los fallos por Source deben conservarse de forma bounded y permitir success
+  parcial; snapshot/cache permanecen reservados al Paso 21.

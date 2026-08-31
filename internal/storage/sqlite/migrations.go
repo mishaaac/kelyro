@@ -1737,6 +1737,32 @@ WHEN EXISTS (
 			`CREATE INDEX research_trigger_queue_claimable_idx ON research_trigger_queue (status,execution_status,priority,queued_at,id)`,
 		},
 	},
+	{
+		version: 45,
+		name:    "live source discovery metadata",
+		statements: []string{
+			`CREATE TABLE source_discoveries (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    request_id TEXT NOT NULL REFERENCES research_topics(request_id),
+    source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    locator TEXT NOT NULL CHECK (locator GLOB 'http://*' OR locator GLOB 'https://*'),
+    query_text TEXT NOT NULL CHECK (length(trim(query_text)) > 0 AND length(CAST(query_text AS BLOB)) <= 8192),
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0 AND length(CAST(title AS BLOB)) <= 8192),
+    snippet TEXT NOT NULL DEFAULT '' CHECK (length(CAST(snippet AS BLOB)) <= 16384),
+    provider TEXT NOT NULL CHECK (length(trim(provider)) > 0 AND length(CAST(provider AS BLOB)) <= 1024),
+    provider_rank INTEGER NOT NULL CHECK (provider_rank >= 0),
+    discovered_at TEXT NOT NULL CHECK (discovered_at GLOB '*Z'),
+    published_hint TEXT CHECK (published_hint IS NULL OR published_hint GLOB '*Z'),
+    cache_hit INTEGER NOT NULL CHECK (cache_hit IN (0,1)),
+    cache_stale INTEGER NOT NULL CHECK (cache_stale IN (0,1) AND cache_stale <= cache_hit)
+)`,
+			`CREATE INDEX source_discoveries_source_idx ON source_discoveries (source_id,discovered_at,id)`,
+			`CREATE INDEX source_discoveries_request_idx ON source_discoveries (request_id,discovered_at,id)`,
+			`CREATE TRIGGER source_discoveries_locator_guard BEFORE INSERT ON source_discoveries WHEN NEW.locator <> COALESCE((SELECT locator FROM sources WHERE id=NEW.source_id),'') BEGIN SELECT RAISE(ABORT, 'source discovery locator does not match source'); END`,
+			`CREATE TRIGGER source_discoveries_immutable_update BEFORE UPDATE ON source_discoveries BEGIN SELECT RAISE(ABORT, 'source discovery is immutable'); END`,
+			`CREATE TRIGGER source_discoveries_immutable_delete BEFORE DELETE ON source_discoveries BEGIN SELECT RAISE(ABORT, 'source discovery is immutable'); END`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

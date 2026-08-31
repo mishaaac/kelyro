@@ -25,6 +25,55 @@ func TestReleaseIngestionRejectsOversizedBatchBeforeRecordValidation(t *testing.
 	}
 }
 
+func TestSourceDiscoveryRoundTripSQLite(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	repositories := database.Repositories().Research
+	ctx := context.Background()
+	at := researchTestTimestamp(t, fixedTime)
+	topic, err := research.NewResearchTopic("Interfaces", "software", "Go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := research.ResearchRequest{ID: researchTestID(t, "request.discovery.sqlite"), Topic: topic, Purpose: research.PurposeConceptDefinition, RequestedAt: at}
+	run := research.ResearchRun{ID: researchTestID(t, "run.discovery.sqlite"), RequestID: request.ID, Status: research.ResearchRunPlanned, StartedAt: at}
+	if err := repositories.Runs.Create(ctx, request, run); err != nil {
+		t.Fatal(err)
+	}
+	source := research.Source{
+		ID: researchTestSourceID(t, "source.discovery.sqlite"), Kind: research.SourceOther,
+		Locator: researchTestLocator(t, "https://docs.example.test/interfaces"), TemporalScope: research.SourceTemporalCurrent,
+		Metadata: research.SourceMetadata{Title: "Interfaces"}, CreatedAt: at,
+	}
+	if err := repositories.Sources.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	discovery := research.DiscoveredSource{
+		ID: researchTestID(t, "discovery.sqlite"), RequestID: request.ID, SourceID: source.ID, Locator: source.Locator,
+		Query: "Go interfaces", Title: "Interfaces", Snippet: "Untrusted search snippet", Provider: "fixture", Rank: 2,
+		DiscoveredAt: at, PublishedHint: &at, CacheHit: true, CacheStale: true,
+	}
+	if err := repositories.SourceDiscoveries.Append(ctx, discovery); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := repositories.SourceDiscoveries.Get(ctx, discovery.ID)
+	if err != nil || loaded.PublishedHint == discovery.PublishedHint || loaded.PublishedHint == nil || !loaded.PublishedHint.Time().Equal(at.Time()) {
+		t.Fatalf("source discovery roundtrip = (%+v,%v)", loaded, err)
+	}
+	listed, err := repositories.SourceDiscoveries.ListBySource(ctx, source.ID)
+	if err != nil || len(listed) != 1 || listed[0].ID != discovery.ID {
+		t.Fatalf("source discovery list = (%+v,%v)", listed, err)
+	}
+	if err := repositories.SourceDiscoveries.Append(ctx, discovery); !errors.Is(err, application.ErrConflict) {
+		t.Fatalf("duplicate discovery error = %v", err)
+	}
+	wrong := discovery
+	wrong.ID = researchTestID(t, "discovery.sqlite.wrong")
+	wrong.Locator = researchTestLocator(t, "https://other.example.test/")
+	if err := repositories.SourceDiscoveries.Append(ctx, wrong); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("mismatched locator error = %v", err)
+	}
+}
+
 func TestPreparedBatchExecutorReusesWriteStatement(t *testing.T) {
 	t.Parallel()
 	path, err := platform.WorkspaceDBPath(newWorkspaceRoot(t))

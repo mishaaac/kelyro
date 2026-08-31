@@ -3,6 +3,14 @@ package research
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
+)
+
+const (
+	MaximumDiscoveryQueryBytes    = 8 << 10
+	MaximumDiscoveryTitleBytes    = 8 << 10
+	MaximumDiscoverySnippetBytes  = 16 << 10
+	MaximumDiscoveryProviderBytes = 1 << 10
 )
 
 type ResearchRequest struct {
@@ -425,13 +433,19 @@ func (decision TrustDecision) Validate() error {
 // DiscoveredSource is an unverified candidate. It must never be treated as
 // evidence until it has been classified, fetched, and snapshotted.
 type DiscoveredSource struct {
-	ID           ID
-	RequestID    ID
-	Locator      SourceLocator
-	Title        string
-	Provider     string
-	Rank         int
-	DiscoveredAt Timestamp
+	ID            ID
+	RequestID     ID
+	SourceID      SourceID
+	Locator       SourceLocator
+	Query         string
+	Title         string
+	Snippet       string
+	Provider      string
+	Rank          int
+	DiscoveredAt  Timestamp
+	PublishedHint *Timestamp
+	CacheHit      bool
+	CacheStale    bool
 }
 
 func (source DiscoveredSource) Validate() error {
@@ -441,17 +455,47 @@ func (source DiscoveredSource) Validate() error {
 	if err := source.RequestID.Validate(); err != nil {
 		return fmt.Errorf("discovered source request: %w", err)
 	}
+	if err := source.SourceID.Validate(); err != nil {
+		return fmt.Errorf("discovered source source: %w", err)
+	}
 	if err := source.Locator.Validate(); err != nil {
 		return err
+	}
+	if err := requireText("discovery query", source.Query); err != nil {
+		return err
+	}
+	if !utf8.ValidString(source.Query) || len(source.Query) > MaximumDiscoveryQueryBytes {
+		return fmt.Errorf("discovery query exceeds bounded UTF-8 length")
 	}
 	if err := requireText("discovered source title", source.Title); err != nil {
 		return err
 	}
+	if !utf8.ValidString(source.Title) || len(source.Title) > MaximumDiscoveryTitleBytes {
+		return fmt.Errorf("discovered source title exceeds bounded UTF-8 length")
+	}
+	if err := validateOptionalText("discovery snippet", source.Snippet); err != nil {
+		return err
+	}
+	if !utf8.ValidString(source.Snippet) || len(source.Snippet) > MaximumDiscoverySnippetBytes {
+		return fmt.Errorf("discovery snippet exceeds bounded UTF-8 length")
+	}
 	if err := requireText("discovery provider", source.Provider); err != nil {
 		return err
+	}
+	if !utf8.ValidString(source.Provider) || len(source.Provider) > MaximumDiscoveryProviderBytes {
+		return fmt.Errorf("discovery provider exceeds bounded UTF-8 length")
 	}
 	if source.Rank < 0 {
 		return fmt.Errorf("discovery rank is negative")
 	}
-	return validateTimestamp("source discovered at", source.DiscoveredAt)
+	if err := validateTimestamp("source discovered at", source.DiscoveredAt); err != nil {
+		return err
+	}
+	if err := validateOptionalTimestamp("discovery published hint", source.PublishedHint); err != nil {
+		return err
+	}
+	if source.CacheStale && !source.CacheHit {
+		return fmt.Errorf("stale discovery must originate from cache")
+	}
+	return nil
 }

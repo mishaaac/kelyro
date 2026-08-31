@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/mishaaac/kelyro/internal/research"
 )
@@ -41,11 +42,21 @@ func (discovery SourceCandidateDiscovery) Validate() error {
 	if err := requireText("source candidate title", discovery.Title); err != nil {
 		return err
 	}
+	if !utf8.ValidString(discovery.Query.Text) || len(discovery.Query.Text) > research.MaximumDiscoveryQueryBytes ||
+		!utf8.ValidString(discovery.Title) || len(discovery.Title) > research.MaximumDiscoveryTitleBytes {
+		return errors.New("source candidate query or title exceeds persistence bounds")
+	}
 	if err := validateOptionalText("source candidate snippet", discovery.Snippet); err != nil {
 		return err
 	}
+	if !utf8.ValidString(discovery.Snippet) || len(discovery.Snippet) > research.MaximumDiscoverySnippetBytes {
+		return errors.New("source candidate snippet exceeds persistence bounds")
+	}
 	if err := requireText("source candidate provider", discovery.Provider); err != nil {
 		return err
+	}
+	if !utf8.ValidString(discovery.Provider) || len(discovery.Provider) > research.MaximumDiscoveryProviderBytes {
+		return errors.New("source candidate provider exceeds persistence bounds")
 	}
 	if normalizeSearchText(discovery.Title) != discovery.Title || normalizeSearchText(discovery.Snippet) != discovery.Snippet ||
 		normalizeSearchText(discovery.Provider) != discovery.Provider {

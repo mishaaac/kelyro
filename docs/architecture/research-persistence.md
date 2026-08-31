@@ -48,6 +48,13 @@ explicit algorithm version. Pre-v42 rows migrate to
 `impact-unversioned-legacy` with the new relationships empty; repository writes
 after Step 39 accept only `impact-analysis-v1` while preserving legacy reads.
 
+Migration v45 adds append-only `source_discoveries` records for live candidate
+ingestion. Each row binds a bounded request/query/provider observation to an
+existing Source and preserves rank, discovery time, optional publication hint,
+and cache-origin flags. Foreign keys and a locator guard protect the
+request → discovery → Source relationship; immutable triggers prevent this
+untrusted metadata from being rewritten into a later trust narrative.
+
 All database and context failures cross the adapter as the application error
 taxonomy introduced in Step 02. Transactions created by Foundation receive the
 same repository bundle and therefore keep Research writes inside the caller's

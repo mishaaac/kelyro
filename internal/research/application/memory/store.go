@@ -11,12 +11,15 @@ import (
 	"github.com/mishaaac/kelyro/internal/research/application"
 )
 
+var errDiscoveryLocatorMismatch = errors.New("discovery locator does not match source")
+
 // Store owns independent maps for each narrow repository port.
 type Store struct {
 	mu sync.RWMutex
 
 	sources         map[research.SourceID]research.Source
 	sourceLocators  map[string]research.SourceID
+	discoveries     map[research.ID]research.DiscoveredSource
 	snapshots       map[research.ID]research.SourceSnapshot
 	evidence        map[research.ID]research.Evidence
 	claims          map[research.ClaimID]research.Claim
@@ -46,6 +49,7 @@ func New() *Store {
 	return &Store{
 		sources:         make(map[research.SourceID]research.Source),
 		sourceLocators:  make(map[string]research.SourceID),
+		discoveries:     make(map[research.ID]research.DiscoveredSource),
 		snapshots:       make(map[research.ID]research.SourceSnapshot),
 		evidence:        make(map[research.ID]research.Evidence),
 		claims:          make(map[research.ClaimID]research.Claim),
@@ -74,27 +78,28 @@ func New() *Store {
 
 func (store *Store) Repositories() application.Repositories {
 	return application.Repositories{
-		Sources:          sourceRepository{store},
-		Snapshots:        snapshotRepository{store},
-		Evidence:         evidenceRepository{store},
-		Claims:           claimRepository{store},
-		Citations:        citationRepository{store},
-		Provenance:       provenanceRepository{store},
-		Runs:             researchRunRepository{store},
-		Costs:            researchCostRepository{store},
-		TriggerQueue:     researchTriggerQueueRepository{store},
-		TrustRegistry:    trustRegistryRepository{store},
-		SourceRegistry:   sourceRegistryRepository{store},
-		Releases:         releaseRepository{store},
-		ReleaseIngestion: releaseIngestionRepository{store},
-		Deprecations:     deprecationRepository{store},
-		Freshness:        freshnessRepository{store},
-		Verification:     verificationRepository{store},
-		Conflicts:        conflictRepository{store},
-		Bundles:          sourceBundleRepository{store},
-		Drift:            driftRepository{store},
-		Impact:           impactRepository{store},
-		Cache:            cacheRepository{store},
+		Sources:           sourceRepository{store},
+		SourceDiscoveries: sourceDiscoveryRepository{store},
+		Snapshots:         snapshotRepository{store},
+		Evidence:          evidenceRepository{store},
+		Claims:            claimRepository{store},
+		Citations:         citationRepository{store},
+		Provenance:        provenanceRepository{store},
+		Runs:              researchRunRepository{store},
+		Costs:             researchCostRepository{store},
+		TriggerQueue:      researchTriggerQueueRepository{store},
+		TrustRegistry:     trustRegistryRepository{store},
+		SourceRegistry:    sourceRegistryRepository{store},
+		Releases:          releaseRepository{store},
+		ReleaseIngestion:  releaseIngestionRepository{store},
+		Deprecations:      deprecationRepository{store},
+		Freshness:         freshnessRepository{store},
+		Verification:      verificationRepository{store},
+		Conflicts:         conflictRepository{store},
+		Bundles:           sourceBundleRepository{store},
+		Drift:             driftRepository{store},
+		Impact:            impactRepository{store},
+		Cache:             cacheRepository{store},
 	}
 }
 
@@ -158,6 +163,12 @@ func cloneTimestamp(timestamp *research.Timestamp) *research.Timestamp {
 	}
 	clone := *timestamp
 	return &clone
+}
+
+func cloneDiscoveredSource(discovery research.DiscoveredSource) research.DiscoveredSource {
+	clone := discovery
+	clone.PublishedHint = cloneTimestamp(discovery.PublishedHint)
+	return clone
 }
 
 func cloneRequest(request research.ResearchRequest) research.ResearchRequest {

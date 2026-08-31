@@ -60,6 +60,7 @@ type LiveResearchArtifacts struct {
 	SearchResults          []SearchResult
 	Candidates             []SourceCandidate
 	DeduplicatedCandidates []DeduplicatedSourceCandidate
+	Discoveries            []research.DiscoveredSource
 	Sources                []research.Source
 	FetchedSources         []FetchedSource
 	Snapshots              []research.SourceSnapshot
@@ -304,6 +305,10 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 		}
 	}
 	result.Sources = append([]research.Source(nil), artifacts.Sources...)
+	result.Discoveries = make([]research.DiscoveredSource, len(artifacts.Discoveries))
+	for index, discovery := range artifacts.Discoveries {
+		result.Discoveries[index] = cloneDiscoveredSource(discovery)
+	}
 	result.FetchedSources = append([]FetchedSource(nil), artifacts.FetchedSources...)
 	result.Snapshots = append([]research.SourceSnapshot(nil), artifacts.Snapshots...)
 	result.NormalizedSources = append([]NormalizedSource(nil), artifacts.NormalizedSources...)

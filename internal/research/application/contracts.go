@@ -22,6 +22,15 @@ type SourceRepository interface {
 	SetTemporalScope(context.Context, research.SourceID, research.SourceTemporalScope) error
 }
 
+// SourceDiscoveryRepository persists the untrusted query/provider observation
+// that led to a registered Source. It deliberately does not expose or mutate
+// trust decisions.
+type SourceDiscoveryRepository interface {
+	Append(context.Context, research.DiscoveredSource) error
+	Get(context.Context, research.ID) (research.DiscoveredSource, error)
+	ListBySource(context.Context, research.SourceID) ([]research.DiscoveredSource, error)
+}
+
 type SnapshotRepository interface {
 	Append(context.Context, research.SourceSnapshot) error
 	Get(context.Context, research.ID) (research.SourceSnapshot, error)
@@ -343,27 +352,28 @@ type ResearchCacheRepository interface {
 // Repositories is a wiring bundle, not a repository and not a transaction.
 // Consumers continue to depend on the narrow ports relevant to each use case.
 type Repositories struct {
-	Sources          SourceRepository
-	Snapshots        SnapshotRepository
-	Evidence         EvidenceRepository
-	Claims           ClaimRepository
-	Citations        CitationRepository
-	Provenance       ProvenanceRepository
-	Runs             ResearchRunRepository
-	Costs            ResearchCostRepository
-	TriggerQueue     ResearchTriggerQueueRepository
-	TrustRegistry    TrustRegistryRepository
-	SourceRegistry   SourceRegistryRepository
-	Releases         ReleaseRepository
-	ReleaseIngestion ReleaseIngestionRepository
-	Deprecations     DeprecationRepository
-	Freshness        FreshnessRepository
-	Verification     VerificationRepository
-	Conflicts        ConflictRepository
-	Bundles          SourceBundleRepository
-	Drift            DriftRepository
-	Impact           ImpactRepository
-	Cache            ResearchCacheRepository
+	Sources           SourceRepository
+	SourceDiscoveries SourceDiscoveryRepository
+	Snapshots         SnapshotRepository
+	Evidence          EvidenceRepository
+	Claims            ClaimRepository
+	Citations         CitationRepository
+	Provenance        ProvenanceRepository
+	Runs              ResearchRunRepository
+	Costs             ResearchCostRepository
+	TriggerQueue      ResearchTriggerQueueRepository
+	TrustRegistry     TrustRegistryRepository
+	SourceRegistry    SourceRegistryRepository
+	Releases          ReleaseRepository
+	ReleaseIngestion  ReleaseIngestionRepository
+	Deprecations      DeprecationRepository
+	Freshness         FreshnessRepository
+	Verification      VerificationRepository
+	Conflicts         ConflictRepository
+	Bundles           SourceBundleRepository
+	Drift             DriftRepository
+	Impact            ImpactRepository
+	Cache             ResearchCacheRepository
 }
 
 // SearchQuery, SearchOptions, and SearchResult keep provider-specific
@@ -1281,6 +1291,10 @@ type DiscoveryService interface {
 
 type SourceCandidateDeduplicationService interface {
 	Deduplicate(context.Context, []SourceCandidate) (SourceCandidateDeduplicationResult, error)
+}
+
+type SourceCandidateRegistrationService interface {
+	Register(context.Context, SourceCandidateRegistrationRequest) (SourceCandidateRegistrationResult, error)
 }
 
 type FetchService interface {

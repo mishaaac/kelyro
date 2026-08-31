@@ -63,3 +63,22 @@ infer that a provider-ranked result is trustworthy.
 The deduplication result may reference an already durable Source ID, but the
 candidate itself remains transient and untrusted. Step 18 performs no write;
 new Source registration belongs to Step 19.
+
+## Registration
+
+`source-candidate-registration-v1` reuses the stable Source repository. A
+candidate already linked during deduplication keeps that Source unchanged. A
+new canonical locator creates one `Source` with kind `other`, current temporal
+scope, and the first observed title; provider rank and publication hints never
+become classification, authority, or trusted Source metadata.
+
+Every distinct observation is persisted as an immutable `DiscoveredSource`
+linked to its request and Source. The record keeps the bounded query, title,
+snippet, provider, rank, discovery time, optional publication hint, and cache
+origin flags. Stable content-derived IDs make retries idempotent. Registration
+can recover from a concurrent Source insert by resolving the canonical locator,
+but it rejects an existing identity whose locator changed after deduplication.
+
+The append-only discovery store is separate from `trust_registry`. Registration
+does not match an authority profile, write a trust decision, fetch content, or
+promote provider metadata to Evidence. Those remain later explicit stages.

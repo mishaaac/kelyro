@@ -121,6 +121,9 @@ The initial services are deliberately thin:
 - `DiscoveryService` normalizes and validates queries/options, enforces research
   mode/privacy, delegates to either the live provider or explicit offline cache,
   and returns bounded unique candidates without reranking them;
+- `source-candidate-registration-v1` reuses durable Sources, creates only new
+  canonical locators as unclassified `other` Sources, and appends immutable
+  request/query/provider discovery observations without assigning trust;
 - `FetchService` applies the same boundary to live/cached source retrieval;
 - `ResearchProcessingService` executes prepared discovery and fetch work in
   separate bounded pools, preserves input-index result ordering, and enforces

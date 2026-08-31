@@ -4,6 +4,7 @@ import "github.com/mishaaac/kelyro/internal/research/application"
 
 var (
 	_ application.SourceRepository               = sourceRepository{}
+	_ application.SourceDiscoveryRepository      = sourceDiscoveryRepository{}
 	_ application.SnapshotRepository             = snapshotRepository{}
 	_ application.EvidenceRepository             = evidenceRepository{}
 	_ application.ClaimRepository                = claimRepository{}

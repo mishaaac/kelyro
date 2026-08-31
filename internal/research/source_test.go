@@ -169,8 +169,8 @@ func TestResearchRunAuthorityTrustAndDiscoveryValidateEnumsAndTime(t *testing.T)
 		t.Fatalf("TrustDecision.Validate() error = %v", err)
 	}
 	discovered := DiscoveredSource{
-		ID: mustID(t, "discovery.spec"), RequestID: request.ID, Locator: mustLocator(t, "spec"),
-		Title: "Specification", Provider: "fixture-search", Rank: 0, DiscoveredAt: mustTimestamp(t, 10),
+		ID: mustID(t, "discovery.spec"), RequestID: request.ID, SourceID: mustSourceID(t, "spec"), Locator: mustLocator(t, "spec"),
+		Query: "specification", Title: "Specification", Provider: "fixture-search", Rank: 0, DiscoveredAt: mustTimestamp(t, 10),
 	}
 	if err := discovered.Validate(); err != nil {
 		t.Fatalf("DiscoveredSource.Validate() error = %v", err)
