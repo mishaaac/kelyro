@@ -652,7 +652,7 @@ feat(research): enforce budgets on production search calls
 
 ## Paso 11 — Production provider wiring
 
-- [ ] Paso 11 completado
+- [x] Paso 11 completado
 
 Composition root:
 

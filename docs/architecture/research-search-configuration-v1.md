@@ -82,6 +82,33 @@ still pass through `DiscoveryService` and the Foundation
 `privacy.allow_network` gate. A disabled privacy policy wins over a configured
 provider.
 
+## Production assembly
+
+I-03C Step 11 wires the boundary explicitly for each durable run:
+
+```text
+resolved workspace config
+→ Foundation SecretStore
+→ resolved privacy.NetworkGate
+→ hardened Brave transport and adapter
+→ cost-controlled DiscoveryService
+```
+
+`researchsearch.Factory` recognizes only the empty disabled selection and the
+documented `brave` provider. Empty or unknown selections return explicit
+disabled/unavailable errors, perform no secret read and never substitute
+`StaticSearchProvider`. Construction performs no network request. The fixed
+transport is created in `cmd/kelyro/main.go`, uses the running Kelyro version in
+its bounded User-Agent, and is injected into the application composition root.
+
+Actual per-run assembly remains workspace-aware: application code resolves the
+effective global/project/CLI configuration, passes the existing SecretStore,
+privacy gate, cost service, clock and run identity to the factory, and receives
+the production provider plus its guarded `DiscoveryService`. The configured
+`max_queries_per_run` truncates the planned query list and becomes the durable
+per-run `SearchRequests` budget; `max_results_per_query` becomes
+`live-search-cost-policy-v1` input. Assembly does not execute discovery.
+
 ## Ownership boundary
 
 The schema and readiness model live in `internal/config`, and strict TOML
@@ -89,7 +116,7 @@ roundtrips live in `internal/infra/configfs`. Vendor-specific identifiers may be
 interpreted only by future infra/config/Doctor wiring. Research domain and the
 `SearchProvider` application port remain vendor-neutral.
 
-Provider selection, adapter implementation, transport hardening and credential
-resolution are now implemented by I-03C Steps 5–8. Production assembly,
-privacy authorization, Doctor checks and live search execution remain separate
-later steps.
+Provider selection, adapter implementation, transport hardening, credential
+resolution, privacy/cost gating and production assembly are now implemented by
+I-03C Steps 5–11. Doctor checks and live orchestration remain separate later
+steps.

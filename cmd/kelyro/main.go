@@ -24,6 +24,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
 	"github.com/mishaaac/kelyro/internal/infra/researchcachefs"
 	"github.com/mishaaac/kelyro/internal/infra/researchdb"
+	"github.com/mishaaac/kelyro/internal/infra/researchsearch"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/updatecache"
 	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
@@ -39,6 +40,14 @@ func main() {
 	backups := backupfs.New(version.Version, sqlite.SnapshotValidator{})
 	portable := portabilityfs.New(version.Version, sqlite.SnapshotValidator{})
 	updates := update.New(version.Version, newReleaseProvider(), updatecache.New())
+	secrets := newSecretStore()
+	searchTransport := researchsearch.DefaultTransportConfig()
+	searchTransport.UserAgent = "Kelyro/" + version.Version
+	researchSearch, err := researchsearch.NewFactory(searchTransport)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "kelyro: initialize research search:", err)
+		os.Exit(1)
+	}
 	migrationBackup := func(ctx context.Context, databasePath string, migration sqlite.MigrationInfo) error {
 		root := filepath.Dir(filepath.Dir(databasePath))
 		global, err := configs.LoadGlobal()
@@ -65,7 +74,7 @@ func main() {
 	}
 	service := app.NewService(workspaces, os.Getwd).
 		WithConfig(configs).
-		WithSecrets(newSecretStore()).
+		WithSecrets(secrets).
 		WithArtifactStores(artifactfs.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithSessionStores(sessiondb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithEditor(editoros.New()).
@@ -77,6 +86,7 @@ func main() {
 		WithUpdates(updates).
 		WithResearchStores(researchdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
 		WithResearchCaches(researchcachefs.NewFactory()).
+		WithResearchSearch(researchSearch).
 		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).

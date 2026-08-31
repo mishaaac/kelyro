@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/research/queryplanner"
@@ -74,12 +75,21 @@ func (service *Service) startResearchTopic(ctx context.Context, command Command,
 	if err != nil {
 		return ResearchCLIView{}, err
 	}
+	search, err := config.ResearchSearchFromResolved(settings)
+	if err != nil {
+		return ResearchCLIView{}, err
+	}
+	if len(plan.Queries) > search.MaxQueriesPerRun {
+		plan.Queries = append([]queryplanner.ResearchQuery(nil), plan.Queries[:search.MaxQueriesPerRun]...)
+	}
 	requestID, runID, queueID, auditID, err := newResearchCLIIDs()
 	if err != nil {
 		return ResearchCLIView{}, err
 	}
 	request := research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: now}
-	cost := research.ResearchCostMetadata{Budget: research.DefaultResearchCostBudgetV1(), AlgorithmVersion: research.ResearchCostControlAlgorithmV1}
+	budget := research.DefaultResearchCostBudgetV1()
+	budget.PerRun.SearchRequests = int64(search.MaxQueriesPerRun)
+	cost := research.ResearchCostMetadata{Budget: budget, AlgorithmVersion: research.ResearchCostControlAlgorithmV1}
 	run := research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunPlanned, StartedAt: now, Cost: &cost}
 	if store.Triggers() == nil {
 		return ResearchCLIView{}, errors.New("research trigger service is unavailable")

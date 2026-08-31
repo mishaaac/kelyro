@@ -86,11 +86,16 @@ func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
 		triggers: researchapp.NewResearchTriggerService(repositories.TriggerQueue),
 	}
 	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
-		WithConfig(&recordingConfigStore{project: config.Settings{config.KeyAllowNetwork: config.BoolValue(false)}}).
+		WithConfig(&recordingConfigStore{project: config.Settings{
+			config.KeyAllowNetwork: config.BoolValue(false), config.KeyResearchSearchMaxQueriesPerRun: config.NumberValue(2),
+		}}).
 		WithResearchStores(factory).WithResearchClock(func() time.Time { return at })
 	planned, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "topic", ResearchTopic: "Go range over func"})
 	if err != nil || planned.ResearchView == nil || planned.ResearchView.Plan == nil || len(planned.ResearchView.Plan.Queries) == 0 || planned.ResearchView.QueueItem == nil || !planned.ResearchView.DiscoveryPending || planned.ResearchView.NetworkAllowed {
 		t.Fatalf("research topic = (%+v, %v)", planned.ResearchView, err)
+	}
+	if len(planned.ResearchView.Plan.Queries) != 2 || planned.ResearchView.Run.Cost == nil || planned.ResearchView.Run.Cost.Budget.PerRun.SearchRequests != 2 {
+		t.Fatalf("configured query/search budget = plan:%d cost:%+v", len(planned.ResearchView.Plan.Queries), planned.ResearchView.Run.Cost)
 	}
 	repeated, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "topic", ResearchTopic: "Go range over func"})
 	if err != nil || repeated.ResearchView.Request.ID != planned.ResearchView.Request.ID || repeated.ResearchView.Run.ID == planned.ResearchView.Run.ID {

@@ -483,6 +483,72 @@ type CostControlledSearchProvider interface {
 	SearchWithCostControl(context.Context, SearchQuery, SearchOptions, ProviderCallAuthorizer) ([]SearchResult, error)
 }
 
+// LiveSearchProviderSettings are the already resolved, provider-neutral
+// settings needed to assemble live discovery for one run. Credentials remain
+// outside this value.
+type LiveSearchProviderSettings struct {
+	Provider           string
+	MaxResultsPerQuery int
+	MaxQueriesPerRun   int
+}
+
+func (settings LiveSearchProviderSettings) Validate() error {
+	if settings.Provider != strings.TrimSpace(settings.Provider) {
+		return fmt.Errorf("live search provider is not normalized")
+	}
+	if settings.MaxResultsPerQuery < 1 || settings.MaxResultsPerQuery > MaximumSearchResults {
+		return fmt.Errorf("live search maximum results per query must be between 1 and %d", MaximumSearchResults)
+	}
+	if settings.MaxQueriesPerRun < 1 || settings.MaxQueriesPerRun > 8 {
+		return fmt.Errorf("live search maximum queries per run must be between 1 and 8")
+	}
+	return nil
+}
+
+type LiveSearchSecretReader interface {
+	Get(string) (string, error)
+}
+
+type LiveSearchBuildRequest struct {
+	Settings LiveSearchProviderSettings
+	Secrets  LiveSearchSecretReader
+	Access   NetworkResearchAccess
+	Costs    ResearchCostService
+	Clock    Clock
+	RunID    research.ID
+}
+
+func (request LiveSearchBuildRequest) Validate() error {
+	if err := request.Settings.Validate(); err != nil {
+		return err
+	}
+	if err := request.RunID.Validate(); err != nil {
+		return fmt.Errorf("live search run: %w", err)
+	}
+	if request.Secrets == nil {
+		return fmt.Errorf("live search secret reader is not configured")
+	}
+	if request.Access.Gate == nil {
+		return fmt.Errorf("live search privacy gate is not configured")
+	}
+	if request.Costs == nil {
+		return fmt.Errorf("live search cost service is not configured")
+	}
+	if request.Clock == nil {
+		return fmt.Errorf("live search clock is not configured")
+	}
+	return nil
+}
+
+type LiveSearchBuildResult struct {
+	Provider  CostControlledSearchProvider
+	Discovery DiscoveryService
+}
+
+type LiveSearchProviderFactory interface {
+	Build(context.Context, LiveSearchBuildRequest) (LiveSearchBuildResult, error)
+}
+
 // SearchCache reads previously cached discovery output without network access.
 // It is deliberately distinct from SearchProvider so offline fallback cannot
 // accidentally invoke a live adapter.

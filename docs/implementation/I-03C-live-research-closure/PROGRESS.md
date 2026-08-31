@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 11
-Last completed step: 10
+Current step: 12
+Last completed step: 11
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -567,3 +567,56 @@ Release: unreleased
 - El Paso 11 debe ensamblar config, Secrets, privacy, Brave y la variante
   cost-controlled de discovery; nunca debe seleccionar el provider static de
   fixtures en producción.
+
+## Step 11 — Production provider wiring
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- `researchsearch.Factory` añadido como assembly productivo por run sobre el
+  transporte Brave hardened, Foundation Secrets, privacy, cost control y los
+  límites de search resueltos.
+- Contrato provider-neutral `LiveSearchProviderFactory` incorporado al
+  application boundary, con settings sin credenciales y dependencias explícitas
+  para run, clock, costs, gate y secret reader.
+- Composition root real de `cmd/kelyro/main.go` construye el transporte fijo con
+  User-Agent versionado, comparte el SecretStore Foundation e inyecta la factory
+  mediante `WithResearchSearch`.
+- `researchSearchForRun` resuelve configuración global/project/CLI, crea el gate
+  desde la policy efectiva y entrega todos los límites/dependencias a la factory
+  sin ejecutar búsqueda.
+- `max_queries_per_run` limita el plan persistido y el budget durable
+  `SearchRequests`; `max_results_per_query` alimenta el policy del Paso 10.
+- Provider vacío y desconocido fallan explícitamente sin leer Secrets ni usar
+  `StaticSearchProvider`; Brave es el único adapter production seleccionado.
+- Tests prueban wiring application, selección real de Brave, privacy heredada,
+  cero HTTP al bloquear red y ausencia de fallback/secret reads para provider
+  disabled o unknown.
+
+### Decisions
+
+- La factory se conserva idle en el servicio y ensambla por run porque config,
+  privacy y cost ledger son workspace/run-scoped; no se crea un singleton de
+  `DiscoveryService` con identidad incorrecta.
+- Construir el transporte y el adapter no hace red. Solo una futura llamada a
+  `DiscoveryService.Search` puede llegar al endpoint tras privacy y budget.
+- Se añadió `ResearchSearchFromResolved` para extraer la sección desde settings
+  ya resueltos sin reinterpretar defaults vacíos como overrides explícitos.
+- No se consume la queue ni se ejecuta discovery desde CLI; orchestration sigue
+  reservada al Paso 13 y pasos posteriores.
+
+### Verification
+
+- `go test -race ./internal/config ./internal/research/application ./internal/infra/researchsearch ./internal/app ./cmd/kelyro -count=1`.
+- `go vet ./internal/config ./internal/research/application ./internal/infra/researchsearch ./internal/app ./cmd/kelyro`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 12 debe reportar network policy, provider y credential readiness sin
+  construir un run, reservar coste ni ejecutar una búsqueda.

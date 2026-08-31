@@ -188,6 +188,7 @@ type Service struct {
 	profiles         learningapp.ProfileStoreFactory
 	researchStores   researchapp.SourceRegistryStoreFactory
 	researchCaches   researchapp.ResearchCacheServiceFactory
+	researchSearch   researchapp.LiveSearchProviderFactory
 	researchClock    func() time.Time
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
@@ -226,6 +227,13 @@ func (service *Service) WithResearchStores(stores researchapp.SourceRegistryStor
 // WithResearchCaches attaches workspace-local disposable Research cache.
 func (service *Service) WithResearchCaches(caches researchapp.ResearchCacheServiceFactory) *Service {
 	service.researchCaches = caches
+	return service
+}
+
+// WithResearchSearch attaches the production live-search assembly boundary.
+// The factory remains idle until a run explicitly requests discovery.
+func (service *Service) WithResearchSearch(search researchapp.LiveSearchProviderFactory) *Service {
+	service.researchSearch = search
 	return service
 }
 

@@ -83,6 +83,13 @@ func ResolveResearchSearch(settings Settings) (ResearchSearchConfig, error) {
 	if err != nil {
 		return ResearchSearchConfig{}, err
 	}
+	return ResearchSearchFromResolved(resolved)
+}
+
+// ResearchSearchFromResolved extracts live-search settings from a complete
+// resolved configuration without treating default empty scalar values as a
+// new explicit configuration layer.
+func ResearchSearchFromResolved(resolved Settings) (ResearchSearchConfig, error) {
 	provider, providerOK := resolved[KeyResearchSearchProvider].StringField()
 	results, resultsOK := resolved[KeyResearchSearchMaxResultsPerQuery].NumberField()
 	queries, queriesOK := resolved[KeyResearchSearchMaxQueriesPerRun].NumberField()
