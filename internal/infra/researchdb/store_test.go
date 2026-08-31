@@ -21,6 +21,9 @@ func TestFactoryPersistsSourceRegistryAcrossStoreLifetimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if store.Evidence() == nil {
+		t.Fatal("workspace research store has no Evidence repository")
+	}
 	entry := researchDBEntry(t)
 	if err := store.Registry().Save(ctx, entry); err != nil {
 		t.Fatal(err)

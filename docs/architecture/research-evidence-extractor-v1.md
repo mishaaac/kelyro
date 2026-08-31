@@ -107,14 +107,39 @@ No full page, raw body, search snippet, hidden markup, or unbounded section is
 persisted. Candidate hashes use `CanonicalEvidenceExcerptHashV1` over the exact
 excerpt bytes.
 
-## Persistence boundary for Step 24
+## Persistence and live-stage implementation
 
-The live extraction stage will convert admitted candidates into immutable
+I-03C Step 24 implements the selector and converts admitted candidates into immutable
 `Evidence` with stable IDs derived from extractor version, source, snapshot,
-location, and excerpt hash. It must persist Evidence before exposing it to the
-Claim stage and make retries idempotent by reusing byte-identical existing
-records. A run with normalized sources but no relevant candidate fails as
-insufficient evidence; it must not invent fallback Evidence.
+location, and excerpt hash. It persists Evidence before exposing it to the Claim
+stage and makes retries idempotent by reusing byte-identical existing records.
+A stable-ID collision with different content is invalid state. A run with
+normalized sources but no relevant candidate fails without inventing fallback
+Evidence.
 
-Step 23 does not implement the selector, persistence stage, Claim extraction,
-trust/freshness, verification, bundle assembly, I-04 behavior, or AI review.
+`LiveEvidenceExtractionService` consumes only the Source, snapshot, and
+`NormalizedSource` artifacts already produced in the run. It validates the
+exact Source ID + final-locator chain before extraction and rejects a clock
+earlier than the snapshot. Candidate and Evidence collections are copied
+defensively into `LiveResearchArtifacts`; raw bodies are never reloaded.
+
+Generic v1 intentionally skips a Source already classified as `source_code`.
+That Source kind requires the existing reviewed commit/path/line/permalink
+locator, which cannot be reconstructed from generic normalized prose. Live
+web candidates are initially registered as `other`, so this guard preserves
+the specialized contract without blocking ordinary docs, specifications,
+release notes, or community sources.
+
+V1's explicit release/deprecation lexicon is deliberately small and stable.
+It recognizes direct English/Spanish markers (for example `released`,
+`deprecated`, `no longer supported`, `lanzamiento`, `deprecado`, and
+`en desuso`) only when the candidate also has the required topic anchor.
+Versions remain opaque: an explicit structured version or target such as
+`2026`, `1.22.0`, or an edition label is not forced into SemVer.
+
+The workspace composition root constructs the pure extractor locally and uses
+the existing SQLite-backed `EvidenceRepository`; there is no new dependency,
+schema, network path, or provider.
+
+Steps 23–24 do not implement Claim extraction, trust/freshness, verification,
+bundle assembly, I-04 behavior, or AI review.

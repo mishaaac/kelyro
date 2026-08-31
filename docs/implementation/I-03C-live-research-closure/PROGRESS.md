@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 24
-Last completed step: 23
+Current step: 25
+Last completed step: 24
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1280,3 +1280,60 @@ Release: unreleased
   `Artifacts.NormalizedSources`, persistir Evidence idempotente y fallar sin
   fallback cuando no exista ningún candidate relevante.
 - El Paso 24 no debe derivar Claims ni aplicar trust/freshness/verification.
+
+## Step 24 — Deterministic Evidence Extractor v1 implementation
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- Selector puro `evidence-extractor-v1` implementado sobre title, headings,
+  text segments y version metadata ya normalizados, sin reabrir fetch ni body.
+- Scoring entero estable del Paso 23 con anchors temáticos, señales exactas,
+  lexicon explícito release/version/deprecation y soporte de target versions
+  opacas sin imponer SemVer.
+- Ventanas UTF-8 bounded de 2 KiB alrededor de la señal admitida y contextos
+  adyacentes de hasta 512 bytes, conservando excerpt/hash literal.
+- Orden total score/kind/location/hash, dedupe de excerpts y límites efectivos
+  de 24 candidates por Source y 1.000 por run.
+- `LiveEvidenceExtractionService` valida la cadena Source → snapshot →
+  NormalizedSource, persiste Evidence antes del siguiente stage y rechaza el
+  caso sin evidencia relevante.
+- IDs estables e idempotencia de replay/concurrencia: Evidence byte-idéntica se
+  reutiliza y una colisión semántica nunca se sobrescribe.
+- `EvidenceCandidates` y Evidence persistida añadidos al hand-off defensivo del
+  orchestrator; workspace composition reutiliza el EvidenceRepository SQLite
+  existente sin migration ni dependencia nueva.
+- Tests cubren docs oficiales, release notes, specification, community,
+  irrelevant content, bounds/focus, determinismo, cancellation, persistence,
+  replay idempotente y composition.
+
+### Decisions
+
+- Los facts siguen siendo excerpt literal, no Claim. Señales y score solo
+  seleccionan candidatos y no se persisten como medida de verdad.
+- Un marker release/deprecation necesita anchor temático local, por target o
+  por title/heading del documento; no se admite keyword-only evidence.
+- Metadata de versión explícita puede ser opaca (`2026`, edición o revisión);
+  v1 no fuerza SemVer ni inventa release status.
+- Sources ya clasificadas como `source_code` se omiten en el extractor
+  genérico porque Evidence de código exige commit/path/lines/permalink
+  revisados. No se fabrica ese locator desde prose normalizada.
+- No se crean Claims, TrustDecision, Freshness, Verification, Citation ni
+  SourceBundle; permanecen en pasos posteriores.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/app ./internal/infra/researchdb -run 'EvidenceExtractor|LiveEvidenceExtraction|AssemblesDeterministicEvidence' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 25 debe diseñar únicamente `claim-extractor-v1` sobre Evidence ya
+  persistida; no debe implementarlo ni inferir claims ambiguas.
+- El Paso 26 será responsable de la implementación determinista y bounded de
+  Claims; authority/trust continúa reservada al Paso 27.

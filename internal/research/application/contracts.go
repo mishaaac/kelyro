@@ -1194,6 +1194,11 @@ type LiveSourceNormalizationService interface {
 	LiveResearchStageService
 }
 
+type LiveEvidenceExtractionService interface {
+	ExtractEvidence(context.Context, LiveEvidenceExtractionRequest) (LiveEvidenceExtractionResult, error)
+	LiveResearchStageService
+}
+
 type MetadataExtractor interface {
 	Extract(context.Context, NormalizedSource) (research.SourceMetadata, error)
 }
@@ -1420,6 +1425,7 @@ type ProvenanceService interface {
 type SourceRegistryStore interface {
 	Sources() SourceService
 	Snapshots() SnapshotCaptureService
+	Evidence() EvidenceRepository
 	Registry() SourceRegistryService
 	TrustDecisions() TrustDecisionService
 	Provenance() ProvenanceService

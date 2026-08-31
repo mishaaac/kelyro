@@ -187,8 +187,15 @@ dependencies, delegate bounded operations, and translate errors. Snapshot
 capture is the first orchestration that reads prior immutable metadata before
 one append; it does not update history or persist raw bodies. They do not
 implement Trust Policy, authority matching, candidate selection,
-general-purpose evidence extraction, or conflict candidate discovery. They do
-not invoke curriculum compilation or mutate Student Core.
+conflict candidate discovery, or Claim extraction. They do not invoke
+curriculum compilation or mutate Student Core.
+
+I-03C adds `LiveEvidenceExtractionService` as the bounded extraction stage. It
+applies the pure `evidence-extractor-v1` policy to exact normalized
+Source/snapshot pairs, persists admitted candidates through the existing
+append-only `EvidenceRepository`, and reuses byte-identical stable IDs on
+retry. Its score is transient selection metadata; only literal bounded
+Evidence crosses into later Claim/verification stages.
 
 `LiveResearchOrchestrator` fixes the query-to-bundle stage order over these
 application boundaries. `ResearchService.TransitionRun` applies the single

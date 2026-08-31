@@ -1014,7 +1014,7 @@ feat(research): define deterministic evidence extractor v1
 
 ## Paso 24 — Implement Evidence Extractor v1
 
-- [ ] Paso 24 completado
+- [x] Paso 24 completado
 
 Requisitos:
 
@@ -1831,7 +1831,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 21 — Snapshot/cache
 - [x] Paso 22 — Normalizer
 - [x] Paso 23 — Evidence design
-- [ ] Paso 24 — Evidence implementation
+- [x] Paso 24 — Evidence implementation
 - [ ] Paso 25 — Claim design
 - [ ] Paso 26 — Claim implementation
 - [ ] Paso 27 — Trust
