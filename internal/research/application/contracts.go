@@ -1198,6 +1198,18 @@ type ResearchService interface {
 	AuditTrail(context.Context, research.ID) ([]research.ResearchRunAudit, error)
 }
 
+// LiveResearchStageService owns one already-implemented application stage of
+// the live query-to-bundle pipeline. The orchestrator fixes ordering and
+// carries bounded artifacts; stage implementations retain responsibility for
+// their own domain policy, persistence, and external adapters.
+type LiveResearchStageService interface {
+	Execute(context.Context, LiveResearchStageInput) (LiveResearchArtifacts, error)
+}
+
+type LiveResearchOrchestrator interface {
+	Execute(context.Context, LiveResearchOrchestrationRequest) (LiveResearchOrchestrationResult, error)
+}
+
 type CostControlReason string
 
 const (

@@ -709,7 +709,7 @@ feat(doctor): report research search readiness
 
 ## Paso 13 — Research Orchestrator v1
 
-- [ ] Paso 13 completado
+- [x] Paso 13 completado
 
 Crear coordinador sobre servicios existentes:
 

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 13
-Last completed step: 12
+Current step: 14
+Last completed step: 13
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -671,3 +671,57 @@ Release: unreleased
 - El Paso 13 es el siguiente paso pendiente y requiere autorización explícita;
   debe coordinar servicios existentes sin implementar HTTP, trust,
   normalization, verification o SQLite directamente.
+
+## Step 13 — Research Orchestrator v1
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- `LiveResearchOrchestrator` añadido como coordinador application-level con
+  identidad explícita de queue item, request, run y modo de red.
+- Secuencia v1 fija `search → register_candidates → fetch → snapshot →
+  normalize → extract → verify → bundle → finalize` sobre servicios de etapa
+  inyectados, sin implementar sus políticas ni adapters dentro del
+  coordinador.
+- Artefactos tipados de hand-off para candidates, sources, fetched content,
+  snapshots, normalized content, Evidence, Claims, Verification y bundle.
+- Carga durable y reconciliación queue → request → run antes de ejecutar
+  trabajo, con rechazo de items cancelados, runs terminales e identidades
+  divergentes.
+- Resultado parcial observable y corte en el primer error; las etapas
+  posteriores no se invocan después de un fallo.
+- Tests deterministas de orden total, short-circuit, identidad durable,
+  cancelación y dependencias obligatorias.
+
+### Decisions
+
+- El orchestrator fija orden y ownership, pero cada etapa conserva su frontera:
+  no contiene HTTP, trust, normalization, verification ni SQLite.
+- `LiveResearchStageService` es un seam de composición pequeño para conectar
+  los servicios existentes y los adapters acotados de pasos posteriores sin
+  ampliar sus interfaces antes de necesitarlas.
+- Search results permanecen en `SearchResults`; no se proyectan a Evidence ni
+  Claims en el coordinador.
+- Queue claiming/ack/retry no forma parte de este paso. El coordinador solo
+  carga el item existente; el consumo corresponde al Paso 15.
+- Las transiciones del run tampoco se inventan en este paso. El Paso 14 debe
+  conectar la máquina de estados existente al inicio, fallo, cancelación y
+  success del orchestrator.
+
+### Verification
+
+- `go test ./internal/research/application -run LiveResearchOrchestrator -count=1`.
+- `go vet ./internal/research/application`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 14 debe reutilizar `ResearchRunStatus` y persistir transiciones
+  válidas alrededor del orchestrator; no debe crear un segundo lifecycle.
+- `completed` solo puede persistirse después de que la etapa bundle haya
+  devuelto un bundle durable.
