@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 25
-Last completed step: 24
+Current step: 26
+Last completed step: 25
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1337,3 +1337,53 @@ Release: unreleased
   persistida; no debe implementarlo ni inferir claims ambiguas.
 - El Paso 26 será responsable de la implementación determinista y bounded de
   Claims; authority/trust continúa reservada al Paso 27.
+
+## Step 25 — Conservative Claim Extractor v1 design
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- Contrato `ClaimCandidate` ligado exactamente a Source + snapshot + Evidence
+  persistida, con statement/hash literal, scope, qualifiers, confidence,
+  marker, sentence index y versión `claim-extractor-v1`.
+- Seis familias cerradas mapeadas a los ClaimTypes publicados: definition,
+  version/release, deprecation, availability/support, requirement y
+  recommendation.
+- Statements limitados a 2 KiB, markers a 256 bytes, máximo ocho candidates por
+  Evidence y 1.000 por run.
+- Ambiguity gate documentado: zero/multiple families, hedge, qualifiers
+  incompatibles, sentence truncada o dependencia de otra Evidence producen
+  cero candidate.
+- Version scope conserva únicamente un valor opaco explícito; status scope
+  requiere un único qualifier closed y nunca se infiere por source kind.
+- Confidence fija por family expresa directness del extractor, no truth/trust.
+- Dedupe semántico exacto y agregación futura multi-source definidos sin
+  declarar equivalentes statements con wording diferente.
+
+### Decisions
+
+- El statement de Claim será una oración byte-identical dentro de
+  `Evidence.Excerpt`; context no puede completar una afirmación ausente.
+- Cada candidate nace de una Evidence. El Paso 26 podrá agrupar solo statements
+  idénticos y conservar todos los SourceIDs/EvidenceIDs.
+- Una oración que encaja en más de una family se descarta; no se aplica
+  precedencia heurística ni paráfrasis.
+- Scope, version/status qualifiers y confidence quedan explícitos antes de
+  persistir, pero authority/corroboration no alteran la extracción.
+- Este paso no implementa sentence splitting, lexicon matching, persistence,
+  Claims durables, verification, bundle ni I-04.
+
+### Verification
+
+- `go test ./internal/research/application -run 'ClaimCandidate|ClaimFamily' -count=1`.
+- `go vet ./internal/research/application`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 26 debe implementar fielmente este contrato y rechazar ambigüedad;
+  no debe ampliar families ni introducir equivalencia semántica/LLM.
+- Trust, freshness y multi-source verification permanecen en Pasos 27–29.

@@ -128,6 +128,11 @@ locators, stable relevance scoring, admission anchors, and excerpt/context
 bounds are documented in
 [research-evidence-extractor-v1.md](research-evidence-extractor-v1.md).
 
+The literal, ambiguity-rejecting `claim-extractor-v1` candidate contract, six
+initial Claim families, qualifier rules, confidence constants, and exact-only
+dedupe boundary are documented in
+[research-claim-extractor-v1.md](research-claim-extractor-v1.md).
+
 The bounded `provenance-graph-v1` DAG, typed relationships, historical and
 multi-source paths, deterministic explain/export behavior, persistence, and
 internal trace command are documented in

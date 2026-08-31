@@ -1039,7 +1039,7 @@ feat(research): extract bounded evidence from normalized sources
 
 ## Paso 25 — Diseñar Conservative Claim Extractor v1
 
-- [ ] Paso 25 completado
+- [x] Paso 25 completado
 
 Claim families iniciales:
 
@@ -1832,7 +1832,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 22 — Normalizer
 - [x] Paso 23 — Evidence design
 - [x] Paso 24 — Evidence implementation
-- [ ] Paso 25 — Claim design
+- [x] Paso 25 — Claim design
 - [ ] Paso 26 — Claim implementation
 - [ ] Paso 27 — Trust
 - [ ] Paso 28 — Freshness
