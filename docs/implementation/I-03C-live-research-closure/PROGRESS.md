@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 5
-Last completed step: 4
+Current step: 6
+Last completed step: 5
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -251,3 +251,59 @@ Release: unreleased
   ADR y documentación primaria vigente.
 - No implementar adapter, transport hardening ni Secrets wiring reservados a
   los Pasos 6–8.
+
+## Step 05 — Reference production SearchProvider seleccionado
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- ADR-001 acepta Brave Web Search API con provider ID `brave` y endpoint Web
+  Search HTTPS/JSON como único adapter inicial.
+- Matriz de documented API, JSON, TLS, authentication, rate limits, cost
+  visibility, URL/title/snippet y testability respaldada por documentación
+  oficial vigente.
+- Mapping provider → `SearchQuery`/`SearchOptions`/`SearchResult` congelado,
+  incluyendo paginación bounded, rank posicional y `age` como hint opcional.
+- Google Custom Search JSON API y Bing Search APIs rechazados con evidencia
+  oficial de cierre a nuevos clientes/discontinuación y retiro, respectivamente.
+- Restricciones de persistence rights, query retention, privacy, quota/cost y
+  separación de endpoints AI registradas antes de implementación.
+
+### Decisions
+
+- Solo Brave Web Search: no Answers, LLM Context, Summarizer, rich callbacks ni
+  otro endpoint AI.
+- El provider vive únicamente en infra/config/Doctor; domain y application
+  mantienen el contrato vendor-neutral.
+- No se añadirá SDK: el REST/JSON será probado con client inyectado y
+  `httptest`.
+- Cada página HTTP cuenta como `ProviderAPICalls`; una query lógica cuenta una
+  vez como `SearchRequests`.
+- Live use exige confirmar un plan que permita la persistencia mínima de
+  provenance/sources. Sin esa confirmación, readiness es `unavailable`.
+- Pricing, quotas, privacy y storage terms son externos y deben revalidarse
+  antes del release que habilite el adapter.
+
+### Verification
+
+- Context7 library `/websites/api-dashboard_search_brave_app_web-search_get-started`
+  consultada para request/response, pagination y limits.
+- Revisión de referencias oficiales Brave para API reference, quickstart,
+  authentication, rate limiting, pricing, privacy y storage rights.
+- Revisión oficial de lifecycle para Google Custom Search JSON API y Microsoft
+  Bing Search APIs.
+- ADR contrastada con `SearchProvider`, `ResearchSearchConfig`, privacy y cost
+  control existentes.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 6 es el siguiente paso pendiente y requiere autorización explícita.
+- Implementar el adapter Brave en infra con fixtures deterministas, sin tocar
+  Secrets integration, production wiring ni transport hardening de pasos
+  posteriores.

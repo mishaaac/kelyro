@@ -91,6 +91,10 @@ limits, nested TOML representation, and credential-free readiness states are
 documented in
 [research-search-configuration-v1.md](research-search-configuration-v1.md).
 
+The reference production discovery-provider decision, current evidence,
+alternatives, mapping, and operational constraints are recorded in
+[ADR-001](adr/ADR-001-research-search-provider.md).
+
 The pure `query-planner-v1` input/output contract, purpose variants,
 authority-aware deterministic ordering, generic-topic behavior, and discovery
 mapping are documented in [query-planner-v1.md](query-planner-v1.md).

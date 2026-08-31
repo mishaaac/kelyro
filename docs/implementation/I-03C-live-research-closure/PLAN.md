@@ -466,7 +466,7 @@ feat(research): add production search provider configuration
 
 ## Paso 5 — Seleccionar reference production SearchProvider
 
-- [ ] Paso 5 completado
+- [x] Paso 5 completado
 
 Elegir un único adapter inicial evaluando:
 
