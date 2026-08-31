@@ -67,7 +67,56 @@ func (service *researchService) UpdateRun(ctx context.Context, run research.Rese
 	if err := requireDependency(operation, "research run repository", service.runs); err != nil {
 		return err
 	}
+	stored, err := service.runs.GetRun(ctx, run.ID)
+	if err != nil {
+		return repositoryError(operation, err)
+	}
+	if stored.RequestID != run.RequestID || !stored.StartedAt.Time().Equal(run.StartedAt.Time()) {
+		return invalid(operation, fmt.Errorf("research run immutable identity or start time changed"))
+	}
+	transitionAt := stored.StartedAt
+	if run.CompletedAt != nil {
+		transitionAt = *run.CompletedAt
+	}
+	transitioned, err := research.TransitionResearchRunV1(stored, run.Status, transitionAt)
+	if err != nil {
+		return invalid(operation, err)
+	}
+	if !sameOptionalTimestamp(transitioned.CompletedAt, run.CompletedAt) {
+		return invalid(operation, fmt.Errorf("research run completion does not match lifecycle transition"))
+	}
 	return repositoryError(operation, service.runs.UpdateRun(ctx, run))
+}
+
+func (service *researchService) TransitionRun(ctx context.Context, id research.ID, status research.ResearchRunStatus, at research.Timestamp) (research.ResearchRun, error) {
+	const operation = "transition research run"
+	if err := id.Validate(); err != nil {
+		return research.ResearchRun{}, invalid(operation, err)
+	}
+	if err := status.Validate(); err != nil {
+		return research.ResearchRun{}, invalid(operation, err)
+	}
+	if err := at.Validate(); err != nil {
+		return research.ResearchRun{}, invalid(operation, err)
+	}
+	if err := requireDependency(operation, "research run repository", service.runs); err != nil {
+		return research.ResearchRun{}, err
+	}
+	stored, err := service.runs.GetRun(ctx, id)
+	if err != nil {
+		return research.ResearchRun{}, repositoryError(operation, err)
+	}
+	transitioned, err := research.TransitionResearchRunV1(stored, status, at)
+	if err != nil {
+		return research.ResearchRun{}, invalid(operation, err)
+	}
+	if transitioned.Status == stored.Status {
+		return stored, nil
+	}
+	if err := service.runs.UpdateRun(ctx, transitioned); err != nil {
+		return research.ResearchRun{}, repositoryError(operation, err)
+	}
+	return transitioned, nil
 }
 
 func (service *researchService) RecordAudit(ctx context.Context, audit research.ResearchRunAudit) error {

@@ -34,7 +34,7 @@ func (repository sourceBundleRepository) Append(ctx context.Context, bundle rese
 	if !exists {
 		return notFound(operation)
 	}
-	if run.Status != research.ResearchRunCompleted || run.CompletedAt == nil || bundle.VerifiedAt.Before(*run.CompletedAt) ||
+	if !memoryRunAllowsBundle(run, bundle.VerifiedAt) ||
 		request.Topic != bundle.Topic || request.Purpose != bundle.Purpose || !sameBundleVersion(request.TargetVersion, bundle.TargetVersion) {
 		return invalid(operation, fmt.Errorf("bundle research run/request relationship does not match"))
 	}
@@ -79,6 +79,17 @@ func (repository sourceBundleRepository) Append(ctx context.Context, bundle rese
 	}
 	repository.store.bundles[bundle.ID] = cloneSourceBundle(bundle)
 	return nil
+}
+
+func memoryRunAllowsBundle(run research.ResearchRun, verifiedAt research.Timestamp) bool {
+	switch run.Status {
+	case research.ResearchRunRunning:
+		return run.CompletedAt == nil && !verifiedAt.Before(run.StartedAt)
+	case research.ResearchRunCompleted:
+		return run.CompletedAt != nil && !verifiedAt.Before(*run.CompletedAt)
+	default:
+		return false
+	}
 }
 
 func sameBundleVersion(left, right *research.SourceVersion) bool {

@@ -62,18 +62,22 @@ func (repository *researchSourceBundleRepository) Append(ctx context.Context, bu
 	} else if !exists {
 		return rollback(researchNotFound(operation))
 	}
-	var requestSubject, requestDomain, requestTechnology, requestPurpose, runStatus string
+	var requestSubject, requestDomain, requestTechnology, requestPurpose, runStatus, runStarted string
 	var requestVersion, runCompleted sql.NullString
-	if err := target.QueryRowContext(opCtx, `SELECT t.subject,t.domain,t.technology,t.purpose,t.target_version,r.status,r.completed_at FROM research_runs r JOIN research_topics t ON t.request_id=r.request_id WHERE r.id=?`, bundle.RunID.String()).Scan(
-		&requestSubject, &requestDomain, &requestTechnology, &requestPurpose, &requestVersion, &runStatus, &runCompleted,
+	if err := target.QueryRowContext(opCtx, `SELECT t.subject,t.domain,t.technology,t.purpose,t.target_version,r.status,r.started_at,r.completed_at FROM research_runs r JOIN research_topics t ON t.request_id=r.request_id WHERE r.id=?`, bundle.RunID.String()).Scan(
+		&requestSubject, &requestDomain, &requestTechnology, &requestPurpose, &requestVersion, &runStatus, &runStarted, &runCompleted,
 	); err != nil {
+		return rollback(researchPersistence(operation, err))
+	}
+	startedAt, err := scanTimestamp(runStarted)
+	if err != nil {
 		return rollback(researchPersistence(operation, err))
 	}
 	completedAt, err := scanOptionalTimestamp(runCompleted)
 	if err != nil {
 		return rollback(researchPersistence(operation, err))
 	}
-	if runStatus != string(research.ResearchRunCompleted) || completedAt == nil || bundle.VerifiedAt.Before(*completedAt) ||
+	if !sqliteRunAllowsBundle(research.ResearchRunStatus(runStatus), startedAt, completedAt, bundle.VerifiedAt) ||
 		bundle.Topic != (research.ResearchTopic{Subject: requestSubject, Domain: requestDomain, Technology: requestTechnology}) ||
 		string(bundle.Purpose) != requestPurpose || !sameStoredVersion(bundle.TargetVersion, requestVersion) {
 		return rollback(researchInvalid(operation, errors.New("bundle research run/request relationship does not match")))
@@ -175,6 +179,17 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, bundle.ID.String(), bundle.RunID.String(), 
 		}
 	}
 	return nil
+}
+
+func sqliteRunAllowsBundle(status research.ResearchRunStatus, startedAt research.Timestamp, completedAt *research.Timestamp, verifiedAt research.Timestamp) bool {
+	switch status {
+	case research.ResearchRunRunning:
+		return completedAt == nil && !verifiedAt.Before(startedAt)
+	case research.ResearchRunCompleted:
+		return completedAt != nil && !verifiedAt.Before(*completedAt)
+	default:
+		return false
+	}
 }
 
 func (repository *researchSourceBundleRepository) Get(ctx context.Context, id research.ID) (research.SourceBundle, error) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
@@ -45,6 +46,9 @@ func TestLiveResearchOrchestratorLoadsDurableWorkAndExecutesFixedStageOrder(t *t
 	if result.QueueItem.ID != queueItem.ID || result.Request.ID != queueItem.Request.ID || result.Run.ID != run.ID || result.AlgorithmVersion != application.LiveResearchOrchestratorV1 {
 		t.Fatalf("orchestration identity/result = %+v", result)
 	}
+	if result.Run.Status != research.ResearchRunCompleted || result.Run.CompletedAt == nil || result.Artifacts.Bundle == nil {
+		t.Fatalf("completed lifecycle result = %+v", result)
+	}
 }
 
 func TestLiveResearchOrchestratorStopsAtFirstFailedStage(t *testing.T) {
@@ -66,6 +70,9 @@ func TestLiveResearchOrchestratorStopsAtFirstFailedStage(t *testing.T) {
 	}
 	if calls[len(calls)-1] != application.LiveResearchStageSnapshot {
 		t.Fatalf("last call = %q, want snapshot", calls[len(calls)-1])
+	}
+	if result.Run.Status != research.ResearchRunFailed || result.Run.CompletedAt == nil {
+		t.Fatalf("failed lifecycle run = %+v", result.Run)
 	}
 }
 
@@ -116,16 +123,79 @@ func TestLiveResearchOrchestratorRequiresEveryStage(t *testing.T) {
 	}
 }
 
+func TestLiveResearchOrchestratorRequiresBundleBeforeCompletion(t *testing.T) {
+	t.Parallel()
+	queue, service, queueItem, run := liveResearchOrchestrationFixture(t)
+	var calls []application.LiveResearchStage
+	dependencies := liveResearchDependencies(queue, service, &calls, "")
+	dependencies.Bundle = passthroughLiveResearchStage{}
+	orchestrator, err := application.NewLiveResearchOrchestrator(dependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := orchestrator.Execute(context.Background(), application.LiveResearchOrchestrationRequest{
+		QueueItemID: queueItem.ID, RunID: run.ID, Mode: application.ResearchModeAuto,
+	})
+	if !errors.Is(err, application.ErrInvalidState) || result.Run.Status != research.ResearchRunFailed {
+		t.Fatalf("missing bundle result = (%+v,%v)", result, err)
+	}
+	for _, call := range calls {
+		if call == application.LiveResearchStageFinalize {
+			t.Fatal("finalize ran after bundle stage returned no bundle")
+		}
+	}
+}
+
+func TestLiveResearchOrchestratorPersistsCancellation(t *testing.T) {
+	t.Parallel()
+	queue, service, queueItem, run := liveResearchOrchestrationFixture(t)
+	var calls []application.LiveResearchStage
+	dependencies := liveResearchDependencies(queue, service, &calls, "")
+	dependencies.Fetch = cancellingLiveResearchStage{calls: &calls}
+	orchestrator, err := application.NewLiveResearchOrchestrator(dependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := orchestrator.Execute(context.Background(), application.LiveResearchOrchestrationRequest{
+		QueueItemID: queueItem.ID, RunID: run.ID, Mode: application.ResearchModeAuto,
+	})
+	if !errors.Is(err, context.Canceled) || result.Run.Status != research.ResearchRunCancelled || result.Run.CompletedAt == nil {
+		t.Fatalf("cancelled result = (%+v,%v)", result, err)
+	}
+	if len(calls) != 3 || calls[2] != application.LiveResearchStageFetch {
+		t.Fatalf("calls after cancellation = %v", calls)
+	}
+}
+
 type recordingLiveResearchStage struct {
 	stage application.LiveResearchStage
 	calls *[]application.LiveResearchStage
 	fail  application.LiveResearchStage
 }
 
+type passthroughLiveResearchStage struct{}
+
+func (passthroughLiveResearchStage) Execute(_ context.Context, input application.LiveResearchStageInput) (application.LiveResearchArtifacts, error) {
+	return input.Artifacts, nil
+}
+
+type cancellingLiveResearchStage struct {
+	calls *[]application.LiveResearchStage
+}
+
+func (stage cancellingLiveResearchStage) Execute(context.Context, application.LiveResearchStageInput) (application.LiveResearchArtifacts, error) {
+	*stage.calls = append(*stage.calls, application.LiveResearchStageFetch)
+	return application.LiveResearchArtifacts{}, context.Canceled
+}
+
 func (stage recordingLiveResearchStage) Execute(_ context.Context, input application.LiveResearchStageInput) (application.LiveResearchArtifacts, error) {
 	*stage.calls = append(*stage.calls, stage.stage)
 	if stage.stage == stage.fail {
 		return application.LiveResearchArtifacts{}, errors.New("fixture stage failure")
+	}
+	if stage.stage == application.LiveResearchStageBundle {
+		bundleID, _ := research.NewID("bundle.orchestrator.fixture")
+		input.Artifacts.Bundle = &research.SourceBundle{ID: bundleID, RunID: input.Run.ID}
 	}
 	return input.Artifacts, nil
 }
@@ -135,7 +205,7 @@ func liveResearchDependencies(queue application.ResearchTriggerService, service 
 		return recordingLiveResearchStage{stage: value, calls: calls, fail: fail}
 	}
 	return application.LiveResearchOrchestratorDependencies{
-		Queue: queue, Research: service,
+		Queue: queue, Research: service, Clock: fixedClock{now: testTimestampNoHelper(13)},
 		Search:             stage(application.LiveResearchStageSearch),
 		RegisterCandidates: stage(application.LiveResearchStageRegisterCandidates),
 		Fetch:              stage(application.LiveResearchStageFetch), Snapshot: stage(application.LiveResearchStageSnapshot),
@@ -143,6 +213,11 @@ func liveResearchDependencies(queue application.ResearchTriggerService, service 
 		Verify: stage(application.LiveResearchStageVerify), Bundle: stage(application.LiveResearchStageBundle),
 		Finalize: stage(application.LiveResearchStageFinalize),
 	}
+}
+
+func testTimestampNoHelper(hour int) research.Timestamp {
+	value, _ := research.NewTimestamp(time.Date(2026, 8, 24, hour, 0, 0, 0, time.UTC))
+	return value
 }
 
 func liveResearchOrchestrationFixture(t *testing.T) (application.ResearchTriggerService, application.ResearchService, research.ResearchQueueItem, research.ResearchRun) {

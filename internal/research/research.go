@@ -33,6 +33,8 @@ func (request ResearchRequest) Validate() error {
 
 type ResearchRunStatus string
 
+const ResearchRunLifecycleV1 = "research-run-lifecycle-v1"
+
 const (
 	ResearchRunPlanned   ResearchRunStatus = "planned"
 	ResearchRunRunning   ResearchRunStatus = "running"
@@ -48,6 +50,15 @@ func (status ResearchRunStatus) Validate() error {
 		return nil
 	default:
 		return fmt.Errorf("invalid research run status %q", status)
+	}
+}
+
+func (status ResearchRunStatus) IsTerminal() bool {
+	switch status {
+	case ResearchRunCompleted, ResearchRunFailed, ResearchRunCancelled:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -95,6 +106,54 @@ func (run ResearchRun) Validate() error {
 		}
 	}
 	return nil
+}
+
+// TransitionResearchRunV1 is the single lifecycle policy for a research run.
+// Detailed orchestration stages execute while the durable run is running; they
+// do not form a second persisted state machine.
+func TransitionResearchRunV1(run ResearchRun, target ResearchRunStatus, at Timestamp) (ResearchRun, error) {
+	if err := run.Validate(); err != nil {
+		return ResearchRun{}, err
+	}
+	if err := target.Validate(); err != nil {
+		return ResearchRun{}, err
+	}
+	if err := at.Validate(); err != nil {
+		return ResearchRun{}, fmt.Errorf("research run transition time: %w", err)
+	}
+	if at.Before(run.StartedAt) {
+		return ResearchRun{}, fmt.Errorf("research run transition precedes start")
+	}
+	if target == run.Status {
+		return run, nil
+	}
+	if !researchRunTransitionAllowed(run.Status, target) {
+		return ResearchRun{}, fmt.Errorf("research run transition from %q to %q is not allowed", run.Status, target)
+	}
+
+	result := run
+	result.Status = target
+	if target.IsTerminal() {
+		completedAt := at
+		result.CompletedAt = &completedAt
+	} else {
+		result.CompletedAt = nil
+	}
+	if err := result.Validate(); err != nil {
+		return ResearchRun{}, err
+	}
+	return result, nil
+}
+
+func researchRunTransitionAllowed(current, target ResearchRunStatus) bool {
+	switch current {
+	case ResearchRunPlanned:
+		return target == ResearchRunRunning || target == ResearchRunFailed || target == ResearchRunCancelled
+	case ResearchRunRunning:
+		return target == ResearchRunCompleted || target == ResearchRunFailed || target == ResearchRunCancelled
+	default:
+		return false
+	}
 }
 
 type AuthorityTier string

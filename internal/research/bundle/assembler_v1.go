@@ -155,14 +155,20 @@ func validateInput(input Input) error {
 	if input.Run.RequestID != input.Request.ID {
 		return fmt.Errorf("bundle run does not belong to request")
 	}
-	if input.Run.Status != research.ResearchRunCompleted || input.Run.CompletedAt == nil {
-		return fmt.Errorf("source bundle requires a completed research run")
-	}
 	if err := input.VerifiedAt.Validate(); err != nil {
 		return fmt.Errorf("bundle verified at: %w", err)
 	}
-	if input.VerifiedAt.Before(*input.Run.CompletedAt) {
-		return fmt.Errorf("bundle verification precedes research run completion")
+	switch input.Run.Status {
+	case research.ResearchRunRunning:
+		if input.Run.CompletedAt != nil || input.VerifiedAt.Before(input.Run.StartedAt) {
+			return fmt.Errorf("source bundle active research run timing is invalid")
+		}
+	case research.ResearchRunCompleted:
+		if input.Run.CompletedAt == nil || input.VerifiedAt.Before(*input.Run.CompletedAt) {
+			return fmt.Errorf("bundle verification precedes research run completion")
+		}
+	default:
+		return fmt.Errorf("source bundle requires a running or completed research run")
 	}
 	if len(input.Claims) == 0 || len(input.Claims) > research.MaximumSourceBundleItems {
 		return fmt.Errorf("bundle claim count must be between 1 and %d", research.MaximumSourceBundleItems)

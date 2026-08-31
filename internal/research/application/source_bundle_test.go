@@ -34,10 +34,9 @@ func TestSourceBundleServiceAssemblesPersistsAndExportsReadyBundle(t *testing.T)
 		ID: testID(t, "request.bundle.ready"), Topic: claim.Topic,
 		Purpose: research.PurposeProductionPractice, RequestedAt: testTimestamp(t, 7),
 	}
-	completedAt := testTimestamp(t, 19)
 	run := research.ResearchRun{
 		ID: testID(t, "run.bundle.ready"), RequestID: request.ID,
-		Status: research.ResearchRunCompleted, StartedAt: testTimestamp(t, 8), CompletedAt: &completedAt,
+		Status: research.ResearchRunRunning, StartedAt: testTimestamp(t, 8),
 	}
 	if err := repositories.Runs.Create(ctx, request, run); err != nil {
 		t.Fatal(err)
@@ -58,6 +57,10 @@ func TestSourceBundleServiceAssemblesPersistsAndExportsReadyBundle(t *testing.T)
 	stored, err := service.Get(ctx, bundle.ID)
 	if err != nil || stored.ContentHash != bundle.ContentHash {
 		t.Fatalf("stored bundle = (%+v, %v)", stored, err)
+	}
+	completed, err := application.NewResearchService(repositories.Runs).TransitionRun(ctx, run.ID, research.ResearchRunCompleted, testTimestamp(t, 21))
+	if err != nil || completed.Status != research.ResearchRunCompleted {
+		t.Fatalf("complete run after durable bundle = (%+v,%v)", completed, err)
 	}
 	exported, err := service.Export(ctx, bundle.ID)
 	if err != nil {

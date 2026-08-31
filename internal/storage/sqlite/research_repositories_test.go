@@ -982,6 +982,24 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if listed, err := repositories.Bundles.ListByRun(ctx, run.ID); err != nil || len(listed) != 1 || !sourceBundleJSONEqual(listed[0], wantBundleJSON) {
 		t.Fatalf("source bundles by run=(%+v,%v)", listed, err)
 	}
+	activeRun := research.ResearchRun{
+		ID: researchTestID(t, "run.bundle.active"), RequestID: request.ID,
+		Status: research.ResearchRunRunning, StartedAt: at,
+	}
+	if err := repositories.Runs.Create(ctx, request, activeRun); err != nil {
+		t.Fatal(err)
+	}
+	activeBundle := bundle
+	activeBundle.ID = researchTestID(t, "bundle.sqlite.active")
+	activeBundle.RunID = activeRun.ID
+	activeBundle.ContentHash = ""
+	activeBundle, err = research.SealSourceBundleV1(activeBundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Bundles.Append(ctx, activeBundle); err != nil {
+		t.Fatalf("append bundle before run completion: %v", err)
+	}
 	if err := repositories.Bundles.Append(ctx, bundle); !errors.Is(err, application.ErrConflict) {
 		t.Fatalf("duplicate source bundle error=%v, want conflict", err)
 	}

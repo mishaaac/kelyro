@@ -129,7 +129,11 @@ cannot drift between layers.
 
 `ResearchRequest` binds a topic, purpose, optional target version, and request
 time. `ResearchRun` gives an execution a separate lifecycle and validates
-terminal completion timestamps.
+terminal completion timestamps. `research-run-lifecycle-v1` permits only
+`planned → running → completed` plus failure/cancellation exits; detailed live
+pipeline stages execute inside `running` rather than creating another state
+machine. The complete transition contract is documented in
+[research-run-lifecycle-v1.md](research-run-lifecycle-v1.md).
 
 `AuthorityProfile`, `AuthorityTier`, `TrustDecision`, and `TrustReason` define
 the stable input/output vocabulary. `internal/research/authority` implements

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 14
-Last completed step: 13
+Current step: 15
+Last completed step: 14
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -725,3 +725,62 @@ Release: unreleased
   válidas alrededor del orchestrator; no debe crear un segundo lifecycle.
 - `completed` solo puede persistirse después de que la etapa bundle haya
   devuelto un bundle durable.
+
+## Step 14 — ResearchRun lifecycle completado
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- Política pura `research-run-lifecycle-v1` añadida sobre el `ResearchRun`
+  existente, con transiciones forward-only e idempotencia del estado actual.
+- `ResearchService.TransitionRun` carga, valida y persiste la única state
+  machine; `UpdateRun` también rechaza saltos inválidos y mutaciones de
+  identidad/start time.
+- El orchestrator transiciona `planned → running` antes del primer stage,
+  persiste `failed` al primer error y `cancelled` al observar cancelación o
+  deadline del contexto.
+- Success exige un bundle con ID válido y `RunID` coincidente después de la
+  etapa bundle; `running → completed` ocurre solo tras bundle y finalize.
+- El assembler y los repositories memory/SQLite permiten append sobre un run
+  `running`, haciendo posible el orden durable `bundle → completed`; el caso
+  `completed` previo se conserva por compatibilidad I-03.
+- Contrato documentado en `research-run-lifecycle-v1.md` y referencias de
+  dominio, application y Source Bundle actualizadas.
+- Tests de transición pura/application, terminalidad de success/failure/
+  cancellation, bundle obligatorio y append pre-completion memory/SQLite.
+
+### Decisions
+
+- Se conservaron los estados persistidos `planned`, `running`, `completed`,
+  `failed` y `cancelled`. Search/register/fetch/snapshot/normalize/extract/
+  verify/bundle son etapas dentro de `running`, no una segunda state machine.
+- No hizo falta una migración: el schema I-03 ya expresa todos los estados
+  durables necesarios y evita una reconstrucción destructiva de tablas.
+- Los estados conceptuales detallados del plan se observan mediante la
+  secuencia tipada del orchestrator, mientras la terminalidad durable sigue
+  siendo provider-neutral y compatible con datos existentes.
+- Un retorno de la etapa bundle representa append durable por contrato; el
+  orchestrator valida la identidad pero no inspecciona SQLite ni duplica la
+  persistencia.
+- Para registrar cancelación después de que el contexto se cierre se usa un
+  contexto derivado sin cancelación únicamente para la transición terminal;
+  no se inicia ningún stage ni trabajo de red nuevo.
+- El Paso 14 no cambia estados de queue. Claim/ack/retry sigue reservado al
+  Paso 15.
+
+### Verification
+
+- `go test ./internal/research ./internal/research/application ./internal/research/bundle ./internal/storage/sqlite -count=1`.
+- `go vet ./internal/research ./internal/research/application ./internal/research/bundle ./internal/storage/sqlite`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 15 debe consumir la queue existente y delegar la ejecución al
+  orchestrator; no debe recrear lifecycle, stage ordering ni otra queue.
+- Ack/retry debe preservar la identidad lógica y no reabrir runs terminales.

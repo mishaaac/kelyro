@@ -1193,6 +1193,7 @@ type ResearchService interface {
 	Start(context.Context, research.ResearchRequest, research.ResearchRun) error
 	Request(context.Context, research.ID) (research.ResearchRequest, error)
 	Run(context.Context, research.ID) (research.ResearchRun, error)
+	TransitionRun(context.Context, research.ID, research.ResearchRunStatus, research.Timestamp) (research.ResearchRun, error)
 	UpdateRun(context.Context, research.ResearchRun) error
 	RecordAudit(context.Context, research.ResearchRunAudit) error
 	AuditTrail(context.Context, research.ID) ([]research.ResearchRunAudit, error)

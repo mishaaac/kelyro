@@ -104,6 +104,10 @@ The pure `query-planner-v1` input/output contract, purpose variants,
 authority-aware deterministic ordering, generic-topic behavior, and discovery
 mapping are documented in [query-planner-v1.md](query-planner-v1.md).
 
+The single durable Research Run state machine, legal transitions, cancellation
+and failure terminality, and bundle-before-completed ordering are documented in
+[research-run-lifecycle-v1.md](research-run-lifecycle-v1.md).
+
 The bounded Evidence contract, canonical excerpt hashing, structured Claim
 scopes, multi-evidence relationships, copyright boundary, and forward-only
 persistence compatibility are documented in

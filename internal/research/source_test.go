@@ -180,3 +180,32 @@ func TestResearchRunAuthorityTrustAndDiscoveryValidateEnumsAndTime(t *testing.T)
 		t.Fatal("DiscoveredSource.Validate() accepted missing provider")
 	}
 }
+
+func TestResearchRunLifecycleV1AllowsOnlyForwardTerminalTransitions(t *testing.T) {
+	t.Parallel()
+	run := ResearchRun{
+		ID: mustID(t, "run.lifecycle"), RequestID: mustID(t, "request.lifecycle"),
+		Status: ResearchRunPlanned, StartedAt: mustTimestamp(t, 10),
+	}
+	running, err := TransitionResearchRunV1(run, ResearchRunRunning, mustTimestamp(t, 11))
+	if err != nil || running.Status != ResearchRunRunning || running.CompletedAt != nil {
+		t.Fatalf("planned -> running = (%+v,%v)", running, err)
+	}
+	completed, err := TransitionResearchRunV1(running, ResearchRunCompleted, mustTimestamp(t, 12))
+	if err != nil || completed.Status != ResearchRunCompleted || completed.CompletedAt == nil {
+		t.Fatalf("running -> completed = (%+v,%v)", completed, err)
+	}
+	if _, err := TransitionResearchRunV1(completed, ResearchRunRunning, mustTimestamp(t, 13)); err == nil {
+		t.Fatal("completed -> running transition succeeded")
+	}
+	if _, err := TransitionResearchRunV1(run, ResearchRunCompleted, mustTimestamp(t, 11)); err == nil {
+		t.Fatal("planned -> completed transition succeeded")
+	}
+	if _, err := TransitionResearchRunV1(run, ResearchRunFailed, mustTimestamp(t, 9)); err == nil {
+		t.Fatal("transition before run start succeeded")
+	}
+	idempotent, err := TransitionResearchRunV1(completed, ResearchRunCompleted, mustTimestamp(t, 13))
+	if err != nil || idempotent.CompletedAt == nil || !idempotent.CompletedAt.Time().Equal(completed.CompletedAt.Time()) {
+		t.Fatalf("idempotent completed transition = (%+v,%v)", idempotent, err)
+	}
+}

@@ -88,6 +88,7 @@ type LiveResearchOrchestrationResult struct {
 type LiveResearchOrchestratorDependencies struct {
 	Queue              ResearchTriggerService
 	Research           ResearchService
+	Clock              Clock
 	Search             LiveResearchStageService
 	RegisterCandidates LiveResearchStageService
 	Fetch              LiveResearchStageService
@@ -148,19 +149,80 @@ func (orchestrator *liveResearchOrchestrator) Execute(ctx context.Context, reque
 		QueueItem: queueItem, Request: durableRequest, Run: run,
 		AlgorithmVersion: LiveResearchOrchestratorV1,
 	}
+	if err := ctx.Err(); err != nil {
+		return orchestrator.stop(ctx, result, research.ResearchRunCancelled, Classify(ErrorUnavailable, operation, err))
+	}
+	if run.Status == research.ResearchRunPlanned {
+		run, err = orchestrator.dependencies.Research.TransitionRun(ctx, run.ID, research.ResearchRunRunning, orchestrator.dependencies.Clock.Now())
+		if err != nil {
+			classified := boundaryError(ErrorUnavailable, operation, err)
+			if ctx.Err() != nil {
+				return orchestrator.stop(ctx, result, research.ResearchRunCancelled, classified)
+			}
+			return orchestrator.stop(ctx, result, research.ResearchRunFailed, classified)
+		}
+		result.Run = run
+	}
 	for _, stage := range liveResearchStageOrder {
+		if err := ctx.Err(); err != nil {
+			return orchestrator.stop(ctx, result, research.ResearchRunCancelled, Classify(ErrorUnavailable, operation, err))
+		}
 		service := liveResearchStageService(orchestrator.dependencies, stage)
 		artifacts, stageErr := service.Execute(ctx, LiveResearchStageInput{
 			QueueItem: queueItem, Request: durableRequest, Run: result.Run, Mode: request.Mode,
 			Artifacts: cloneLiveResearchArtifacts(result.Artifacts),
 		})
 		if stageErr != nil {
-			return result, boundaryError(ErrorUnavailable, "execute live research stage "+string(stage), stageErr)
+			classified := boundaryError(ErrorUnavailable, "execute live research stage "+string(stage), stageErr)
+			status := research.ResearchRunFailed
+			if errors.Is(stageErr, context.Canceled) || errors.Is(stageErr, context.DeadlineExceeded) || ctx.Err() != nil {
+				status = research.ResearchRunCancelled
+			}
+			return orchestrator.stop(ctx, result, status, classified)
 		}
 		result.Artifacts = artifacts
 		result.CompletedStages = append(result.CompletedStages, stage)
+		if stage == LiveResearchStageBundle {
+			if err := validateOrchestratedBundle(result.Run.ID, result.Artifacts.Bundle); err != nil {
+				return orchestrator.stop(ctx, result, research.ResearchRunFailed, invalid(operation, err))
+			}
+		}
 	}
+	if err := ctx.Err(); err != nil {
+		return orchestrator.stop(ctx, result, research.ResearchRunCancelled, Classify(ErrorUnavailable, operation, err))
+	}
+	completed, err := orchestrator.dependencies.Research.TransitionRun(ctx, result.Run.ID, research.ResearchRunCompleted, orchestrator.dependencies.Clock.Now())
+	if err != nil {
+		return orchestrator.stop(ctx, result, research.ResearchRunFailed, boundaryError(ErrorUnavailable, operation, err))
+	}
+	result.Run = completed
 	return result, nil
+}
+
+func (orchestrator *liveResearchOrchestrator) stop(ctx context.Context, result LiveResearchOrchestrationResult, status research.ResearchRunStatus, cause error) (LiveResearchOrchestrationResult, error) {
+	transitionContext := ctx
+	if ctx.Err() != nil {
+		transitionContext = context.WithoutCancel(ctx)
+	}
+	terminal, err := orchestrator.dependencies.Research.TransitionRun(transitionContext, result.Run.ID, status, orchestrator.dependencies.Clock.Now())
+	if err != nil {
+		return result, errors.Join(cause, boundaryError(ErrorUnavailable, "finalize live research run", err))
+	}
+	result.Run = terminal
+	return result, cause
+}
+
+func validateOrchestratedBundle(runID research.ID, bundle *research.SourceBundle) error {
+	if bundle == nil {
+		return errors.New("bundle stage returned no durable bundle")
+	}
+	if err := bundle.ID.Validate(); err != nil {
+		return fmt.Errorf("bundle stage returned invalid bundle identity: %w", err)
+	}
+	if bundle.RunID != runID {
+		return errors.New("bundle stage returned a bundle for a different research run")
+	}
+	return nil
 }
 
 func validateLiveResearchOrchestratorDependencies(dependencies LiveResearchOrchestratorDependencies) error {
@@ -171,6 +233,7 @@ func validateLiveResearchOrchestratorDependencies(dependencies LiveResearchOrche
 	}{
 		{"research trigger service", dependencies.Queue},
 		{"research service", dependencies.Research},
+		{"clock", dependencies.Clock},
 		{"search stage", dependencies.Search},
 		{"candidate registration stage", dependencies.RegisterCandidates},
 		{"fetch stage", dependencies.Fetch},

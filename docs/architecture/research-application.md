@@ -153,7 +153,7 @@ The initial services are deliberately thin:
   accepted TrustDecision tiers, invokes the pure pairwise
   `conflict-resolver-v1` policy, appends the explainable outcome, and exposes
   exact and per-Claim history;
-- `SourceBundleService` loads a completed run and selected Claims, checks every
+- `SourceBundleService` loads a running or completed run and selected Claims, checks every
   declared Evidence identity, consumes latest verification/conflict/freshness
   state, classifies source roles, invokes `source-bundle-v1`, appends the
   immutable result, and exposes offline read/export/history operations;
@@ -170,6 +170,13 @@ one append; it does not update history or persist raw bodies. They do not
 implement Trust Policy, authority matching, candidate selection,
 general-purpose evidence extraction, or conflict candidate discovery. They do
 not invoke curriculum compilation or mutate Student Core.
+
+`LiveResearchOrchestrator` fixes the query-to-bundle stage order over these
+application boundaries. `ResearchService.TransitionRun` applies the single
+`research-run-lifecycle-v1` policy: the orchestrator enters `running` before
+stage work, persists `failed`/`cancelled` on an unsuccessful return, and marks
+`completed` only after the bundle stage has returned a durable matching bundle.
+It does not claim or acknowledge queue items.
 
 Step 45 adds only bounded execution over already prepared discovery and fetch
 inputs. It does not make a discovery candidate Evidence or decide which

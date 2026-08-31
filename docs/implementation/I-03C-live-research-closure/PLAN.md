@@ -753,7 +753,7 @@ feat(research): define live research orchestrator
 
 ## Paso 14 — Completar ResearchRun lifecycle
 
-- [ ] Paso 14 completado
+- [x] Paso 14 completado
 
 Reusar state machine.
 

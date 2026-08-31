@@ -76,8 +76,10 @@ invalid vocabulary, and hash mismatches.
 
 ## Application and persistence
 
-`SourceBundleService.Assemble` requires a completed Research Run and selected
-Claim IDs. It loads Claims, every declared Evidence identity, latest
+`SourceBundleService.Assemble` requires a running or completed Research Run and
+selected Claim IDs. The running case lets live orchestration append the bundle
+before its final `running → completed` transition; completed remains supported
+for existing I-03 callers. It loads Claims, every declared Evidence identity, latest
 multi-source verification, the union of Sources and latest Trust Decisions,
 latest conflict per canonical pair, and Claim freshness. The pure assembler
 derives the output and the append-only repository stores it atomically.

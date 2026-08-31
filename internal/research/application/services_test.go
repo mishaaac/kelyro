@@ -139,6 +139,35 @@ func TestResearchServiceRecordsImmutableReproducibleAuditTrail(t *testing.T) {
 	}
 }
 
+func TestResearchServicePersistsLifecycleV1Transitions(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := memory.New()
+	service := application.NewResearchService(store.Repositories().Runs)
+	request, run := testRequestRun(t)
+	run.Status = research.ResearchRunPlanned
+	if err := service.Start(ctx, request, run); err != nil {
+		t.Fatal(err)
+	}
+	running, err := service.TransitionRun(ctx, run.ID, research.ResearchRunRunning, testTimestamp(t, 11))
+	if err != nil || running.Status != research.ResearchRunRunning {
+		t.Fatalf("TransitionRun(running) = (%+v,%v)", running, err)
+	}
+	failed, err := service.TransitionRun(ctx, run.ID, research.ResearchRunFailed, testTimestamp(t, 12))
+	if err != nil || failed.CompletedAt == nil {
+		t.Fatalf("TransitionRun(failed) = (%+v,%v)", failed, err)
+	}
+	if _, err := service.TransitionRun(ctx, run.ID, research.ResearchRunRunning, testTimestamp(t, 13)); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("terminal TransitionRun() error = %v, want invalid_state", err)
+	}
+
+	mutated := failed
+	mutated.StartedAt = testTimestamp(t, 9)
+	if err := service.UpdateRun(ctx, mutated); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("UpdateRun(mutated start) error = %v, want invalid_state", err)
+	}
+}
+
 func TestMemorySourceRepositoryDefensivelyCopiesSpecializedMetadata(t *testing.T) {
 	t.Parallel()
 	repositories := memory.New().Repositories()
