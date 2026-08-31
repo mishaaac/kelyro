@@ -46,6 +46,16 @@
 - Do not implement I-04 curriculum compilation or modify student mastery from
   I-03.
 
+## I-03C Live Research Closure boundaries
+
+- Do not refactor completed I-03 components unless required by the scoped fix.
+- Prefer existing interfaces, services, repositories, queues, and lifecycle
+  models.
+- Do not implement I-04 or introduce an AI dependency.
+- Do not scrape search engines; use an explicit, documented provider API.
+- Route all network access through the existing privacy policy.
+- Keep all live tests explicitly opt-in; ordinary tests must remain offline.
+
 ## I-02 compatibility boundaries
 
 - Do not implement the Research Engine, Curriculum Compiler, AI providers, plugins, or the full Exercise Engine.
