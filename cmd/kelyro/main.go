@@ -26,6 +26,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/researchdb"
 	"github.com/mishaaac/kelyro/internal/infra/researchfetch"
 	"github.com/mishaaac/kelyro/internal/infra/researchhttp"
+	"github.com/mishaaac/kelyro/internal/infra/researchnormalize"
 	"github.com/mishaaac/kelyro/internal/infra/researchsearch"
 	"github.com/mishaaac/kelyro/internal/infra/sessiondb"
 	"github.com/mishaaac/kelyro/internal/infra/updatecache"
@@ -98,6 +99,7 @@ func main() {
 		WithResearchCaches(researchcachefs.NewFactory()).
 		WithResearchSearch(researchSearch).
 		WithResearchFetcher(researchFetcher).
+		WithResearchNormalizer(researchnormalize.New()).
 		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).

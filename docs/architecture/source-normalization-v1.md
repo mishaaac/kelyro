@@ -10,6 +10,21 @@ The immutable algorithm identifier is `source-normalization-v1`. Normalization
 is derived data: the Step 09 snapshot and its canonical fetched-content hash
 remain the historical source of truth.
 
+I-03C wires this adapter into the orchestrator as
+`live-source-normalization-v1`. The stage consumes only the transient
+`NormalizationInputs` emitted after snapshot/cache resolution; it never
+refetches a Source or reads raw content from SQLite. Before invoking the
+adapter, each input must match one durable snapshot by Source ID, final locator,
+and canonical content hash. This keeps the live provenance chain attached to
+the exact fetched representation being normalized.
+
+Outputs and nested collections are defensively copied into
+`LiveResearchArtifacts`. A document-level parser failure is recorded as bounded
+Source ID/locator/application error-kind data and other valid documents may
+continue. Cancellation is always terminal, and a run with no successfully
+normalized Source fails the stage. Raw bodies remain transient and this stage
+does not write Evidence, Claims, cache entries, or source metadata.
+
 ## Output contract
 
 `NormalizedSource` preserves:
@@ -114,6 +129,6 @@ UTF-8, bodyless responses, cancellation, output limits, hierarchy, dates, code,
 deterministic ordering, hostile instruction-like prose, terminal controls, and
 fuzzed malformed HTML.
 
-This step does not implement discovery, evidence/claims, metadata persistence,
-PDF parsing, cache writes, trust decisions, release ingestion, curriculum
-compilation, or Student Core mutation.
+This adapter and its live wiring do not implement discovery, evidence/claims,
+metadata persistence, PDF parsing, cache writes, trust decisions, release
+ingestion, curriculum compilation, or Student Core mutation.

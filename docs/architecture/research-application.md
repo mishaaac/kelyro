@@ -132,6 +132,9 @@ The initial services are deliberately thin:
   `SnapshotCaptureService`, writes bounded disposable bodies through the
   existing filesystem cache, resolves cache/304 normalization inputs without
   duplicating history, and preserves partial snapshot/cache failures;
+- `live-source-normalization-v1` verifies each transient input against its
+  durable snapshot, delegates HTML/Markdown/JSON/text parsing to the existing
+  `SourceNormalizer`, and preserves bounded document-level partial failures;
 - `ResearchProcessingService` executes prepared discovery and fetch work in
   separate bounded pools, preserves input-index result ordering, and enforces
   the versioned whole-run candidate, fetch, Claim, and byte budget;

@@ -3,6 +3,8 @@ package researchnormalize
 import (
 	"errors"
 	"fmt"
+
+	"github.com/mishaaac/kelyro/internal/research/application"
 )
 
 type ErrorKind string
@@ -43,7 +45,14 @@ var (
 	ErrOutputLimit            error = &Error{Kind: ErrorOutputLimit}
 )
 
-func classified(kind ErrorKind, cause error) error { return &Error{Kind: kind, Cause: cause} }
+func classified(kind ErrorKind, cause error) error {
+	adapterError := &Error{Kind: kind, Cause: cause}
+	applicationKind := application.ErrorExternalFailure
+	if kind == ErrorOutputLimit {
+		applicationKind = application.ErrorBudgetExceeded
+	}
+	return application.Classify(applicationKind, "normalize source", adapterError)
+}
 
 func KindOf(err error) (ErrorKind, bool) {
 	var target *Error

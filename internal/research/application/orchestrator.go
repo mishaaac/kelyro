@@ -70,6 +70,7 @@ type LiveResearchArtifacts struct {
 	SnapshotFailures       []SourceSnapshotFailure
 	CacheFailures          []SourceSnapshotFailure
 	NormalizedSources      []NormalizedSource
+	NormalizationFailures  []SourceNormalizationFailure
 	Evidence               []research.Evidence
 	Claims                 []research.Claim
 	Verifications          []research.VerificationResult
@@ -327,7 +328,11 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 	result.SnapshotFailures = append([]SourceSnapshotFailure(nil), artifacts.SnapshotFailures...)
 	result.CacheFailures = append([]SourceSnapshotFailure(nil), artifacts.CacheFailures...)
 	result.Snapshots = append([]research.SourceSnapshot(nil), artifacts.Snapshots...)
-	result.NormalizedSources = append([]NormalizedSource(nil), artifacts.NormalizedSources...)
+	result.NormalizedSources = make([]NormalizedSource, len(artifacts.NormalizedSources))
+	for index, normalized := range artifacts.NormalizedSources {
+		result.NormalizedSources[index] = cloneNormalizedSource(normalized)
+	}
+	result.NormalizationFailures = append([]SourceNormalizationFailure(nil), artifacts.NormalizationFailures...)
 	result.Evidence = append([]research.Evidence(nil), artifacts.Evidence...)
 	result.Claims = append([]research.Claim(nil), artifacts.Claims...)
 	result.Verifications = append([]research.VerificationResult(nil), artifacts.Verifications...)

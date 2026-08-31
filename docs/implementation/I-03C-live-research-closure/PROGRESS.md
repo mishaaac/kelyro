@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 22
-Last completed step: 21
+Current step: 23
+Last completed step: 22
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1178,3 +1178,53 @@ Release: unreleased
   ya resuelve body live, cache hit y revalidación `304` contra historia durable.
 - Debe reutilizar los normalizadores HTML/Markdown/JSON/text existentes sin
   persistir raw content ni comenzar Evidence extraction.
+
+## Step 22 — Normalizer wiring
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-source-normalization-v1` conecta los inputs transitorios del Paso 21
+  con el port `SourceNormalizer` existente.
+- Cada input se verifica contra su SourceSnapshot durable por Source ID,
+  locator final y hash canónico antes de cruzar el boundary del adapter.
+- El binario inyecta `researchnormalize.New()` y la composición application
+  construye el stage sin conocer parsers concretos.
+- HTML/XHTML, Markdown, JSON y plain text reutilizan exactamente
+  `source-normalization-v1`; no se añadió parser ni dependencia externa.
+- Resultados normalizados y todas sus colecciones/pointers se copian
+  defensivamente dentro de `LiveResearchArtifacts`.
+- Fallos por documento quedan bounded por Source/locator/kind y permiten
+  partial success; cancellation y el caso sin ninguna fuente normalizada son
+  terminales.
+- Tests de wiring ejecutan los cuatro formatos existentes, partial/all failure,
+  rechazo de input sin snapshot y composición productiva.
+
+### Decisions
+
+- El stage consume `NormalizationInputs`, no `FetchedSources`: así una
+  revalidación `304` normaliza el body durable recuperado de cache y nunca un
+  response body inexistente.
+- NormalizedSource es dato derivado transitorio; snapshot/hash continúan siendo
+  la verdad histórica y raw bodies no se escriben en SQLite.
+- Un adapter no puede cambiar Source ID ni locator. Una salida con identidad
+  diferente se registra como failure, no se acepta en provenance.
+- Unsupported media, documento inválido y output limit permanecen decisiones
+  del normalizador existente; el stage no agrega heurísticas ni fallback parser.
+- Este paso no crea Evidence/Claims, no asigna trust y no comienza I-04.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/infra/researchnormalize ./internal/app ./cmd/kelyro -run 'Test(LiveSourceNormalization|ServiceAssemblesExistingResearchNormalizer|Normalizer)' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 23 debe diseñar el extractor determinista sobre
+  `Artifacts.NormalizedSources`; no debe reabrir fetch/snapshot/normalization.
+- Search snippets siguen siendo candidates y no pueden sustituir Evidence.

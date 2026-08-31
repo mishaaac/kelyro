@@ -950,7 +950,7 @@ feat(research): snapshot live discovered sources
 
 ## Paso 22 — Normalizer wiring
 
-- [ ] Paso 22 completado
+- [x] Paso 22 completado
 
 Reusar normalizadores de:
 
@@ -1829,7 +1829,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 19 — Source Registry
 - [x] Paso 20 — Fetcher
 - [x] Paso 21 — Snapshot/cache
-- [ ] Paso 22 — Normalizer
+- [x] Paso 22 — Normalizer
 - [ ] Paso 23 — Evidence design
 - [ ] Paso 24 — Evidence implementation
 - [ ] Paso 25 — Claim design

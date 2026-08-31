@@ -1189,6 +1189,11 @@ type SourceNormalizer interface {
 	Normalize(context.Context, FetchedSource) (NormalizedSource, error)
 }
 
+type LiveSourceNormalizationService interface {
+	NormalizeSources(context.Context, LiveSourceNormalizationRequest) (LiveSourceNormalizationResult, error)
+	LiveResearchStageService
+}
+
 type MetadataExtractor interface {
 	Extract(context.Context, NormalizedSource) (research.SourceMetadata, error)
 }

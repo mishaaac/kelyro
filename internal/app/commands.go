@@ -191,6 +191,7 @@ type Service struct {
 	researchSourceCaches researchapp.SourceFetchCacheAdapterFactory
 	researchSearch       researchapp.LiveSearchProviderFactory
 	researchFetcher      researchapp.SourceFetcher
+	researchNormalizer   researchapp.SourceNormalizer
 	researchExecutor     ResearchTopicExecutor
 	researchClock        func() time.Time
 	currentDirectory     func() (string, error)
@@ -254,6 +255,13 @@ func (service *Service) WithResearchSearch(search researchapp.LiveSearchProvider
 // Privacy is resolved per command before the adapter can be invoked.
 func (service *Service) WithResearchFetcher(fetcher researchapp.SourceFetcher) *Service {
 	service.researchFetcher = fetcher
+	return service
+}
+
+// WithResearchNormalizer attaches the deterministic format normalizer used
+// after live snapshot capture.
+func (service *Service) WithResearchNormalizer(normalizer researchapp.SourceNormalizer) *Service {
+	service.researchNormalizer = normalizer
 	return service
 }
 
