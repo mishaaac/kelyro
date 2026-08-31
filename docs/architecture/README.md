@@ -123,6 +123,11 @@ scopes, multi-evidence relationships, copyright boundary, and forward-only
 persistence compatibility are documented in
 [evidence-claims-v1.md](evidence-claims-v1.md).
 
+The conservative `evidence-extractor-v1` candidate contract, snapshot-local
+locators, stable relevance scoring, admission anchors, and excerpt/context
+bounds are documented in
+[research-evidence-extractor-v1.md](research-evidence-extractor-v1.md).
+
 The bounded `provenance-graph-v1` DAG, typed relationships, historical and
 multi-source paths, deterministic explain/export behavior, persistence, and
 internal trace command are documented in

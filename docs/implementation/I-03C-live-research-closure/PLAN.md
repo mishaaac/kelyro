@@ -971,7 +971,7 @@ feat(research): normalize live fetched research content
 
 ## Paso 23 — Diseñar Deterministic Evidence Extractor v1
 
-- [ ] Paso 23 completado
+- [x] Paso 23 completado
 
 No intentar NLP general.
 
@@ -1830,7 +1830,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 20 — Fetcher
 - [x] Paso 21 — Snapshot/cache
 - [x] Paso 22 — Normalizer
-- [ ] Paso 23 — Evidence design
+- [x] Paso 23 — Evidence design
 - [ ] Paso 24 — Evidence implementation
 - [ ] Paso 25 — Claim design
 - [ ] Paso 26 — Claim implementation

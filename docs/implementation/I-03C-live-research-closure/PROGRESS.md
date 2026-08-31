@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 23
-Last completed step: 22
+Current step: 24
+Last completed step: 23
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1228,3 +1228,55 @@ Release: unreleased
 - El Paso 23 debe diseñar el extractor determinista sobre
   `Artifacts.NormalizedSources`; no debe reabrir fetch/snapshot/normalization.
 - Search snippets siguen siendo candidates y no pueden sustituir Evidence.
+
+## Step 23 — Deterministic Evidence Extractor v1 design
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- Contrato transitorio `EvidenceCandidate` ligado a Source + snapshot, con
+  kind cerrado, locator determinista, excerpt/hash, contexto bounded, score,
+  señales cerradas y versión inmutable `evidence-extractor-v1`.
+- Request del extractor exige topic/purpose, target version opcional y match
+  exacto de Source ID + locator entre `NormalizedSource` y snapshot durable.
+- Tres representaciones iniciales: heading, passage y structured metadata;
+  links/code quedan fuera del extractor genérico por no probar hechos ni
+  satisfacer el locator especializado de source-code Evidence.
+- Política de score entero documentada con anchor temático obligatorio,
+  threshold 50, orden estable, dedupe y límites de 24 candidates por Source y
+  1.000 por run.
+- Locators snapshot-local explícitos `heading[n]`, `text[n]` y
+  `metadata/...`, sin inventar una relación heading→párrafo que el normalizador
+  actual no conserva.
+- Bounds conservadores de 2 KiB por excerpt y 512 bytes por contexto, por
+  debajo de los ceilings del modelo Evidence ya publicado.
+
+### Decisions
+
+- Search snippet/rank no cruzan este boundary. Solo contenido ya fetched,
+  snapshotted y normalized puede producir candidates.
+- Relevancia y marcadores release/version/deprecation son señales de selección,
+  no Claims ni trust. La authority de la Source permanece reservada al Paso 27.
+- Un marcador aislado en contenido no relacionado no basta: cada candidate
+  necesita anchor en subject/technology/domain/target version o en el título/
+  headings del documento.
+- El score vive únicamente en el candidate transitorio. `Evidence` persiste el
+  excerpt literal y su provenance, no una falsa medida de verdad.
+- Este paso define contratos y política; no implementa selector, persistence,
+  Claims, verificación, bundle ni I-04.
+
+### Verification
+
+- `go test ./internal/research/application -run 'EvidenceCandidate|EvidenceExtractionRequest' -count=1`.
+- `go vet ./internal/research/application`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 24 debe implementar exactamente esta matriz sobre
+  `Artifacts.NormalizedSources`, persistir Evidence idempotente y fallar sin
+  fallback cuando no exista ningún candidate relevante.
+- El Paso 24 no debe derivar Claims ni aplicar trust/freshness/verification.
