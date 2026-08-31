@@ -76,6 +76,7 @@ type LiveResearchArtifacts struct {
 	ClaimCandidates        []ClaimCandidate
 	Claims                 []research.Claim
 	Citations              []research.Citation
+	TrustDecisions         []research.TrustDecision
 	Verifications          []research.VerificationResult
 	Bundle                 *research.SourceBundle
 }
@@ -350,12 +351,22 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 	for index, item := range artifacts.Citations {
 		result.Citations[index] = cloneCitationArtifact(item)
 	}
+	result.TrustDecisions = make([]research.TrustDecision, len(artifacts.TrustDecisions))
+	for index, decision := range artifacts.TrustDecisions {
+		result.TrustDecisions[index] = cloneTrustDecisionArtifact(decision)
+	}
 	result.Verifications = append([]research.VerificationResult(nil), artifacts.Verifications...)
 	if artifacts.Bundle != nil {
 		bundle := *artifacts.Bundle
 		result.Bundle = &bundle
 	}
 	return result
+}
+
+func cloneTrustDecisionArtifact(decision research.TrustDecision) research.TrustDecision {
+	clone := decision
+	clone.Reasons = append([]research.TrustReason(nil), decision.Reasons...)
+	return clone
 }
 
 func cloneCitationArtifact(item research.Citation) research.Citation {

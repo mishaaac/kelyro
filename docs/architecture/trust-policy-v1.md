@@ -148,6 +148,20 @@ not invent missing facts. It does not persist its output; existing
 perform multi-source verification, calculate freshness, resolve conflicts,
 score resource quality, fetch sources, or modify curriculum/student state.
 
+## Live research integration
+
+I-03C Step 27 applies this unchanged policy only after Claims and citations are
+durable. `live-trust-evaluation-v1` evaluates the Sources referenced by those
+Claims, matches an applicable Trusted Source Registry entry, and persists the
+full decision. Relevance comes from the literal Claim statement, while status
+scope supplies stability. Multiple URLs never imply independent corroboration.
+
+Provider ID, search rank, snippet, and discovery order are absent from the
+evaluation contract and therefore cannot influence authority. Newly discovered
+Sources that remain conservatively classified as `other` remain tier E and are
+rejected until reviewed classification exists. Step 27 supplies `unknown`
+freshness; the temporal integration reevaluates trust after freshness is known.
+
 ## I-03 closure status
 
 Step 49 reconfirmed `trust-policy-v1` as the shipped contextual trust contract:

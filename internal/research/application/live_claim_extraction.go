@@ -337,11 +337,10 @@ func (service *liveClaimExtractionService) Execute(ctx context.Context, input Li
 }
 
 type liveResearchExtractionStage struct {
-	evidence LiveResearchStageService
-	claims   LiveResearchStageService
+	stages []LiveResearchStageService
 }
 
-func NewLiveResearchExtractionStage(evidence, claims LiveResearchStageService) (LiveResearchStageService, error) {
+func NewLiveResearchExtractionStage(evidence, claims LiveResearchStageService, afterClaims ...LiveResearchStageService) (LiveResearchStageService, error) {
 	const operation = "configure live research extraction stage"
 	if err := requireDependency(operation, "evidence extraction stage", evidence); err != nil {
 		return nil, err
@@ -349,16 +348,26 @@ func NewLiveResearchExtractionStage(evidence, claims LiveResearchStageService) (
 	if err := requireDependency(operation, "claim extraction stage", claims); err != nil {
 		return nil, err
 	}
-	return &liveResearchExtractionStage{evidence: evidence, claims: claims}, nil
+	for index, stage := range afterClaims {
+		if err := requireDependency(operation, fmt.Sprintf("post-Claim stage %d", index), stage); err != nil {
+			return nil, err
+		}
+	}
+	stages := append([]LiveResearchStageService{evidence, claims}, afterClaims...)
+	return &liveResearchExtractionStage{stages: stages}, nil
 }
 
 func (stage *liveResearchExtractionStage) Execute(ctx context.Context, input LiveResearchStageInput) (LiveResearchArtifacts, error) {
-	artifacts, err := stage.evidence.Execute(ctx, input)
-	if err != nil {
-		return artifacts, err
+	artifacts := cloneLiveResearchArtifacts(input.Artifacts)
+	for _, service := range stage.stages {
+		input.Artifacts = artifacts
+		var err error
+		artifacts, err = service.Execute(ctx, input)
+		if err != nil {
+			return artifacts, err
+		}
 	}
-	input.Artifacts = artifacts
-	return stage.claims.Execute(ctx, input)
+	return artifacts, nil
 }
 
 func appendUniqueSourceIDV1(values []research.SourceID, candidate research.SourceID) []research.SourceID {

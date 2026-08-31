@@ -38,7 +38,11 @@ func TestServiceAssemblesDeterministicEvidenceStageWithWorkspaceRepository(t *te
 	if err := repositories.Snapshots.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	store := &fakeSourceRegistryStore{evidence: repositories.Evidence, claims: repositories.Claims, citations: repositories.Citations, close: func() {}}
+	store := &fakeSourceRegistryStore{
+		evidence: repositories.Evidence, claims: repositories.Claims, citations: repositories.Citations,
+		trustRepository: repositories.TrustRegistry,
+		registry:        researchapp.NewSourceRegistryService(repositories.SourceRegistry), close: func() {},
+	}
 	service := NewService(nil, nil).WithResearchClock(func() time.Time { return fetchedAt.Time().Add(time.Hour) })
 	stage, err := service.researchEvidenceForRun(store)
 	if err != nil {
@@ -63,7 +67,7 @@ func TestServiceAssemblesDeterministicEvidenceStageWithWorkspaceRepository(t *te
 		},
 	})
 	if err != nil || len(artifacts.Evidence) == 0 || artifacts.Evidence[0].ExtractorVersion != researchapp.EvidenceExtractorV1 ||
-		len(artifacts.Claims) != 1 || len(artifacts.Citations) != 1 {
+		len(artifacts.Claims) != 1 || len(artifacts.Citations) != 1 || len(artifacts.TrustDecisions) != 1 {
 		t.Fatalf("evidence stage artifacts=%+v error=%v", artifacts, err)
 	}
 }

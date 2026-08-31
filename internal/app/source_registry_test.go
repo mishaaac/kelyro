@@ -94,47 +94,49 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 }
 
 type fakeSourceRegistryStoreFactory struct {
-	sources    researchapp.SourceService
-	snapshots  researchapp.SnapshotCaptureService
-	evidence   researchapp.EvidenceRepository
-	claims     researchapp.ClaimRepository
-	citations  researchapp.CitationRepository
-	registry   researchapp.SourceRegistryService
-	trust      researchapp.TrustDecisionService
-	provenance researchapp.ProvenanceService
-	freshness  researchapp.FreshnessService
-	costs      researchapp.ResearchCostService
-	research   researchapp.ResearchService
-	bundles    researchapp.SourceBundleService
-	conflicts  researchapp.ConflictResolutionService
-	triggers   researchapp.ResearchTriggerService
-	updateScan researchapp.UpdateScanService
-	openRoot   string
-	closed     int
+	sources         researchapp.SourceService
+	snapshots       researchapp.SnapshotCaptureService
+	evidence        researchapp.EvidenceRepository
+	claims          researchapp.ClaimRepository
+	citations       researchapp.CitationRepository
+	registry        researchapp.SourceRegistryService
+	trust           researchapp.TrustDecisionService
+	trustRepository researchapp.TrustRegistryRepository
+	provenance      researchapp.ProvenanceService
+	freshness       researchapp.FreshnessService
+	costs           researchapp.ResearchCostService
+	research        researchapp.ResearchService
+	bundles         researchapp.SourceBundleService
+	conflicts       researchapp.ConflictResolutionService
+	triggers        researchapp.ResearchTriggerService
+	updateScan      researchapp.UpdateScanService
+	openRoot        string
+	closed          int
 }
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
-	sources    researchapp.SourceService
-	snapshots  researchapp.SnapshotCaptureService
-	evidence   researchapp.EvidenceRepository
-	claims     researchapp.ClaimRepository
-	citations  researchapp.CitationRepository
-	registry   researchapp.SourceRegistryService
-	trust      researchapp.TrustDecisionService
-	provenance researchapp.ProvenanceService
-	freshness  researchapp.FreshnessService
-	costs      researchapp.ResearchCostService
-	research   researchapp.ResearchService
-	bundles    researchapp.SourceBundleService
-	conflicts  researchapp.ConflictResolutionService
-	triggers   researchapp.ResearchTriggerService
-	updateScan researchapp.UpdateScanService
-	close      func()
+	sources         researchapp.SourceService
+	snapshots       researchapp.SnapshotCaptureService
+	evidence        researchapp.EvidenceRepository
+	claims          researchapp.ClaimRepository
+	citations       researchapp.CitationRepository
+	registry        researchapp.SourceRegistryService
+	trust           researchapp.TrustDecisionService
+	trustRepository researchapp.TrustRegistryRepository
+	provenance      researchapp.ProvenanceService
+	freshness       researchapp.FreshnessService
+	costs           researchapp.ResearchCostService
+	research        researchapp.ResearchService
+	bundles         researchapp.SourceBundleService
+	conflicts       researchapp.ConflictResolutionService
+	triggers        researchapp.ResearchTriggerService
+	updateScan      researchapp.UpdateScanService
+	close           func()
 }
 
 func (store *fakeSourceRegistryStore) Registry() researchapp.SourceRegistryService {
@@ -153,6 +155,9 @@ func (store *fakeSourceRegistryStore) Citations() researchapp.CitationRepository
 }
 func (store *fakeSourceRegistryStore) TrustDecisions() researchapp.TrustDecisionService {
 	return store.trust
+}
+func (store *fakeSourceRegistryStore) TrustRepository() researchapp.TrustRegistryRepository {
+	return store.trustRepository
 }
 func (store *fakeSourceRegistryStore) Provenance() researchapp.ProvenanceService {
 	return store.provenance

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 27
-Last completed step: 26
+Current step: 28
+Last completed step: 27
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1445,3 +1445,60 @@ Release: unreleased
   Claims y persistir `TrustDecision` mediante `trust-policy-v1`.
 - Search rank/provider metadata no puede cruzar como authority ni modificar
   una tier; freshness se integrará por separado en el Paso 28.
+
+## Step 27 — Authority / Trust integration
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-trust-evaluation-v1` conecta las Sources que respaldan Claims reales
+  con `trust-policy-v1` y persiste sus `TrustDecision` en el repository I-03.
+- Authority se calcula exclusivamente por la policy existente desde Source
+  kind + use case; provider, rank, snippet y orden de discovery no forman parte
+  del request de evaluación.
+- Trusted Source Registry existente se carga como catálogo y solo se entrega a
+  la policy cuando locator, kind y contexto topic/domain aplican exactamente.
+- Use cases de security, package API, historical behavior y language
+  specification se seleccionan mediante purpose/source metadata durable.
+- Relevance se deriva del statement literal ya evidence-backed; directness es
+  primary porque la oración está contenida byte-identical en Evidence.
+- Stability conserva el status scope explícito de la Claim y usa `unknown`
+  cuando el extractor no observó un qualifier.
+- Multi-source no se promueve a independent: permanece corroboration unknown
+  hasta la diversity/verification del Paso 29.
+- Trust decisions quedan en los artifacts defensivos del stage `extract` para
+  consumo posterior, además de persistirse con razones/version completas.
+
+### Decisions
+
+- Freshness se entrega como `unknown` en este paso y obliga a verificación; el
+  Paso 28 calculará el estado temporal antes de una reevaluación definitiva.
+- Una nueva Source registrada como `other` conserva tier E/rejected. No se
+  cambia su clasificación por hostname, título, provider ni search rank.
+- Una Source ya clasificada usa la authority contextual normal de
+  `trust-policy-v1`; registry puede volverla más conservadora o bloquearla,
+  pero nunca elevar su baseline tier.
+- Cuando una Source participa en varias Claims, relevance/stability se agregan
+  por la observación más conservadora; TrustDecision continúa siendo por
+  Source y contexto de research run.
+- No se implementa corroboration/diversity, verification, conflicts, bundle,
+  classification heurística ni I-04.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/app ./internal/infra/researchdb -run 'LiveTrust|AssemblesDeterministicEvidence' -count=1`.
+- Tests de tier B/unknown freshness, tier E rejected, registry blocked,
+  multi-source sin independencia y rank 1 vs 99 con decisión idéntica.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 28 debe usar snapshot/Evidence verification time y metadata temporal
+  durable sin confundir fetched, published, updated y last verified.
+- Freshness conocida debe persistirse por Claim y alimentar una reevaluación
+  de trust; release/deprecation signals deben seguir siendo explícitos.

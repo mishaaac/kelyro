@@ -1204,6 +1204,11 @@ type LiveClaimExtractionService interface {
 	LiveResearchStageService
 }
 
+type LiveTrustEvaluationService interface {
+	EvaluateTrust(context.Context, LiveTrustEvaluationRequest) (LiveTrustEvaluationResult, error)
+	LiveResearchStageService
+}
+
 type MetadataExtractor interface {
 	Extract(context.Context, NormalizedSource) (research.SourceMetadata, error)
 }
@@ -1433,6 +1438,7 @@ type SourceRegistryStore interface {
 	Evidence() EvidenceRepository
 	Claims() ClaimRepository
 	Citations() CitationRepository
+	TrustRepository() TrustRegistryRepository
 	Registry() SourceRegistryService
 	TrustDecisions() TrustDecisionService
 	Provenance() ProvenanceService

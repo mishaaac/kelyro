@@ -29,6 +29,7 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	}
 	registry := application.NewSourceRegistryService(database.Repositories().Research.SourceRegistry)
 	trust := application.NewTrustDecisionService(database.Repositories().Research.TrustRegistry)
+	trustRepository := database.Repositories().Research.TrustRegistry
 	sources := application.NewSourceService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots)
 	snapshots := application.NewSnapshotCaptureService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots, nil)
 	evidence := database.Repositories().Research.Evidence
@@ -50,26 +51,27 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	)
 	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, registry: registry, trust: trust, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
+	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }
 
 type store struct {
-	database   *sqlite.Database
-	sources    application.SourceService
-	snapshots  application.SnapshotCaptureService
-	evidence   application.EvidenceRepository
-	claims     application.ClaimRepository
-	citations  application.CitationRepository
-	registry   application.SourceRegistryService
-	trust      application.TrustDecisionService
-	provenance application.ProvenanceService
-	freshness  application.FreshnessService
-	research   application.ResearchService
-	bundles    application.SourceBundleService
-	conflicts  application.ConflictResolutionService
-	costs      application.ResearchCostService
-	triggers   application.ResearchTriggerService
-	updateScan application.UpdateScanService
+	database        *sqlite.Database
+	sources         application.SourceService
+	snapshots       application.SnapshotCaptureService
+	evidence        application.EvidenceRepository
+	claims          application.ClaimRepository
+	citations       application.CitationRepository
+	registry        application.SourceRegistryService
+	trust           application.TrustDecisionService
+	trustRepository application.TrustRegistryRepository
+	provenance      application.ProvenanceService
+	freshness       application.FreshnessService
+	research        application.ResearchService
+	bundles         application.SourceBundleService
+	conflicts       application.ConflictResolutionService
+	costs           application.ResearchCostService
+	triggers        application.ResearchTriggerService
+	updateScan      application.UpdateScanService
 }
 
 func (store *store) Sources() application.SourceService               { return store.sources }
@@ -79,6 +81,9 @@ func (store *store) Claims() application.ClaimRepository              { return s
 func (store *store) Citations() application.CitationRepository        { return store.citations }
 func (store *store) Registry() application.SourceRegistryService      { return store.registry }
 func (store *store) TrustDecisions() application.TrustDecisionService { return store.trust }
+func (store *store) TrustRepository() application.TrustRegistryRepository {
+	return store.trustRepository
+}
 func (store *store) Provenance() application.ProvenanceService        { return store.provenance }
 func (store *store) Freshness() application.FreshnessService          { return store.freshness }
 func (store *store) Research() application.ResearchService            { return store.research }

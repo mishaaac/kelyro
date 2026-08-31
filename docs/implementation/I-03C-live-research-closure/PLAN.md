@@ -1100,7 +1100,7 @@ feat(research): derive evidence-backed claims deterministically
 
 ## Paso 27 — Authority / Trust integration
 
-- [ ] Paso 27 completado
+- [x] Paso 27 completado
 
 Reusar authority/trust actuales.
 
