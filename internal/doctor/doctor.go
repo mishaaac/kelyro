@@ -30,10 +30,11 @@ const (
 )
 
 const (
-	SectionPlatform    = "Platform"
-	SectionKelyro      = "Kelyro"
-	SectionDevelopment = "Development"
-	SectionOptional    = "Optional"
+	SectionPlatform       = "Platform"
+	SectionKelyro         = "Kelyro"
+	SectionResearchSearch = "Research Search"
+	SectionDevelopment    = "Development"
+	SectionOptional       = "Optional"
 )
 
 // Tool describes an executable without coupling detection to os/exec.
@@ -237,6 +238,14 @@ type Input struct {
 	InternalDirectory  string
 	WorkspaceError     error
 	ConfigurationError error
+	ResearchSearch     ResearchSearchReadiness
+}
+
+type ResearchSearchReadiness struct {
+	NetworkPolicyAvailable bool
+	NetworkPolicyEnabled   bool
+	ProviderState          string
+	CredentialState        string
 }
 
 // StorageHealth reports independent workspace database checks.
@@ -390,11 +399,58 @@ func (engine *Engine) Run(ctx context.Context, input Input, diagnosticContext Co
 		resultCheck("kelyro.migrations", SectionKelyro, "Migrations current", health.MigrationError),
 		resultCheck("kelyro.artifact_index", SectionKelyro, "Artifact index healthy", health.ArtifactIndexError),
 	)
+	report.Checks = append(report.Checks, researchSearchChecks(input.ResearchSearch)...)
 
 	for _, tool := range contextualTools(engine.registry.Tools(), platformName, diagnosticContext) {
 		report.Checks = append(report.Checks, engine.checkTool(ctx, tool))
 	}
 	return report
+}
+
+func researchSearchChecks(readiness ResearchSearchReadiness) []Check {
+	network := Check{
+		ID: "research.search.network", Section: SectionResearchSearch, DisplayName: "Network policy enabled",
+		Requirement: Optional, State: Miss, Detail: "unavailable",
+	}
+	if readiness.NetworkPolicyAvailable {
+		if readiness.NetworkPolicyEnabled {
+			network.State = Pass
+			network.Detail = "privacy.allow_network=true"
+		} else {
+			network.Detail = "disabled by privacy.allow_network"
+		}
+	}
+	provider := Check{
+		ID: "research.search.provider", Section: SectionResearchSearch, DisplayName: "Provider configured",
+		Requirement: Optional, State: Miss, Detail: readiness.ProviderState,
+	}
+	switch readiness.ProviderState {
+	case "configured":
+		provider.State = Pass
+	case "unavailable":
+		provider.State = Fail
+	case "disabled":
+		provider.State = Miss
+	default:
+		provider.Detail = "unavailable"
+	}
+	credential := Check{
+		ID: "research.search.credential", Section: SectionResearchSearch, DisplayName: "Credential available",
+		Requirement: Optional, State: Miss, Detail: readiness.CredentialState,
+	}
+	switch readiness.CredentialState {
+	case "available":
+		credential.State = Pass
+	case "unavailable", "invalid":
+		credential.State = Fail
+	case "missing":
+		credential.State = Miss
+	case "not_applicable":
+		credential.State = Miss
+	default:
+		credential.Detail = "unavailable"
+	}
+	return []Check{network, provider, credential}
 }
 
 func (engine *Engine) checkTool(ctx context.Context, tool Tool) Check {

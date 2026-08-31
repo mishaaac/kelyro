@@ -109,6 +109,30 @@ the production provider plus its guarded `DiscoveryService`. The configured
 per-run `SearchRequests` budget; `max_results_per_query` becomes
 `live-search-cost-policy-v1` input. Assembly does not execute discovery.
 
+## Doctor readiness
+
+I-03C Step 12 adds an optional `Research Search` Doctor section with three
+independent checks:
+
+```text
+Network policy enabled
+Provider configured
+Credential available
+```
+
+The application resolves `privacy.allow_network` and the provider settings,
+then calls `researchsearch.Factory.Probe`. The probe recognizes disabled and
+unknown providers without reading Secrets. For configured Brave it reads only
+`research.search.brave.api_key`, validates it in memory and returns state-only
+provider/credential enums. It never calls `Search`, the HTTP client, cost
+control or a run repository.
+
+Healthy live readiness renders three passes. Offline defaults, disabled
+provider and missing credentials render explicit non-passing optional states
+without making Foundation Doctor fail; unavailable adapters/stores and invalid
+credentials are visible failures within the optional section. No credential
+value, length, prefix, backend message or query is included in the report.
+
 ## Ownership boundary
 
 The schema and readiness model live in `internal/config`, and strict TOML
@@ -117,6 +141,6 @@ interpreted only by future infra/config/Doctor wiring. Research domain and the
 `SearchProvider` application port remain vendor-neutral.
 
 Provider selection, adapter implementation, transport hardening, credential
-resolution, privacy/cost gating and production assembly are now implemented by
-I-03C Steps 5–11. Doctor checks and live orchestration remain separate later
-steps.
+resolution, privacy/cost gating, production assembly and readiness diagnostics
+are now implemented by I-03C Steps 5–12. Live orchestration remains a separate
+later step.

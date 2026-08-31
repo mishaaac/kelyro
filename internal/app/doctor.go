@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/platform"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -30,7 +32,7 @@ func (service *Service) executeDoctor(ctx context.Context, command Command) (Res
 		}
 		return Result{Guidance: &guidance}, nil
 	}
-	input, err := service.doctorInput(command, workspace.Workspace{})
+	input, err := service.doctorInput(ctx, command, workspace.Workspace{})
 	if err != nil && errors.Is(err, context.Canceled) {
 		return Result{}, err
 	}
@@ -42,7 +44,7 @@ func (service *Service) executeDoctor(ctx context.Context, command Command) (Res
 	return Result{Diagnostics: &report, Failed: report.Failed()}, nil
 }
 
-func (service *Service) doctorInput(command Command, known workspace.Workspace) (doctor.Input, error) {
+func (service *Service) doctorInput(ctx context.Context, command Command, known workspace.Workspace) (doctor.Input, error) {
 	found := known
 	if found.Root == "" {
 		var err error
@@ -61,7 +63,9 @@ func (service *Service) doctorInput(command Command, known workspace.Workspace) 
 		input.ConfigurationError = errors.New("configuration store is unavailable")
 		return input, nil
 	}
-	_, input.ConfigurationError = service.resolvedConfigForWorkspace(found.Root, command.ConfigOverrides)
+	settings, configErr := service.resolvedConfigForWorkspace(found.Root, command.ConfigOverrides)
+	input.ConfigurationError = configErr
+	input.ResearchSearch = service.researchSearchReadiness(ctx, settings, configErr)
 	return input, nil
 }
 
@@ -69,10 +73,41 @@ func (service *Service) doctorReport(ctx context.Context, command Command, found
 	if service.diagnostics == nil {
 		return doctor.Report{}
 	}
-	input, err := service.doctorInput(command, found)
+	input, err := service.doctorInput(ctx, command, found)
 	if err != nil {
 		input.WorkspaceError = err
 		input.ConfigurationError = err
 	}
 	return service.diagnostics.Run(ctx, input, command.DoctorContext)
+}
+
+func (service *Service) researchSearchReadiness(ctx context.Context, settings config.Settings, configErr error) doctor.ResearchSearchReadiness {
+	readiness := doctor.ResearchSearchReadiness{
+		ProviderState:   string(researchapp.LiveSearchProviderUnavailable),
+		CredentialState: string(researchapp.LiveSearchCredentialNotApplicable),
+	}
+	if configErr != nil {
+		return readiness
+	}
+	policy, err := policyFromSettings(settings)
+	if err != nil {
+		return readiness
+	}
+	readiness.NetworkPolicyAvailable = true
+	readiness.NetworkPolicyEnabled = policy.AllowNetwork
+	search, err := config.ResearchSearchFromResolved(settings)
+	if err != nil {
+		return readiness
+	}
+	probe, ok := service.researchSearch.(researchapp.LiveSearchReadinessProbe)
+	if !ok {
+		return readiness
+	}
+	result := probe.Probe(ctx, researchapp.LiveSearchProviderSettings{
+		Provider: search.Provider, MaxResultsPerQuery: search.MaxResultsPerQuery,
+		MaxQueriesPerRun: search.MaxQueriesPerRun,
+	}, service.secrets)
+	readiness.ProviderState = string(result.Provider)
+	readiness.CredentialState = string(result.Credential)
+	return readiness
 }

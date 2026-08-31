@@ -166,6 +166,39 @@ func TestRequiredFoundationFailuresAreIndependent(t *testing.T) {
 	}
 }
 
+func TestResearchSearchReadinessIsVisibleWithoutMakingOfflineOptionalStateFatal(t *testing.T) {
+	t.Parallel()
+
+	engine := New(&fakeEnvironment{platform: "linux"}, fakeStorage{}, Registry{})
+	configured := engine.Run(context.Background(), Input{
+		WorkspaceRoot: "/project", InternalDirectory: "/project/.kelyro",
+		ResearchSearch: ResearchSearchReadiness{
+			NetworkPolicyAvailable: true, NetworkPolicyEnabled: true,
+			ProviderState: "configured", CredentialState: "available",
+		},
+	}, Context{})
+	assertCheck(t, configured, "research.search.network", Pass, "privacy.allow_network=true")
+	assertCheck(t, configured, "research.search.provider", Pass, "configured")
+	assertCheck(t, configured, "research.search.credential", Pass, "available")
+	sections := configured.Sections()
+	if len(sections) != 3 || sections[0] != SectionPlatform || sections[1] != SectionKelyro || sections[2] != SectionResearchSearch {
+		t.Fatalf("configured sections = %v", sections)
+	}
+
+	offline := engine.Run(context.Background(), Input{
+		WorkspaceRoot: "/project", InternalDirectory: "/project/.kelyro",
+		ResearchSearch: ResearchSearchReadiness{
+			NetworkPolicyAvailable: true, ProviderState: "disabled", CredentialState: "not_applicable",
+		},
+	}, Context{})
+	assertCheck(t, offline, "research.search.network", Miss, "disabled by privacy.allow_network")
+	assertCheck(t, offline, "research.search.provider", Miss, "disabled")
+	assertCheck(t, offline, "research.search.credential", Miss, "not_applicable")
+	if offline.Failed() {
+		t.Fatal("optional offline research readiness failed the Foundation diagnostic")
+	}
+}
+
 func TestRegistryRejectsInvalidMetadataAndDefensivelyCopies(t *testing.T) {
 	t.Parallel()
 

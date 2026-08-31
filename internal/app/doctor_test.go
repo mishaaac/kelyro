@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/doctor"
+	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
@@ -48,6 +50,31 @@ func TestServiceTurnsWorkspaceDiscoveryErrorIntoDiagnosticInput(t *testing.T) {
 	}
 	if !errors.Is(runner.input.WorkspaceError, wantErr) || !errors.Is(runner.input.ConfigurationError, wantErr) {
 		t.Fatalf("doctor input errors = %#v", runner.input)
+	}
+}
+
+func TestServiceProvidesResolvedResearchSearchReadinessToDoctor(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(t.TempDir(), "research-doctor")
+	runner := &recordingDoctor{}
+	search := &recordingLiveSearchFactory{readiness: researchapp.LiveSearchReadiness{
+		Provider: researchapp.LiveSearchProviderConfigured, Credential: researchapp.LiveSearchCredentialAvailable,
+	}}
+	service := NewService(&recordingWorkspaceService{discovered: workspace.Workspace{Root: root}}, nil).
+		WithConfig(&recordingConfigStore{project: config.Settings{
+			config.KeyAllowNetwork: config.BoolValue(true), config.KeyResearchSearchProvider: config.StringValue("brave"),
+		}}).
+		WithSecrets(&recordingSecretStore{}).
+		WithResearchSearch(search).
+		WithDoctor(runner)
+
+	if _, err := service.Execute(context.Background(), Command{Action: ActionDoctor, Workspace: root}); err != nil {
+		t.Fatal(err)
+	}
+	readiness := runner.input.ResearchSearch
+	if !readiness.NetworkPolicyAvailable || !readiness.NetworkPolicyEnabled || readiness.ProviderState != "configured" || readiness.CredentialState != "available" || search.probes != 1 {
+		t.Fatalf("doctor research readiness = %+v, probes = %d", readiness, search.probes)
 	}
 }
 

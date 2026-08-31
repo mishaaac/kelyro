@@ -549,6 +549,33 @@ type LiveSearchProviderFactory interface {
 	Build(context.Context, LiveSearchBuildRequest) (LiveSearchBuildResult, error)
 }
 
+type LiveSearchProviderState string
+
+const (
+	LiveSearchProviderDisabled    LiveSearchProviderState = "disabled"
+	LiveSearchProviderConfigured  LiveSearchProviderState = "configured"
+	LiveSearchProviderUnavailable LiveSearchProviderState = "unavailable"
+)
+
+type LiveSearchCredentialState string
+
+const (
+	LiveSearchCredentialNotApplicable LiveSearchCredentialState = "not_applicable"
+	LiveSearchCredentialAvailable     LiveSearchCredentialState = "available"
+	LiveSearchCredentialMissing       LiveSearchCredentialState = "missing"
+	LiveSearchCredentialUnavailable   LiveSearchCredentialState = "unavailable"
+	LiveSearchCredentialInvalid       LiveSearchCredentialState = "invalid"
+)
+
+type LiveSearchReadiness struct {
+	Provider   LiveSearchProviderState
+	Credential LiveSearchCredentialState
+}
+
+type LiveSearchReadinessProbe interface {
+	Probe(context.Context, LiveSearchProviderSettings, LiveSearchSecretReader) LiveSearchReadiness
+}
+
 // SearchCache reads previously cached discovery output without network access.
 // It is deliberately distinct from SearchProvider so offline fallback cannot
 // accidentally invoke a live adapter.

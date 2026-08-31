@@ -29,6 +29,50 @@ func NewFactory(config TransportConfig) (*Factory, error) {
 
 func newFactory(client HTTPClient) *Factory { return &Factory{client: client} }
 
+// Probe reports state-only readiness. It may read the one documented secret
+// but never invokes Search, the HTTP client, cost control, or a run repository.
+func (factory *Factory) Probe(
+	ctx context.Context,
+	settings application.LiveSearchProviderSettings,
+	secrets application.LiveSearchSecretReader,
+) application.LiveSearchReadiness {
+	if ctx.Err() != nil || settings.Validate() != nil {
+		return unavailableReadiness()
+	}
+	switch settings.Provider {
+	case "":
+		return application.LiveSearchReadiness{
+			Provider: application.LiveSearchProviderDisabled, Credential: application.LiveSearchCredentialNotApplicable,
+		}
+	case ProviderID:
+		// Continue with the configured production adapter.
+	default:
+		return unavailableReadiness()
+	}
+	if factory == nil || factory.client == nil {
+		return unavailableReadiness()
+	}
+	_, readiness, _ := NewBraveFromSecrets(factory.client, secrets)
+	credential := application.LiveSearchCredentialUnavailable
+	switch readiness.CredentialState() {
+	case CredentialAvailable:
+		credential = application.LiveSearchCredentialAvailable
+	case CredentialMissing:
+		credential = application.LiveSearchCredentialMissing
+	case CredentialInvalid:
+		credential = application.LiveSearchCredentialInvalid
+	case CredentialUnavailable:
+		credential = application.LiveSearchCredentialUnavailable
+	}
+	return application.LiveSearchReadiness{Provider: application.LiveSearchProviderConfigured, Credential: credential}
+}
+
+func unavailableReadiness() application.LiveSearchReadiness {
+	return application.LiveSearchReadiness{
+		Provider: application.LiveSearchProviderUnavailable, Credential: application.LiveSearchCredentialNotApplicable,
+	}
+}
+
 // Build assembles the selected provider and the only production discovery
 // boundary. Disabled or unknown providers never read Secrets and no branch
 // substitutes a fixture/static provider.
@@ -69,3 +113,4 @@ func (factory *Factory) Build(ctx context.Context, request application.LiveSearc
 }
 
 var _ application.LiveSearchProviderFactory = (*Factory)(nil)
+var _ application.LiveSearchReadinessProbe = (*Factory)(nil)

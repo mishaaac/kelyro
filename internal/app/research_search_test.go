@@ -48,8 +48,15 @@ func TestServiceAssemblesResearchSearchFromResolvedProductionBoundaries(t *testi
 }
 
 type recordingLiveSearchFactory struct {
-	request researchapp.LiveSearchBuildRequest
-	calls   int
+	request   researchapp.LiveSearchBuildRequest
+	readiness researchapp.LiveSearchReadiness
+	calls     int
+	probes    int
+}
+
+func (factory *recordingLiveSearchFactory) Probe(_ context.Context, _ researchapp.LiveSearchProviderSettings, _ researchapp.LiveSearchSecretReader) researchapp.LiveSearchReadiness {
+	factory.probes++
+	return factory.readiness
 }
 
 func (factory *recordingLiveSearchFactory) Build(_ context.Context, request researchapp.LiveSearchBuildRequest) (researchapp.LiveSearchBuildResult, error) {

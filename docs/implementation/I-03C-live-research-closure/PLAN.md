@@ -684,7 +684,7 @@ feat(research): wire production search provider
 
 ## Paso 12 — Doctor readiness
 
-- [ ] Paso 12 completado
+- [x] Paso 12 completado
 
 Agregar diagnóstico:
 

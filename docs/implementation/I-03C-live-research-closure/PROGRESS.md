@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 12
-Last completed step: 11
+Current step: 13
+Last completed step: 12
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -620,3 +620,54 @@ Release: unreleased
 
 - El Paso 12 debe reportar network policy, provider y credential readiness sin
   construir un run, reservar coste ni ejecutar una búsqueda.
+
+## Step 12 — Doctor readiness
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- Sección opcional `Research Search` añadida a Doctor con checks independientes
+  `Network policy enabled`, `Provider configured` y `Credential available`.
+- `researchsearch.Factory.Probe` implementa readiness state-only para provider
+  disabled/configured/unavailable y credential
+  not_applicable/available/missing/unavailable/invalid.
+- Application Doctor resuelve config y privacy efectivas del workspace y
+  proyecta la sonda productiva al input presentation-neutral de Doctor.
+- CLI y TUI reutilizan el rendering genérico por secciones; CLI queda cubierto
+  explícitamente para las tres líneas healthy solicitadas.
+- Offline/default, provider disabled y credential missing son estados claros no
+  fatales; adapter/store unavailable y credential invalid se muestran como
+  fallos dentro de una capacidad opcional sin romper Foundation Doctor.
+- Tests prueban estados healthy/offline, mapping application, rendering CLI,
+  lecturas de Secrets solo para Brave configurado y cero llamadas HTTP durante
+  todas las sondas.
+
+### Decisions
+
+- Doctor no llama `Build`: no necesita run ID, cost service ni provider usable
+  para reportar readiness y no debe reservar trabajo.
+- La sonda puede leer y validar la referencia exacta de Secrets, pero reutiliza
+  la sanitización del Paso 8 y solo devuelve enums sin valor ni error backend.
+- Research Search permanece optional porque `privacy.allow_network=false` y
+  provider vacío son defaults offline válidos; no deben convertir un entorno
+  Foundation sano en exit failure.
+- No se ejecutó búsqueda de prueba ni health request al vendor; Doctor nunca
+  consume quota ni transmite una query.
+- No se añadió orchestrator, lifecycle execution ni queue consumption.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/infra/researchsearch ./internal/doctor ./internal/app ./internal/cli ./internal/tui -count=1`.
+- `go vet ./internal/research/application ./internal/infra/researchsearch ./internal/doctor ./internal/app ./internal/cli ./internal/tui`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 13 es el siguiente paso pendiente y requiere autorización explícita;
+  debe coordinar servicios existentes sin implementar HTTP, trust,
+  normalization, verification o SQLite directamente.

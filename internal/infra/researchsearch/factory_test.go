@@ -10,6 +10,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/privacy"
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
+	"github.com/mishaaac/kelyro/internal/storage"
 )
 
 func TestFactoryBuildsOnlyConfiguredProductionProviderBehindPrivacy(t *testing.T) {
@@ -61,6 +62,58 @@ func TestFactoryNeverFallsBackForDisabledOrUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestFactoryProbesReadinessWithoutNetworkOrUnnecessarySecretReads(t *testing.T) {
+	t.Parallel()
+
+	httpCalls := 0
+	factory := newFactory(roundTripFunc(func(*http.Request) (*http.Response, error) {
+		httpCalls++
+		return nil, errors.New("readiness must not call HTTP")
+	}))
+	settings := application.LiveSearchProviderSettings{Provider: ProviderID, MaxResultsPerQuery: 8, MaxQueriesPerRun: 4}
+	for _, test := range []struct {
+		name      string
+		provider  string
+		secret    string
+		secretErr error
+		want      application.LiveSearchReadiness
+		wantReads int
+	}{
+		{
+			name: "configured", provider: ProviderID, secret: "fixture-token", wantReads: 1,
+			want: application.LiveSearchReadiness{Provider: application.LiveSearchProviderConfigured, Credential: application.LiveSearchCredentialAvailable},
+		},
+		{
+			name: "missing credential", provider: ProviderID, secretErr: storage.ErrSecretNotFound, wantReads: 1,
+			want: application.LiveSearchReadiness{Provider: application.LiveSearchProviderConfigured, Credential: application.LiveSearchCredentialMissing},
+		},
+		{
+			name: "invalid credential", provider: ProviderID, secret: "invalid token", wantReads: 1,
+			want: application.LiveSearchReadiness{Provider: application.LiveSearchProviderConfigured, Credential: application.LiveSearchCredentialInvalid},
+		},
+		{
+			name: "disabled", provider: "", wantReads: 0,
+			want: application.LiveSearchReadiness{Provider: application.LiveSearchProviderDisabled, Credential: application.LiveSearchCredentialNotApplicable},
+		},
+		{
+			name: "unknown", provider: "unknown", wantReads: 0,
+			want: application.LiveSearchReadiness{Provider: application.LiveSearchProviderUnavailable, Credential: application.LiveSearchCredentialNotApplicable},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reader := &factorySecretReader{value: test.secret, err: test.secretErr}
+			settings.Provider = test.provider
+			got := factory.Probe(context.Background(), settings, reader)
+			if got != test.want || reader.calls != test.wantReads {
+				t.Fatalf("Probe() = %+v, reads = %d, want %+v/%d", got, reader.calls, test.want, test.wantReads)
+			}
+		})
+	}
+	if httpCalls != 0 {
+		t.Fatalf("readiness HTTP calls = %d, want zero", httpCalls)
+	}
+}
+
 func validBuildRequest(t *testing.T, secrets application.LiveSearchSecretReader) application.LiveSearchBuildRequest {
 	t.Helper()
 	at, err := research.NewTimestamp(time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC))
@@ -77,12 +130,13 @@ func validBuildRequest(t *testing.T, secrets application.LiveSearchSecretReader)
 
 type factorySecretReader struct {
 	value string
+	err   error
 	calls int
 }
 
 func (reader *factorySecretReader) Get(string) (string, error) {
 	reader.calls++
-	return reader.value, nil
+	return reader.value, reader.err
 }
 
 type factoryClock struct{ now research.Timestamp }
