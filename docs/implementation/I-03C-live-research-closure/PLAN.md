@@ -546,7 +546,7 @@ feat(research): add production web search adapter
 
 ## Paso 7 — Harden Search HTTP transport
 
-- [ ] Paso 7 completado
+- [x] Paso 7 completado
 
 Verificar:
 

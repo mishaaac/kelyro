@@ -95,6 +95,11 @@ The reference production discovery-provider decision, current evidence,
 alternatives, mapping, and operational constraints are recorded in
 [ADR-001](adr/ADR-001-research-search-provider.md).
 
+The fixed-endpoint Brave search transport, TLS/timeouts/redirect/body policy,
+secret-safe diagnostics, rate-limit metadata and strict separation between the
+search API endpoint and untrusted fetched result URLs are documented in
+[research-search-transport-v1.md](research-search-transport-v1.md).
+
 The pure `query-planner-v1` input/output contract, purpose variants,
 authority-aware deterministic ordering, generic-topic behavior, and discovery
 mapping are documented in [query-planner-v1.md](query-planner-v1.md).

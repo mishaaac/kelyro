@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -159,6 +160,9 @@ func (provider *Brave) searchPage(ctx context.Context, query string, offset, cou
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, false, err
 		}
+		if _, classified := KindOf(err); classified {
+			return nil, false, err
+		}
 		return nil, false, &Error{Kind: ErrorTransport}
 	}
 	if response == nil || response.Body == nil {
@@ -174,8 +178,18 @@ func (provider *Brave) searchPage(ctx context.Context, query string, offset, cou
 		drainResponse(response.Body)
 		return nil, false, statusError(response.StatusCode, rateLimit)
 	}
+	if response.ContentLength > maximumResponseBytes {
+		return nil, false, &Error{Kind: ErrorResponse, StatusCode: response.StatusCode}
+	}
+	if encoding := strings.TrimSpace(response.Header.Get("Content-Encoding")); encoding != "" && !strings.EqualFold(encoding, "identity") {
+		return nil, false, &Error{Kind: ErrorResponse, StatusCode: response.StatusCode}
+	}
+	mediaType, _, mediaErr := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	if mediaErr != nil || !strings.EqualFold(mediaType, "application/json") {
+		return nil, false, &Error{Kind: ErrorResponse, StatusCode: response.StatusCode}
+	}
 
-	body, err := readBounded(response.Body, maximumResponseBytes)
+	body, err := readBounded(ctx, response.Body, maximumResponseBytes)
 	if err != nil {
 		return nil, false, err
 	}
@@ -274,9 +288,15 @@ func statusError(status int, rateLimit RateLimitMetadata) error {
 	return &Error{Kind: kind, StatusCode: status, RateLimit: rateLimit}
 }
 
-func readBounded(reader io.Reader, limit int64) ([]byte, error) {
+func readBounded(ctx context.Context, reader io.Reader, limit int64) ([]byte, error) {
 	body, err := io.ReadAll(io.LimitReader(reader, limit+1))
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, &Error{Kind: ErrorUnavailable}
+		}
 		return nil, &Error{Kind: ErrorTransport}
 	}
 	if int64(len(body)) > limit {

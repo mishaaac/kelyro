@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 7
-Last completed step: 6
+Current step: 8
+Last completed step: 7
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -359,3 +359,58 @@ Release: unreleased
   este adapter, con endpoint/origin fijos y redacción de credenciales.
 - No integrar Secrets, privacy gates ni production assembly todavía; están
   reservados a los Pasos 8–10.
+
+## Step 07 — Search HTTP transport hardened
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- `SecureHTTPClient` de producción añadido con endpoint Brave exacto, request
+  GET sin body, parámetros/header allowlisted y redirects completamente
+  bloqueados.
+- `TransportConfig` bounded con defaults para total request, dial, TLS
+  handshake, response headers, idle pool y connection counts.
+- Transporte directo sin proxy de entorno, TLS mínimo 1.2, verificación de
+  certificados del sistema, HTTP/2, compression deshabilitada y User-Agent
+  propiedad de Kelyro.
+- Responses limitadas a 64 KiB de headers por default y 1 MiB de body JSON
+  identity, con chequeo de Content-Type, Content-Length y bytes reales.
+- Cancellation preservada; errores de transporte sanitizados y redirects
+  impedidos antes de poder reenviar `X-Subscription-Token`.
+- Status mapping y rate-limit metadata auditados, sin retry automático que
+  esconda coste adicional.
+- Documento `research-search-transport-v1.md` creado con la diferencia
+  obligatoria entre el search endpoint fijo y los result URLs no confiables que
+  solo puede descargar `SourceFetcher` mediante `researchhttp.Client`.
+- Tests deterministas y con race detector para TLS/config, endpoint pinning,
+  redirects, headers, timeout, cancellation, redacción, media type y body size.
+
+### Decisions
+
+- El transporte de search no se generaliza ni reemplaza `researchhttp.Client`:
+  sus amenazas y destinos son distintos y las result URLs nunca entran en él.
+- No se siguen redirects, ni siquiera same-origin, para hacer imposible que el
+  token salga del path fijado y mantener una API call observable por request.
+- No hay retry interno. Un 429 conserva metadata bounded y vuelve como
+  `rate_limited`; cualquier retry posterior deberá pasar cost control.
+- Errores y observaciones omiten token, query, request URL, response body y
+  result URLs. El paquete no incorpora logging.
+- Privacy authorization, Secrets resolution, provider selection y production
+  assembly permanecen fuera de alcance hasta sus pasos explícitos.
+
+### Verification
+
+- `go test -race ./internal/infra/researchsearch -count=1`.
+- `go vet ./internal/infra/researchsearch`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 8 es el siguiente paso pendiente y requiere autorización explícita.
+- Resolver `research.search.brave.api_key` solo mediante Foundation Secrets;
+  no añadir la key a config, SQLite, logs, doctor output o fixtures.
