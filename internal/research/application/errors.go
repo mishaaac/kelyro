@@ -60,6 +60,11 @@ var (
 	ErrPersistenceFailure     error = &Error{Kind: ErrorPersistenceFailure}
 	ErrExternalFailure        error = &Error{Kind: ErrorExternalFailure}
 	ErrNetworkResearchBlocked error = &Error{Kind: ErrorNetworkResearchBlocked}
+	// ErrNetworkDisabled is the stable live-research failure reason used when
+	// privacy policy or explicit offline mode prevents required network work.
+	// The broader ErrNetworkResearchBlocked classification remains available
+	// for compatibility with existing application callers.
+	ErrNetworkDisabled = errors.New("network_disabled")
 )
 
 func Classify(kind ErrorKind, operation string, cause error) error {

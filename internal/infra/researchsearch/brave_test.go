@@ -12,9 +12,36 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/mishaaac/kelyro/internal/privacy"
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
 )
+
+func TestBraveSearchIsBlockedBeforeProviderRequestWhenNetworkIsDisabled(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	provider, err := NewBrave(roundTripFunc(func(*http.Request) (*http.Response, error) {
+		requests++
+		return nil, errors.New("HTTP must not be reached")
+	}), "fixture-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := application.NewDiscoveryService(provider, nil, application.NetworkResearchAccess{
+		Gate: privacy.NewNetworkGate(privacy.Policy{AllowNetwork: false}, nil),
+	})
+
+	_, err = service.Search(context.Background(), application.ResearchModeOnline, validQuery(t), application.SearchOptions{Limit: 1})
+	if !errors.Is(err, application.ErrNetworkDisabled) ||
+		!errors.Is(err, application.ErrNetworkResearchBlocked) ||
+		!errors.Is(err, privacy.ErrNetworkBlocked) {
+		t.Fatalf("Search() error = %v, want network_disabled privacy denial", err)
+	}
+	if requests != 0 {
+		t.Fatalf("provider HTTP requests = %d, want zero", requests)
+	}
+}
 
 func TestBraveSearchMapsAndPaginatesBoundedResults(t *testing.T) {
 	t.Parallel()

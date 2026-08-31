@@ -56,9 +56,17 @@ When live access is impossible and the offline cache is absent or reports a
 miss, the service returns the stable application classification
 `network_research_blocked` through `ErrNetworkResearchBlocked`. A Foundation
 privacy denial remains discoverable with
-`errors.Is(err, privacy.ErrNetworkBlocked)`. Invalid mode/input, missing
+`errors.Is(err, privacy.ErrNetworkBlocked)`. The I-03C acceptance reason is
+also discoverable as `network_disabled` through
+`errors.Is(err, application.ErrNetworkDisabled)` without replacing the
+existing classification. Invalid mode/input, missing
 dependencies, cache failures, and provider failures retain their separate
 application categories.
+
+The production Brave adapter is covered at this boundary: with
+`privacy.allow_network=false`, authorization returns `network_disabled` before
+`SearchProvider.Search`, resulting in zero HTTP requests. The adapter itself
+does not read privacy configuration and cannot authorize its own network use.
 
 ## Local operations remain available
 

@@ -94,6 +94,7 @@ func networkResearchBlocked(operation string, privacyCause, cacheCause error) er
 	if cause == nil {
 		cause = errOfflineResearchMode
 	}
+	cause = errors.Join(ErrNetworkDisabled, cause)
 	if cacheCause != nil {
 		cause = errors.Join(cause, fmt.Errorf("offline cache unavailable: %w", cacheCause))
 	}

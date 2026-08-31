@@ -603,7 +603,7 @@ feat(research): load search credentials from secret store
 
 ## Paso 9 — Privacy/network gate antes de Search
 
-- [ ] Paso 9 completado
+- [x] Paso 9 completado
 
 Antes de invocar provider:
 

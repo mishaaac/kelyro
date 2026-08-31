@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 9
-Last completed step: 8
+Current step: 10
+Last completed step: 9
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -467,3 +467,48 @@ Release: unreleased
 - Antes de cualquier `Search`, el flujo productivo debe comprobar
   `privacy.allow_network`; una denegación debe producir `network_disabled` y
   cero llamadas al provider.
+
+## Step 09 — Privacy/network gate before Search
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- La frontera `DiscoveryService` existente quedó confirmada como el único
+  camino autorizado hacia el production `SearchProvider`: valida inputs y
+  consulta Foundation `privacy.NetworkGate` antes de invocar el adapter.
+- Razón de acceptance `network_disabled` añadida como sentinel detectable con
+  `errors.Is`, preservando la clasificación compatible
+  `network_research_blocked` y la causa Foundation `privacy.ErrNetworkBlocked`.
+- Test de integración directo con el adapter Brave prueba que
+  `privacy.allow_network=false` devuelve las tres identidades esperadas y
+  produce exactamente cero requests HTTP.
+- La documentación de privacidad aclara que el adapter no lee configuración ni
+  puede autorizarse a sí mismo.
+
+### Decisions
+
+- Se reutilizó `NetworkResearchAccess`; no se creó un gate, policy o wrapper
+  alternativo dentro de infraestructura.
+- `network_disabled` se incorpora como razón específica sin renombrar el error
+  público I-03 `network_research_blocked`, evitando romper callers existentes.
+- El modo offline y el bloqueo por policy comparten la razón de acceptance; la
+  causa Foundation permanece disponible solo cuando la policy produjo la
+  denegación.
+- No se añadió cost control, production wiring, Doctor ni ejecución live; esos
+  cambios pertenecen a pasos posteriores.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/infra/researchsearch -count=1`.
+- `go vet ./internal/research/application ./internal/infra/researchsearch`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 10 debe aplicar el cost control I-03 antes de cada búsqueda real y
+  mantener bounded queries, resultados y provider API calls.
