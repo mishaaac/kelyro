@@ -16,12 +16,15 @@ func TestStoreSaveReloadAndProjectOverride(t *testing.T) {
 
 	store, globalPath, root := testStore(t)
 	global := config.Settings{
-		config.KeyUIColor:        config.StringValue("always"),
-		config.KeyAllowNetwork:   config.BoolValue(false),
-		config.KeyAllowAIContent: config.BoolValue(false),
-		config.KeyAllowTelemetry: config.BoolValue(false),
-		config.KeyEditorCommand:  config.StringValue("code"),
-		config.KeyEditorPrompt:   config.BoolValue(false),
+		config.KeyUIColor:                          config.StringValue("always"),
+		config.KeyAllowNetwork:                     config.BoolValue(false),
+		config.KeyAllowAIContent:                   config.BoolValue(false),
+		config.KeyAllowTelemetry:                   config.BoolValue(false),
+		config.KeyEditorCommand:                    config.StringValue("code"),
+		config.KeyEditorPrompt:                     config.BoolValue(false),
+		config.KeyResearchSearchProvider:           config.StringValue("reference-api"),
+		config.KeyResearchSearchMaxResultsPerQuery: config.NumberValue(8),
+		config.KeyResearchSearchMaxQueriesPerRun:   config.NumberValue(4),
 	}
 	project := config.Settings{
 		config.KeyUIColor:          config.StringValue("never"),
@@ -64,6 +67,7 @@ func TestStoreSaveReloadAndProjectOverride(t *testing.T) {
 	for _, want := range []string{
 		"schema_version = 1", "[ui]", `color = "always"`, "[privacy]",
 		"allow_ai_content = false", "allow_network = false", "allow_usage_telemetry = false",
+		"[research.search]", `provider = "reference-api"`, "max_results_per_query = 8", "max_queries_per_run = 4",
 	} {
 		if !bytes.Contains(encoded, []byte(want)) {
 			t.Errorf("global TOML does not contain %q:\n%s", want, encoded)
@@ -86,6 +90,8 @@ func TestLoadRejectsInvalidTOMLWithReadableKeyErrors(t *testing.T) {
 		{name: "unsupported schema", content: "schema_version = 99\n", want: "unsupported schema_version 99"},
 		{name: "duplicate key", content: "[updates]\ncheck = true\ncheck = false\n", want: `duplicate key "updates.check"`},
 		{name: "unknown table", content: "[provider]\n", want: `unknown configuration table "provider"`},
+		{name: "unknown nested table", content: "[research.provider]\n", want: `unknown configuration table "research.provider"`},
+		{name: "invalid nested table", content: "[research..search]\n", want: `invalid table name "research..search"`},
 		{name: "non TOML escape", content: "[editor]\ncommand = \"a\\x20b\"\n", want: "unsupported escape"},
 		{name: "project key in global", content: "[workspace]\nname = \"Backend\"\n", want: "only valid in project configuration"},
 	}
@@ -126,11 +132,14 @@ func TestSetPreservesCommentsAndUnrelatedFormatting(t *testing.T) {
 	if err := store.SetGlobal(config.KeyUpdateCheck, config.BoolValue(false)); err != nil {
 		t.Fatalf("SetGlobal(new) error = %v", err)
 	}
+	if err := store.SetGlobal(config.KeyResearchSearchProvider, config.StringValue("reference-api")); err != nil {
+		t.Fatalf("SetGlobal(nested) error = %v", err)
+	}
 	updated, err := os.ReadFile(globalPath)
 	if err != nil {
 		t.Fatalf("ReadFile(): %v", err)
 	}
-	for _, want := range []string{"# User note", `color = "never" # keep inline`, "# Preferred editor", `command = "vim"`, "[updates]", "check = false"} {
+	for _, want := range []string{"# User note", `color = "never" # keep inline`, "# Preferred editor", `command = "vim"`, "[updates]", "check = false", "[research.search]", `provider = "reference-api"`} {
 		if !bytes.Contains(updated, []byte(want)) {
 			t.Errorf("updated TOML does not contain %q:\n%s", want, updated)
 		}

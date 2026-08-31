@@ -343,10 +343,10 @@ insertion order, and ordinary keypresses never create events.
 Configuration resolves in this order: safe defaults, the global file, the
 discovered workspace file, and explicit CLI overrides. Later layers win. The
 initial CLI override is `--no-color`, which resolves `ui.color` to `never`
-without persisting it. Global files accept UI, editor, privacy, and update
-settings. Project files may also define those keys as overrides and add
-`workspace.name` and `learning.mastery_threshold`; the threshold is schema only
-and has no educational behavior yet.
+without persisting it. Global files accept UI, editor, privacy, update, and
+provider-neutral Research search settings. Project files may also define those
+keys as overrides and add `workspace.name` and `learning.mastery_threshold`;
+the threshold is schema only and has no educational behavior yet.
 
 Editor configuration includes the executable-only `editor.command` and the
 `editor.prompt` boolean. The latter defaults to enabled and reserves the user's
@@ -361,11 +361,11 @@ remains the independent opt-in boundary.
 Both files carry an optional `schema_version`; newly written files use version
 1, and unsupported versions fail before any values are used. The filesystem
 adapter accepts the strict scalar TOML subset required by the known schema:
-tables, quoted strings, booleans, and numbers. Unknown tables or keys, duplicate
-definitions, incorrect scalar types, and invalid values produce errors naming
-the offending key. This bounded parser avoids an external dependency while the
-schema is small; adding TOML features outside the supported schema requires an
-explicit parser decision.
+known tables (including known dotted table paths), quoted strings, booleans,
+and numbers. Unknown tables or keys, duplicate definitions, incorrect scalar
+types, and invalid values produce errors naming the offending key. This bounded
+parser avoids an external dependency while the schema is small; adding TOML
+features outside the supported schema requires an explicit parser decision.
 
 Writes use a same-directory temporary file, restrictive permissions, file
 synchronization, and rename replacement. A failed commit leaves the prior file

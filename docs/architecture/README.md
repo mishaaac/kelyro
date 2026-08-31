@@ -86,6 +86,11 @@ The vendor-neutral source-discovery contracts, candidate normalization,
 duplicate URL policy, exact rank preservation, privacy boundary, and static
 network-free provider are documented in [source-discovery.md](source-discovery.md).
 
+The provider-neutral live-search configuration keys, safe defaults, bounded
+limits, nested TOML representation, and credential-free readiness states are
+documented in
+[research-search-configuration-v1.md](research-search-configuration-v1.md).
+
 The pure `query-planner-v1` input/output contract, purpose variants,
 authority-aware deterministic ordering, generic-topic behavior, and discovery
 mapping are documented in [query-planner-v1.md](query-planner-v1.md).

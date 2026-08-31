@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 4
-Last completed step: 3
+Current step: 5
+Last completed step: 4
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -199,3 +199,55 @@ Release: unreleased
 - El Paso 4 es el siguiente paso pendiente y requiere autorización explícita.
 - El Paso 4 debe definir configuración v1 sin seleccionar ni implementar aún el
   provider de referencia reservado a los Pasos 5–6.
+
+## Step 04 — Search Provider configuration v1
+
+Status: completed
+Date: 2026-08-30
+Release: unreleased
+
+### Delivered
+
+- Claves `research.search.provider`, `max_results_per_query` y
+  `max_queries_per_run` añadidas al schema de configuración con defaults
+  `""`, `8` y `4`.
+- Configuración tipada `ResearchSearchConfig` con resolución layered, bounds de
+  1–100 resultados y 1–8 queries, y provider ID genérico validado.
+- Estados `configured`, `missing_credentials`, `disabled` y `unavailable`
+  implementados mediante capability booleans sin transportar secretos.
+- Parser/encoder/updater TOML estricto extendido para la tabla conocida
+  `[research.search]`, preservando rechazo de tablas/keys desconocidas.
+- Contrato, defaults, readiness, Secrets y privacy boundaries documentados en
+  `research-search-configuration-v1.md` y enlazados desde arquitectura.
+- Tests de defaults, overrides, todos los estados, valores inseguros/bounds,
+  roundtrip TOML anidado y actualización con preservación de comentarios.
+
+### Decisions
+
+- Provider vacío significa disabled y conserva comportamiento offline seguro.
+- El provider ID es un slug genérico; el Paso 4 no contiene allowlist ni nombre
+  de vendor.
+- Los límites de configuración nunca superan los hard caps existentes de
+  discovery y `query-planner-v1`.
+- Credenciales no forman parte de `Settings` ni TOML. El nombre
+  `research.search.<provider>.api_key` queda solo como contrato para Foundation
+  Secrets del Paso 8.
+- Configurar provider no habilita red: `privacy.allow_network` sigue siendo un
+  gate independiente y obligatorio.
+- `SchemaVersion` permanece en 1 porque las claves son aditivas y los archivos
+  v1 existentes siguen siendo válidos.
+
+### Verification
+
+- `go test ./internal/config ./internal/infra/configfs -count=1`.
+- `go vet ./internal/config ./internal/infra/configfs`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 5 debe seleccionar un único reference production provider mediante
+  ADR y documentación primaria vigente.
+- No implementar adapter, transport hardening ni Secrets wiring reservados a
+  los Pasos 6–8.

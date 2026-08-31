@@ -39,6 +39,15 @@ func TestDefaultsAreSafeAndIndependent(t *testing.T) {
 	if got := second[KeyBackupRetention].String(); got != "5" {
 		t.Errorf("backup.retention default = %q, want 5", got)
 	}
+	if got := second[KeyResearchSearchProvider].String(); got != "" {
+		t.Errorf("research.search.provider default = %q, want disabled", got)
+	}
+	if got := second[KeyResearchSearchMaxResultsPerQuery].String(); got != "8" {
+		t.Errorf("research.search.max_results_per_query default = %q, want 8", got)
+	}
+	if got := second[KeyResearchSearchMaxQueriesPerRun].String(); got != "4" {
+		t.Errorf("research.search.max_queries_per_run default = %q, want 4", got)
+	}
 }
 
 func TestResolveUsesMostSpecificLayer(t *testing.T) {
@@ -90,6 +99,9 @@ func TestParseValueAndValidateLayerRejectInvalidConfiguration(t *testing.T) {
 		{name: "fractional backup retention", key: KeyBackupRetention, value: "2.5", want: "integer from 1 to 100"},
 		{name: "zero backup retention", key: KeyBackupRetention, value: "0", want: "integer from 1 to 100"},
 		{name: "empty project name", key: KeyWorkspaceName, value: " ", want: "must not be empty"},
+		{name: "invalid search provider", key: KeyResearchSearchProvider, value: "Search Vendor", want: "lowercase identifier"},
+		{name: "invalid search results limit", key: KeyResearchSearchMaxResultsPerQuery, value: "101", want: "integer from 1 to 100"},
+		{name: "invalid search query limit", key: KeyResearchSearchMaxQueriesPerRun, value: "9", want: "integer from 1 to 8"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

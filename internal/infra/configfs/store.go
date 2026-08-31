@@ -178,8 +178,8 @@ func parse(encoded []byte, scope config.Scope) (config.Settings, error) {
 	sections := map[string]bool{}
 	knownSections := map[string]bool{}
 	for key := range config.Definitions() {
-		name, _, _ := strings.Cut(key, ".")
-		knownSections[name] = true
+		section, _ := splitConfigKey(key)
+		knownSections[section] = true
 	}
 	schemaVersion := config.SchemaVersion
 	schemaSeen := false
@@ -196,7 +196,7 @@ func parse(encoded []byte, scope config.Scope) (config.Settings, error) {
 				return nil, fmt.Errorf("line %d: invalid table header", lineNumber)
 			}
 			section = strings.TrimSpace(line[1 : len(line)-1])
-			if section == "" || strings.ContainsAny(section, "[] .\t") {
+			if !validTableName(section) {
 				return nil, fmt.Errorf("line %d: invalid table name %q", lineNumber, section)
 			}
 			if !knownSections[section] {
@@ -329,7 +329,7 @@ func encode(settings config.Settings) []byte {
 		if !ok {
 			continue
 		}
-		section, name, _ := strings.Cut(key, ".")
+		section, name := splitConfigKey(key)
 		if section != currentSection {
 			fmt.Fprintf(&builder, "\n[%s]\n", section)
 			currentSection = section
@@ -383,7 +383,7 @@ func commentIndex(line string) int {
 func updateDocument(encoded []byte, key string, value config.Value) []byte {
 	text := strings.ReplaceAll(string(encoded), "\r\n", "\n")
 	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
-	targetSection, targetName, _ := strings.Cut(key, ".")
+	targetSection, targetName := splitConfigKey(key)
 	section := ""
 	sectionEnd := -1
 
@@ -425,6 +425,33 @@ func updateDocument(encoded []byte, key string, value config.Value) []byte {
 		lines = append(lines, "["+targetSection+"]", assignment)
 	}
 	return []byte(strings.Join(lines, "\n") + "\n")
+}
+
+func splitConfigKey(key string) (string, string) {
+	separator := strings.LastIndexByte(key, '.')
+	if separator < 1 || separator == len(key)-1 {
+		return "", key
+	}
+	return key[:separator], key[separator+1:]
+}
+
+func validTableName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, part := range strings.Split(name, ".") {
+		if part == "" {
+			return false
+		}
+		for _, character := range part {
+			if (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+				(character >= '0' && character <= '9') || character == '_' || character == '-' {
+				continue
+			}
+			return false
+		}
+	}
+	return true
 }
 
 var _ config.Store = (*Store)(nil)

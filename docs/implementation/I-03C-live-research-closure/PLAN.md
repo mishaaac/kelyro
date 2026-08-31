@@ -430,7 +430,7 @@ test(research): stabilize SearchProvider contract
 
 ## Paso 4 — Search Provider configuration v1
 
-- [ ] Paso 4 completado
+- [x] Paso 4 completado
 
 Config conceptual:
 

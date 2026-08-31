@@ -13,17 +13,20 @@ import (
 const SchemaVersion = 1
 
 const (
-	KeyUIColor          = "ui.color"
-	KeyEditorCommand    = "editor.command"
-	KeyEditorPrompt     = "editor.prompt"
-	KeyAllowNetwork     = "privacy.allow_network"
-	KeyAllowAIContent   = "privacy.allow_ai_content"
-	KeyAllowTelemetry   = "privacy.allow_usage_telemetry"
-	KeyUpdateCheck      = "updates.check"
-	KeyUpdateChannel    = "updates.channel"
-	KeyWorkspaceName    = "workspace.name"
-	KeyMasteryThreshold = "learning.mastery_threshold"
-	KeyBackupRetention  = "backup.retention"
+	KeyUIColor                          = "ui.color"
+	KeyEditorCommand                    = "editor.command"
+	KeyEditorPrompt                     = "editor.prompt"
+	KeyAllowNetwork                     = "privacy.allow_network"
+	KeyAllowAIContent                   = "privacy.allow_ai_content"
+	KeyAllowTelemetry                   = "privacy.allow_usage_telemetry"
+	KeyUpdateCheck                      = "updates.check"
+	KeyUpdateChannel                    = "updates.channel"
+	KeyWorkspaceName                    = "workspace.name"
+	KeyMasteryThreshold                 = "learning.mastery_threshold"
+	KeyBackupRetention                  = "backup.retention"
+	KeyResearchSearchProvider           = "research.search.provider"
+	KeyResearchSearchMaxResultsPerQuery = "research.search.max_results_per_query"
+	KeyResearchSearchMaxQueriesPerRun   = "research.search.max_queries_per_run"
 )
 
 // Scope identifies the file in which a configuration value is persisted.
@@ -85,33 +88,39 @@ type Definition struct {
 }
 
 var definitions = map[string]Definition{
-	KeyUIColor:          {Kind: String, Common: true},
-	KeyEditorCommand:    {Kind: String, Common: true},
-	KeyEditorPrompt:     {Kind: Boolean, Common: true},
-	KeyAllowNetwork:     {Kind: Boolean, Common: true},
-	KeyAllowAIContent:   {Kind: Boolean, Common: true},
-	KeyAllowTelemetry:   {Kind: Boolean, Common: true},
-	KeyUpdateCheck:      {Kind: Boolean, Common: true},
-	KeyUpdateChannel:    {Kind: String},
-	KeyWorkspaceName:    {Kind: String, ProjectOnly: true, Common: true},
-	KeyMasteryThreshold: {Kind: Number, ProjectOnly: true, Common: true},
-	KeyBackupRetention:  {Kind: Number},
+	KeyUIColor:                          {Kind: String, Common: true},
+	KeyEditorCommand:                    {Kind: String, Common: true},
+	KeyEditorPrompt:                     {Kind: Boolean, Common: true},
+	KeyAllowNetwork:                     {Kind: Boolean, Common: true},
+	KeyAllowAIContent:                   {Kind: Boolean, Common: true},
+	KeyAllowTelemetry:                   {Kind: Boolean, Common: true},
+	KeyUpdateCheck:                      {Kind: Boolean, Common: true},
+	KeyUpdateChannel:                    {Kind: String},
+	KeyWorkspaceName:                    {Kind: String, ProjectOnly: true, Common: true},
+	KeyMasteryThreshold:                 {Kind: Number, ProjectOnly: true, Common: true},
+	KeyBackupRetention:                  {Kind: Number},
+	KeyResearchSearchProvider:           {Kind: String},
+	KeyResearchSearchMaxResultsPerQuery: {Kind: Number},
+	KeyResearchSearchMaxQueriesPerRun:   {Kind: Number},
 }
 
 // Defaults returns a fresh copy of Kelyro's safe default settings.
 func Defaults() Settings {
 	return Settings{
-		KeyUIColor:          StringValue("auto"),
-		KeyEditorCommand:    StringValue(""),
-		KeyEditorPrompt:     BoolValue(true),
-		KeyAllowNetwork:     BoolValue(false),
-		KeyAllowAIContent:   BoolValue(false),
-		KeyAllowTelemetry:   BoolValue(false),
-		KeyUpdateCheck:      BoolValue(true),
-		KeyUpdateChannel:    StringValue("stable"),
-		KeyWorkspaceName:    StringValue(""),
-		KeyMasteryThreshold: NumberValue(0.85),
-		KeyBackupRetention:  NumberValue(5),
+		KeyUIColor:                          StringValue("auto"),
+		KeyEditorCommand:                    StringValue(""),
+		KeyEditorPrompt:                     BoolValue(true),
+		KeyAllowNetwork:                     BoolValue(false),
+		KeyAllowAIContent:                   BoolValue(false),
+		KeyAllowTelemetry:                   BoolValue(false),
+		KeyUpdateCheck:                      BoolValue(true),
+		KeyUpdateChannel:                    StringValue("stable"),
+		KeyWorkspaceName:                    StringValue(""),
+		KeyMasteryThreshold:                 NumberValue(0.85),
+		KeyBackupRetention:                  NumberValue(5),
+		KeyResearchSearchProvider:           StringValue(""),
+		KeyResearchSearchMaxResultsPerQuery: NumberValue(DefaultResearchSearchMaxResultsPerQuery),
+		KeyResearchSearchMaxQueriesPerRun:   NumberValue(DefaultResearchSearchMaxQueriesPerRun),
 	}
 }
 
@@ -225,6 +234,25 @@ func validateValue(key string, value Value) error {
 		if math.IsNaN(value.numberV) || math.IsInf(value.numberV, 0) || value.numberV < 1 || value.numberV > 100 || math.Trunc(value.numberV) != value.numberV {
 			return fmt.Errorf("configuration key %q must be an integer from 1 to 100", key)
 		}
+	case KeyResearchSearchProvider:
+		if err := validateResearchSearchProvider(value.stringV); err != nil {
+			return fmt.Errorf("configuration key %q: %w", key, err)
+		}
+	case KeyResearchSearchMaxResultsPerQuery:
+		if err := validateBoundedInteger(value.numberV, 1, MaximumResearchSearchResultsPerQuery); err != nil {
+			return fmt.Errorf("configuration key %q must be an integer from 1 to %d", key, MaximumResearchSearchResultsPerQuery)
+		}
+	case KeyResearchSearchMaxQueriesPerRun:
+		if err := validateBoundedInteger(value.numberV, 1, MaximumResearchSearchQueriesPerRun); err != nil {
+			return fmt.Errorf("configuration key %q must be an integer from 1 to %d", key, MaximumResearchSearchQueriesPerRun)
+		}
+	}
+	return nil
+}
+
+func validateBoundedInteger(value float64, minimum, maximum int) error {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < float64(minimum) || value > float64(maximum) || math.Trunc(value) != value {
+		return fmt.Errorf("number is outside the bounded integer range")
 	}
 	return nil
 }
