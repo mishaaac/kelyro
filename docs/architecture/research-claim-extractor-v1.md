@@ -96,20 +96,24 @@ These constants are part of `claim-extractor-v1`. Trust and multi-source
 verification may later accept, supplement, conflict, or reject the persisted
 Claim without rewriting this extraction confidence.
 
-## Dedupe and persistence boundary for Step 26
+## Dedupe and persistence
 
 Candidates are ordered by Evidence identity and sentence index. Exact
 duplicates use family + statement hash + scope + version/status scope as their
-semantic key. Step 26 may aggregate byte-identical candidates from distinct
+semantic key. Step 26 aggregates byte-identical candidates from distinct
 Sources into one Claim with multiple SourceIDs/EvidenceIDs. Differently worded
 statements are never declared equivalent without a future explicit semantic
 policy; they remain separate Claims and may be insufficiently corroborated.
 
-Step 26 will persist Claims with stable semantic IDs and idempotent replay only
+The live stage persists Claims with stable semantic IDs and idempotent replay only
 after loading each referenced Evidence and validating Source/snapshot
 ownership. A run with Evidence but no unambiguous candidate fails rather than
 inventing a Claim.
 
-Step 25 does not implement sentence splitting, marker matching, Claim
-persistence, trust/freshness, verification, conflicts, bundle assembly, I-04,
-or AI review.
+Every supporting Evidence also receives a durable `citation-v1` record tied to
+the same Source and snapshot. Claim output validation requires a citation for
+every Evidence ID; citations are deduplicated by Evidence when one excerpt
+supports multiple Claims.
+
+The implementation does not apply trust/freshness, verification, conflicts,
+bundle assembly, I-04, or AI review.

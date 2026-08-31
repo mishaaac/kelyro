@@ -1076,7 +1076,7 @@ feat(research): define conservative claim extraction v1
 
 ## Paso 26 — Implement Claim Extractor v1
 
-- [ ] Paso 26 completado
+- [x] Paso 26 completado
 
 Requisitos:
 

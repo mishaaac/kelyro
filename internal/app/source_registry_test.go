@@ -97,6 +97,8 @@ type fakeSourceRegistryStoreFactory struct {
 	sources    researchapp.SourceService
 	snapshots  researchapp.SnapshotCaptureService
 	evidence   researchapp.EvidenceRepository
+	claims     researchapp.ClaimRepository
+	citations  researchapp.CitationRepository
 	registry   researchapp.SourceRegistryService
 	trust      researchapp.TrustDecisionService
 	provenance researchapp.ProvenanceService
@@ -113,13 +115,15 @@ type fakeSourceRegistryStoreFactory struct {
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, registry: factory.registry, trust: factory.trust, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
 	sources    researchapp.SourceService
 	snapshots  researchapp.SnapshotCaptureService
 	evidence   researchapp.EvidenceRepository
+	claims     researchapp.ClaimRepository
+	citations  researchapp.CitationRepository
 	registry   researchapp.SourceRegistryService
 	trust      researchapp.TrustDecisionService
 	provenance researchapp.ProvenanceService
@@ -142,6 +146,10 @@ func (store *fakeSourceRegistryStore) Snapshots() researchapp.SnapshotCaptureSer
 }
 func (store *fakeSourceRegistryStore) Evidence() researchapp.EvidenceRepository {
 	return store.evidence
+}
+func (store *fakeSourceRegistryStore) Claims() researchapp.ClaimRepository { return store.claims }
+func (store *fakeSourceRegistryStore) Citations() researchapp.CitationRepository {
+	return store.citations
 }
 func (store *fakeSourceRegistryStore) TrustDecisions() researchapp.TrustDecisionService {
 	return store.trust

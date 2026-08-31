@@ -73,7 +73,9 @@ type LiveResearchArtifacts struct {
 	NormalizationFailures  []SourceNormalizationFailure
 	EvidenceCandidates     []EvidenceCandidate
 	Evidence               []research.Evidence
+	ClaimCandidates        []ClaimCandidate
 	Claims                 []research.Claim
+	Citations              []research.Citation
 	Verifications          []research.VerificationResult
 	Bundle                 *research.SourceBundle
 }
@@ -339,13 +341,31 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 		result.EvidenceCandidates[index] = cloneEvidenceCandidate(candidate)
 	}
 	result.Evidence = append([]research.Evidence(nil), artifacts.Evidence...)
+	result.ClaimCandidates = make([]ClaimCandidate, len(artifacts.ClaimCandidates))
+	for index, candidate := range artifacts.ClaimCandidates {
+		result.ClaimCandidates[index] = cloneClaimCandidate(candidate)
+	}
 	result.Claims = append([]research.Claim(nil), artifacts.Claims...)
+	result.Citations = make([]research.Citation, len(artifacts.Citations))
+	for index, item := range artifacts.Citations {
+		result.Citations[index] = cloneCitationArtifact(item)
+	}
 	result.Verifications = append([]research.VerificationResult(nil), artifacts.Verifications...)
 	if artifacts.Bundle != nil {
 		bundle := *artifacts.Bundle
 		result.Bundle = &bundle
 	}
 	return result
+}
+
+func cloneCitationArtifact(item research.Citation) research.Citation {
+	clone := item
+	if item.DeepLink != nil {
+		link := *item.DeepLink
+		clone.DeepLink = &link
+	}
+	clone.VersionScope = cloneSourceVersion(item.VersionScope)
+	return clone
 }
 
 var _ LiveResearchOrchestrator = (*liveResearchOrchestrator)(nil)

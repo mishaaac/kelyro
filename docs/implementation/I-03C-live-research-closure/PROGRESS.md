@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 26
-Last completed step: 25
+Current step: 27
+Last completed step: 26
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1387,3 +1387,61 @@ Release: unreleased
 - El Paso 26 debe implementar fielmente este contrato y rechazar ambigüedad;
   no debe ampliar families ni introducir equivalencia semántica/LLM.
 - Trust, freshness y multi-source verification permanecen en Pasos 27–29.
+
+## Step 26 — Deterministic Claim Extractor v1 implementation
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- Selector puro `claim-extractor-v1` implementado con sentence splitting
+  conservador y lexicon cerrado inglés/español para las seis families del
+  Paso 25.
+- Ambiguity gate efectivo para múltiples families/statuses, hedges, fragments
+  sin puntuación terminal, URLs/código/quotes y statements sin anchor local.
+- Version y status scope se copian únicamente desde qualifiers literales; las
+  confidence constants permanecen explícitas por family y no expresan truth.
+- `LiveClaimExtractionService` valida cada Evidence contra su registro durable
+  y contra la cadena exacta Source → snapshot antes de derivar una Claim.
+- Statements byte-idénticos se agregan con todos sus SourceIDs/EvidenceIDs;
+  wording distinto nunca se declara equivalente.
+- Claims usan IDs semánticos estables y persistence idempotente ante replay o
+  carrera, sin sobrescribir una colisión con contenido diferente.
+- Cada Evidence que respalda una Claim recibe una citation durable generada por
+  `citation-v1`; una Claim sin citation correspondiente no puede salir del
+  stage.
+- El stage `extract` productivo compone Evidence y Claims en orden, reutiliza
+  los repositorios SQLite existentes y transporta candidates, Claims y
+  citations con ownership defensivo.
+
+### Decisions
+
+- V1 requiere oración completa con terminador explícito; un trailing fragment
+  se omite en vez de adivinar su cierre gramatical.
+- Release/version necesita `version`/`versión` más un valor opaco literal; no
+  se interpreta SemVer ni se extraen números incidentales.
+- Citation es una relación Source/snapshot/Evidence, por lo que se deduplica
+  por Evidence incluso cuando una Evidence produce más de una Claim.
+- `LastVerified` de la citation registra el momento en que el stage revalidó la
+  cadena durable para derivar la Claim; freshness sigue siendo independiente y
+  queda reservado al Paso 28.
+- No se aplican authority, trust, freshness, corroboration, verification,
+  conflictos ni bundle durante extracción.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/app ./internal/infra/researchdb -run 'ClaimExtractor|LiveClaimExtraction|AssemblesDeterministicEvidence' -count=1`.
+- Tests de las seis families, ambiguity/hedge gates, bounds, determinismo,
+  cancellation, agregación multi-source, citations y replay idempotente.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 27 debe evaluar únicamente las Sources que realmente respaldan las
+  Claims y persistir `TrustDecision` mediante `trust-policy-v1`.
+- Search rank/provider metadata no puede cruzar como authority ni modificar
+  una tier; freshness se integrará por separado en el Paso 28.

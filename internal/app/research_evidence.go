@@ -7,14 +7,25 @@ import (
 )
 
 func (service *Service) researchEvidenceForRun(store researchapp.SourceRegistryStore) (researchapp.LiveResearchStageService, error) {
-	if store == nil || store.Evidence() == nil {
-		return nil, fmt.Errorf("research evidence repository is unavailable")
+	if store == nil || store.Evidence() == nil || store.Claims() == nil || store.Citations() == nil {
+		return nil, fmt.Errorf("research extraction repositories are unavailable")
 	}
-	stage, err := researchapp.NewLiveEvidenceExtractionService(
-		researchapp.NewDeterministicEvidenceExtractorV1(), store.Evidence(), researchSearchClock{now: service.researchClock},
+	clock := researchSearchClock{now: service.researchClock}
+	evidence, err := researchapp.NewLiveEvidenceExtractionService(
+		researchapp.NewDeterministicEvidenceExtractorV1(), store.Evidence(), clock,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("assemble live research evidence extraction: %w", err)
+	}
+	claims, err := researchapp.NewLiveClaimExtractionService(
+		researchapp.NewDeterministicClaimExtractorV1(), store.Evidence(), store.Claims(), store.Citations(), clock,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("assemble live research claim extraction: %w", err)
+	}
+	stage, err := researchapp.NewLiveResearchExtractionStage(evidence, claims)
+	if err != nil {
+		return nil, fmt.Errorf("assemble live research extraction: %w", err)
 	}
 	return stage, nil
 }

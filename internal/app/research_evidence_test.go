@@ -38,7 +38,7 @@ func TestServiceAssemblesDeterministicEvidenceStageWithWorkspaceRepository(t *te
 	if err := repositories.Snapshots.Append(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	store := &fakeSourceRegistryStore{evidence: repositories.Evidence, close: func() {}}
+	store := &fakeSourceRegistryStore{evidence: repositories.Evidence, claims: repositories.Claims, citations: repositories.Citations, close: func() {}}
 	service := NewService(nil, nil).WithResearchClock(func() time.Time { return fetchedAt.Time().Add(time.Hour) })
 	stage, err := service.researchEvidenceForRun(store)
 	if err != nil {
@@ -58,11 +58,12 @@ func TestServiceAssemblesDeterministicEvidenceStageWithWorkspaceRepository(t *te
 			Sources: []research.Source{source}, Snapshots: []research.SourceSnapshot{snapshot},
 			NormalizedSources: []researchapp.NormalizedSource{{
 				SourceID: source.ID, Locator: source.Locator, ContentType: "text/plain",
-				TextSegments: []string{"Go modules manage dependency versions."}, NormalizationVersion: "source-normalization-v1",
+				TextSegments: []string{"Go modules are organized so a Go module is a dependency management system."}, NormalizationVersion: "source-normalization-v1",
 			}},
 		},
 	})
-	if err != nil || len(artifacts.Evidence) == 0 || artifacts.Evidence[0].ExtractorVersion != researchapp.EvidenceExtractorV1 {
+	if err != nil || len(artifacts.Evidence) == 0 || artifacts.Evidence[0].ExtractorVersion != researchapp.EvidenceExtractorV1 ||
+		len(artifacts.Claims) != 1 || len(artifacts.Citations) != 1 {
 		t.Fatalf("evidence stage artifacts=%+v error=%v", artifacts, err)
 	}
 }
