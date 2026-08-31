@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/config"
 	"github.com/mishaaac/kelyro/internal/research"
@@ -18,6 +19,47 @@ import (
 
 const researchCLIWorkflowV1 = "research-cli-workflow-v1"
 
+const researchTopicExecutionTimeoutV1 = 2 * time.Minute
+
+// ResearchTopicExecutionRequest carries the durable identities and bounded
+// query plan prepared by `research topic` into the synchronous queue consumer.
+// Store remains valid only for the duration of Execute.
+type ResearchTopicExecutionRequest struct {
+	Store          researchapp.SourceRegistryStore
+	Workspace      string
+	QueueItemID    research.ID
+	RunID          research.ID
+	Mode           researchapp.ResearchMode
+	Plan           queryplanner.ResearchQueryPlan
+	NetworkAllowed bool
+}
+
+func (request ResearchTopicExecutionRequest) Validate() error {
+	if request.Store == nil {
+		return errors.New("research topic execution store is unavailable")
+	}
+	if strings.TrimSpace(request.Workspace) == "" {
+		return errors.New("research topic execution workspace is empty")
+	}
+	if err := request.QueueItemID.Validate(); err != nil {
+		return fmt.Errorf("research topic execution queue item: %w", err)
+	}
+	if err := request.RunID.Validate(); err != nil {
+		return fmt.Errorf("research topic execution run: %w", err)
+	}
+	if err := request.Mode.Validate(); err != nil {
+		return err
+	}
+	return request.Plan.Validate()
+}
+
+// ResearchTopicExecutor synchronously consumes one already-persisted queue
+// item. Implementations must return before the supplied context ends and must
+// not retain Store or start detached work.
+type ResearchTopicExecutor interface {
+	Execute(context.Context, ResearchTopicExecutionRequest) (researchapp.ResearchQueueConsumeResult, error)
+}
+
 // ResearchCLIView is a bounded, human-facing inspection model. A query plan
 // contains discovery intentions only; it is never presented as evidence.
 type ResearchCLIView struct {
@@ -28,6 +70,7 @@ type ResearchCLIView struct {
 	QueueItem        *research.ResearchQueueItem
 	NetworkAllowed   bool
 	DiscoveryPending bool
+	Execution        *researchapp.ResearchQueueConsumeResult
 	AlgorithmVersion string
 }
 
@@ -101,6 +144,9 @@ func (service *Service) startResearchTopic(ctx context.Context, command Command,
 	if err != nil {
 		return ResearchCLIView{}, err
 	}
+	if decision.QueueItem == nil {
+		return ResearchCLIView{}, errors.New("manual research trigger did not enqueue work")
+	}
 	// Trigger deduplication may return the original queued request. Reuse that
 	// immutable identity so repeated manual invocations become additional runs
 	// of one logical request instead of diverging from their queue metadata.
@@ -136,10 +182,50 @@ func (service *Service) startResearchTopic(ctx context.Context, command Command,
 	if err := store.Research().RecordAudit(ctx, audit); err != nil {
 		return ResearchCLIView{}, err
 	}
-	return ResearchCLIView{
+	view := ResearchCLIView{
 		Request: request, Run: run, Plan: &plan, QueueItem: decision.QueueItem, NetworkAllowed: policy.AllowNetwork,
 		DiscoveryPending: true, AlgorithmVersion: researchCLIWorkflowV1,
-	}, nil
+	}
+	if service.researchExecutor == nil {
+		return view, nil
+	}
+	executionContext, cancel := context.WithTimeout(ctx, researchTopicExecutionTimeoutV1)
+	defer cancel()
+	executionRequest := ResearchTopicExecutionRequest{
+		Store: store, Workspace: command.Workspace, QueueItemID: decision.QueueItem.ID, RunID: run.ID,
+		Mode: researchapp.ResearchModeAuto, Plan: cloneResearchQueryPlan(plan), NetworkAllowed: policy.AllowNetwork,
+	}
+	if err := executionRequest.Validate(); err != nil {
+		return view, err
+	}
+	execution, executeErr := service.researchExecutor.Execute(executionContext, executionRequest)
+	view.Execution = &execution
+	if execution.QueueItem.Validate() == nil {
+		queueItem := execution.QueueItem
+		view.QueueItem = &queueItem
+	}
+	if execution.Orchestration.Run.Validate() == nil {
+		view.Run = execution.Orchestration.Run
+	} else if durableRun, loadErr := store.Research().Run(context.WithoutCancel(ctx), run.ID); loadErr == nil {
+		view.Run = durableRun
+	}
+	if execution.Orchestration.Artifacts.Bundle != nil {
+		bundle := *execution.Orchestration.Artifacts.Bundle
+		view.Bundle = &bundle
+	}
+	view.DiscoveryPending = execution.Disposition != researchapp.ResearchQueueConsumeCompleted &&
+		execution.Disposition != researchapp.ResearchQueueConsumeFailed &&
+		execution.Disposition != researchapp.ResearchQueueConsumeCancelled
+	if executeErr != nil {
+		return view, executeErr
+	}
+	return view, nil
+}
+
+func cloneResearchQueryPlan(plan queryplanner.ResearchQueryPlan) queryplanner.ResearchQueryPlan {
+	clone := plan
+	clone.Queries = append([]queryplanner.ResearchQuery(nil), plan.Queries...)
+	return clone
 }
 
 func newResearchCLIIDs() (research.ID, research.ID, research.ID, research.ID, error) {

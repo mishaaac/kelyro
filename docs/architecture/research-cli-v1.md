@@ -39,14 +39,17 @@ profile is a planning preference only: it requires corroboration and tier C or
 better, but cannot make any candidate trusted.
 
 The same operation evaluates `research-trigger-v1` with an explicit manual
-signal and no recorded evidence. Its deduplicated queue item remains `queued`
-because no worker or live adapter was dispatched.
+signal and no recorded evidence. When a `ResearchTopicExecutor` is assembled,
+the command passes that durable queue item and run to `research-queue-worker-v1`
+in the same call stack with a fixed two-minute deadline. The result is returned
+to the CLI view; no daemon, scheduler, detached goroutine, or hidden retry is
+started.
 
-Kelyro currently has no production live-search adapter. Consequently the CLI
-does not invent discovery results or pretend that a completed bundle exists.
-It leaves the run in `planned`, reports discovery as pending, and states whether
-`privacy.allow_network` would permit a future live adapter. No network gate is
-invoked because no network operation is attempted. Stored sources, snapshots,
+The execution seam is optional until the concrete query-to-bundle stages are
+assembled. Without it, the CLI does not invent discovery results or pretend
+that a completed bundle exists: the run remains `planned`, discovery is
+pending, and no network operation is attempted. With it, every live stage
+continues to pass through privacy and cost policy. Stored sources, snapshots,
 evidence, bundles, and cache remain inspectable while network access is off.
 
 ## Boundaries

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 16
-Last completed step: 15
+Current step: 17
+Last completed step: 16
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -850,3 +850,60 @@ Release: unreleased
   acotado y devolver el resultado en el mismo proceso, sin daemon ni goroutine
   detached.
 - Los stages concretos query-to-bundle siguen reservados a los Pasos 17–31.
+
+## Step 16 — Initial execution path without daemon
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `ResearchTopicExecutor` añadido como composition seam síncrono entre el
+  comando `research topic` y el `ResearchQueueConsumer` del Paso 15.
+- El request de ejecución entrega el store workspace-scoped, queue ID, run ID,
+  modo `auto`, policy observable y una copia bounded del Query Plan cuyas
+  queries ya quedaron auditadas.
+- `research topic` conserva el orden durable `enqueue/start/audit → execute` y
+  aplica un deadline local fijo de dos minutos a la ejecución inicial.
+- El resultado del consumer vuelve al `ResearchCLIView`: queue settlement,
+  run terminal, artifacts/bundle cuando existan y disposition retry/in-flight
+  sin releer Internet ni convertir queries en Evidence.
+- `WithResearchTopicExecutor` solo inyecta el executor; no inicia goroutines,
+  timers persistentes, scheduler, daemon ni trabajo detached.
+- Test de integración application-level construye el consumer real sobre la
+  queue memory, ejecuta el command en el mismo call stack, verifica deadline,
+  request/plan bounded, ack durable y run completed.
+
+### Decisions
+
+- El timeout de dos minutos es un bound de seguridad del path inicial, no una
+  nueva configuración ni una política de retry. Un deadline observado por el
+  orchestrator conserva la terminalidad/cancelación del Paso 14 y del worker.
+- El executor recibe el store solo durante `Execute`; el command no cierra el
+  workspace hasta que la ejecución síncrona termina.
+- El seam permanece opcional mientras los stages productivos se incorporan en
+  los Pasos 17–31. Si todavía no está ensamblado, el comportamiento offline
+  existente se conserva: queue/run quedan pending en vez de fingir success o
+  instalar no-op stages.
+- No se añadió command alternativo, daemon, polling, background retry ni una
+  segunda queue.
+- Este paso conecta control flow solamente. No implementa candidate mapping,
+  registration, fetch, snapshot, normalization, extraction, verification ni
+  bundle assembly reservados a pasos posteriores.
+
+### Verification
+
+- `go test -race ./internal/app ./internal/cli ./internal/research/application -count=1`.
+- `go test ./internal/app ./internal/cli ./internal/research/application`.
+- `go vet ./internal/app ./internal/cli ./internal/research/application`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 17 debe implementar únicamente Search Result → Source Candidate y
+  luego podrá conectarse como primer stage concreto al executor.
+- Production composition seguirá sin activar el executor hasta que sus stages
+  obligatorios existan; no usar placeholders que completen trabajo falso.

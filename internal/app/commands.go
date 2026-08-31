@@ -189,6 +189,7 @@ type Service struct {
 	researchStores   researchapp.SourceRegistryStoreFactory
 	researchCaches   researchapp.ResearchCacheServiceFactory
 	researchSearch   researchapp.LiveSearchProviderFactory
+	researchExecutor ResearchTopicExecutor
 	researchClock    func() time.Time
 	currentDirectory func() (string, error)
 	bootstrap        BootstrapService
@@ -234,6 +235,14 @@ func (service *Service) WithResearchCaches(caches researchapp.ResearchCacheServi
 // The factory remains idle until a run explicitly requests discovery.
 func (service *Service) WithResearchSearch(search researchapp.LiveSearchProviderFactory) *Service {
 	service.researchSearch = search
+	return service
+}
+
+// WithResearchTopicExecutor attaches the synchronous queue execution seam.
+// Concrete live stages are assembled independently and no background worker is
+// started by attaching it.
+func (service *Service) WithResearchTopicExecutor(executor ResearchTopicExecutor) *Service {
+	service.researchExecutor = executor
 	return service
 }
 

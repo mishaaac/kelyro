@@ -51,4 +51,6 @@ completed run. The orchestrator remains the sole owner of stage order and
 The worker starts no goroutine, daemon, scheduler, recursive crawl, or network
 operation by itself. Search/fetch remain behind their adapters, privacy gate,
 and cost controls. Concrete query-to-bundle stage assembly belongs to later
-I-03C steps.
+I-03C steps. `research topic` can invoke an assembled consumer synchronously
+through `ResearchTopicExecutor`; the command supplies a fixed two-minute
+deadline and never retains the workspace store after the call returns.

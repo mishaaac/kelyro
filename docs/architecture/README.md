@@ -48,7 +48,9 @@ is documented in
 
 The [Research queue worker v1](research-queue-worker-v1.md) atomically claims
 and settles work from the existing durable trigger queue while delegating the
-single run lifecycle to the live orchestrator.
+single run lifecycle to the live orchestrator. The manual topic command can
+invoke an assembled worker synchronously with a bounded context, without a
+daemon.
 
 The reusable Research HTTP transport, bounded retry policy, response limits,
 safe hooks, compression behavior, redaction boundary, and SSRF defenses are

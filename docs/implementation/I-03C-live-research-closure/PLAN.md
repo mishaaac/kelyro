@@ -809,7 +809,7 @@ feat(research): consume pending research work
 
 ## Paso 16 — Execution path inicial sin daemon
 
-- [ ] Paso 16 completado
+- [x] Paso 16 completado
 
 Para minimizar código:
 
@@ -1822,8 +1822,8 @@ docs(roadmap): mark I-03C live research closure complete
 - [ ] Paso 12 — Doctor
 - [ ] Paso 13 — Orchestrator
 - [ ] Paso 14 — Run lifecycle
-- [ ] Paso 15 — Queue consumer
-- [ ] Paso 16 — Execution path
+- [x] Paso 15 — Queue consumer
+- [x] Paso 16 — Execution path
 - [ ] Paso 17 — Search candidates
 - [ ] Paso 18 — Deduplication
 - [ ] Paso 19 — Source Registry
