@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 38
-Last completed step: 37
+Current step: 39
+Last completed step: 38
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- automated query-to-bundle acceptance matrix and live smoke coverage pending
+- privacy, partial failure, idempotency, and live smoke coverage pending
 
 ## Registro
 
@@ -2093,3 +2093,59 @@ Release: unreleased
   content server locales; este paso no adelanta esa matriz.
 - Adapters futuros deben invocar `searchprovidertest.Run` además de conservar
   sus propios tests de transporte y mapping vendor-specific.
+
+## Step 38 — E2E query-to-bundle without Internet
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- E2E `TestResearchTopicQueryToBundleEndToEnd` añadido bajo el gate `e2e`, sin
+  acceso a Internet público.
+- Una Search API `httptest.Server` autenticada devuelve dos URLs bounded; un
+  content server local separado sirve dos documentos HTML mediante hosts
+  `.fixture.test` resueltos sólo a loopback.
+- El escenario invoca el composition root síncrono real de `research topic`
+  con workspace filesystem, SQLite, research cache, cost control, privacy
+  gate, fetch endurecido y normalizador productivos.
+- La cadena observable cubre query → URLs → Sources → fetch → snapshots →
+  normalize → Evidence → Claims → verification → Source Bundle → provenance.
+- Tras cerrar y reabrir el workspace se verifican Run completed,
+  `DiscoveryPending=false`, bundle durable con hash y un grafo durable por
+  Claim.
+- Cada grafo exige la cadena completa ResearchRequest → ResearchRun → query →
+  DiscoveredSource → Source → SourceSnapshot → Evidence → Claim → SourceBundle
+  con las identidades reales del resultado.
+
+### Decisions
+
+- Las dos fuentes conocidas se precargan como documentación oficial trusted en
+  el registry, igual que un workspace con catálogo revisado; los resultados de
+  búsqueda siguen siendo candidates y no asignan trust por sí mismos.
+- Las páginas contienen dos statements distintos y conservadores para que cada
+  Claim tenga soporte primario explícito sin inventar independencia entre dos
+  URLs ni debilitar Trust/Verification Policy.
+- El único adapter reemplazado es la API de búsqueda externa. Su factory usa el
+  mismo `LiveSearchBuildRequest`, privacy gate, durable cost ledger y
+  `CostControlledDiscoveryService` que exige el composition root.
+- El fetch de contenido usa `NewLoopbackFixtureClient`, disponible sólo bajo el
+  build tag E2E; la política productiva de direcciones públicas no se relajó.
+- No se cambió código productivo, UX, schema, lifecycle, políticas ni I-04.
+
+### Verification
+
+- `go test -race -tags=e2e ./tests/e2e -run '^TestResearchTopicQueryToBundleEndToEnd$' -count=1`.
+- `go test -tags=e2e ./tests/e2e -count=1`.
+- `go vet -tags=e2e ./tests/e2e`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 39 debe comprobar `privacy.allow_network=false` con cero llamadas a
+  la Search API y cero fetches, sin reutilizar este success como atajo.
+- Partial failure, idempotency y live smoke continúan reservados a los Pasos
+  40–42.

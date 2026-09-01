@@ -1375,7 +1375,7 @@ test(research): add SearchProvider conformance suite
 
 ## Paso 38 — E2E query-to-bundle sin Internet
 
-- [ ] Paso 38 completado
+- [x] Paso 38 completado
 
 Fake Search API + local content server:
 
