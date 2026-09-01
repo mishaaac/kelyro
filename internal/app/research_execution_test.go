@@ -76,7 +76,8 @@ func (executor *synchronousResearchTopicExecutor) Execute(ctx context.Context, r
 	orchestrator := &completingResearchTopicOrchestrator{research: request.Store.Research(), at: executor.at}
 	consumer, err := researchapp.NewResearchQueueConsumer(researchapp.ResearchQueueConsumerDependencies{
 		Queue: request.Store.Triggers(), Research: request.Store.Research(), Orchestrator: orchestrator,
-		Clock: researchTopicExecutionClock{at: executor.at},
+		Finalization: appResearchFinalizer{queue: request.Store.Triggers(), research: request.Store.Research()},
+		Clock:        researchTopicExecutionClock{at: executor.at},
 	})
 	if err != nil {
 		return researchapp.ResearchQueueConsumeResult{}, err
@@ -99,9 +100,32 @@ func (orchestrator *completingResearchTopicOrchestrator) Execute(ctx context.Con
 	if _, err := orchestrator.research.TransitionRun(ctx, request.RunID, research.ResearchRunRunning, orchestrator.at); err != nil {
 		return researchapp.LiveResearchOrchestrationResult{}, err
 	}
-	completed, err := orchestrator.research.TransitionRun(ctx, request.RunID, research.ResearchRunCompleted, orchestrator.at)
+	running, err := orchestrator.research.Run(ctx, request.RunID)
 	if err != nil {
 		return researchapp.LiveResearchOrchestrationResult{}, err
 	}
-	return researchapp.LiveResearchOrchestrationResult{Run: completed}, nil
+	bundleID, _ := research.NewID("bundle.research-execution")
+	return researchapp.LiveResearchOrchestrationResult{Run: running, Artifacts: researchapp.LiveResearchArtifacts{Bundle: &research.SourceBundle{ID: bundleID, RunID: running.ID}}}, nil
+}
+
+type appResearchFinalizer struct {
+	queue    researchapp.ResearchTriggerService
+	research researchapp.ResearchService
+}
+
+func (finalizer appResearchFinalizer) Finalize(ctx context.Context, finalization researchapp.ResearchFinalization) (researchapp.ResearchFinalizationResult, error) {
+	run, err := finalizer.research.TransitionRun(ctx, finalization.RunID, finalization.RunStatus, finalization.FinalizedAt)
+	if err != nil {
+		return researchapp.ResearchFinalizationResult{}, err
+	}
+	execution := researchapp.ResearchQueueExecution{
+		QueueItemID: finalization.QueueItemID, RunID: finalization.RunID, Status: finalization.ExecutionStatus,
+		Attempts: finalization.Attempts, ChangedAt: finalization.FinalizedAt, FailureKind: finalization.FailureKind,
+		BundleID: finalization.BundleID, AlgorithmVersion: researchapp.ResearchQueueWorkerV1,
+	}
+	settled, err := finalizer.queue.SettleExecution(ctx, researchapp.ResearchQueueExecutionClaimed, execution)
+	if err != nil {
+		return researchapp.ResearchFinalizationResult{}, err
+	}
+	return researchapp.ResearchFinalizationResult{Run: run, Execution: settled}, nil
 }

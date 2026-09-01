@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -46,6 +47,84 @@ func TestSQLiteResearchTriggerQueuePersistsDeduplicatesAndOrdersMetadata(t *test
 	loaded, err := service.Get(ctx, cancelled.ID)
 	if err != nil || loaded.StatusChangedAt == nil || loaded.Status != research.ResearchQueueCancelled {
 		t.Fatalf("loaded cancelled = (%+v,%v)", loaded, err)
+	}
+}
+
+func TestSQLiteResearchFinalizationCommitsAndRollsBackRunQueueBundleAtomically(t *testing.T) {
+	database, _ := openTestDatabase(t)
+	ctx := context.Background()
+	repositories := database.Repositories().Research
+	queue := application.NewResearchTriggerService(repositories.TriggerQueue)
+	researchService := application.NewResearchService(repositories.Runs)
+	input := sqliteTriggerInput(t, "request.sqlite-finalization", "queue.sqlite-finalization", "finalization topic", 0)
+	input.Signals = trigger.Signals{Manual: true}
+	decision, err := queue.Evaluate(ctx, input)
+	if err != nil || decision.QueueItem == nil {
+		t.Fatalf("queue = (%+v, %v)", decision, err)
+	}
+	runID, _ := research.NewID("run.sqlite-finalization")
+	run := research.ResearchRun{ID: runID, RequestID: input.Request.ID, Status: research.ResearchRunRunning, StartedAt: input.AsOf}
+	if err := researchService.Start(ctx, input.Request, run); err != nil {
+		t.Fatal(err)
+	}
+	bundleID, _ := research.NewID("bundle.sqlite-finalization")
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO source_bundles (id,run_id,topic_subject,topic_domain,topic_technology,purpose,state,verified_at) VALUES (?,?,?,?,?,?,?,?)`,
+		bundleID.String(), run.ID.String(), input.Request.Topic.Subject, input.Request.Topic.Domain, input.Request.Topic.Technology,
+		string(input.Request.Purpose), string(research.BundleIncomplete), timestampText(input.AsOf)); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := queue.ClaimExecution(ctx, application.ResearchQueueExecutionClaim{QueueItemID: decision.QueueItem.ID, RunID: run.ID, At: input.AsOf})
+	if err != nil || !claimed.Acquired {
+		t.Fatalf("claim = (%+v, %v)", claimed, err)
+	}
+	finalizedAt, _ := research.NewTimestamp(input.AsOf.Time().Add(time.Hour))
+	service := application.NewResearchFinalizationService(repositories.Finalization)
+	result, err := service.Finalize(ctx, application.ResearchFinalization{
+		QueueItemID: decision.QueueItem.ID, RunID: run.ID, RunStatus: research.ResearchRunCompleted,
+		ExecutionStatus: application.ResearchQueueExecutionCompleted, Attempts: claimed.Execution.Attempts,
+		BundleID: &bundleID, FinalizedAt: finalizedAt, AlgorithmVersion: application.ResearchFinalizationV1,
+	})
+	if err != nil || result.Run.Status != research.ResearchRunCompleted || result.Execution.BundleID == nil || *result.Execution.BundleID != bundleID {
+		t.Fatalf("finalization = (%+v, %v)", result, err)
+	}
+	storedRun, _ := researchService.Run(ctx, run.ID)
+	storedItem, _ := queue.Get(ctx, decision.QueueItem.ID)
+	storedExecution, _ := queue.Execution(ctx, decision.QueueItem.ID)
+	if storedRun.Status != research.ResearchRunCompleted || storedItem.Status != research.ResearchQueueDispatched ||
+		storedExecution.BundleID == nil || *storedExecution.BundleID != bundleID {
+		t.Fatalf("durable finalization = run(%+v) item(%+v) execution(%+v)", storedRun, storedItem, storedExecution)
+	}
+
+	wrong := sqliteTriggerInput(t, "request.sqlite-finalization-wrong", "queue.sqlite-finalization-wrong", "wrong finalization topic", 2*time.Hour)
+	wrong.Signals = trigger.Signals{Manual: true}
+	wrongDecision, err := queue.Evaluate(ctx, wrong)
+	if err != nil || wrongDecision.QueueItem == nil {
+		t.Fatal(err)
+	}
+	wrongRunID, _ := research.NewID("run.sqlite-finalization-wrong")
+	wrongRun := research.ResearchRun{ID: wrongRunID, RequestID: wrong.Request.ID, Status: research.ResearchRunRunning, StartedAt: wrong.AsOf}
+	if err := researchService.Start(ctx, wrong.Request, wrongRun); err != nil {
+		t.Fatal(err)
+	}
+	wrongClaim, err := queue.ClaimExecution(ctx, application.ResearchQueueExecutionClaim{QueueItemID: wrongDecision.QueueItem.ID, RunID: wrongRun.ID, At: wrong.AsOf})
+	if err != nil || !wrongClaim.Acquired {
+		t.Fatal(err)
+	}
+	wrongFinalizedAt, _ := research.NewTimestamp(wrong.AsOf.Time().Add(time.Hour))
+	_, err = service.Finalize(ctx, application.ResearchFinalization{
+		QueueItemID: wrongDecision.QueueItem.ID, RunID: wrongRun.ID, RunStatus: research.ResearchRunCompleted,
+		ExecutionStatus: application.ResearchQueueExecutionCompleted, Attempts: wrongClaim.Execution.Attempts,
+		BundleID: &bundleID, FinalizedAt: wrongFinalizedAt, AlgorithmVersion: application.ResearchFinalizationV1,
+	})
+	if !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("wrong bundle finalization error = %v", err)
+	}
+	rolledBackRun, _ := researchService.Run(ctx, wrongRun.ID)
+	rolledBackItem, _ := queue.Get(ctx, wrongDecision.QueueItem.ID)
+	rolledBackExecution, _ := queue.Execution(ctx, wrongDecision.QueueItem.ID)
+	if rolledBackRun.Status != research.ResearchRunRunning || rolledBackItem.Status != research.ResearchQueueQueued ||
+		rolledBackExecution.Status != application.ResearchQueueExecutionClaimed || rolledBackExecution.BundleID != nil {
+		t.Fatalf("rollback state = run(%+v) item(%+v) execution(%+v)", rolledBackRun, rolledBackItem, rolledBackExecution)
 	}
 }
 

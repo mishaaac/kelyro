@@ -80,8 +80,9 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		database.Repositories().Research.Freshness,
 		systemClock{},
 	)
+	finalization := application.NewResearchFinalizationService(database.Repositories().Research.Finalization)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, verifications: verifications, diversity: diversityService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
+	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, verifications: verifications, diversity: diversityService, bundles: bundles, finalization: finalization, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }
 
 type store struct {
@@ -102,6 +103,7 @@ type store struct {
 	verifications   application.VerificationService
 	diversity       application.SourceDiversityService
 	bundles         application.SourceBundleService
+	finalization    application.ResearchFinalizationService
 	conflicts       application.ConflictResolutionService
 	costs           application.ResearchCostService
 	triggers        application.ResearchTriggerService
@@ -120,12 +122,15 @@ func (store *store) TrustDecisions() application.TrustDecisionService { return s
 func (store *store) TrustRepository() application.TrustRegistryRepository {
 	return store.trustRepository
 }
-func (store *store) Provenance() application.ProvenanceService        { return store.provenance }
-func (store *store) Freshness() application.FreshnessService          { return store.freshness }
-func (store *store) Research() application.ResearchService            { return store.research }
-func (store *store) Verifications() application.VerificationService   { return store.verifications }
-func (store *store) Diversity() application.SourceDiversityService    { return store.diversity }
-func (store *store) Bundles() application.SourceBundleService         { return store.bundles }
+func (store *store) Provenance() application.ProvenanceService      { return store.provenance }
+func (store *store) Freshness() application.FreshnessService        { return store.freshness }
+func (store *store) Research() application.ResearchService          { return store.research }
+func (store *store) Verifications() application.VerificationService { return store.verifications }
+func (store *store) Diversity() application.SourceDiversityService  { return store.diversity }
+func (store *store) Bundles() application.SourceBundleService       { return store.bundles }
+func (store *store) Finalization() application.ResearchFinalizationService {
+	return store.finalization
+}
 func (store *store) Conflicts() application.ConflictResolutionService { return store.conflicts }
 func (store *store) Costs() application.ResearchCostService           { return store.costs }
 func (store *store) Triggers() application.ResearchTriggerService     { return store.triggers }

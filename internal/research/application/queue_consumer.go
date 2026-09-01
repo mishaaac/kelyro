@@ -37,6 +37,7 @@ type ResearchQueueExecution struct {
 	Attempts         int
 	ChangedAt        research.Timestamp
 	FailureKind      ErrorKind
+	BundleID         *research.ID
 	AlgorithmVersion string
 }
 
@@ -62,6 +63,14 @@ func (execution ResearchQueueExecution) Validate() error {
 		}
 	} else if execution.FailureKind != "" {
 		return errors.New("non-failed research queue execution has a failure kind")
+	}
+	if execution.BundleID != nil {
+		if err := execution.BundleID.Validate(); err != nil {
+			return fmt.Errorf("research queue execution bundle: %w", err)
+		}
+		if execution.Status != ResearchQueueExecutionCompleted {
+			return errors.New("only completed research queue execution may reference a bundle")
+		}
 	}
 	if execution.AlgorithmVersion != ResearchQueueWorkerV1 {
 		return fmt.Errorf("research queue execution algorithm must be %q", ResearchQueueWorkerV1)
@@ -129,6 +138,7 @@ type ResearchQueueConsumerDependencies struct {
 	Queue        ResearchTriggerService
 	Research     ResearchService
 	Orchestrator LiveResearchOrchestrator
+	Finalization ResearchFinalizationService
 	Clock        Clock
 }
 
@@ -145,6 +155,7 @@ func NewResearchQueueConsumer(dependencies ResearchQueueConsumerDependencies) (R
 		{"research trigger service", dependencies.Queue},
 		{"research service", dependencies.Research},
 		{"live research orchestrator", dependencies.Orchestrator},
+		{"research finalization service", dependencies.Finalization},
 		{"clock", dependencies.Clock},
 	} {
 		if err := requireDependency(operation, dependency.name, dependency.value); err != nil {
@@ -186,31 +197,29 @@ func (consumer *researchQueueConsumer) Consume(ctx context.Context, request Rese
 	})
 	result.Orchestration = orchestrated
 	if executeErr == nil {
-		completedRun, loadErr := consumer.dependencies.Research.Run(ctx, run.ID)
-		if loadErr != nil {
-			executeErr = boundaryError(ErrorPersistenceFailure, operation, loadErr)
-		} else if completedRun.Status != research.ResearchRunCompleted || orchestrated.Run.ID != completedRun.ID || orchestrated.Run.Status != research.ResearchRunCompleted {
-			executeErr = invalid(operation, errors.New("orchestrator returned success without a completed matching run"))
+		if orchestrated.Run.ID != run.ID || orchestrated.Run.Status != research.ResearchRunRunning ||
+			orchestrated.Artifacts.Bundle == nil || orchestrated.Artifacts.Bundle.RunID != run.ID {
+			executeErr = invalid(operation, errors.New("orchestrator returned success without a matching running run and bundle"))
 		}
 	}
 	if executeErr == nil {
 		result.Disposition = ResearchQueueConsumeCompleted
-		return consumer.settle(ctx, result, ResearchQueueExecutionCompleted, "", nil)
+		return consumer.finalize(ctx, result, research.ResearchRunCompleted, ResearchQueueExecutionCompleted, orchestrated.Artifacts.Bundle.ID, "", nil)
 	}
 	if errors.Is(executeErr, context.Canceled) || errors.Is(executeErr, context.DeadlineExceeded) || ctx.Err() != nil {
 		result.Disposition = ResearchQueueConsumeCancelled
-		return consumer.settle(context.WithoutCancel(ctx), result, ResearchQueueExecutionCancelled, "", executeErr)
+		return consumer.finalize(context.WithoutCancel(ctx), result, research.ResearchRunCancelled, ResearchQueueExecutionCancelled, research.ID{}, "", executeErr)
 	}
 	kind, classified := KindOf(executeErr)
 	if classified && researchQueueFailureIsTransient(kind) {
 		result.Disposition = ResearchQueueConsumeRetry
-		return consumer.settle(ctx, result, ResearchQueueExecutionRetry, kind, executeErr)
+		return consumer.finalize(ctx, result, research.ResearchRunFailed, ResearchQueueExecutionRetry, research.ID{}, kind, executeErr)
 	}
 	if !classified {
 		kind = ErrorInvalidState
 	}
 	result.Disposition = ResearchQueueConsumeFailed
-	return consumer.settle(ctx, result, ResearchQueueExecutionFailed, kind, executeErr)
+	return consumer.finalize(ctx, result, research.ResearchRunFailed, ResearchQueueExecutionFailed, research.ID{}, kind, executeErr)
 }
 
 func (consumer *researchQueueConsumer) loadIdentity(ctx context.Context, request ResearchQueueConsumeRequest) (research.ResearchQueueItem, research.ResearchRun, error) {
@@ -258,17 +267,22 @@ func (consumer *researchQueueConsumer) reconcileExisting(ctx context.Context, re
 	return result, nil
 }
 
-func (consumer *researchQueueConsumer) settle(ctx context.Context, result ResearchQueueConsumeResult, status ResearchQueueExecutionStatus, kind ErrorKind, cause error) (ResearchQueueConsumeResult, error) {
-	settlement := result.Execution
-	settlement.Status = status
-	settlement.ChangedAt = consumer.dependencies.Clock.Now()
-	settlement.FailureKind = kind
-	settled, err := consumer.dependencies.Queue.SettleExecution(ctx, ResearchQueueExecutionClaimed, settlement)
-	if err != nil {
-		return result, errors.Join(cause, boundaryError(ErrorPersistenceFailure, "settle research queue execution", err))
+func (consumer *researchQueueConsumer) finalize(ctx context.Context, result ResearchQueueConsumeResult, runStatus research.ResearchRunStatus, status ResearchQueueExecutionStatus, bundleID research.ID, kind ErrorKind, cause error) (ResearchQueueConsumeResult, error) {
+	finalization := ResearchFinalization{
+		QueueItemID: result.Execution.QueueItemID, RunID: result.Execution.RunID,
+		RunStatus: runStatus, ExecutionStatus: status, Attempts: result.Execution.Attempts,
+		FailureKind: kind, FinalizedAt: consumer.dependencies.Clock.Now(), AlgorithmVersion: ResearchFinalizationV1,
 	}
-	result.Execution = settled
-	item, err := consumer.dependencies.Queue.Get(ctx, settled.QueueItemID)
+	if status == ResearchQueueExecutionCompleted {
+		finalization.BundleID = &bundleID
+	}
+	finalized, err := consumer.dependencies.Finalization.Finalize(ctx, finalization)
+	if err != nil {
+		return result, errors.Join(cause, boundaryError(ErrorPersistenceFailure, "finalize research run and queue", err))
+	}
+	result.Execution = finalized.Execution
+	result.Orchestration.Run = finalized.Run
+	item, err := consumer.dependencies.Queue.Get(ctx, finalized.Execution.QueueItemID)
 	if err != nil {
 		return result, errors.Join(cause, boundaryError(ErrorPersistenceFailure, "reload settled research queue item", err))
 	}

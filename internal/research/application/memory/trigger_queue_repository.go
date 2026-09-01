@@ -120,7 +120,7 @@ func (repository researchTriggerQueueRepository) ClaimExecution(ctx context.Cont
 		if !hasExecution {
 			return application.ResearchQueueExecutionClaimResult{}, invalid(operation, errRelationship("research queue item is not claimable"))
 		}
-		return application.ResearchQueueExecutionClaimResult{Execution: existing}, nil
+		return application.ResearchQueueExecutionClaimResult{Execution: cloneQueueExecution(existing)}, nil
 	}
 	attempts := 1
 	if hasExecution {
@@ -131,7 +131,7 @@ func (repository researchTriggerQueueRepository) ClaimExecution(ctx context.Cont
 		Attempts: attempts, ChangedAt: claim.At, AlgorithmVersion: application.ResearchQueueWorkerV1,
 	}
 	repository.store.queueExecutions[claim.QueueItemID] = execution
-	return application.ResearchQueueExecutionClaimResult{Execution: execution, Acquired: true}, nil
+	return application.ResearchQueueExecutionClaimResult{Execution: cloneQueueExecution(execution), Acquired: true}, nil
 }
 
 func (repository researchTriggerQueueRepository) GetExecution(ctx context.Context, id research.ID) (application.ResearchQueueExecution, error) {
@@ -148,7 +148,7 @@ func (repository researchTriggerQueueRepository) GetExecution(ctx context.Contex
 	if !exists {
 		return application.ResearchQueueExecution{}, notFound(operation)
 	}
-	return execution, nil
+	return cloneQueueExecution(execution), nil
 }
 
 func (repository researchTriggerQueueRepository) UpdateExecution(ctx context.Context, expected application.ResearchQueueExecutionStatus, execution application.ResearchQueueExecution) error {
@@ -191,7 +191,7 @@ func (repository researchTriggerQueueRepository) UpdateExecution(ctx context.Con
 	if err := item.Validate(); err != nil {
 		return invalid(operation, err)
 	}
-	repository.store.queueExecutions[execution.QueueItemID] = execution
+	repository.store.queueExecutions[execution.QueueItemID] = cloneQueueExecution(execution)
 	repository.store.triggerQueue[item.ID] = cloneResearchQueueItem(item)
 	return nil
 }

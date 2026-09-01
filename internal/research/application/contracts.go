@@ -151,6 +151,12 @@ type ResearchTriggerQueueRepository interface {
 	UpdateExecution(context.Context, ResearchQueueExecutionStatus, ResearchQueueExecution) error
 }
 
+// ResearchFinalizationRepository owns the only cross-aggregate write in live
+// research: terminalizing one run and settling its claimed queue execution.
+type ResearchFinalizationRepository interface {
+	Finalize(context.Context, ResearchFinalization) (ResearchFinalizationResult, error)
+}
+
 type TrustRegistryRepository interface {
 	SaveProfile(context.Context, research.AuthorityProfile) error
 	GetProfile(context.Context, research.ID) (research.AuthorityProfile, error)
@@ -362,6 +368,7 @@ type Repositories struct {
 	Runs              ResearchRunRepository
 	Costs             ResearchCostRepository
 	TriggerQueue      ResearchTriggerQueueRepository
+	Finalization      ResearchFinalizationRepository
 	TrustRegistry     TrustRegistryRepository
 	SourceRegistry    SourceRegistryRepository
 	Releases          ReleaseRepository
@@ -1464,6 +1471,7 @@ type SourceRegistryStore interface {
 	Verifications() VerificationService
 	Diversity() SourceDiversityService
 	Bundles() SourceBundleService
+	Finalization() ResearchFinalizationService
 	Conflicts() ConflictResolutionService
 	Costs() ResearchCostService
 	Triggers() ResearchTriggerService

@@ -2,18 +2,17 @@
 
 ## Estado general
 
-Current step: 29
-Last completed step: 28
+Current step: 32
+Last completed step: 31
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- production SearchProvider missing
-- URL discovery missing
-- queue worker/orchestrator missing
-- query-to-bundle wiring missing
-- generic deterministic evidence/claim extraction incomplete
+- end-to-end provenance wiring pending
+- terminal audit and final cost reconciliation pending
+- production command composition of all completed stages pending
+- CLI status/show and output rendering pending
 
 ## Registro
 
@@ -1683,3 +1682,73 @@ Release: unreleased
   cuando el bundle durable validado pertenece al mismo Run.
 - Un fallo debe conservar una razón estructurada segura y no dejar
   `DiscoveryPending=true` para outcomes terminales.
+
+## Step 31 — Transactional run and queue finalization
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `research-finalization-v1` define una única settlement request cerrada para
+  success, retry, permanent failure y cancellation, ligada a queue item, Run,
+  attempt, timestamp y bundle opcional.
+- `ResearchQueueConsumer` ya no observa un Run completado por separado y luego
+  hace ack: recibe del orchestrator un Run `running` + bundle durable y delega
+  Run transition + queue execution settlement a una sola operación.
+- Success actualiza atómicamente `run.status=completed`, `completed_at`, queue
+  status `dispatched` (ack histórico), execution `completed` y
+  `execution_bundle_id`.
+- Retry actualiza atómicamente Run `failed` + execution `retry` y mantiene la
+  queue `queued`; permanent failure deja Run `failed`, queue `dispatched` y
+  execution `failed`; cancellation deja ambos lados cancelados.
+- El resultado terminal vuelve al orchestration result y la CLI existente
+  deriva `DiscoveryPending=false` para completed/failed/cancelled.
+- El finalization stage reabre el bundle por ID y exige Run, hash y
+  `source-bundle-v1` coincidentes antes de permitir settlement.
+- Adapter memory con lock único y adapter SQLite con transacción única, compare
+  and set sobre execution `claimed`, attempt y Run identity.
+- Migración forward-only v46 añade `execution_bundle_id` con foreign key e
+  índice parcial; los execution records previos permanecen legibles.
+- El store workspace-scoped expone tanto el validation stage como el servicio
+  de finalización transaccional para el futuro composition root del comando.
+
+### Decisions
+
+- El orchestrator conserva exclusivamente `planned → running` y prepara el
+  resultado; terminalidad pertenece al consumer que posee el claim de queue.
+  Así no existe una ventana durable `Run completed / queue claimed`.
+- `dispatched` sigue siendo el ack terminal de la queue I-03 existente;
+  `execution_status=completed` distingue success sin crear una segunda queue.
+- La razón persistida de failure continúa siendo el `ErrorKind` cerrado
+  (`network_research_blocked`, `budget_exceeded`, etc.). No se persisten
+  mensajes de provider, URLs sensibles, headers, bodies, stack traces ni
+  secretos.
+- Un success exige que `bundle_id` exista y pertenezca al mismo Run. Un bundle
+  ausente o cruzado aborta toda la transacción y deja Run running + queue
+  claimed para reconciliación segura.
+- El path legacy `SettleExecution` permanece para compatibilidad/tests de la
+  queue, pero el consumer live usa exclusivamente `ResearchFinalizationService`.
+- No se añadió provenance, audit terminal, cost final ni I-04.
+
+### Verification
+
+- Tests memory de commit conjunto Run/queue/bundle ID, failure kind seguro,
+  terminalidad e intento repetido rechazado.
+- Test SQLite de commit real y rollback completo ante bundle de otro Run,
+  verificando que ninguna de las dos aggregates queda parcialmente mutada.
+- Tests actualizados del orchestrator para preparación no terminal y del queue
+  consumer para ack, retry, permanent failure, cancellation e idempotencia.
+- Tests de finalization stage contra bundle durable y composition boundary app.
+- `go test -race ./internal/research/application ./internal/app ./internal/infra/researchdb ./internal/storage/sqlite -run 'Finalization|QueueConsumer|LiveResearchOrchestrator' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 32 puede registrar provenance end-to-end sobre las identidades ya
+  terminalizadas sin cambiar la transacción Run/queue.
+- El Paso 33 sigue siendo dueño del audit terminal y cost final; no debe
+  duplicar `execution_bundle_id` ni persistir mensajes externos como failure.

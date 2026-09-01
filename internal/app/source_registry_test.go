@@ -111,6 +111,7 @@ type fakeSourceRegistryStoreFactory struct {
 	verifications   researchapp.VerificationService
 	diversity       researchapp.SourceDiversityService
 	bundles         researchapp.SourceBundleService
+	finalization    researchapp.ResearchFinalizationService
 	conflicts       researchapp.ConflictResolutionService
 	triggers        researchapp.ResearchTriggerService
 	updateScan      researchapp.UpdateScanService
@@ -120,7 +121,7 @@ type fakeSourceRegistryStoreFactory struct {
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, releases: factory.releases, deprecations: factory.deprecations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, verifications: factory.verifications, diversity: factory.diversity, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, releases: factory.releases, deprecations: factory.deprecations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, verifications: factory.verifications, diversity: factory.diversity, bundles: factory.bundles, finalization: factory.finalization, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
@@ -141,6 +142,7 @@ type fakeSourceRegistryStore struct {
 	verifications   researchapp.VerificationService
 	diversity       researchapp.SourceDiversityService
 	bundles         researchapp.SourceBundleService
+	finalization    researchapp.ResearchFinalizationService
 	conflicts       researchapp.ConflictResolutionService
 	triggers        researchapp.ResearchTriggerService
 	updateScan      researchapp.UpdateScanService
@@ -187,6 +189,9 @@ func (store *fakeSourceRegistryStore) Diversity() researchapp.SourceDiversitySer
 	return store.diversity
 }
 func (store *fakeSourceRegistryStore) Bundles() researchapp.SourceBundleService { return store.bundles }
+func (store *fakeSourceRegistryStore) Finalization() researchapp.ResearchFinalizationService {
+	return store.finalization
+}
 func (store *fakeSourceRegistryStore) Conflicts() researchapp.ConflictResolutionService {
 	return store.conflicts
 }

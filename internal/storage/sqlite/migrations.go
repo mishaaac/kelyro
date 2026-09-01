@@ -1763,6 +1763,14 @@ WHEN EXISTS (
 			`CREATE TRIGGER source_discoveries_immutable_delete BEFORE DELETE ON source_discoveries BEGIN SELECT RAISE(ABORT, 'source discovery is immutable'); END`,
 		},
 	},
+	{
+		version: 46,
+		name:    "transactional live research finalization",
+		statements: []string{
+			`ALTER TABLE research_trigger_queue ADD COLUMN execution_bundle_id TEXT REFERENCES source_bundles(id)`,
+			`CREATE INDEX research_trigger_queue_bundle_idx ON research_trigger_queue (execution_bundle_id) WHERE execution_bundle_id IS NOT NULL`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

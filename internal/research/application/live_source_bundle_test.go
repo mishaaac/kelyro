@@ -63,6 +63,16 @@ func TestLiveSourceBundleAssemblesDurableBundleForRunningResearchRun(t *testing.
 	if err != nil || stored.ContentHash != artifacts.Bundle.ContentHash {
 		t.Fatalf("stored live bundle = (%+v, %v)", stored, err)
 	}
+	finalizationStage, err := application.NewLiveResearchFinalizationStage(bundles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := finalizationStage.Execute(ctx, application.LiveResearchStageInput{
+		Run: run, Artifacts: application.LiveResearchArtifacts{Bundle: artifacts.Bundle},
+	})
+	if err != nil || prepared.Bundle == nil || prepared.Bundle.ContentHash != stored.ContentHash {
+		t.Fatalf("prepared finalization bundle = (%+v, %v)", prepared.Bundle, err)
+	}
 	artifacts.Bundle.ClaimIDs[0] = testClaimID(t, "mutated-live-bundle")
 	listed, err := bundles.ListForRun(ctx, run.ID)
 	if err != nil || len(listed) != 1 || listed[0].ClaimIDs[0] != claim.ID {

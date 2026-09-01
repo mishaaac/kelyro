@@ -1191,7 +1191,7 @@ feat(research): build Source Bundles from live research runs
 
 ## Paso 31 — Finalizar run y queue
 
-- [ ] Paso 31 completado
+- [x] Paso 31 completado
 
 Success:
 
@@ -1838,7 +1838,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 28 — Freshness
 - [x] Paso 29 — Verification
 - [x] Paso 30 — Source Bundle
-- [ ] Paso 31 — Finalize run
+- [x] Paso 31 — Finalize run
 - [ ] Paso 32 — Provenance
 - [ ] Paso 33 — Audit/cost
 - [ ] Paso 34 — CLI topic

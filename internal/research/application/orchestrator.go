@@ -167,22 +167,22 @@ func (orchestrator *liveResearchOrchestrator) Execute(ctx context.Context, reque
 		AlgorithmVersion: LiveResearchOrchestratorV1,
 	}
 	if err := ctx.Err(); err != nil {
-		return orchestrator.stop(ctx, result, research.ResearchRunCancelled, Classify(ErrorUnavailable, operation, err))
+		return orchestrator.stop(result, Classify(ErrorUnavailable, operation, err))
 	}
 	if run.Status == research.ResearchRunPlanned {
 		run, err = orchestrator.dependencies.Research.TransitionRun(ctx, run.ID, research.ResearchRunRunning, orchestrator.dependencies.Clock.Now())
 		if err != nil {
 			classified := boundaryError(ErrorUnavailable, operation, err)
 			if ctx.Err() != nil {
-				return orchestrator.stop(ctx, result, research.ResearchRunCancelled, classified)
+				return orchestrator.stop(result, classified)
 			}
-			return orchestrator.stop(ctx, result, research.ResearchRunFailed, classified)
+			return orchestrator.stop(result, classified)
 		}
 		result.Run = run
 	}
 	for _, stage := range liveResearchStageOrder {
 		if err := ctx.Err(); err != nil {
-			return orchestrator.stop(ctx, result, research.ResearchRunCancelled, Classify(ErrorUnavailable, operation, err))
+			return orchestrator.stop(result, Classify(ErrorUnavailable, operation, err))
 		}
 		service := liveResearchStageService(orchestrator.dependencies, stage)
 		artifacts, stageErr := service.Execute(ctx, LiveResearchStageInput{
@@ -192,41 +192,23 @@ func (orchestrator *liveResearchOrchestrator) Execute(ctx context.Context, reque
 		if stageErr != nil {
 			result.Artifacts = cloneLiveResearchArtifacts(artifacts)
 			classified := boundaryError(ErrorUnavailable, "execute live research stage "+string(stage), stageErr)
-			status := research.ResearchRunFailed
-			if errors.Is(stageErr, context.Canceled) || errors.Is(stageErr, context.DeadlineExceeded) || ctx.Err() != nil {
-				status = research.ResearchRunCancelled
-			}
-			return orchestrator.stop(ctx, result, status, classified)
+			return orchestrator.stop(result, classified)
 		}
 		result.Artifacts = artifacts
 		result.CompletedStages = append(result.CompletedStages, stage)
 		if stage == LiveResearchStageBundle {
 			if err := validateOrchestratedBundle(result.Run.ID, result.Artifacts.Bundle); err != nil {
-				return orchestrator.stop(ctx, result, research.ResearchRunFailed, invalid(operation, err))
+				return orchestrator.stop(result, invalid(operation, err))
 			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return orchestrator.stop(ctx, result, research.ResearchRunCancelled, Classify(ErrorUnavailable, operation, err))
+		return orchestrator.stop(result, Classify(ErrorUnavailable, operation, err))
 	}
-	completed, err := orchestrator.dependencies.Research.TransitionRun(ctx, result.Run.ID, research.ResearchRunCompleted, orchestrator.dependencies.Clock.Now())
-	if err != nil {
-		return orchestrator.stop(ctx, result, research.ResearchRunFailed, boundaryError(ErrorUnavailable, operation, err))
-	}
-	result.Run = completed
 	return result, nil
 }
 
-func (orchestrator *liveResearchOrchestrator) stop(ctx context.Context, result LiveResearchOrchestrationResult, status research.ResearchRunStatus, cause error) (LiveResearchOrchestrationResult, error) {
-	transitionContext := ctx
-	if ctx.Err() != nil {
-		transitionContext = context.WithoutCancel(ctx)
-	}
-	terminal, err := orchestrator.dependencies.Research.TransitionRun(transitionContext, result.Run.ID, status, orchestrator.dependencies.Clock.Now())
-	if err != nil {
-		return result, errors.Join(cause, boundaryError(ErrorUnavailable, "finalize live research run", err))
-	}
-	result.Run = terminal
+func (orchestrator *liveResearchOrchestrator) stop(result LiveResearchOrchestrationResult, cause error) (LiveResearchOrchestrationResult, error) {
 	return result, cause
 }
 

@@ -46,8 +46,8 @@ func TestLiveResearchOrchestratorLoadsDurableWorkAndExecutesFixedStageOrder(t *t
 	if result.QueueItem.ID != queueItem.ID || result.Request.ID != queueItem.Request.ID || result.Run.ID != run.ID || result.AlgorithmVersion != application.LiveResearchOrchestratorV1 {
 		t.Fatalf("orchestration identity/result = %+v", result)
 	}
-	if result.Run.Status != research.ResearchRunCompleted || result.Run.CompletedAt == nil || result.Artifacts.Bundle == nil {
-		t.Fatalf("completed lifecycle result = %+v", result)
+	if result.Run.Status != research.ResearchRunRunning || result.Run.CompletedAt != nil || result.Artifacts.Bundle == nil {
+		t.Fatalf("prepared lifecycle result = %+v", result)
 	}
 }
 
@@ -71,8 +71,8 @@ func TestLiveResearchOrchestratorStopsAtFirstFailedStage(t *testing.T) {
 	if calls[len(calls)-1] != application.LiveResearchStageSnapshot {
 		t.Fatalf("last call = %q, want snapshot", calls[len(calls)-1])
 	}
-	if result.Run.Status != research.ResearchRunFailed || result.Run.CompletedAt == nil {
-		t.Fatalf("failed lifecycle run = %+v", result.Run)
+	if result.Run.Status != research.ResearchRunRunning || result.Run.CompletedAt != nil {
+		t.Fatalf("unsettled failed lifecycle run = %+v", result.Run)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestLiveResearchOrchestratorPreservesFailedStageArtifacts(t *testing.T) {
 	result, err := orchestrator.Execute(context.Background(), application.LiveResearchOrchestrationRequest{
 		QueueItemID: queueItem.ID, RunID: run.ID, Mode: application.ResearchModeOnline,
 	})
-	if err == nil || result.Run.Status != research.ResearchRunFailed || len(result.Artifacts.FetchFailures) != 1 ||
+	if err == nil || result.Run.Status != research.ResearchRunRunning || len(result.Artifacts.FetchFailures) != 1 ||
 		result.Artifacts.FetchFailures[0].SourceID != source.ID {
 		t.Fatalf("failed stage artifacts = (%+v,%v)", result, err)
 	}
@@ -156,7 +156,7 @@ func TestLiveResearchOrchestratorRequiresBundleBeforeCompletion(t *testing.T) {
 	result, err := orchestrator.Execute(context.Background(), application.LiveResearchOrchestrationRequest{
 		QueueItemID: queueItem.ID, RunID: run.ID, Mode: application.ResearchModeAuto,
 	})
-	if !errors.Is(err, application.ErrInvalidState) || result.Run.Status != research.ResearchRunFailed {
+	if !errors.Is(err, application.ErrInvalidState) || result.Run.Status != research.ResearchRunRunning {
 		t.Fatalf("missing bundle result = (%+v,%v)", result, err)
 	}
 	for _, call := range calls {
@@ -166,7 +166,7 @@ func TestLiveResearchOrchestratorRequiresBundleBeforeCompletion(t *testing.T) {
 	}
 }
 
-func TestLiveResearchOrchestratorPersistsCancellation(t *testing.T) {
+func TestLiveResearchOrchestratorReturnsCancellationForAtomicSettlement(t *testing.T) {
 	t.Parallel()
 	queue, service, queueItem, run := liveResearchOrchestrationFixture(t)
 	var calls []application.LiveResearchStage
@@ -179,7 +179,7 @@ func TestLiveResearchOrchestratorPersistsCancellation(t *testing.T) {
 	result, err := orchestrator.Execute(context.Background(), application.LiveResearchOrchestrationRequest{
 		QueueItemID: queueItem.ID, RunID: run.ID, Mode: application.ResearchModeAuto,
 	})
-	if !errors.Is(err, context.Canceled) || result.Run.Status != research.ResearchRunCancelled || result.Run.CompletedAt == nil {
+	if !errors.Is(err, context.Canceled) || result.Run.Status != research.ResearchRunRunning || result.Run.CompletedAt != nil {
 		t.Fatalf("cancelled result = (%+v,%v)", result, err)
 	}
 	if len(calls) != 3 || calls[2] != application.LiveResearchStageFetch {

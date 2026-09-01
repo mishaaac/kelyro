@@ -21,7 +21,8 @@ func TestResearchQueueConsumerClaimsExecutesAcknowledgesAndIsIdempotent(t *testi
 
 	first, err := consumer.Consume(context.Background(), request)
 	if err != nil || first.Disposition != application.ResearchQueueConsumeCompleted || first.Execution.Attempts != 1 ||
-		first.Execution.Status != application.ResearchQueueExecutionCompleted || first.QueueItem.Status != research.ResearchQueueDispatched || orchestrator.calls != 1 {
+		first.Execution.Status != application.ResearchQueueExecutionCompleted || first.Execution.BundleID == nil ||
+		first.QueueItem.Status != research.ResearchQueueDispatched || first.Orchestration.Run.Status != research.ResearchRunCompleted || orchestrator.calls != 1 {
 		t.Fatalf("first consume = (%+v,%v), calls=%d", first, err, orchestrator.calls)
 	}
 	second, err := consumer.Consume(context.Background(), request)
@@ -135,6 +136,7 @@ func (fixture queueConsumerFixture) consumer(t *testing.T, orchestrator applicat
 	t.Helper()
 	consumer, err := application.NewResearchQueueConsumer(application.ResearchQueueConsumerDependencies{
 		Queue: fixture.queue, Research: fixture.research, Orchestrator: orchestrator, Clock: fixedQueueConsumerClock{fixture.at},
+		Finalization: queueConsumerFinalizer{queue: fixture.queue, research: fixture.research},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -171,16 +173,36 @@ func (orchestrator *queueConsumerOrchestrator) Execute(ctx context.Context, requ
 		return application.LiveResearchOrchestrationResult{}, err
 	}
 	if orchestrator.cause != nil {
-		cancelled, _ := orchestrator.research.TransitionRun(context.WithoutCancel(ctx), request.RunID, research.ResearchRunCancelled, orchestrator.at)
-		return application.LiveResearchOrchestrationResult{Run: cancelled}, orchestrator.cause
+		return application.LiveResearchOrchestrationResult{Run: running}, orchestrator.cause
 	}
 	if orchestrator.fail != "" {
-		failed, _ := orchestrator.research.TransitionRun(ctx, request.RunID, research.ResearchRunFailed, orchestrator.at)
-		return application.LiveResearchOrchestrationResult{Run: failed}, application.Classify(orchestrator.fail, "fixture orchestration", errors.New("fixture failure"))
+		return application.LiveResearchOrchestrationResult{Run: running}, application.Classify(orchestrator.fail, "fixture orchestration", errors.New("fixture failure"))
 	}
-	completed, err := orchestrator.research.TransitionRun(ctx, request.RunID, research.ResearchRunCompleted, orchestrator.at)
+	bundleID, _ := research.NewID("bundle.queue-consumer")
+	return application.LiveResearchOrchestrationResult{
+		Run: running, Request: research.ResearchRequest{ID: running.RequestID},
+		Artifacts: application.LiveResearchArtifacts{Bundle: &research.SourceBundle{ID: bundleID, RunID: running.ID}},
+	}, nil
+}
+
+type queueConsumerFinalizer struct {
+	queue    application.ResearchTriggerService
+	research application.ResearchService
+}
+
+func (finalizer queueConsumerFinalizer) Finalize(ctx context.Context, finalization application.ResearchFinalization) (application.ResearchFinalizationResult, error) {
+	run, err := finalizer.research.TransitionRun(ctx, finalization.RunID, finalization.RunStatus, finalization.FinalizedAt)
 	if err != nil {
-		return application.LiveResearchOrchestrationResult{}, err
+		return application.ResearchFinalizationResult{}, err
 	}
-	return application.LiveResearchOrchestrationResult{Run: completed, Request: research.ResearchRequest{ID: running.RequestID}}, nil
+	execution := application.ResearchQueueExecution{
+		QueueItemID: finalization.QueueItemID, RunID: finalization.RunID, Status: finalization.ExecutionStatus,
+		Attempts: finalization.Attempts, ChangedAt: finalization.FinalizedAt, FailureKind: finalization.FailureKind,
+		BundleID: finalization.BundleID, AlgorithmVersion: application.ResearchQueueWorkerV1,
+	}
+	settled, err := finalizer.queue.SettleExecution(ctx, application.ResearchQueueExecutionClaimed, execution)
+	if err != nil {
+		return application.ResearchFinalizationResult{}, err
+	}
+	return application.ResearchFinalizationResult{Run: run, Execution: settled}, nil
 }

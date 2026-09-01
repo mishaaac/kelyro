@@ -23,6 +23,7 @@ func newResearchRepositories(target executor, timeout time.Duration) application
 		Runs:              &researchRunRepository{target, timeout},
 		Costs:             &researchCostRepository{target, timeout},
 		TriggerQueue:      &researchTriggerQueueRepository{target, timeout},
+		Finalization:      &researchFinalizationRepository{target, timeout},
 		TrustRegistry:     &researchTrustRegistryRepository{target, timeout},
 		SourceRegistry:    &researchSourceRegistryRepository{target, timeout},
 		Releases:          &researchReleaseRepository{target, timeout},
@@ -49,6 +50,7 @@ var (
 	_ application.ResearchRunRepository          = (*researchRunRepository)(nil)
 	_ application.ResearchCostRepository         = (*researchCostRepository)(nil)
 	_ application.ResearchTriggerQueueRepository = (*researchTriggerQueueRepository)(nil)
+	_ application.ResearchFinalizationRepository = (*researchFinalizationRepository)(nil)
 	_ application.TrustRegistryRepository        = (*researchTrustRegistryRepository)(nil)
 	_ application.SourceRegistryRepository       = (*researchSourceRegistryRepository)(nil)
 	_ application.ReleaseRepository              = (*researchReleaseRepository)(nil)

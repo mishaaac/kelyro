@@ -88,6 +88,7 @@ func (store *Store) Repositories() application.Repositories {
 		Runs:              researchRunRepository{store},
 		Costs:             researchCostRepository{store},
 		TriggerQueue:      researchTriggerQueueRepository{store},
+		Finalization:      researchFinalizationRepository{store},
 		TrustRegistry:     trustRegistryRepository{store},
 		SourceRegistry:    sourceRegistryRepository{store},
 		Releases:          releaseRepository{store},

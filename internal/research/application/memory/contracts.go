@@ -12,6 +12,7 @@ var (
 	_ application.ResearchRunRepository          = researchRunRepository{}
 	_ application.ResearchCostRepository         = researchCostRepository{}
 	_ application.ResearchTriggerQueueRepository = researchTriggerQueueRepository{}
+	_ application.ResearchFinalizationRepository = researchFinalizationRepository{}
 	_ application.TrustRegistryRepository        = trustRegistryRepository{}
 	_ application.SourceRegistryRepository       = sourceRegistryRepository{}
 	_ application.ReleaseRepository              = releaseRepository{}
