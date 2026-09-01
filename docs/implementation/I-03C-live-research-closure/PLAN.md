@@ -1475,7 +1475,7 @@ test(e2e): make research orchestration retry-safe
 
 ## Paso 42 — Live SearchProvider smoke
 
-- [ ] Paso 42 completado
+- [x] Paso 42 completado
 
 Opt-in:
 

@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 42
-Last completed step: 41
+Current step: 43
+Last completed step: 42
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- live smoke coverage pending
+- live query-to-bundle smoke and closure reviews pending
 
 ## Registro
 
@@ -2301,3 +2301,58 @@ Release: unreleased
 - El Paso 42 es el único paso pendiente y requiere un smoke live explícitamente
   opt-in contra el provider externo real.
 - El smoke no debe usar URL hardcodeada ni contaminar las suites offline.
+
+## Step 42 — Live SearchProvider smoke
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- Smoke `TestLiveResearchSearchProvider` añadido a `tests/live` bajo el opt-in
+  exacto `KELYRO_LIVE_RESEARCH_SEARCH_TESTS=1`.
+- El test construye el transporte Brave endurecido y el adapter real mediante
+  Foundation Secrets, pasando toda búsqueda por `privacy.NetworkGate` y
+  `DiscoveryService`.
+- La credencial se resuelve únicamente como
+  `research.search.brave.api_key`; el test no lee, registra ni imprime su valor.
+- Una query bounded solicita hasta tres resultados al endpoint externo y exige
+  al menos una URL válida, provider `brave`, rank no negativo y ausencia de
+  URLs duplicadas.
+- Ninguna URL de resultado, título, snippet, posición exacta o conteo exacto
+  está hardcodeado; las invariantes toleran cambios normales del índice.
+- La guía de integración live documenta opt-in, referencia de Foundation
+  Secrets, comando de ejecución y alcance de assertions.
+
+### Decisions
+
+- El gate se evalúa antes de construir transporte cuando el opt-in está
+  ausente; por ello `go test ./...` continúa completamente offline.
+- Habilitar explícitamente el smoke exige una credencial usable y convierte su
+  ausencia en fallo accionable, no en un skip silencioso.
+- Se usa `SearchOptions.Limit=3` para mantener una sola request bounded sin
+  depender de paginación ni ranking del provider.
+- Context7 confirmó el contrato vigente de Brave Web Search: endpoint GET,
+  header `X-Subscription-Token`, parámetros `q`/`count` y URL en
+  `web.results[].url`.
+- El test no persiste resultados, no descarga las URLs descubiertas y no
+  adelanta el query-to-bundle reservado al Paso 43.
+- No se cambió código productivo, schema, provider contract, lifecycle, costes,
+  UX ni I-04.
+
+### Verification
+
+- `go test ./tests/live -run '^TestLiveResearchSearchProvider$' -count=1 -v`
+  (skip esperado sin opt-in, antes de construir red).
+- `go vet ./tests/live`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 43 debe reutilizar el provider y URL retornada realmente para cubrir
+  fetch → normalize → evidence → claim → verify → bundle.
+- El smoke completo debe afirmar invariantes, no ranking ni contenido exacto.
+- Security review y pasos posteriores permanecen fuera de alcance.

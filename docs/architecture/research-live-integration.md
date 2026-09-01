@@ -62,3 +62,32 @@ themselves.
 The suite never stores complete public pages in SQLite or fixtures. Its memory
 repository retains snapshot metadata and hashes only; fetched bytes exist only
 long enough to exercise normalization.
+
+## Live SearchProvider smoke
+
+I-03C adds a separate authenticated smoke for the production Brave Web Search
+adapter. It performs no network request unless this exact opt-in is enabled:
+
+```text
+KELYRO_LIVE_RESEARCH_SEARCH_TESTS=1
+```
+
+The API key remains in Foundation Secrets under
+`research.search.brave.api_key`. For environment-only execution, the standard
+secret adapter resolves it from:
+
+```text
+KELYRO_SECRET_RESEARCH_SEARCH_BRAVE_API_KEY
+```
+
+Run only the SearchProvider smoke with:
+
+```sh
+KELYRO_LIVE_RESEARCH_SEARCH_TESTS=1 go test ./tests/live -run '^TestLiveResearchSearchProvider$' -count=1 -v
+```
+
+The smoke uses the hardened fixed-endpoint transport, Foundation Secrets,
+privacy gate, and the real Brave adapter. It submits a bounded query and
+requires one to three valid, unique result URLs returned dynamically by the
+provider. It does not assert an exact URL, title, ranking, snippet, or result
+count, and it never renders the credential.
