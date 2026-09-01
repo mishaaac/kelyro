@@ -118,6 +118,88 @@ func TestResearchTopicQueryToBundleEndToEnd(t *testing.T) {
 		}
 		assertCompleteQueryToBundleProvenance(t, graph, view.Request.ID, durableRun.ID, bundles[0].ID)
 	}
+	assertOfflineResearchArtifactsRemainAvailable(t, ctx, root, workspaces, stores, view, artifacts, fixture)
+}
+
+func assertOfflineResearchArtifactsRemainAvailable(
+	t *testing.T,
+	ctx context.Context,
+	root string,
+	workspaces workspace.Service,
+	stores application.SourceRegistryStoreFactory,
+	view *app.ResearchCLIView,
+	artifacts application.LiveResearchArtifacts,
+	fixture *queryToBundleFixture,
+) {
+	t.Helper()
+	searchCalls := fixture.searchCalls.Load()
+	contentCalls := make([]int32, len(fixture.contentCalls))
+	for index := range fixture.contentCalls {
+		contentCalls[index] = fixture.contentCalls[index].Load()
+	}
+
+	// Deliberately omit Secrets, SearchProvider, fetcher, normalizer, and cache
+	// adapters. Read-only durable Research behavior must not require live
+	// composition or attempt to reconstruct artifacts from the network.
+	offline := app.NewService(workspaces, func() (string, error) { return root, nil }).
+		WithConfig(&queryToBundleConfigStore{}).
+		WithResearchStores(stores)
+
+	listed, err := offline.Execute(ctx, app.Command{
+		Action: app.ActionSources, Workspace: root, SourceRegistryOperation: "sources-list",
+	})
+	if err != nil || len(listed.Sources) != len(artifacts.Sources) {
+		t.Fatalf("offline existing Sources = (%+v, %v)", listed.Sources, err)
+	}
+	shown, err := offline.Execute(ctx, app.Command{
+		Action: app.ActionSources, Workspace: root, SourceRegistryOperation: "source-show", SourceID: artifacts.Sources[0].ID,
+	})
+	if err != nil || shown.Source == nil || shown.Source.LatestSnapshot == nil ||
+		shown.Source.Source.ID != artifacts.Sources[0].ID || shown.Source.LatestSnapshot.ID != artifacts.Snapshots[0].ID {
+		t.Fatalf("offline existing Source/snapshot = (%+v, %v)", shown.Source, err)
+	}
+
+	status, err := offline.Execute(ctx, app.Command{
+		Action: app.ActionResearch, Workspace: root, ResearchOperation: "status", ResearchRunID: view.Run.ID,
+	})
+	if err != nil || status.ResearchView == nil || status.ResearchView.Progress == nil || status.ResearchView.Bundle == nil ||
+		status.ResearchView.Run.Status != research.ResearchRunCompleted || status.ResearchView.Bundle.ID != view.Bundle.ID ||
+		status.ResearchView.Progress.Phase != string(research.ResearchRunCompleted) {
+		t.Fatalf("offline research status = (%+v, %v)", status.ResearchView, err)
+	}
+	shownRun, err := offline.Execute(ctx, app.Command{
+		Action: app.ActionResearch, Workspace: root, ResearchOperation: "show", ResearchRunID: view.Run.ID,
+	})
+	if err != nil || shownRun.ResearchAuditView == nil || len(shownRun.ResearchAuditView.Records) < 2 ||
+		shownRun.ResearchAuditView.Progress.BundleID == nil || *shownRun.ResearchAuditView.Progress.BundleID != view.Bundle.ID {
+		t.Fatalf("offline research show = (%+v, %v)", shownRun.ResearchAuditView, err)
+	}
+
+	store, err := stores.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	for _, expected := range artifacts.Evidence {
+		cached, getErr := store.Evidence().Get(ctx, expected.ID)
+		if getErr != nil || cached.SourceID != expected.SourceID || cached.SnapshotID != expected.SnapshotID ||
+			cached.ExcerptHash != expected.ExcerptHash {
+			t.Fatalf("offline cached Evidence %q = (%+v, %v)", expected.ID, cached, getErr)
+		}
+	}
+	bundles, err := store.Bundles().ListForRun(ctx, view.Run.ID)
+	if err != nil || len(bundles) != 1 || bundles[0].ID != view.Bundle.ID || bundles[0].ContentHash != view.Bundle.ContentHash {
+		t.Fatalf("offline existing Bundle = (%+v, %v)", bundles, err)
+	}
+
+	if fixture.searchCalls.Load() != searchCalls {
+		t.Fatalf("offline inspection invoked Search API: %d -> %d", searchCalls, fixture.searchCalls.Load())
+	}
+	for index := range fixture.contentCalls {
+		if fixture.contentCalls[index].Load() != contentCalls[index] {
+			t.Fatalf("offline inspection fetched content %d: %d -> %d", index, contentCalls[index], fixture.contentCalls[index].Load())
+		}
+	}
 }
 
 func TestResearchTopicPrivacyDisabledEndToEnd(t *testing.T) {

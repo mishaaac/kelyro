@@ -1582,7 +1582,7 @@ perf(research): bound live research orchestration
 
 ## Paso 46 — Offline regression
 
-- [ ] Paso 46 completado
+- [x] Paso 46 completado
 
 Sin provider/red deben seguir funcionando:
 

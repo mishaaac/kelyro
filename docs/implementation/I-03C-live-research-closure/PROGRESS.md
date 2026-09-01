@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 46
-Last completed step: 45
+Current step: 47
+Last completed step: 46
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- offline regression and closure reviews pending
+- regression and closure reviews pending
 
 ## Registro
 
@@ -2530,3 +2530,62 @@ Release: unreleased
   ni red; no está autorizado por este cierre.
 - Los ceilings y fórmulas de `research-live-bounds-v1.md` deben permanecer
   coordinados si un cambio posterior reduce límites productivos.
+
+## Step 46 — Offline regression
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- El E2E query-to-bundle ahora desmonta explícitamente toda composición live
+  después de producir artifacts durables y reabre el workspace con sólo
+  workspace/config/research stores.
+- El servicio offline deliberadamente no recibe Secrets, SearchProvider,
+  fetcher, normalizer ni cache adapters.
+- `sources list/show` confirma que Sources y snapshots existentes continúan
+  disponibles desde SQLite.
+- Cada Evidence producida se relee por ID y conserva Source, snapshot y excerpt
+  hash; el Source Bundle se relee por Run con el mismo ID y content hash.
+- `research status` y `research show` reconstruyen completion, bundle y audit
+  exclusivamente desde estado durable.
+- Contadores de Search API y content servers permanecen exactamente iguales
+  durante toda la inspección offline.
+- Los subtests E2E offline existentes de Foundation y Student Core se
+  ejecutaron con race para confirmar preservación de I-01/I-02.
+
+### Decisions
+
+- El escenario reutiliza el workspace real creado por el acceptance E2E y
+  luego construye un composition root nuevo sin capacidades live; no simula la
+  disponibilidad offline con un provider fixture.
+- Evidence offline significa el excerpt bounded y su provenance durable en
+  SQLite. Los cuerpos externos continúan fuera de SQLite conforme a la
+  retention policy.
+- Las operaciones read-only no necesitan provider configurado, credencial,
+  red ni cache filesystem para reconstruir artifacts ya persistidos.
+- No se cambió código productivo, schema, lifecycle, provider, cache policy,
+  Foundation, Student Core ni I-04.
+
+### Verification
+
+- `go test -race -tags=e2e ./tests/e2e -run
+  '^TestResearchTopicQueryToBundleEndToEnd$' -count=1`.
+- `go test -race -tags=e2e ./tests/e2e -run
+  '^TestFoundationWorkspaceLifecycle$/^offline_Foundation_commands$'
+  -count=1 -v`.
+- `go test -race -tags=e2e ./tests/e2e -run
+  '^TestStudentLearningCoreEndToEnd$/^10_Student_Core_commands_remain_offline$'
+  -count=1 -v`.
+- `go vet -tags=e2e ./tests/e2e`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 47 debe ejecutar la regresión formal completa I-01/I-02/I-03; no
+  está autorizado por este cierre.
+- Mantener los checks offline sin componentes live cuando se amplíen las
+  vistas read-only de Sources, Evidence, Bundle o ResearchRun.
