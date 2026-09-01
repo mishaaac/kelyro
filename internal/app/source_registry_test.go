@@ -94,65 +94,75 @@ func TestServiceCoordinatesWorkspaceSourceRegistryQueries(t *testing.T) {
 }
 
 type fakeSourceRegistryStoreFactory struct {
-	sources         researchapp.SourceService
-	snapshots       researchapp.SnapshotCaptureService
-	evidence        researchapp.EvidenceRepository
-	claims          researchapp.ClaimRepository
-	citations       researchapp.CitationRepository
-	releases        researchapp.ReleaseRepository
-	deprecations    researchapp.DeprecationRepository
-	registry        researchapp.SourceRegistryService
-	trust           researchapp.TrustDecisionService
-	trustRepository researchapp.TrustRegistryRepository
-	provenance      researchapp.ProvenanceService
-	freshness       researchapp.FreshnessService
-	costs           researchapp.ResearchCostService
-	research        researchapp.ResearchService
-	verifications   researchapp.VerificationService
-	diversity       researchapp.SourceDiversityService
-	bundles         researchapp.SourceBundleService
-	finalization    researchapp.ResearchFinalizationService
-	conflicts       researchapp.ConflictResolutionService
-	triggers        researchapp.ResearchTriggerService
-	updateScan      researchapp.UpdateScanService
-	openRoot        string
-	closed          int
+	sources                researchapp.SourceService
+	candidateDeduplication researchapp.SourceCandidateDeduplicationService
+	candidateRegistration  researchapp.SourceCandidateRegistrationService
+	snapshots              researchapp.SnapshotCaptureService
+	evidence               researchapp.EvidenceRepository
+	claims                 researchapp.ClaimRepository
+	citations              researchapp.CitationRepository
+	releases               researchapp.ReleaseRepository
+	deprecations           researchapp.DeprecationRepository
+	registry               researchapp.SourceRegistryService
+	trust                  researchapp.TrustDecisionService
+	trustRepository        researchapp.TrustRegistryRepository
+	provenance             researchapp.ProvenanceService
+	freshness              researchapp.FreshnessService
+	costs                  researchapp.ResearchCostService
+	research               researchapp.ResearchService
+	verifications          researchapp.VerificationService
+	diversity              researchapp.SourceDiversityService
+	bundles                researchapp.SourceBundleService
+	finalization           researchapp.ResearchFinalizationService
+	conflicts              researchapp.ConflictResolutionService
+	triggers               researchapp.ResearchTriggerService
+	updateScan             researchapp.UpdateScanService
+	openRoot               string
+	closed                 int
 }
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, releases: factory.releases, deprecations: factory.deprecations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, verifications: factory.verifications, diversity: factory.diversity, bundles: factory.bundles, finalization: factory.finalization, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, candidateDeduplication: factory.candidateDeduplication, candidateRegistration: factory.candidateRegistration, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, releases: factory.releases, deprecations: factory.deprecations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, verifications: factory.verifications, diversity: factory.diversity, bundles: factory.bundles, finalization: factory.finalization, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
-	sources         researchapp.SourceService
-	snapshots       researchapp.SnapshotCaptureService
-	evidence        researchapp.EvidenceRepository
-	claims          researchapp.ClaimRepository
-	citations       researchapp.CitationRepository
-	releases        researchapp.ReleaseRepository
-	deprecations    researchapp.DeprecationRepository
-	registry        researchapp.SourceRegistryService
-	trust           researchapp.TrustDecisionService
-	trustRepository researchapp.TrustRegistryRepository
-	provenance      researchapp.ProvenanceService
-	freshness       researchapp.FreshnessService
-	costs           researchapp.ResearchCostService
-	research        researchapp.ResearchService
-	verifications   researchapp.VerificationService
-	diversity       researchapp.SourceDiversityService
-	bundles         researchapp.SourceBundleService
-	finalization    researchapp.ResearchFinalizationService
-	conflicts       researchapp.ConflictResolutionService
-	triggers        researchapp.ResearchTriggerService
-	updateScan      researchapp.UpdateScanService
-	close           func()
+	sources                researchapp.SourceService
+	candidateDeduplication researchapp.SourceCandidateDeduplicationService
+	candidateRegistration  researchapp.SourceCandidateRegistrationService
+	snapshots              researchapp.SnapshotCaptureService
+	evidence               researchapp.EvidenceRepository
+	claims                 researchapp.ClaimRepository
+	citations              researchapp.CitationRepository
+	releases               researchapp.ReleaseRepository
+	deprecations           researchapp.DeprecationRepository
+	registry               researchapp.SourceRegistryService
+	trust                  researchapp.TrustDecisionService
+	trustRepository        researchapp.TrustRegistryRepository
+	provenance             researchapp.ProvenanceService
+	freshness              researchapp.FreshnessService
+	costs                  researchapp.ResearchCostService
+	research               researchapp.ResearchService
+	verifications          researchapp.VerificationService
+	diversity              researchapp.SourceDiversityService
+	bundles                researchapp.SourceBundleService
+	finalization           researchapp.ResearchFinalizationService
+	conflicts              researchapp.ConflictResolutionService
+	triggers               researchapp.ResearchTriggerService
+	updateScan             researchapp.UpdateScanService
+	close                  func()
 }
 
 func (store *fakeSourceRegistryStore) Registry() researchapp.SourceRegistryService {
 	return store.registry
 }
 func (store *fakeSourceRegistryStore) Sources() researchapp.SourceService { return store.sources }
+func (store *fakeSourceRegistryStore) CandidateDeduplication() researchapp.SourceCandidateDeduplicationService {
+	return store.candidateDeduplication
+}
+func (store *fakeSourceRegistryStore) CandidateRegistration() researchapp.SourceCandidateRegistrationService {
+	return store.candidateRegistration
+}
 func (store *fakeSourceRegistryStore) Snapshots() researchapp.SnapshotCaptureService {
 	return store.snapshots
 }

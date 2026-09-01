@@ -34,6 +34,9 @@ func (stage *liveResearchFinalizationStage) Execute(ctx context.Context, input L
 	if stored.RunID != input.Run.ID || stored.ContentHash != artifacts.Bundle.ContentHash || stored.AlgorithmVersion != research.SourceBundleAlgorithmV1 {
 		return artifacts, invalid(operation, fmt.Errorf("durable bundle does not match live research run"))
 	}
+	if stored.State != research.BundleReady && stored.State != research.BundleReadyWithCaveats {
+		return artifacts, invalid(operation, fmt.Errorf("durable bundle is not ready: %s", stored.State))
+	}
 	bundle := cloneSourceBundleArtifact(stored)
 	artifacts.Bundle = &bundle
 	return artifacts, nil

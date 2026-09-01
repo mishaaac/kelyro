@@ -116,6 +116,7 @@ func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
 
 type fakeResearchCostService struct {
 	stats      researchapp.ResearchCostStats
+	metadata   research.ResearchCostMetadata
 	statsCalls int
 }
 
@@ -133,8 +134,8 @@ func (service *fakeUpdateScanService) Scan(context.Context, researchapp.Research
 func (*fakeResearchCostService) Evaluate(context.Context, researchapp.CostControlRequest) (researchapp.CostControlDecision, error) {
 	return researchapp.CostControlDecision{}, nil
 }
-func (*fakeResearchCostService) Metadata(context.Context, research.ID) (research.ResearchCostMetadata, error) {
-	return research.ResearchCostMetadata{}, nil
+func (service *fakeResearchCostService) Metadata(context.Context, research.ID) (research.ResearchCostMetadata, error) {
+	return service.metadata, nil
 }
 func (service *fakeResearchCostService) Stats(context.Context, research.Timestamp) (researchapp.ResearchCostStats, error) {
 	service.statsCalls++

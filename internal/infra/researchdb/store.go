@@ -33,6 +33,19 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	trust := application.NewTrustDecisionService(database.Repositories().Research.TrustRegistry)
 	trustRepository := database.Repositories().Research.TrustRegistry
 	sources := application.NewSourceService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots)
+	candidateDeduplication, err := application.NewSourceCandidateDeduplicationService(database.Repositories().Research.Sources)
+	if err != nil {
+		_ = database.Close()
+		return nil, fmt.Errorf("assemble source candidate deduplication: %w", err)
+	}
+	candidateRegistration, err := application.NewSourceCandidateRegistrationService(
+		database.Repositories().Research.Sources,
+		database.Repositories().Research.SourceDiscoveries,
+	)
+	if err != nil {
+		_ = database.Close()
+		return nil, fmt.Errorf("assemble source candidate registration: %w", err)
+	}
 	snapshots := application.NewSnapshotCaptureService(database.Repositories().Research.Sources, database.Repositories().Research.Snapshots, nil)
 	evidence := database.Repositories().Research.Evidence
 	claims := database.Repositories().Research.Claims
@@ -82,35 +95,43 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	)
 	finalization := application.NewResearchFinalizationService(database.Repositories().Research.Finalization)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, verifications: verifications, diversity: diversityService, bundles: bundles, finalization: finalization, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
+	return &store{database: database, sources: sources, candidateDeduplication: candidateDeduplication, candidateRegistration: candidateRegistration, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, verifications: verifications, diversity: diversityService, bundles: bundles, finalization: finalization, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }
 
 type store struct {
-	database        *sqlite.Database
-	sources         application.SourceService
-	snapshots       application.SnapshotCaptureService
-	evidence        application.EvidenceRepository
-	claims          application.ClaimRepository
-	citations       application.CitationRepository
-	releases        application.ReleaseRepository
-	deprecations    application.DeprecationRepository
-	registry        application.SourceRegistryService
-	trust           application.TrustDecisionService
-	trustRepository application.TrustRegistryRepository
-	provenance      application.ProvenanceService
-	freshness       application.FreshnessService
-	research        application.ResearchService
-	verifications   application.VerificationService
-	diversity       application.SourceDiversityService
-	bundles         application.SourceBundleService
-	finalization    application.ResearchFinalizationService
-	conflicts       application.ConflictResolutionService
-	costs           application.ResearchCostService
-	triggers        application.ResearchTriggerService
-	updateScan      application.UpdateScanService
+	database               *sqlite.Database
+	sources                application.SourceService
+	candidateDeduplication application.SourceCandidateDeduplicationService
+	candidateRegistration  application.SourceCandidateRegistrationService
+	snapshots              application.SnapshotCaptureService
+	evidence               application.EvidenceRepository
+	claims                 application.ClaimRepository
+	citations              application.CitationRepository
+	releases               application.ReleaseRepository
+	deprecations           application.DeprecationRepository
+	registry               application.SourceRegistryService
+	trust                  application.TrustDecisionService
+	trustRepository        application.TrustRegistryRepository
+	provenance             application.ProvenanceService
+	freshness              application.FreshnessService
+	research               application.ResearchService
+	verifications          application.VerificationService
+	diversity              application.SourceDiversityService
+	bundles                application.SourceBundleService
+	finalization           application.ResearchFinalizationService
+	conflicts              application.ConflictResolutionService
+	costs                  application.ResearchCostService
+	triggers               application.ResearchTriggerService
+	updateScan             application.UpdateScanService
 }
 
-func (store *store) Sources() application.SourceService               { return store.sources }
+func (store *store) Sources() application.SourceService { return store.sources }
+func (store *store) CandidateDeduplication() application.SourceCandidateDeduplicationService {
+	return store.candidateDeduplication
+}
+func (store *store) CandidateRegistration() application.SourceCandidateRegistrationService {
+	return store.candidateRegistration
+}
 func (store *store) Snapshots() application.SnapshotCaptureService    { return store.snapshots }
 func (store *store) Evidence() application.EvidenceRepository         { return store.evidence }
 func (store *store) Claims() application.ClaimRepository              { return store.claims }

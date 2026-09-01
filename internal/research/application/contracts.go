@@ -1458,6 +1458,8 @@ type ProvenanceService interface {
 // workspace database lifetime without exposing SQLite to presentation.
 type SourceRegistryStore interface {
 	Sources() SourceService
+	CandidateDeduplication() SourceCandidateDeduplicationService
+	CandidateRegistration() SourceCandidateRegistrationService
 	Snapshots() SnapshotCaptureService
 	Evidence() EvidenceRepository
 	Claims() ClaimRepository

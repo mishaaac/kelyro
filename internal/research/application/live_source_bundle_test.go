@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/mishaaac/kelyro/internal/research"
@@ -80,6 +81,22 @@ func TestLiveSourceBundleAssemblesDurableBundleForRunningResearchRun(t *testing.
 	}
 	if input.Artifacts.Bundle != nil {
 		t.Fatal("bundle stage mutated input artifacts")
+	}
+	incomplete := stored
+	incomplete.ID = testID(t, "bundle.live-bundle.incomplete")
+	incomplete.Issues = append(incomplete.Issues, research.BundleIssueInsufficientEvidence)
+	incomplete.ContentHash = ""
+	incomplete, err = research.SealSourceBundleV1(incomplete)
+	if err != nil || incomplete.State != research.BundleIncomplete {
+		t.Fatalf("incomplete bundle fixture = (%+v, %v)", incomplete, err)
+	}
+	if err := repositories.Bundles.Append(ctx, incomplete); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := finalizationStage.Execute(ctx, application.LiveResearchStageInput{
+		Run: run, Artifacts: application.LiveResearchArtifacts{Bundle: &incomplete},
+	}); !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("incomplete bundle finalization error = %v", err)
 	}
 }
 

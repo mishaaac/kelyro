@@ -1705,6 +1705,31 @@ func formatResearchView(view app.ResearchCLIView) string {
 		fmt.Sprintf("Conflicts: %d", conflicts),
 		"Last verified: " + lastVerified,
 	}
+	if view.Execution != nil {
+		artifacts := view.Execution.Orchestration.Artifacts
+		queriesPlanned := 0
+		if view.Plan != nil {
+			queriesPlanned = len(view.Plan.Queries)
+		}
+		verified := 0
+		for _, result := range artifacts.Verifications {
+			if result.Status == research.VerificationVerified || result.Status == research.VerificationVerifiedCaveat {
+				verified++
+			}
+		}
+		lines = append(lines,
+			"",
+			fmt.Sprintf("Queries planned: %d", queriesPlanned),
+			fmt.Sprintf("Sources discovered: %d", len(artifacts.Sources)),
+			fmt.Sprintf("Sources fetched: %d", len(artifacts.FetchedSources)),
+			fmt.Sprintf("Evidence items: %d", len(artifacts.Evidence)),
+			fmt.Sprintf("Claims: %d", len(artifacts.Claims)),
+			fmt.Sprintf("Verified: %d", verified),
+		)
+		if view.Bundle != nil {
+			lines = append(lines, "", "Source Bundle:", view.Bundle.ID.String())
+		}
+	}
 	if view.DiscoveryPending {
 		policy := "blocked by privacy.allow_network"
 		if view.NetworkAllowed {

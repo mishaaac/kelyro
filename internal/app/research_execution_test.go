@@ -9,8 +9,87 @@ import (
 	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/research/application/memory"
+	"github.com/mishaaac/kelyro/internal/research/queryplanner"
 	"github.com/mishaaac/kelyro/internal/workspace"
 )
+
+func TestResearchTopicSearchStageExecutesBoundedPlanAndRecordsAdapterMetadata(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	requestID, _ := research.NewID("request.topic-search-stage")
+	runID, _ := research.NewID("run.topic-search-stage")
+	first, _ := research.NewSourceLocator("https://docs.example.test/interfaces")
+	second, _ := research.NewSourceLocator("https://spec.example.test/interfaces")
+	discovery := &topicSearchDiscovery{results: [][]researchapp.SearchResult{
+		{{Title: "Go interfaces documentation", Locator: first, Provider: "fixture", Rank: 0}},
+		{{Title: "Go interfaces specification", Locator: second, Provider: "fixture", Rank: 0}},
+	}}
+	costs := &fakeResearchCostService{metadata: research.ResearchCostMetadata{
+		Used:   research.ResearchCostUsage{SearchRequests: 2, ProviderAPICalls: 2},
+		Budget: research.DefaultResearchCostBudgetV1(), AlgorithmVersion: research.ResearchCostControlAlgorithmV1,
+	}}
+	store := &fakeSourceRegistryStore{costs: costs, close: func() {}}
+	searchFactory := &topicSearchFactory{result: researchapp.LiveSearchBuildResult{
+		Discovery: discovery, ProviderID: "fixture", AdapterVersion: "fixture-search-v1",
+	}}
+	service := NewService(nil, nil).
+		WithConfig(&recordingConfigStore{project: config.Settings{
+			config.KeyAllowNetwork: config.BoolValue(true), config.KeyResearchSearchProvider: config.StringValue("fixture"),
+			config.KeyResearchSearchMaxResultsPerQuery: config.NumberValue(2), config.KeyResearchSearchMaxQueriesPerRun: config.NumberValue(2),
+		}}).
+		WithSecrets(&recordingSecretStore{}).
+		WithResearchSearch(searchFactory).
+		WithResearchClock(func() time.Time { return at })
+	plan := queryplanner.ResearchQueryPlan{AlgorithmVersion: queryplanner.AlgorithmVersion, Queries: []queryplanner.ResearchQuery{
+		{Query: "Go interfaces documentation", DesiredSourceKind: research.SourceOfficialDocumentation, RequiredAuthority: research.AuthorityTierC, Priority: 1},
+		{Query: "Go interfaces specification", DesiredSourceKind: research.SourceSpecification, RequiredAuthority: research.AuthorityTierC, Priority: 2},
+	}}
+	stage := &researchTopicSearchStage{service: service, request: ResearchTopicExecutionRequest{
+		Store: store, Workspace: "/workspace", RunID: runID, Plan: plan, MaxResultsPerQuery: 2,
+	}}
+	topic, _ := research.NewResearchTopic("Go interfaces", "software", "Go")
+	requestedAt, _ := research.NewTimestamp(at)
+	artifacts, err := stage.Execute(context.Background(), researchapp.LiveResearchStageInput{
+		Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: requestedAt},
+		Mode:    researchapp.ResearchModeAuto,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discovery.calls != 2 || len(artifacts.SearchResults) != 2 || len(artifacts.Candidates) != 2 || artifacts.SearchExecution == nil {
+		t.Fatalf("search artifacts = %+v, calls=%d", artifacts, discovery.calls)
+	}
+	metadata := artifacts.SearchExecution
+	if metadata.ProviderID != "fixture" || metadata.AdapterVersion != "fixture-search-v1" || metadata.QueryCount != 2 || metadata.ResultCount != 2 || metadata.ProviderAPICalls != 2 {
+		t.Fatalf("search execution metadata = %+v", metadata)
+	}
+	if searchFactory.calls != 1 || searchFactory.request.RunID != runID {
+		t.Fatalf("search factory calls=%d request=%+v", searchFactory.calls, searchFactory.request)
+	}
+}
+
+type topicSearchDiscovery struct {
+	results [][]researchapp.SearchResult
+	calls   int
+}
+
+func (discovery *topicSearchDiscovery) Search(_ context.Context, _ researchapp.ResearchMode, _ researchapp.SearchQuery, _ researchapp.SearchOptions) ([]researchapp.SearchResult, error) {
+	result := discovery.results[discovery.calls]
+	discovery.calls++
+	return result, nil
+}
+
+type topicSearchFactory struct {
+	result  researchapp.LiveSearchBuildResult
+	request researchapp.LiveSearchBuildRequest
+	calls   int
+}
+
+func (factory *topicSearchFactory) Build(_ context.Context, request researchapp.LiveSearchBuildRequest) (researchapp.LiveSearchBuildResult, error) {
+	factory.calls++
+	factory.request = request
+	return factory.result, nil
+}
 
 func TestResearchTopicExecutesQueuedWorkSynchronouslyWithBoundedContext(t *testing.T) {
 	t.Parallel()

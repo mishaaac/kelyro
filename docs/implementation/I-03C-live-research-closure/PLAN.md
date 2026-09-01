@@ -1270,7 +1270,7 @@ feat(audit): record live research execution metadata
 
 ## Paso 34 — Completar UX de `research topic`
 
-- [ ] Paso 34 completado
+- [x] Paso 34 completado
 
 El comando ya no termina en `DiscoveryPending=true`.
 

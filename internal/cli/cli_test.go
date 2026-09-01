@@ -18,6 +18,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/portability"
 	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
+	"github.com/mishaaac/kelyro/internal/research/queryplanner"
 	"github.com/mishaaac/kelyro/internal/update"
 )
 
@@ -1451,6 +1452,42 @@ func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
 		}
 		if service.commands[0].ResearchOperation != "topic" || service.commands[0].ResearchTopic != "Go range over func" {
 			t.Fatalf("topic command = %+v", service.commands[0])
+		}
+	})
+	t.Run("completed topic workflow", func(t *testing.T) {
+		at, _ := research.NewTimestamp(time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC))
+		requestID := cliID(t, "request.cli-topic-completed")
+		runID := cliID(t, "run.cli-topic-completed")
+		bundleID := cliID(t, "bundle.cli-topic-completed")
+		topic, _ := research.NewResearchTopic("Go interfaces", "general", "")
+		plan := queryplanner.ResearchQueryPlan{AlgorithmVersion: queryplanner.AlgorithmVersion, Queries: []queryplanner.ResearchQuery{
+			{Query: "Go interfaces official documentation", DesiredSourceKind: research.SourceOfficialDocumentation, RequiredAuthority: research.AuthorityTierC, Priority: 1},
+			{Query: "Go interfaces specification", DesiredSourceKind: research.SourceSpecification, RequiredAuthority: research.AuthorityTierC, Priority: 2},
+		}}
+		bundle := research.SourceBundle{ID: bundleID, RunID: runID, State: research.BundleReadyWithCaveats, VerifiedAt: at}
+		execution := researchapp.ResearchQueueConsumeResult{Disposition: researchapp.ResearchQueueConsumeCompleted,
+			Orchestration: researchapp.LiveResearchOrchestrationResult{Artifacts: researchapp.LiveResearchArtifacts{
+				Sources: make([]research.Source, 3), FetchedSources: make([]researchapp.FetchedSource, 2),
+				Evidence: make([]research.Evidence, 5), Claims: make([]research.Claim, 4),
+				Verifications: []research.VerificationResult{{Status: research.VerificationVerified}, {Status: research.VerificationVerifiedCaveat}},
+				Bundle:        &bundle,
+			}},
+		}
+		view := app.ResearchCLIView{
+			Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at},
+			Run:     research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunCompleted, StartedAt: at, CompletedAt: &at},
+			Plan:    &plan, Bundle: &bundle, Execution: &execution,
+		}
+		service := &fakeService{result: app.Result{ResearchView: &view}}
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "topic", "Go", "interfaces"})
+		output := stdout.String()
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(output, "Queries planned: 2") ||
+			!strings.Contains(output, "Sources discovered: 3") || !strings.Contains(output, "Sources fetched: 2") ||
+			!strings.Contains(output, "Evidence items: 5") || !strings.Contains(output, "Claims: 4") ||
+			!strings.Contains(output, "Verified: 2") || !strings.Contains(output, "Source Bundle:\n"+bundleID.String()) ||
+			strings.Contains(output, "Discovery: pending") {
+			t.Fatalf("completed topic = code %d stdout %q stderr %q", code, output, stderr.String())
 		}
 	})
 	t.Run("run status", func(t *testing.T) {

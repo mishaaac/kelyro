@@ -2,14 +2,13 @@
 
 ## Estado general
 
-Current step: 34
-Last completed step: 33
+Current step: 35
+Last completed step: 34
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- production command composition of all completed stages pending
 - CLI status/show and output rendering pending
 
 ## Registro
@@ -1876,3 +1875,68 @@ Release: unreleased
   los counts observados por cada ejecución.
 - La UX del Paso 34 puede renderizar el audit/coste ya durable; no debe crear
   una segunda fuente de métricas ni reconstruir metadata desde texto CLI.
+
+## Step 34 — Complete `research topic` UX
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- El composition root productivo de `research topic` activa por defecto el
+  executor síncrono existente cuando search, fetch, cache, normalizer,
+  configuración y Secrets están disponibles en el binario real.
+- El executor ensambla el único `ResearchQueueConsumer` y el orchestrator v1
+  con search, candidate deduplication/registration, fetch, snapshot,
+  normalization, extraction, trust/temporal evaluation, verification, bundle,
+  provenance, validation, terminal audit y finalization existentes.
+- El search stage ejecuta el Query Plan bounded, aplica los límites resueltos,
+  convierte resultados a candidates y conserva provider ID, adapter version,
+  queries/resultados observados y provider API calls conciliadas desde el
+  ledger durable.
+- El store workspace-scoped expone los servicios existentes de deduplicación y
+  registro sin filtrar repositories SQLite al composition root.
+- La salida de `research topic` completado muestra queries planificadas,
+  Sources descubiertas/fetched, Evidence, Claims, verificaciones y el Source
+  Bundle durable; ya no presenta discovery pending después de terminal success.
+- El validation stage rechaza bundles `incomplete` o `conflicted`; sólo
+  `ready` y `ready_with_caveats` pueden preceder un Run completed.
+
+### Decisions
+
+- El assembly del provider ocurre dentro del search stage, después del claim de
+  queue, para que configuración/credenciales ausentes se liquiden por el
+  lifecycle existente y no dejen un falso success ni inicien trabajo detached.
+- `LiveSearchExecutionMetadata` toma llamadas del cost ledger, no de texto CLI
+  ni de una segunda métrica in-memory. Queries/results provienen de los
+  artifacts exactos de la ejecución.
+- El executor inyectable del Paso 16 permanece como seam de tests. Servicios
+  incompletos que deliberadamente no configuran el runtime live conservan el
+  comportamiento pending usado por tests/consumidores parciales; el binario
+  productivo configura todas las dependencias y ejecuta el path completo.
+- Search results continúan siendo candidates. La UX cuenta Evidence y Claims
+  sólo desde artifacts producidos por sus stages respectivos.
+- No se añadió daemon, segunda queue, migration, dependencia externa, IA ni
+  comportamiento de I-04.
+
+### Verification
+
+- Tests del search stage con dos queries, mapping de candidates y metadata
+  provider/cost observada.
+- Test CLI del resumen terminal query-to-bundle y ausencia de
+  `Discovery: pending` en success.
+- Test de rejection de bundle incomplete antes de finalization.
+- Tests dirigidos de app, CLI, application, researchdb y composition del
+  binario.
+- `go test ./...` fuera del sandbox para habilitar listeners loopback de los
+  fixtures `httptest`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 35 debe enriquecer exclusivamente `research status/show` usando Run,
+  queue/audit y bundle ya durables.
+- Provider, queries, counts, warnings, bundle y failure reason deben salir de
+  records tipados; no reconstruirlos desde logs o mensajes externos.

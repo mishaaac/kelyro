@@ -25,13 +25,15 @@ const researchTopicExecutionTimeoutV1 = 2 * time.Minute
 // query plan prepared by `research topic` into the synchronous queue consumer.
 // Store remains valid only for the duration of Execute.
 type ResearchTopicExecutionRequest struct {
-	Store          researchapp.SourceRegistryStore
-	Workspace      string
-	QueueItemID    research.ID
-	RunID          research.ID
-	Mode           researchapp.ResearchMode
-	Plan           queryplanner.ResearchQueryPlan
-	NetworkAllowed bool
+	Store              researchapp.SourceRegistryStore
+	Workspace          string
+	QueueItemID        research.ID
+	RunID              research.ID
+	Mode               researchapp.ResearchMode
+	Plan               queryplanner.ResearchQueryPlan
+	MaxResultsPerQuery int
+	ConfigOverrides    config.Settings
+	NetworkAllowed     bool
 }
 
 func (request ResearchTopicExecutionRequest) Validate() error {
@@ -49,6 +51,9 @@ func (request ResearchTopicExecutionRequest) Validate() error {
 	}
 	if err := request.Mode.Validate(); err != nil {
 		return err
+	}
+	if request.MaxResultsPerQuery < 1 || request.MaxResultsPerQuery > researchapp.MaximumSearchResults {
+		return fmt.Errorf("research topic maximum results per query must be between 1 and %d", researchapp.MaximumSearchResults)
 	}
 	return request.Plan.Validate()
 }
@@ -186,19 +191,26 @@ func (service *Service) startResearchTopic(ctx context.Context, command Command,
 		Request: request, Run: run, Plan: &plan, QueueItem: decision.QueueItem, NetworkAllowed: policy.AllowNetwork,
 		DiscoveryPending: true, AlgorithmVersion: researchCLIWorkflowV1,
 	}
-	if service.researchExecutor == nil {
+	if service.researchExecutor == nil && !service.researchTopicExecutionConfigured() {
 		return view, nil
 	}
 	executionContext, cancel := context.WithTimeout(ctx, researchTopicExecutionTimeoutV1)
 	defer cancel()
 	executionRequest := ResearchTopicExecutionRequest{
 		Store: store, Workspace: command.Workspace, QueueItemID: decision.QueueItem.ID, RunID: run.ID,
-		Mode: researchapp.ResearchModeAuto, Plan: cloneResearchQueryPlan(plan), NetworkAllowed: policy.AllowNetwork,
+		Mode: researchapp.ResearchModeAuto, Plan: cloneResearchQueryPlan(plan), MaxResultsPerQuery: search.MaxResultsPerQuery,
+		ConfigOverrides: cloneConfigSettings(command.ConfigOverrides), NetworkAllowed: policy.AllowNetwork,
 	}
 	if err := executionRequest.Validate(); err != nil {
 		return view, err
 	}
-	execution, executeErr := service.researchExecutor.Execute(executionContext, executionRequest)
+	var execution researchapp.ResearchQueueConsumeResult
+	var executeErr error
+	if service.researchExecutor != nil {
+		execution, executeErr = service.researchExecutor.Execute(executionContext, executionRequest)
+	} else {
+		execution, executeErr = service.executeResearchTopic(executionContext, executionRequest)
+	}
 	view.Execution = &execution
 	if execution.QueueItem.Validate() == nil {
 		queueItem := execution.QueueItem
