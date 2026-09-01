@@ -27,7 +27,7 @@ func TestFactoryBuildsOnlyConfiguredProductionProviderBehindPrivacy(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Provider == nil || result.Discovery == nil {
+	if result.Provider == nil || result.Discovery == nil || result.ProviderID != ProviderID || result.AdapterVersion != AdapterVersion {
 		t.Fatalf("assembly = %+v", result)
 	}
 	if _, ok := result.Provider.(*Brave); !ok {

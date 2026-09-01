@@ -42,6 +42,14 @@ fetch, release, and future model adapters remain responsible for presenting
 their proposed units before invoking a provider. Fetch callers must keep their
 bounded byte request within the remaining authorization they reserve.
 
+I-03C production fetch uses this rule directly. Before each live adapter call
+it atomically reserves one `fetch_requests` unit plus the request's bounded
+maximum bytes. A denial stops before the adapter. When privacy/offline policy
+selects a valid cached body, the same fetch and actual cached byte units are
+recorded as `cache_savings` instead of usage. Terminal audit therefore keeps
+both `bytes_fetched` (actual observed bytes) and `cost_used.bytes` (preauthorized
+bounded capacity); it never disguises one as the other.
+
 I-03C applies this contract to production search through
 `NewCostControlledDiscoveryService`. One `SearchRequests` unit is reserved
 after privacy authorization and before entering the provider. The production

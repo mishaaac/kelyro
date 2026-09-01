@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 )
 
 // researchFetchForRun assembles the production fetch stage without starting
 // network work. Snapshot and cache composition remain later explicit stages.
-func (service *Service) researchFetchForRun(ctx context.Context, command Command, workspaceRoot string) (researchapp.LiveResearchStageService, error) {
+func (service *Service) researchFetchForRun(ctx context.Context, command Command, workspaceRoot string, store researchapp.SourceRegistryStore, runID research.ID) (researchapp.LiveResearchStageService, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -21,6 +22,9 @@ func (service *Service) researchFetchForRun(ctx context.Context, command Command
 	}
 	if service.researchSourceCaches == nil {
 		return nil, fmt.Errorf("research source cache is unavailable")
+	}
+	if store == nil || store.Costs() == nil {
+		return nil, fmt.Errorf("research cost service is unavailable")
 	}
 	settings, err := service.resolvedConfigForWorkspace(workspaceRoot, command.ConfigOverrides)
 	if err != nil {
@@ -34,7 +38,13 @@ func (service *Service) researchFetchForRun(ctx context.Context, command Command
 	if err != nil {
 		return nil, fmt.Errorf("open research source cache: %w", err)
 	}
-	fetch := researchapp.NewFetchService(service.researchFetcher, cache, researchapp.NetworkResearchAccess{Gate: gate})
+	fetch, err := researchapp.NewCostControlledFetchService(
+		service.researchFetcher, cache, researchapp.NetworkResearchAccess{Gate: gate}, store.Costs(),
+		researchSearchClock{now: service.researchClock}, runID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("assemble cost-controlled research fetch: %w", err)
+	}
 	stage, err := researchapp.NewLiveSourceFetchService(
 		fetch, researchapp.DefaultResearchProcessingLimitsV1(), researchapp.DefaultLiveSourceMaximumBytes,
 	)

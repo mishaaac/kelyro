@@ -333,7 +333,7 @@ func costControlError(operation string, decision CostControlDecision) error {
 	}
 	reason := decision.UserExplanation
 	if reason == "" {
-		reason = "research search budget was not authorized"
+		reason = "research network budget was not authorized"
 	}
 	return Classify(ErrorBudgetExceeded, operation, fmt.Errorf("%s", reason))
 }

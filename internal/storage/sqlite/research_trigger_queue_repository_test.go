@@ -64,6 +64,8 @@ func TestSQLiteResearchFinalizationCommitsAndRollsBackRunQueueBundleAtomically(t
 	}
 	runID, _ := research.NewID("run.sqlite-finalization")
 	run := research.ResearchRun{ID: runID, RequestID: input.Request.ID, Status: research.ResearchRunRunning, StartedAt: input.AsOf}
+	cost := research.ResearchCostMetadata{Budget: research.DefaultResearchCostBudgetV1(), AlgorithmVersion: research.ResearchCostControlAlgorithmV1}
+	run.Cost = &cost
 	if err := researchService.Start(ctx, input.Request, run); err != nil {
 		t.Fatal(err)
 	}
@@ -79,19 +81,32 @@ func TestSQLiteResearchFinalizationCommitsAndRollsBackRunQueueBundleAtomically(t
 	}
 	finalizedAt, _ := research.NewTimestamp(input.AsOf.Time().Add(time.Hour))
 	service := application.NewResearchFinalizationService(repositories.Finalization)
+	auditID, _ := research.NewID("audit.sqlite-finalization.terminal")
+	audit, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: auditID, RunID: run.ID, RecordedAt: finalizedAt, StartedAt: run.StartedAt,
+		CompletedAt: &finalizedAt, Outcome: research.ResearchRunCompleted, QueryPlannerVersion: "query-planner-v1",
+		TrustPolicyVersion: "trust-policy-v1", FreshnessVersion: research.FreshnessAlgorithmV1,
+		ConflictResolverVersion: research.ConflictResolverAlgorithmV1, NetworkMode: research.ResearchAuditNetworkAuto,
+		Queries: []string{"finalization topic official documentation"}, TargetTechnology: input.Request.Topic.Technology,
+		Execution: &research.ResearchAuditExecution{BundleID: &bundleID, CostUsed: cost.Used, CacheSavings: cost.CacheSavings, AlgorithmVersion: research.LiveResearchExecutionAuditV1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	result, err := service.Finalize(ctx, application.ResearchFinalization{
 		QueueItemID: decision.QueueItem.ID, RunID: run.ID, RunStatus: research.ResearchRunCompleted,
 		ExecutionStatus: application.ResearchQueueExecutionCompleted, Attempts: claimed.Execution.Attempts,
-		BundleID: &bundleID, FinalizedAt: finalizedAt, AlgorithmVersion: application.ResearchFinalizationV1,
+		BundleID: &bundleID, Audit: &audit, Cost: &cost, FinalizedAt: finalizedAt, AlgorithmVersion: application.ResearchFinalizationV1,
 	})
-	if err != nil || result.Run.Status != research.ResearchRunCompleted || result.Execution.BundleID == nil || *result.Execution.BundleID != bundleID {
+	if err != nil || result.Run.Status != research.ResearchRunCompleted || result.Execution.BundleID == nil || *result.Execution.BundleID != bundleID || result.Audit == nil {
 		t.Fatalf("finalization = (%+v, %v)", result, err)
 	}
 	storedRun, _ := researchService.Run(ctx, run.ID)
 	storedItem, _ := queue.Get(ctx, decision.QueueItem.ID)
 	storedExecution, _ := queue.Execution(ctx, decision.QueueItem.ID)
+	storedAudit, auditErr := researchService.AuditTrail(ctx, run.ID)
 	if storedRun.Status != research.ResearchRunCompleted || storedItem.Status != research.ResearchQueueDispatched ||
-		storedExecution.BundleID == nil || *storedExecution.BundleID != bundleID {
+		storedExecution.BundleID == nil || *storedExecution.BundleID != bundleID || auditErr != nil || len(storedAudit) != 1 || storedAudit[0].ID != audit.ID {
 		t.Fatalf("durable finalization = run(%+v) item(%+v) execution(%+v)", storedRun, storedItem, storedExecution)
 	}
 
@@ -125,6 +140,40 @@ func TestSQLiteResearchFinalizationCommitsAndRollsBackRunQueueBundleAtomically(t
 	if rolledBackRun.Status != research.ResearchRunRunning || rolledBackItem.Status != research.ResearchQueueQueued ||
 		rolledBackExecution.Status != application.ResearchQueueExecutionClaimed || rolledBackExecution.BundleID != nil {
 		t.Fatalf("rollback state = run(%+v) item(%+v) execution(%+v)", rolledBackRun, rolledBackItem, rolledBackExecution)
+	}
+
+	wrongBundleID, _ := research.NewID("bundle.sqlite-finalization-wrong")
+	if _, err := database.sql.ExecContext(ctx, `INSERT INTO source_bundles (id,run_id,topic_subject,topic_domain,topic_technology,purpose,state,verified_at) VALUES (?,?,?,?,?,?,?,?)`,
+		wrongBundleID.String(), wrongRun.ID.String(), wrong.Request.Topic.Subject, wrong.Request.Topic.Domain, wrong.Request.Topic.Technology,
+		string(wrong.Request.Purpose), string(research.BundleIncomplete), timestampText(wrong.AsOf)); err != nil {
+		t.Fatal(err)
+	}
+	wrongCost := research.ResearchCostMetadata{Budget: research.DefaultResearchCostBudgetV1(), AlgorithmVersion: research.ResearchCostControlAlgorithmV1}
+	badAuditID, _ := research.NewID("audit.sqlite-finalization-wrong.terminal")
+	badAudit, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: badAuditID, RunID: wrongRun.ID, RecordedAt: wrongFinalizedAt, StartedAt: wrongRun.StartedAt,
+		CompletedAt: &wrongFinalizedAt, Outcome: research.ResearchRunCompleted, QueryPlannerVersion: "query-planner-v1",
+		TrustPolicyVersion: "trust-policy-v1", FreshnessVersion: research.FreshnessAlgorithmV1,
+		ConflictResolverVersion: research.ConflictResolverAlgorithmV1, NetworkMode: research.ResearchAuditNetworkAuto,
+		Queries: []string{"wrong finalization topic official documentation"}, TargetTechnology: "mismatched-target",
+		Execution: &research.ResearchAuditExecution{BundleID: &wrongBundleID, CostUsed: wrongCost.Used, CacheSavings: wrongCost.CacheSavings, AlgorithmVersion: research.LiveResearchExecutionAuditV1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Finalize(ctx, application.ResearchFinalization{
+		QueueItemID: wrongDecision.QueueItem.ID, RunID: wrongRun.ID, RunStatus: research.ResearchRunCompleted,
+		ExecutionStatus: application.ResearchQueueExecutionCompleted, Attempts: wrongClaim.Execution.Attempts,
+		BundleID: &wrongBundleID, Audit: &badAudit, Cost: &wrongCost, FinalizedAt: wrongFinalizedAt, AlgorithmVersion: application.ResearchFinalizationV1,
+	})
+	if !errors.Is(err, application.ErrInvalidState) {
+		t.Fatalf("bad audit finalization error = %v", err)
+	}
+	rolledBackRun, _ = researchService.Run(ctx, wrongRun.ID)
+	rolledBackExecution, _ = queue.Execution(ctx, wrongDecision.QueueItem.ID)
+	wrongTrail, trailErr := researchService.AuditTrail(ctx, wrongRun.ID)
+	if rolledBackRun.Status != research.ResearchRunRunning || rolledBackExecution.Status != application.ResearchQueueExecutionClaimed || trailErr != nil || len(wrongTrail) != 0 {
+		t.Fatalf("bad audit rollback = run(%+v) execution(%+v) audit(%+v,%v)", rolledBackRun, rolledBackExecution, wrongTrail, trailErr)
 	}
 }
 

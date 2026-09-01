@@ -18,6 +18,8 @@ type ResearchFinalization struct {
 	Attempts         int
 	BundleID         *research.ID
 	FailureKind      ErrorKind
+	Audit            *research.ResearchRunAudit
+	Cost             *research.ResearchCostMetadata
 	FinalizedAt      research.Timestamp
 	AlgorithmVersion string
 }
@@ -59,12 +61,40 @@ func (finalization ResearchFinalization) Validate() error {
 			return fmt.Errorf("research finalization bundle: %w", err)
 		}
 	}
+	if (finalization.Audit == nil) != (finalization.Cost == nil) {
+		return errors.New("research finalization audit and cost must be supplied together")
+	}
+	if finalization.Audit != nil {
+		if err := finalization.Audit.Validate(); err != nil {
+			return fmt.Errorf("research finalization audit: %w", err)
+		}
+		if err := finalization.Cost.Validate(); err != nil {
+			return fmt.Errorf("research finalization cost: %w", err)
+		}
+		if finalization.Audit.RunID != finalization.RunID || finalization.Audit.Outcome != finalization.RunStatus ||
+			finalization.Audit.CompletedAt == nil || !finalization.Audit.CompletedAt.Time().Equal(finalization.FinalizedAt.Time()) ||
+			finalization.Audit.Execution == nil || finalization.Audit.Execution.CostUsed != finalization.Cost.Used ||
+			finalization.Audit.Execution.CacheSavings != finalization.Cost.CacheSavings ||
+			finalization.Audit.Execution.StoppedByBudget != finalization.Cost.StoppedByBudget ||
+			finalization.Audit.Execution.FailureKind != string(finalization.FailureKind) ||
+			!sameFinalizationBundleID(finalization.Audit.Execution.BundleID, finalization.BundleID) {
+			return errors.New("research finalization audit does not match terminal lifecycle and cost")
+		}
+	}
 	return nil
+}
+
+func sameFinalizationBundleID(left, right *research.ID) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 type ResearchFinalizationResult struct {
 	Run       research.ResearchRun
 	Execution ResearchQueueExecution
+	Audit     *research.ResearchRunAudit
 }
 
 func (result ResearchFinalizationResult) Validate() error {
@@ -76,6 +106,14 @@ func (result ResearchFinalizationResult) Validate() error {
 	}
 	if result.Run.ID != result.Execution.RunID {
 		return errors.New("research finalization result run and execution do not agree")
+	}
+	if result.Audit != nil {
+		if err := result.Audit.Validate(); err != nil {
+			return err
+		}
+		if result.Audit.RunID != result.Run.ID || result.Audit.Outcome != result.Run.Status {
+			return errors.New("research finalization result audit does not agree with run")
+		}
 	}
 	switch result.Execution.Status {
 	case ResearchQueueExecutionCompleted:

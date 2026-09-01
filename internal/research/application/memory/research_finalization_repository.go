@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"sort"
 
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
@@ -48,6 +49,15 @@ func (repository researchFinalizationRepository) Finalize(ctx context.Context, f
 	if err != nil {
 		return application.ResearchFinalizationResult{}, invalid(operation, err)
 	}
+	if finalization.Cost != nil {
+		cost := *finalization.Cost
+		terminal.Cost = &cost
+	}
+	if finalization.Audit != nil {
+		if err := validateFinalizationAuditMemory(repository.store, terminal, *finalization.Audit); err != nil {
+			return application.ResearchFinalizationResult{}, err
+		}
+	}
 	execution.Status = finalization.ExecutionStatus
 	execution.ChangedAt = finalization.FinalizedAt
 	execution.FailureKind = finalization.FailureKind
@@ -71,7 +81,48 @@ func (repository researchFinalizationRepository) Finalize(ctx context.Context, f
 	repository.store.runs[run.ID] = cloneRun(terminal)
 	repository.store.queueExecutions[item.ID] = cloneQueueExecution(execution)
 	repository.store.triggerQueue[item.ID] = cloneResearchQueueItem(item)
-	return application.ResearchFinalizationResult{Run: cloneRun(terminal), Execution: cloneQueueExecution(execution)}, nil
+	result := application.ResearchFinalizationResult{Run: cloneRun(terminal), Execution: cloneQueueExecution(execution)}
+	if finalization.Audit != nil {
+		audit := cloneResearchAudit(*finalization.Audit)
+		repository.store.runAudit[terminal.ID] = append(repository.store.runAudit[terminal.ID], audit)
+		sort.Slice(repository.store.runAudit[terminal.ID], func(i, j int) bool {
+			left, right := repository.store.runAudit[terminal.ID][i], repository.store.runAudit[terminal.ID][j]
+			if !left.RecordedAt.Time().Equal(right.RecordedAt.Time()) {
+				return left.RecordedAt.Before(right.RecordedAt)
+			}
+			return left.ID.String() < right.ID.String()
+		})
+		result.Audit = &audit
+	}
+	return result, nil
+}
+
+func validateFinalizationAuditMemory(store *Store, terminal research.ResearchRun, audit research.ResearchRunAudit) error {
+	const operation = "finalize memory research run and queue"
+	if audit.RunID != terminal.ID || audit.Outcome != terminal.Status || !audit.StartedAt.Time().Equal(terminal.StartedAt.Time()) ||
+		!equalMemoryAuditTimestamp(audit.CompletedAt, terminal.CompletedAt) {
+		return invalid(operation, errRelationship("terminal audit lifecycle does not match Research Run"))
+	}
+	request := store.requests[terminal.RequestID]
+	if request.Topic.Technology != audit.TargetTechnology || !equalMemoryAuditVersion(request.TargetVersion, audit.TargetVersion) {
+		return invalid(operation, errRelationship("terminal audit target does not match Research Request"))
+	}
+	for _, item := range audit.Sources {
+		source, sourceExists := store.sources[item.SourceID]
+		snapshot, snapshotExists := store.snapshots[item.SnapshotID]
+		if !sourceExists || !snapshotExists {
+			return notFound(operation)
+		}
+		if snapshot.SourceID != item.SourceID || snapshot.Locator != item.Locator || source.ID != item.SourceID || snapshot.Fetch.ContentHash != item.SnapshotHash {
+			return invalid(operation, errRelationship("terminal audit snapshot does not match durable data"))
+		}
+	}
+	for _, stored := range store.runAudit[terminal.ID] {
+		if stored.ID == audit.ID || stored.RecordedAt.Time().Equal(audit.RecordedAt.Time()) {
+			return conflict(operation)
+		}
+	}
+	return nil
 }
 
 func cloneQueueExecution(execution application.ResearchQueueExecution) application.ResearchQueueExecution {

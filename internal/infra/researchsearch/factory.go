@@ -109,7 +109,9 @@ func (factory *Factory) Build(ctx context.Context, request application.LiveSearc
 	if err != nil {
 		return application.LiveSearchBuildResult{}, fmt.Errorf("assemble live research discovery: %w", err)
 	}
-	return application.LiveSearchBuildResult{Provider: provider, Discovery: discovery}, nil
+	return application.LiveSearchBuildResult{
+		Provider: provider, Discovery: discovery, ProviderID: ProviderID, AdapterVersion: AdapterVersion,
+	}, nil
 }
 
 var _ application.LiveSearchProviderFactory = (*Factory)(nil)

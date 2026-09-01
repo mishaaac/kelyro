@@ -49,6 +49,28 @@ algorithm_version
 content_hash
 ```
 
+Live terminal checkpoints may additionally carry the additive, versioned
+`live-research-execution-audit-v1` block:
+
+```text
+providers[] { provider_id, adapter_version, api_calls }
+query_count
+result_count
+fetch_count
+bundle_id optional
+failure_kind optional
+cost_used { search_requests, fetch_requests, bytes, provider_api_calls, model_calls }
+cache_savings { search_requests, fetch_requests, bytes, provider_api_calls, model_calls }
+stopped_by_budget
+```
+
+The parent outcome remains authoritative. Completed execution metadata requires
+the exact bundle ID; failed execution metadata permits only the closed safe
+failure vocabulary; cancelled metadata contains neither. Provider call totals
+must equal durable cost accounting and exactly match `providers_used`.
+Historical v1 checkpoints omit this block, retaining their original canonical
+JSON and content hash.
+
 The four first-class algorithm versions name the policies selected for the
 run. They do not by themselves prove that every stage produced an output;
 outcome, source records, bundles, and additional durable results show what was
@@ -117,6 +139,13 @@ Research Run and Request before append:
 `recorded_at, audit_id` order. Recording is explicit after lifecycle changes;
 updating a run cannot infer providers, cache behavior, sources, or algorithm
 outputs and therefore does not fabricate a checkpoint automatically.
+
+The I-03C live queue consumer has all of these facts at settlement time. It
+prepares a terminal checkpoint from the planned audit, bounded stage artifacts,
+and durable cost ledger. The finalization repository then commits the Run,
+queue execution, bundle reference, and terminal audit in one memory lock or
+SQLite transaction. A mismatched lifecycle, target, snapshot, hash, bundle, or
+cost aborts the whole settlement.
 
 The manual `research topic` workflow does know its planning inputs, so it
 describes them at the application level by appending an initial

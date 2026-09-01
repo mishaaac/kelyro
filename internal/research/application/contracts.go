@@ -561,8 +561,10 @@ func (request LiveSearchBuildRequest) Validate() error {
 }
 
 type LiveSearchBuildResult struct {
-	Provider  CostControlledSearchProvider
-	Discovery DiscoveryService
+	Provider       CostControlledSearchProvider
+	Discovery      DiscoveryService
+	ProviderID     string
+	AdapterVersion string
 }
 
 type LiveSearchProviderFactory interface {

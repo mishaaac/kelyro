@@ -12,9 +12,11 @@ import (
 
 const (
 	ResearchAuditAlgorithmV1       = "research-audit-v1"
+	LiveResearchExecutionAuditV1   = "live-research-execution-audit-v1"
 	MaximumResearchAuditJSONBytes  = 256 << 10
 	MaximumResearchAuditQueries    = 64
 	MaximumResearchAuditSources    = 512
+	MaximumResearchAuditResults    = MaximumResearchAuditQueries * 100
 	MaximumResearchAuditProviders  = 32
 	MaximumResearchAuditAlgorithms = 64
 	MaximumResearchAuditTextBytes  = 4 << 10
@@ -60,6 +62,111 @@ type ResearchAuditSource struct {
 	SnapshotHash string
 }
 
+// ResearchAuditProvider records only a provider identity, its adapter version,
+// and the number of API calls actually charged to the run. It never carries
+// credentials, headers, endpoints, or provider response payloads.
+type ResearchAuditProvider struct {
+	ProviderID     string
+	AdapterVersion string
+	APICalls       int64
+}
+
+func (provider ResearchAuditProvider) Validate() error {
+	if err := validateResearchAuditText("research audit provider ID", provider.ProviderID, true); err != nil {
+		return err
+	}
+	if err := validateResearchAuditText("research audit adapter version", provider.AdapterVersion, true); err != nil {
+		return err
+	}
+	if provider.APICalls < 1 {
+		return fmt.Errorf("research audit provider API calls must be positive")
+	}
+	return nil
+}
+
+// ResearchAuditExecution is the bounded terminal accounting attached by the
+// live pipeline. Outcome remains first-class on ResearchRunAudit.
+type ResearchAuditExecution struct {
+	Providers        []ResearchAuditProvider
+	QueryCount       int
+	ResultCount      int
+	FetchCount       int
+	BundleID         *ID
+	FailureKind      string
+	CostUsed         ResearchCostUsage
+	CacheSavings     ResearchCostUsage
+	StoppedByBudget  bool
+	AlgorithmVersion string
+}
+
+func (execution ResearchAuditExecution) Validate(outcome ResearchRunStatus, providersUsed []string, queryTotal int) error {
+	if execution.QueryCount < 0 || execution.QueryCount > queryTotal || execution.ResultCount < 0 ||
+		execution.ResultCount > MaximumResearchAuditResults || execution.FetchCount < 0 || execution.FetchCount > MaximumResearchAuditSources {
+		return fmt.Errorf("research audit execution counters are invalid")
+	}
+	if err := execution.CostUsed.Validate(); err != nil {
+		return err
+	}
+	if err := execution.CacheSavings.Validate(); err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(execution.Providers))
+	var calls int64
+	for _, provider := range execution.Providers {
+		if err := provider.Validate(); err != nil {
+			return err
+		}
+		if _, duplicate := seen[provider.ProviderID]; duplicate {
+			return fmt.Errorf("research audit execution repeats provider %q", provider.ProviderID)
+		}
+		seen[provider.ProviderID] = struct{}{}
+		calls += provider.APICalls
+	}
+	if calls != execution.CostUsed.ProviderAPICalls || len(seen) != len(providersUsed) {
+		return fmt.Errorf("research audit provider accounting does not match cost or providers used")
+	}
+	for _, provider := range providersUsed {
+		if _, exists := seen[provider]; !exists {
+			return fmt.Errorf("research audit provider %q has no adapter accounting", provider)
+		}
+	}
+	if execution.BundleID != nil {
+		if err := execution.BundleID.Validate(); err != nil {
+			return fmt.Errorf("research audit execution bundle: %w", err)
+		}
+	}
+	switch outcome {
+	case ResearchRunCompleted:
+		if execution.BundleID == nil || execution.FailureKind != "" {
+			return fmt.Errorf("completed research audit execution requires a bundle without failure")
+		}
+	case ResearchRunFailed:
+		if execution.BundleID != nil || !validResearchAuditFailureKind(execution.FailureKind) {
+			return fmt.Errorf("failed research audit execution requires a safe failure kind")
+		}
+	case ResearchRunCancelled:
+		if execution.BundleID != nil || execution.FailureKind != "" {
+			return fmt.Errorf("cancelled research audit execution cannot contain bundle or failure")
+		}
+	default:
+		return fmt.Errorf("live research audit execution requires a terminal outcome")
+	}
+	if execution.AlgorithmVersion != LiveResearchExecutionAuditV1 {
+		return fmt.Errorf("research audit execution algorithm must be %q", LiveResearchExecutionAuditV1)
+	}
+	return nil
+}
+
+func validResearchAuditFailureKind(value string) bool {
+	switch value {
+	case "not_found", "conflict", "invalid_state", "unavailable", "persistence_failure",
+		"external_failure", "network_research_blocked", "budget_exceeded":
+		return true
+	default:
+		return false
+	}
+}
+
 func (source ResearchAuditSource) Validate() error {
 	if err := source.SourceID.Validate(); err != nil {
 		return fmt.Errorf("research audit source: %w", err)
@@ -100,6 +207,7 @@ type ResearchRunAudit struct {
 	TargetTechnology        string
 	TargetVersion           *SourceVersion
 	AdditionalAlgorithms    []ResearchAuditAlgorithm
+	Execution               *ResearchAuditExecution
 	AlgorithmVersion        string
 	ContentHash             string
 }
@@ -231,6 +339,11 @@ func (audit ResearchRunAudit) validateCore() error {
 	if len(audit.AdditionalAlgorithms) > MaximumResearchAuditAlgorithms {
 		return fmt.Errorf("research audit additional algorithms exceed %d", MaximumResearchAuditAlgorithms)
 	}
+	if audit.Execution != nil {
+		if err := audit.Execution.Validate(audit.Outcome, audit.ProvidersUsed, len(audit.Queries)); err != nil {
+			return err
+		}
+	}
 	seenStages := make(map[string]struct{}, len(audit.AdditionalAlgorithms))
 	for _, algorithm := range audit.AdditionalAlgorithms {
 		if err := algorithm.Validate(); err != nil {
@@ -280,6 +393,16 @@ func SealResearchRunAuditV1(audit ResearchRunAudit) (ResearchRunAudit, error) {
 		return audit.AdditionalAlgorithms[i].Version < audit.AdditionalAlgorithms[j].Version
 	})
 	audit.Queries = append([]string(nil), audit.Queries...)
+	if audit.Execution != nil {
+		execution := *audit.Execution
+		execution.Providers = append([]ResearchAuditProvider(nil), audit.Execution.Providers...)
+		sort.Slice(execution.Providers, func(i, j int) bool { return execution.Providers[i].ProviderID < execution.Providers[j].ProviderID })
+		if audit.Execution.BundleID != nil {
+			bundleID := *audit.Execution.BundleID
+			execution.BundleID = &bundleID
+		}
+		audit.Execution = &execution
+	}
 	audit.SourceCount = len(audit.Sources)
 	audit.ContentHash = ""
 	if err := audit.validateCore(); err != nil {
@@ -308,6 +431,33 @@ type researchAuditSourceJSON struct {
 	SnapshotHash string `json:"snapshot_hash"`
 }
 
+type researchAuditProviderJSON struct {
+	ProviderID     string `json:"provider_id"`
+	AdapterVersion string `json:"adapter_version"`
+	APICalls       int64  `json:"api_calls"`
+}
+
+type researchCostUsageJSON struct {
+	SearchRequests   int64 `json:"search_requests"`
+	FetchRequests    int64 `json:"fetch_requests"`
+	Bytes            int64 `json:"bytes"`
+	ProviderAPICalls int64 `json:"provider_api_calls"`
+	ModelCalls       int64 `json:"model_calls"`
+}
+
+type researchAuditExecutionJSON struct {
+	Providers        []researchAuditProviderJSON `json:"providers"`
+	QueryCount       int                         `json:"query_count"`
+	ResultCount      int                         `json:"result_count"`
+	FetchCount       int                         `json:"fetch_count"`
+	BundleID         string                      `json:"bundle_id,omitempty"`
+	FailureKind      string                      `json:"failure_kind,omitempty"`
+	CostUsed         researchCostUsageJSON       `json:"cost_used"`
+	CacheSavings     researchCostUsageJSON       `json:"cache_savings"`
+	StoppedByBudget  bool                        `json:"stopped_by_budget"`
+	AlgorithmVersion string                      `json:"algorithm_version"`
+}
+
 type researchRunAuditJSON struct {
 	AuditID                 string                       `json:"audit_id"`
 	RunID                   string                       `json:"run_id"`
@@ -330,6 +480,7 @@ type researchRunAuditJSON struct {
 	TargetTechnology        string                       `json:"target_technology,omitempty"`
 	TargetVersion           string                       `json:"target_version,omitempty"`
 	AdditionalAlgorithms    []researchAuditAlgorithmJSON `json:"additional_algorithms"`
+	Execution               *researchAuditExecutionJSON  `json:"execution,omitempty"`
 	AlgorithmVersion        string                       `json:"algorithm_version"`
 	ContentHash             string                       `json:"content_hash,omitempty"`
 }
@@ -359,6 +510,21 @@ func (audit ResearchRunAudit) jsonPayload(includeHash bool) researchRunAuditJSON
 	}
 	for index, algorithm := range audit.AdditionalAlgorithms {
 		payload.AdditionalAlgorithms[index] = researchAuditAlgorithmJSON{Stage: algorithm.Stage, Version: algorithm.Version}
+	}
+	if audit.Execution != nil {
+		execution := audit.Execution
+		payload.Execution = &researchAuditExecutionJSON{
+			Providers: make([]researchAuditProviderJSON, len(execution.Providers)), QueryCount: execution.QueryCount,
+			ResultCount: execution.ResultCount, FetchCount: execution.FetchCount, FailureKind: execution.FailureKind,
+			CostUsed: researchCostUsageToJSON(execution.CostUsed), CacheSavings: researchCostUsageToJSON(execution.CacheSavings),
+			StoppedByBudget: execution.StoppedByBudget, AlgorithmVersion: execution.AlgorithmVersion,
+		}
+		if execution.BundleID != nil {
+			payload.Execution.BundleID = execution.BundleID.String()
+		}
+		for index, provider := range execution.Providers {
+			payload.Execution.Providers[index] = researchAuditProviderJSON{ProviderID: provider.ProviderID, AdapterVersion: provider.AdapterVersion, APICalls: provider.APICalls}
+		}
 	}
 	if includeHash {
 		payload.ContentHash = audit.ContentHash
@@ -478,7 +644,35 @@ func researchRunAuditFromJSON(payload researchRunAuditJSON) (ResearchRunAudit, e
 	for index, item := range payload.AdditionalAlgorithms {
 		audit.AdditionalAlgorithms[index] = ResearchAuditAlgorithm{Stage: item.Stage, Version: item.Version}
 	}
+	if payload.Execution != nil {
+		execution := &ResearchAuditExecution{
+			Providers: make([]ResearchAuditProvider, len(payload.Execution.Providers)), QueryCount: payload.Execution.QueryCount,
+			ResultCount: payload.Execution.ResultCount, FetchCount: payload.Execution.FetchCount,
+			FailureKind: payload.Execution.FailureKind, CostUsed: researchCostUsageFromJSON(payload.Execution.CostUsed),
+			CacheSavings: researchCostUsageFromJSON(payload.Execution.CacheSavings), StoppedByBudget: payload.Execution.StoppedByBudget,
+			AlgorithmVersion: payload.Execution.AlgorithmVersion,
+		}
+		if payload.Execution.BundleID != "" {
+			bundleID, bundleErr := NewID(payload.Execution.BundleID)
+			if bundleErr != nil {
+				return ResearchRunAudit{}, bundleErr
+			}
+			execution.BundleID = &bundleID
+		}
+		for index, provider := range payload.Execution.Providers {
+			execution.Providers[index] = ResearchAuditProvider{ProviderID: provider.ProviderID, AdapterVersion: provider.AdapterVersion, APICalls: provider.APICalls}
+		}
+		audit.Execution = execution
+	}
 	return audit, nil
+}
+
+func researchCostUsageToJSON(usage ResearchCostUsage) researchCostUsageJSON {
+	return researchCostUsageJSON{SearchRequests: usage.SearchRequests, FetchRequests: usage.FetchRequests, Bytes: usage.Bytes, ProviderAPICalls: usage.ProviderAPICalls, ModelCalls: usage.ModelCalls}
+}
+
+func researchCostUsageFromJSON(usage researchCostUsageJSON) ResearchCostUsage {
+	return ResearchCostUsage{SearchRequests: usage.SearchRequests, FetchRequests: usage.FetchRequests, Bytes: usage.Bytes, ProviderAPICalls: usage.ProviderAPICalls, ModelCalls: usage.ModelCalls}
 }
 
 func parseResearchAuditTimestamp(value string) (Timestamp, error) {

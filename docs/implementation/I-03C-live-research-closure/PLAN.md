@@ -1242,7 +1242,7 @@ feat(research): preserve query-to-bundle provenance
 
 ## Paso 33 — Audit + Cost accounting
 
-- [ ] Paso 33 completado
+- [x] Paso 33 completado
 
 Registrar:
 

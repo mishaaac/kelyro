@@ -315,6 +315,12 @@ func cloneResearchAudit(audit research.ResearchRunAudit) research.ResearchRunAud
 	clone.Sources = append([]research.ResearchAuditSource(nil), audit.Sources...)
 	clone.TargetVersion = cloneVersion(audit.TargetVersion)
 	clone.AdditionalAlgorithms = append([]research.ResearchAuditAlgorithm(nil), audit.AdditionalAlgorithms...)
+	if audit.Execution != nil {
+		execution := *audit.Execution
+		execution.Providers = append([]research.ResearchAuditProvider(nil), audit.Execution.Providers...)
+		execution.BundleID = cloneID(audit.Execution.BundleID)
+		clone.Execution = &execution
+	}
 	return clone
 }
 

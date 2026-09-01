@@ -131,15 +131,17 @@ type ResearchQueueConsumeResult struct {
 	Orchestration    LiveResearchOrchestrationResult
 	Disposition      ResearchQueueConsumeDisposition
 	Idempotent       bool
+	Audit            *research.ResearchRunAudit
 	AlgorithmVersion string
 }
 
 type ResearchQueueConsumerDependencies struct {
-	Queue        ResearchTriggerService
-	Research     ResearchService
-	Orchestrator LiveResearchOrchestrator
-	Finalization ResearchFinalizationService
-	Clock        Clock
+	Queue         ResearchTriggerService
+	Research      ResearchService
+	Orchestrator  LiveResearchOrchestrator
+	Finalization  ResearchFinalizationService
+	TerminalAudit LiveResearchTerminalAuditService
+	Clock         Clock
 }
 
 type researchQueueConsumer struct {
@@ -156,6 +158,7 @@ func NewResearchQueueConsumer(dependencies ResearchQueueConsumerDependencies) (R
 		{"research service", dependencies.Research},
 		{"live research orchestrator", dependencies.Orchestrator},
 		{"research finalization service", dependencies.Finalization},
+		{"research terminal audit service", dependencies.TerminalAudit},
 		{"clock", dependencies.Clock},
 	} {
 		if err := requireDependency(operation, dependency.name, dependency.value); err != nil {
@@ -204,22 +207,22 @@ func (consumer *researchQueueConsumer) Consume(ctx context.Context, request Rese
 	}
 	if executeErr == nil {
 		result.Disposition = ResearchQueueConsumeCompleted
-		return consumer.finalize(ctx, result, research.ResearchRunCompleted, ResearchQueueExecutionCompleted, orchestrated.Artifacts.Bundle.ID, "", nil)
+		return consumer.finalize(ctx, result, request.Mode, research.ResearchRunCompleted, ResearchQueueExecutionCompleted, orchestrated.Artifacts.Bundle.ID, "", nil)
 	}
 	if errors.Is(executeErr, context.Canceled) || errors.Is(executeErr, context.DeadlineExceeded) || ctx.Err() != nil {
 		result.Disposition = ResearchQueueConsumeCancelled
-		return consumer.finalize(context.WithoutCancel(ctx), result, research.ResearchRunCancelled, ResearchQueueExecutionCancelled, research.ID{}, "", executeErr)
+		return consumer.finalize(context.WithoutCancel(ctx), result, request.Mode, research.ResearchRunCancelled, ResearchQueueExecutionCancelled, research.ID{}, "", executeErr)
 	}
 	kind, classified := KindOf(executeErr)
 	if classified && researchQueueFailureIsTransient(kind) {
 		result.Disposition = ResearchQueueConsumeRetry
-		return consumer.finalize(ctx, result, research.ResearchRunFailed, ResearchQueueExecutionRetry, research.ID{}, kind, executeErr)
+		return consumer.finalize(ctx, result, request.Mode, research.ResearchRunFailed, ResearchQueueExecutionRetry, research.ID{}, kind, executeErr)
 	}
 	if !classified {
 		kind = ErrorInvalidState
 	}
 	result.Disposition = ResearchQueueConsumeFailed
-	return consumer.finalize(ctx, result, research.ResearchRunFailed, ResearchQueueExecutionFailed, research.ID{}, kind, executeErr)
+	return consumer.finalize(ctx, result, request.Mode, research.ResearchRunFailed, ResearchQueueExecutionFailed, research.ID{}, kind, executeErr)
 }
 
 func (consumer *researchQueueConsumer) loadIdentity(ctx context.Context, request ResearchQueueConsumeRequest) (research.ResearchQueueItem, research.ResearchRun, error) {
@@ -264,14 +267,38 @@ func (consumer *researchQueueConsumer) reconcileExisting(ctx context.Context, re
 		return result, boundaryError(ErrorPersistenceFailure, operation, err)
 	}
 	result.QueueItem = item
+	trail, auditErr := consumer.dependencies.Research.AuditTrail(ctx, run.ID)
+	if auditErr != nil {
+		return result, boundaryError(ErrorPersistenceFailure, operation, auditErr)
+	}
+	for index := len(trail) - 1; index >= 0; index-- {
+		if trail[index].Outcome.IsTerminal() {
+			audit := trail[index]
+			result.Audit = &audit
+			break
+		}
+	}
 	return result, nil
 }
 
-func (consumer *researchQueueConsumer) finalize(ctx context.Context, result ResearchQueueConsumeResult, runStatus research.ResearchRunStatus, status ResearchQueueExecutionStatus, bundleID research.ID, kind ErrorKind, cause error) (ResearchQueueConsumeResult, error) {
+func (consumer *researchQueueConsumer) finalize(ctx context.Context, result ResearchQueueConsumeResult, mode ResearchMode, runStatus research.ResearchRunStatus, status ResearchQueueExecutionStatus, bundleID research.ID, kind ErrorKind, cause error) (ResearchQueueConsumeResult, error) {
+	finalizedAt := consumer.dependencies.Clock.Now()
+	running, loadErr := consumer.dependencies.Research.Run(ctx, result.Execution.RunID)
+	if loadErr != nil {
+		return result, errors.Join(cause, boundaryError(ErrorPersistenceFailure, "load Research Run for terminal audit", loadErr))
+	}
+	auditResult, auditErr := consumer.dependencies.TerminalAudit.Prepare(ctx, LiveResearchTerminalAuditRequest{
+		Run: running, Outcome: runStatus, FinalizedAt: finalizedAt, Mode: mode, FailureKind: kind,
+		Artifacts: result.Orchestration.Artifacts,
+	})
+	if auditErr != nil {
+		return result, errors.Join(cause, boundaryError(ErrorPersistenceFailure, "prepare terminal research audit", auditErr))
+	}
 	finalization := ResearchFinalization{
 		QueueItemID: result.Execution.QueueItemID, RunID: result.Execution.RunID,
 		RunStatus: runStatus, ExecutionStatus: status, Attempts: result.Execution.Attempts,
-		FailureKind: kind, FinalizedAt: consumer.dependencies.Clock.Now(), AlgorithmVersion: ResearchFinalizationV1,
+		FailureKind: kind, Audit: &auditResult.Audit, Cost: &auditResult.Cost,
+		FinalizedAt: finalizedAt, AlgorithmVersion: ResearchFinalizationV1,
 	}
 	if status == ResearchQueueExecutionCompleted {
 		finalization.BundleID = &bundleID
@@ -282,6 +309,7 @@ func (consumer *researchQueueConsumer) finalize(ctx context.Context, result Rese
 	}
 	result.Execution = finalized.Execution
 	result.Orchestration.Run = finalized.Run
+	result.Audit = finalized.Audit
 	item, err := consumer.dependencies.Queue.Get(ctx, finalized.Execution.QueueItemID)
 	if err != nil {
 		return result, errors.Join(cause, boundaryError(ErrorPersistenceFailure, "reload settled research queue item", err))

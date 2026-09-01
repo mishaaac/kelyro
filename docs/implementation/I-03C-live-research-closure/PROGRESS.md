@@ -2,14 +2,13 @@
 
 ## Estado general
 
-Current step: 33
-Last completed step: 32
+Current step: 34
+Last completed step: 33
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- terminal audit and final cost reconciliation pending
 - production command composition of all completed stages pending
 - CLI status/show and output rendering pending
 
@@ -1809,3 +1808,71 @@ Release: unreleased
 - Provider ID, adapter version, counts, bytes, outcome, bundle ID y policy
   versions pertenecen al audit/cost metadata, no deben duplicarse dentro de
   cada provenance graph.
+
+## Step 33 — Audit + Cost accounting
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- `live-research-terminal-audit-v1` deriva un checkpoint terminal desde el
+  audit planned, los artifacts reales y el ledger durable de coste.
+- La extensión aditiva `live-research-execution-audit-v1` registra provider ID,
+  adapter version, provider API calls, query/result/fetch counts, bytes
+  observados, cache hits, outcome, failure kind cerrado, bundle ID, coste usado,
+  ahorro por cache y budget-stop.
+- Query planner, trust, freshness y conflict policy versions se heredan del
+  checkpoint planned durable; los algoritmos live efectivamente observados se
+  agregan como metadata versionada.
+- `ResearchQueueConsumer` prepara audit + coste antes del settlement y los
+  entrega a `ResearchFinalizationService` usando el mismo `finalized_at`.
+- Los adapters memory y SQLite publican Run, queue execution, bundle reference
+  y audit terminal como una sola operación; SQLite prueba rollback completo si
+  el audit no coincide con request/run/snapshots.
+- El resultado terminal y los replays idempotentes exponen el checkpoint
+  durable, y el Run retornado contiene el `ResearchCostMetadata` final.
+- Fetch cost control reserva `fetch_requests + maximum bounded bytes` antes de
+  llamar al adapter live; un budget denial no alcanza la red. Cache offline
+  registra unidades evitadas sin sumar uso.
+- El factory del provider entrega `brave` + `brave-web-search-v1` como metadata
+  no secreta para que el futuro composition root complete el SearchExecution
+  accounting.
+
+### Decisions
+
+- La ejecución terminal es una extensión opcional de `research-audit-v1`; los
+  checkpoints históricos sin `execution` conservan exactamente su JSON/hash y
+  siguen siendo legibles sin migration.
+- `providers_used` continúa significando providers realmente llamados. Un
+  adapter configurado pero resuelto por cache no se inventa como usado.
+- `bytes_fetched` registra bytes realmente observados; `cost_used.bytes`
+  registra la capacidad bounded reservada antes del fetch. La diferencia es
+  intencional y auditable.
+- Failure persiste sólo el `ErrorKind` cerrado. No se guardan mensajes de
+  provider, credentials, headers, endpoints, bodies, snippets, excerpts,
+  stack traces ni workspace paths.
+- El audit terminal forma parte de la transacción del Paso 31; no duplica
+  `execution_bundle_id`, sino que valida y referencia la misma identidad.
+- No se añadió moneda/precio vendor, migration, I-04 ni dependencia de IA.
+
+### Verification
+
+- Tests de provider/adapter y JSON roundtrip; conteos query/result/fetch/bytes;
+  coste final; provider cost sin attribution rechazado; pre-reserva de fetch;
+  cache savings; budget denial antes del adapter.
+- Tests memory/SQLite de commit conjunto y rollback por audit inválido, además
+  de consumer success/retry/failure/cancellation/idempotencia con checkpoint.
+- `go test -race ./internal/research ./internal/research/application ./internal/app ./internal/infra/researchsearch ./internal/storage/sqlite -run 'TerminalAudit|ExecutionAudit|CostControlledFetch|ResearchFinalization|QueueConsumer|ResearchTopicExecutes|FactoryBuilds' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 34 debe componer en el comando real todos los stages ya cerrados y
+  poblar `LiveSearchExecutionMetadata` con los descriptor fields del factory y
+  los counts observados por cada ejecución.
+- La UX del Paso 34 puede renderizar el audit/coste ya durable; no debe crear
+  una segunda fuente de métricas ni reconstruir metadata desde texto CLI.

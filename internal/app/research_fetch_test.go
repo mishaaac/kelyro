@@ -18,7 +18,8 @@ func TestServiceAssemblesProductionResearchFetchBehindResolvedPrivacy(t *testing
 	configs := &recordingConfigStore{project: config.Settings{config.KeyAllowNetwork: config.BoolValue(true)}}
 	fetcher := &recordingProductionSourceFetcher{at: time.Date(2026, 8, 31, 15, 0, 0, 0, time.UTC)}
 	service := NewService(nil, nil).WithConfig(configs).WithResearchFetcher(fetcher).WithResearchSourceCaches(&appSourceFetchCacheFactory{})
-	stage, err := service.researchFetchForRun(context.Background(), Command{}, "/workspace")
+	store, runID := appFetchCostStore(t)
+	stage, err := service.researchFetchForRun(context.Background(), Command{}, "/workspace", store, runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,6 +30,10 @@ func TestServiceAssemblesProductionResearchFetchBehindResolvedPrivacy(t *testing
 	if err != nil || len(artifacts.FetchedSources) != 1 || artifacts.FetchedSources[0].SourceID != source.ID || fetcher.calls != 1 {
 		t.Fatalf("production fetch stage = (%+v,%v), calls=%d", artifacts, err, fetcher.calls)
 	}
+	metadata, err := store.Costs().Metadata(context.Background(), runID)
+	if err != nil || metadata.Used.FetchRequests != 1 || metadata.Used.Bytes != researchapp.DefaultLiveSourceMaximumBytes {
+		t.Fatalf("production fetch cost = (%+v, %v)", metadata, err)
+	}
 }
 
 func TestServiceResearchFetchPrivacyDenialNeverReachesAdapter(t *testing.T) {
@@ -36,7 +41,8 @@ func TestServiceResearchFetchPrivacyDenialNeverReachesAdapter(t *testing.T) {
 	configs := &recordingConfigStore{project: config.Settings{config.KeyAllowNetwork: config.BoolValue(false)}}
 	fetcher := &recordingProductionSourceFetcher{at: time.Date(2026, 8, 31, 15, 0, 0, 0, time.UTC)}
 	service := NewService(nil, nil).WithConfig(configs).WithResearchFetcher(fetcher).WithResearchSourceCaches(&appSourceFetchCacheFactory{})
-	stage, err := service.researchFetchForRun(context.Background(), Command{}, "/workspace")
+	store, runID := appFetchCostStore(t)
+	stage, err := service.researchFetchForRun(context.Background(), Command{}, "/workspace", store, runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +122,23 @@ func appResearchFetchSource(t *testing.T, idValue string) research.Source {
 }
 
 var _ researchapp.SourceFetcher = (*recordingProductionSourceFetcher)(nil)
+
+func appFetchCostStore(t *testing.T) (*fakeSourceRegistryStore, research.ID) {
+	t.Helper()
+	memoryStore := memory.New()
+	repositories := memoryStore.Repositories()
+	topic, _ := research.NewResearchTopic("fetch accounting", "software", "Go")
+	requestID, _ := research.NewID("request.app-fetch-cost")
+	runID, _ := research.NewID("run.app-fetch-cost")
+	at, _ := research.NewTimestamp(time.Date(2026, 8, 31, 14, 0, 0, 0, time.UTC))
+	cost := research.ResearchCostMetadata{Budget: research.DefaultResearchCostBudgetV1(), AlgorithmVersion: research.ResearchCostControlAlgorithmV1}
+	run := research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunRunning, StartedAt: at, Cost: &cost}
+	request := research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at}
+	if err := repositories.Runs.Create(context.Background(), request, run); err != nil {
+		t.Fatal(err)
+	}
+	return &fakeSourceRegistryStore{costs: researchapp.NewResearchCostService(repositories.Costs)}, runID
+}
 
 type appSourceFetchCacheFactory struct {
 	cache researchapp.SourceFetchCacheAdapter

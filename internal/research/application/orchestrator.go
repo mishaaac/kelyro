@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mishaaac/kelyro/internal/research"
 )
@@ -59,6 +60,7 @@ func (request LiveResearchOrchestrationRequest) Validate() error {
 // Fetched bodies and normalized content are transient and bounded by the
 // services that create them.
 type LiveResearchArtifacts struct {
+	SearchExecution        *LiveSearchExecutionMetadata
 	SearchResults          []SearchResult
 	Candidates             []SourceCandidate
 	DeduplicatedCandidates []DeduplicatedSourceCandidate
@@ -86,6 +88,35 @@ type LiveResearchArtifacts struct {
 	DiversityAssessments   []LiveClaimDiversityAssessment
 	Bundle                 *research.SourceBundle
 	ProvenanceGraphs       []research.ProvenanceGraph
+}
+
+const LiveSearchExecutionMetadataV1 = "live-search-execution-metadata-v1"
+
+// LiveSearchExecutionMetadata is bounded adapter metadata produced by the
+// search stage. It contains no credential, query text, URL, or response body.
+type LiveSearchExecutionMetadata struct {
+	ProviderID       string
+	AdapterVersion   string
+	QueryCount       int
+	ResultCount      int
+	ProviderAPICalls int64
+	AlgorithmVersion string
+}
+
+func (metadata LiveSearchExecutionMetadata) Validate() error {
+	if strings.TrimSpace(metadata.ProviderID) == "" || metadata.ProviderID != strings.TrimSpace(metadata.ProviderID) {
+		return errors.New("live search execution provider ID is invalid")
+	}
+	if strings.TrimSpace(metadata.AdapterVersion) == "" || metadata.AdapterVersion != strings.TrimSpace(metadata.AdapterVersion) {
+		return errors.New("live search execution adapter version is invalid")
+	}
+	if metadata.QueryCount < 0 || metadata.ResultCount < 0 || metadata.ProviderAPICalls < 0 {
+		return errors.New("live search execution counters are negative")
+	}
+	if metadata.AlgorithmVersion != LiveSearchExecutionMetadataV1 {
+		return fmt.Errorf("live search execution metadata algorithm must be %q", LiveSearchExecutionMetadataV1)
+	}
+	return nil
 }
 
 type LiveResearchStageInput struct {
@@ -295,6 +326,10 @@ func sameLiveResearchRequest(left, right research.ResearchRequest) bool {
 
 func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArtifacts {
 	result := artifacts
+	if artifacts.SearchExecution != nil {
+		metadata := *artifacts.SearchExecution
+		result.SearchExecution = &metadata
+	}
 	result.SearchResults = append([]SearchResult(nil), artifacts.SearchResults...)
 	result.Candidates = make([]SourceCandidate, len(artifacts.Candidates))
 	for index, candidate := range artifacts.Candidates {

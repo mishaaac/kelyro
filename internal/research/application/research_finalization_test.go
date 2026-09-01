@@ -43,6 +43,8 @@ func TestResearchFinalizationCommitsRunQueueAndBundleReferenceTogether(t *testin
 		ID: testID(t, "run.finalization"), RequestID: request.ID,
 		Status: research.ResearchRunRunning, StartedAt: testTimestamp(t, 8),
 	}
+	cost := research.ResearchCostMetadata{Budget: research.DefaultResearchCostBudgetV1(), AlgorithmVersion: research.ResearchCostControlAlgorithmV1}
+	run.Cost = &cost
 	if err := repositories.Runs.Create(ctx, request, run); err != nil {
 		t.Fatal(err)
 	}
@@ -62,19 +64,33 @@ func TestResearchFinalizationCommitsRunQueueAndBundleReferenceTogether(t *testin
 		t.Fatalf("claim = (%+v, %v)", claimed, err)
 	}
 	service := application.NewResearchFinalizationService(repositories.Finalization)
+	completedAt := testTimestamp(t, 21)
+	audit, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: testID(t, "audit.finalization.terminal"), RunID: run.ID, RecordedAt: completedAt, StartedAt: run.StartedAt,
+		CompletedAt: &completedAt, Outcome: research.ResearchRunCompleted, QueryPlannerVersion: "query-planner-v1",
+		TrustPolicyVersion: "trust-policy-v1", FreshnessVersion: research.FreshnessAlgorithmV1,
+		ConflictResolverVersion: research.ConflictResolverAlgorithmV1, NetworkMode: research.ResearchAuditNetworkAuto,
+		Queries: []string{"Production verification official documentation"}, TargetTechnology: request.Topic.Technology,
+		Execution: &research.ResearchAuditExecution{BundleID: &bundle.ID, CostUsed: cost.Used, CacheSavings: cost.CacheSavings, AlgorithmVersion: research.LiveResearchExecutionAuditV1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	result, err := service.Finalize(ctx, application.ResearchFinalization{
 		QueueItemID: decision.QueueItem.ID, RunID: run.ID, RunStatus: research.ResearchRunCompleted,
 		ExecutionStatus: application.ResearchQueueExecutionCompleted, Attempts: claimed.Execution.Attempts,
-		BundleID: &bundle.ID, FinalizedAt: testTimestamp(t, 21), AlgorithmVersion: application.ResearchFinalizationV1,
+		BundleID: &bundle.ID, Audit: &audit, Cost: &cost, FinalizedAt: completedAt, AlgorithmVersion: application.ResearchFinalizationV1,
 	})
-	if err != nil || result.Run.Status != research.ResearchRunCompleted || result.Execution.BundleID == nil || *result.Execution.BundleID != bundle.ID {
+	if err != nil || result.Run.Status != research.ResearchRunCompleted || result.Execution.BundleID == nil || *result.Execution.BundleID != bundle.ID || result.Audit == nil {
 		t.Fatalf("finalization = (%+v, %v)", result, err)
 	}
 	item, itemErr := queue.Get(ctx, decision.QueueItem.ID)
 	storedRun, runErr := repositories.Runs.GetRun(ctx, run.ID)
 	storedExecution, executionErr := queue.Execution(ctx, decision.QueueItem.ID)
+	storedAudit, auditErr := repositories.Runs.ListAudit(ctx, run.ID)
 	if itemErr != nil || runErr != nil || executionErr != nil || item.Status != research.ResearchQueueDispatched ||
-		storedRun.Status != research.ResearchRunCompleted || storedExecution.BundleID == nil || *storedExecution.BundleID != bundle.ID {
+		storedRun.Status != research.ResearchRunCompleted || storedRun.Cost == nil || storedExecution.BundleID == nil || *storedExecution.BundleID != bundle.ID ||
+		auditErr != nil || len(storedAudit) != 1 || storedAudit[0].ID != audit.ID {
 		t.Fatalf("durable finalization = item(%+v,%v) run(%+v,%v) execution(%+v,%v)", item, itemErr, storedRun, runErr, storedExecution, executionErr)
 	}
 }

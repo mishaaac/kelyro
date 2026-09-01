@@ -112,10 +112,29 @@ type fetchService struct {
 	fetcher SourceFetcher
 	cache   SourceFetchCache
 	access  networkResearchAccess
+	costs   ResearchCostService
+	clock   Clock
+	runID   research.ID
 }
 
 func NewFetchService(fetcher SourceFetcher, cache SourceFetchCache, access NetworkResearchAccess) FetchService {
 	return &fetchService{fetcher: fetcher, cache: cache, access: newNetworkResearchAccess(access)}
+}
+
+// NewCostControlledFetchService binds fetch authorization and cache savings to
+// one durable run. Live work reserves one fetch plus its bounded byte allowance
+// before the adapter is called; offline cache reuse records avoided units.
+func NewCostControlledFetchService(fetcher SourceFetcher, cache SourceFetchCache, access NetworkResearchAccess, costs ResearchCostService, clock Clock, runID research.ID) (FetchService, error) {
+	if err := runID.Validate(); err != nil {
+		return nil, fmt.Errorf("cost-controlled fetch run: %w", err)
+	}
+	if costs == nil {
+		return nil, errors.New("cost-controlled fetch research cost service is unavailable")
+	}
+	if clock == nil {
+		return nil, errors.New("cost-controlled fetch clock is unavailable")
+	}
+	return &fetchService{fetcher: fetcher, cache: cache, access: newNetworkResearchAccess(access), costs: costs, clock: clock, runID: runID}, nil
 }
 
 func (service *fetchService) Fetch(ctx context.Context, mode ResearchMode, request FetchRequest) (FetchedSource, error) {
@@ -135,16 +154,47 @@ func (service *fetchService) Fetch(ctx context.Context, mode ResearchMode, reque
 		if cacheErr != nil {
 			return FetchedSource{}, offlineFallbackError(operation, decision.blocked, cacheErr)
 		}
-		return validateFetchedSource(operation, request, fetched, true)
+		validated, validateErr := validateFetchedSource(operation, request, fetched, true)
+		if validateErr != nil {
+			return FetchedSource{}, validateErr
+		}
+		if service.costs != nil {
+			if err := service.accountFetch(ctx, operation, research.ResearchCostUsage{FetchRequests: 1, Bytes: int64(len(validated.Body))}, true); err != nil {
+				return FetchedSource{}, err
+			}
+		}
+		return validated, nil
 	}
 	if err := requireDependency(operation, "source fetcher", service.fetcher); err != nil {
 		return FetchedSource{}, err
+	}
+	if service.costs != nil {
+		if err := service.accountFetch(ctx, operation, research.ResearchCostUsage{FetchRequests: 1, Bytes: request.MaximumBytes}, false); err != nil {
+			return FetchedSource{}, err
+		}
 	}
 	fetched, err := service.fetcher.Fetch(ctx, request)
 	if err != nil {
 		return FetchedSource{}, externalError(operation, err)
 	}
 	return validateFetchedSource(operation, request, fetched, false)
+}
+
+func (service *fetchService) accountFetch(ctx context.Context, operation string, usage research.ResearchCostUsage, cache bool) error {
+	at := service.clock.Now()
+	if err := at.Validate(); err != nil {
+		return invalid(operation, fmt.Errorf("research cost clock: %w", err))
+	}
+	decision, err := service.costs.Evaluate(ctx, CostControlRequest{
+		RunID: service.runID, ProposedUsage: usage, ValidCacheAvailable: cache, At: at,
+	})
+	if err != nil {
+		return boundaryError(ErrorPersistenceFailure, operation, err)
+	}
+	if cache {
+		return nil
+	}
+	return costControlError(operation, decision)
 }
 
 func validateFetchedSource(operation string, request FetchRequest, fetched FetchedSource, cached bool) (FetchedSource, error) {

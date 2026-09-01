@@ -76,8 +76,9 @@ func (executor *synchronousResearchTopicExecutor) Execute(ctx context.Context, r
 	orchestrator := &completingResearchTopicOrchestrator{research: request.Store.Research(), at: executor.at}
 	consumer, err := researchapp.NewResearchQueueConsumer(researchapp.ResearchQueueConsumerDependencies{
 		Queue: request.Store.Triggers(), Research: request.Store.Research(), Orchestrator: orchestrator,
-		Finalization: appResearchFinalizer{queue: request.Store.Triggers(), research: request.Store.Research()},
-		Clock:        researchTopicExecutionClock{at: executor.at},
+		Finalization:  appResearchFinalizer{queue: request.Store.Triggers(), research: request.Store.Research()},
+		TerminalAudit: appTerminalAudit{},
+		Clock:         researchTopicExecutionClock{at: executor.at},
 	})
 	if err != nil {
 		return researchapp.ResearchQueueConsumeResult{}, err
@@ -113,10 +114,40 @@ type appResearchFinalizer struct {
 	research researchapp.ResearchService
 }
 
+type appTerminalAudit struct{}
+
+func (appTerminalAudit) Prepare(_ context.Context, request researchapp.LiveResearchTerminalAuditRequest) (researchapp.LiveResearchTerminalAuditResult, error) {
+	cost := *request.Run.Cost
+	bundleID := request.Artifacts.Bundle.ID
+	completedAt := request.FinalizedAt
+	recordedAt, _ := research.NewTimestamp(request.FinalizedAt.Time().Add(time.Nanosecond))
+	id, _ := research.NewID("audit.research-execution.terminal")
+	audit, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: id, RunID: request.Run.ID, RecordedAt: recordedAt, StartedAt: request.Run.StartedAt,
+		CompletedAt: &completedAt, Outcome: request.Outcome, QueryPlannerVersion: "query-planner-v1",
+		TrustPolicyVersion: "trust-policy-v1", FreshnessVersion: research.FreshnessAlgorithmV1,
+		ConflictResolverVersion: research.ConflictResolverAlgorithmV1, NetworkMode: research.ResearchAuditNetworkAuto,
+		Queries: []string{"Go interfaces official documentation"}, Execution: &research.ResearchAuditExecution{
+			BundleID: &bundleID, CostUsed: cost.Used, CacheSavings: cost.CacheSavings,
+			AlgorithmVersion: research.LiveResearchExecutionAuditV1,
+		},
+	})
+	return researchapp.LiveResearchTerminalAuditResult{Audit: audit, Cost: cost, AlgorithmVersion: researchapp.LiveResearchTerminalAuditV1}, err
+}
+
 func (finalizer appResearchFinalizer) Finalize(ctx context.Context, finalization researchapp.ResearchFinalization) (researchapp.ResearchFinalizationResult, error) {
 	run, err := finalizer.research.TransitionRun(ctx, finalization.RunID, finalization.RunStatus, finalization.FinalizedAt)
 	if err != nil {
 		return researchapp.ResearchFinalizationResult{}, err
+	}
+	if finalization.Cost != nil {
+		cost := *finalization.Cost
+		run.Cost = &cost
+	}
+	if finalization.Audit != nil {
+		if err := finalizer.research.RecordAudit(ctx, *finalization.Audit); err != nil {
+			return researchapp.ResearchFinalizationResult{}, err
+		}
 	}
 	execution := researchapp.ResearchQueueExecution{
 		QueueItemID: finalization.QueueItemID, RunID: finalization.RunID, Status: finalization.ExecutionStatus,
@@ -127,5 +158,5 @@ func (finalizer appResearchFinalizer) Finalize(ctx context.Context, finalization
 	if err != nil {
 		return researchapp.ResearchFinalizationResult{}, err
 	}
-	return researchapp.ResearchFinalizationResult{Run: run, Execution: settled}, nil
+	return researchapp.ResearchFinalizationResult{Run: run, Execution: settled, Audit: finalization.Audit}, nil
 }

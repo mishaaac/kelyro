@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/research"
@@ -112,6 +113,11 @@ WHERE id=? AND status='queued' AND execution_status='claimed' AND execution_run_
 	if err := requireAffected(result); err != nil {
 		return rollback(researchConflict(operation))
 	}
+	if finalization.Audit != nil {
+		if err := appendTerminalAuditSQLite(opCtx, target, terminal, *finalization.Audit); err != nil {
+			return rollback(err)
+		}
+	}
 	if transaction != nil {
 		if err := transaction.Commit(); err != nil {
 			return application.ResearchFinalizationResult{}, researchPersistence(operation, err)
@@ -122,11 +128,68 @@ WHERE id=? AND status='queued' AND execution_status='claimed' AND execution_run_
 		Attempts: finalization.Attempts, ChangedAt: finalization.FinalizedAt, FailureKind: finalization.FailureKind,
 		BundleID: cloneSQLiteID(finalization.BundleID), AlgorithmVersion: application.ResearchQueueWorkerV1,
 	}
+	if finalization.Cost != nil {
+		cost := *finalization.Cost
+		terminal.Cost = &cost
+	}
 	resultValue := application.ResearchFinalizationResult{Run: terminal, Execution: execution}
+	if finalization.Audit != nil {
+		audit := *finalization.Audit
+		resultValue.Audit = &audit
+	}
 	if err := resultValue.Validate(); err != nil {
 		return application.ResearchFinalizationResult{}, researchPersistence(operation, err)
 	}
 	return resultValue, nil
+}
+
+func appendTerminalAuditSQLite(ctx context.Context, target executor, terminal research.ResearchRun, audit research.ResearchRunAudit) error {
+	const operation = "append terminal SQLite research audit"
+	if audit.RunID != terminal.ID || audit.Outcome != terminal.Status || !audit.StartedAt.Time().Equal(terminal.StartedAt.Time()) ||
+		!equalSQLiteAuditTimestamp(audit.CompletedAt, terminal.CompletedAt) {
+		return researchInvalid(operation, errors.New("terminal audit lifecycle does not match Research Run"))
+	}
+	var technology string
+	var targetVersion sql.NullString
+	if err := target.QueryRowContext(ctx, `SELECT technology,target_version FROM research_topics WHERE request_id=?`, terminal.RequestID.String()).Scan(&technology, &targetVersion); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return researchNotFound(operation)
+		}
+		return researchPersistence(operation, err)
+	}
+	version, err := scanOptionalVersion(targetVersion)
+	if err != nil {
+		return researchPersistence(operation, err)
+	}
+	if technology != audit.TargetTechnology || !equalSQLiteAuditVersion(version, audit.TargetVersion) {
+		return researchInvalid(operation, errors.New("terminal audit target does not match Research Request"))
+	}
+	for _, item := range audit.Sources {
+		var locator, contentHash string
+		err := target.QueryRowContext(ctx, `SELECT locator,content_hash FROM source_snapshots WHERE id=? AND source_id=?`, item.SnapshotID.String(), item.SourceID.String()).Scan(&locator, &contentHash)
+		if errors.Is(err, sql.ErrNoRows) {
+			return researchNotFound(operation)
+		}
+		if err != nil {
+			return researchPersistence(operation, err)
+		}
+		if locator != item.Locator.String() || contentHash != item.SnapshotHash {
+			return researchInvalid(operation, errors.New("terminal audit snapshot does not match durable data"))
+		}
+	}
+	payload, err := audit.ExportJSON()
+	if err != nil {
+		return researchInvalid(operation, err)
+	}
+	_, err = target.ExecContext(ctx, `INSERT INTO research_run_audit (id,run_id,recorded_at,outcome,content_hash,metadata_json,algorithm_version) VALUES (?,?,?,?,?,?,?)`,
+		audit.ID.String(), audit.RunID.String(), timestampText(audit.RecordedAt), string(audit.Outcome), audit.ContentHash, string(payload), audit.AlgorithmVersion)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return researchConflict(operation)
+		}
+		return researchPersistence(operation, err)
+	}
+	return nil
 }
 
 func cloneSQLiteID(id *research.ID) *research.ID {
