@@ -1570,3 +1570,60 @@ Release: unreleased
   persistidos para ejecutar verification/diversity existente.
 - Multi-source wording idéntico aún conserva corroboration unknown; solo la
   policy de verification puede confirmar independencia y suficiencia.
+
+## Step 29 — Multi-source Verification integration
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-multi-source-verification-v1` ejecuta el `VerificationService` I-03
+  existente para cada Claim real del run y conserva orden determinista por ID.
+- Cada resultado se persiste por el repository append-only existente y se
+  devuelve en los artifacts con status, requirement, métricas, reasons,
+  confidence y `multi-source-verification-v1` intactos.
+- La misma etapa reutiliza `source-diversity-v1` por Claim. Organization se
+  obtiene únicamente del Trusted Source Registry; perspective, technical role
+  y dependency group permanecen explícitamente unknown/vacíos porque el flujo
+  live no dispone de clasificación humana revisada.
+- Los assessments de diversity quedan asociados a su Claim en artifacts con
+  warnings y dimensiones diferidas defensivamente copiadas.
+- El workspace SQLite ensambla los servicios canónicos de verification y
+  diversity sobre Claims, Sources, TrustDecisions, Registry y conflicts ya
+  persistidos; el composition boundary de app solo los conecta al stage.
+
+### Decisions
+
+- Los resultados solicitados se expresan con el vocabulario I-03 existente:
+  `verified`, soporte con caveat como `verified_with_caveat`, `conflicted` e
+  `insufficient_evidence`; no se creó un segundo status `supported`.
+- La verificación no usa provider, rank, snippet ni cantidad bruta como
+  autoridad. Sólo TrustDecision, Registry ownership/status, temporal scope y
+  conflicts participan en la policy existente.
+- Diversity diagnostica metadata desconocida de forma conservadora; no infiere
+  perspective/dependency desde hostname, publisher o contenido externo.
+- Verification y diversity pueden diferir en sus diagnósticos porque son
+  policies independientes: el resultado canónico de corroboración sigue
+  siendo `VerificationResult` y diversity aporta warnings auditables.
+- No se ensambló Source Bundle, no se finalizaron run/queue, no se añadieron
+  llamadas de red y no se implementó I-04.
+
+### Verification
+
+- Tests de integración memory para múltiples Claims desordenadas, resultados
+  persistidos, policy version, diversity conservadora y evidence insuficiente.
+- Test del composition boundary app sobre los servicios workspace-scoped.
+- `go test -race ./internal/research/application ./internal/research/diversity ./internal/app ./internal/infra/researchdb -run 'LiveMultiSource|LiveVerification' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 30 debe ensamblar un `source-bundle-v1` desde el run real y sus
+  Claims ya verificadas, sin duplicar bodies/excerpts ni reinterpretar policies.
+- El assembler existente acepta un run `running` para construir el hand-off;
+  el Paso 31 debe publicar `completed` sólo después de validar que ese bundle
+  durable pertenece al mismo run.

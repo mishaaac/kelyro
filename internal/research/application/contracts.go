@@ -1214,6 +1214,11 @@ type LiveTemporalEvaluationService interface {
 	LiveResearchStageService
 }
 
+type LiveMultiSourceVerificationService interface {
+	VerifyClaims(context.Context, LiveMultiSourceVerificationRequest) (LiveMultiSourceVerificationResult, error)
+	LiveResearchStageService
+}
+
 type MetadataExtractor interface {
 	Extract(context.Context, NormalizedSource) (research.SourceMetadata, error)
 }
@@ -1451,6 +1456,8 @@ type SourceRegistryStore interface {
 	Provenance() ProvenanceService
 	Freshness() FreshnessService
 	Research() ResearchService
+	Verifications() VerificationService
+	Diversity() SourceDiversityService
 	Bundles() SourceBundleService
 	Conflicts() ConflictResolutionService
 	Costs() ResearchCostService

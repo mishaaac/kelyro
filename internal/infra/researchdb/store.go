@@ -5,7 +5,9 @@ package researchdb
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/storage/sqlite"
 )
@@ -40,6 +42,21 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	provenance := application.NewProvenanceService(database.Repositories().Research.Provenance)
 	freshness := application.NewFreshnessService(database.Repositories().Research.Freshness)
 	researchService := application.NewResearchService(database.Repositories().Research.Runs)
+	verifications := application.NewVerificationService(
+		database.Repositories().Research.Verification,
+		database.Repositories().Research.Claims,
+		database.Repositories().Research.Sources,
+		database.Repositories().Research.TrustRegistry,
+		database.Repositories().Research.SourceRegistry,
+		database.Repositories().Research.Conflicts,
+		systemClock{},
+	)
+	diversityService := application.NewSourceDiversityService(
+		database.Repositories().Research.Claims,
+		database.Repositories().Research.Sources,
+		database.Repositories().Research.TrustRegistry,
+		database.Repositories().Research.SourceRegistry,
+	)
 	costs := application.NewResearchCostService(database.Repositories().Research.Costs)
 	triggers := application.NewResearchTriggerService(database.Repositories().Research.TriggerQueue)
 	updateScan := application.NewUpdateScanService(
@@ -53,7 +70,7 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	)
 	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
+	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, verifications: verifications, diversity: diversityService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }
 
 type store struct {
@@ -71,6 +88,8 @@ type store struct {
 	provenance      application.ProvenanceService
 	freshness       application.FreshnessService
 	research        application.ResearchService
+	verifications   application.VerificationService
+	diversity       application.SourceDiversityService
 	bundles         application.SourceBundleService
 	conflicts       application.ConflictResolutionService
 	costs           application.ResearchCostService
@@ -93,6 +112,8 @@ func (store *store) TrustRepository() application.TrustRegistryRepository {
 func (store *store) Provenance() application.ProvenanceService        { return store.provenance }
 func (store *store) Freshness() application.FreshnessService          { return store.freshness }
 func (store *store) Research() application.ResearchService            { return store.research }
+func (store *store) Verifications() application.VerificationService   { return store.verifications }
+func (store *store) Diversity() application.SourceDiversityService    { return store.diversity }
 func (store *store) Bundles() application.SourceBundleService         { return store.bundles }
 func (store *store) Conflicts() application.ConflictResolutionService { return store.conflicts }
 func (store *store) Costs() application.ResearchCostService           { return store.costs }
@@ -108,3 +129,13 @@ func (store *store) Close() error {
 
 var _ application.SourceRegistryStoreFactory = (*Factory)(nil)
 var _ application.SourceRegistryStore = (*store)(nil)
+
+type systemClock struct{}
+
+func (systemClock) Now() research.Timestamp {
+	timestamp, err := research.NewTimestamp(time.Now().UTC())
+	if err != nil {
+		return research.Timestamp{}
+	}
+	return timestamp
+}

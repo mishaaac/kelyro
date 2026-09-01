@@ -108,6 +108,8 @@ type fakeSourceRegistryStoreFactory struct {
 	freshness       researchapp.FreshnessService
 	costs           researchapp.ResearchCostService
 	research        researchapp.ResearchService
+	verifications   researchapp.VerificationService
+	diversity       researchapp.SourceDiversityService
 	bundles         researchapp.SourceBundleService
 	conflicts       researchapp.ConflictResolutionService
 	triggers        researchapp.ResearchTriggerService
@@ -118,7 +120,7 @@ type fakeSourceRegistryStoreFactory struct {
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, releases: factory.releases, deprecations: factory.deprecations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, releases: factory.releases, deprecations: factory.deprecations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, verifications: factory.verifications, diversity: factory.diversity, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
@@ -136,6 +138,8 @@ type fakeSourceRegistryStore struct {
 	freshness       researchapp.FreshnessService
 	costs           researchapp.ResearchCostService
 	research        researchapp.ResearchService
+	verifications   researchapp.VerificationService
+	diversity       researchapp.SourceDiversityService
 	bundles         researchapp.SourceBundleService
 	conflicts       researchapp.ConflictResolutionService
 	triggers        researchapp.ResearchTriggerService
@@ -175,7 +179,13 @@ func (store *fakeSourceRegistryStore) Provenance() researchapp.ProvenanceService
 func (store *fakeSourceRegistryStore) Freshness() researchapp.FreshnessService {
 	return store.freshness
 }
-func (store *fakeSourceRegistryStore) Research() researchapp.ResearchService    { return store.research }
+func (store *fakeSourceRegistryStore) Research() researchapp.ResearchService { return store.research }
+func (store *fakeSourceRegistryStore) Verifications() researchapp.VerificationService {
+	return store.verifications
+}
+func (store *fakeSourceRegistryStore) Diversity() researchapp.SourceDiversityService {
+	return store.diversity
+}
 func (store *fakeSourceRegistryStore) Bundles() researchapp.SourceBundleService { return store.bundles }
 func (store *fakeSourceRegistryStore) Conflicts() researchapp.ConflictResolutionService {
 	return store.conflicts

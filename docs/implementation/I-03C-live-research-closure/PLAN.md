@@ -1139,7 +1139,7 @@ feat(research): evaluate freshness in live research runs
 
 ## Paso 29 — Multi-source Verification integration
 
-- [ ] Paso 29 completado
+- [x] Paso 29 completado
 
 Reusar verification/diversity.
 
@@ -1833,10 +1833,10 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 23 — Evidence design
 - [x] Paso 24 — Evidence implementation
 - [x] Paso 25 — Claim design
-- [ ] Paso 26 — Claim implementation
-- [ ] Paso 27 — Trust
-- [ ] Paso 28 — Freshness
-- [ ] Paso 29 — Verification
+- [x] Paso 26 — Claim implementation
+- [x] Paso 27 — Trust
+- [x] Paso 28 — Freshness
+- [x] Paso 29 — Verification
 - [ ] Paso 30 — Source Bundle
 - [ ] Paso 31 — Finalize run
 - [ ] Paso 32 — Provenance
