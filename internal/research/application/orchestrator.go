@@ -380,7 +380,7 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 		result.DiversityAssessments[index] = cloneLiveClaimDiversityAssessment(assessment)
 	}
 	if artifacts.Bundle != nil {
-		bundle := *artifacts.Bundle
+		bundle := cloneSourceBundleArtifact(*artifacts.Bundle)
 		result.Bundle = &bundle
 	}
 	return result

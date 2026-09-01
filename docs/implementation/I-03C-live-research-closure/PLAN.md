@@ -1162,7 +1162,7 @@ feat(research): verify live claims across discovered sources
 
 ## Paso 30 — Source Bundle desde run real
 
-- [ ] Paso 30 completado
+- [x] Paso 30 completado
 
 Reusar bundle service/domain.
 
@@ -1837,7 +1837,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 27 — Trust
 - [x] Paso 28 — Freshness
 - [x] Paso 29 — Verification
-- [ ] Paso 30 — Source Bundle
+- [x] Paso 30 — Source Bundle
 - [ ] Paso 31 — Finalize run
 - [ ] Paso 32 — Provenance
 - [ ] Paso 33 — Audit/cost

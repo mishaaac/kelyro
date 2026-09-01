@@ -68,7 +68,18 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 		database.Repositories().Research.Conflicts,
 		nil,
 	)
-	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	bundles := application.NewSourceBundleService(
+		database.Repositories().Research.Bundles,
+		database.Repositories().Research.Runs,
+		database.Repositories().Research.Claims,
+		database.Repositories().Research.Sources,
+		database.Repositories().Research.Evidence,
+		database.Repositories().Research.TrustRegistry,
+		database.Repositories().Research.Verification,
+		database.Repositories().Research.Conflicts,
+		database.Repositories().Research.Freshness,
+		systemClock{},
+	)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
 	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, verifications: verifications, diversity: diversityService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }

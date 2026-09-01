@@ -1627,3 +1627,59 @@ Release: unreleased
 - El assembler existente acepta un run `running` para construir el hand-off;
   el Paso 31 debe publicar `completed` sólo después de validar que ese bundle
   durable pertenece al mismo run.
+
+## Step 30 — Source Bundle from a real run
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-source-bundle-v1` toma el Run y las Claims reales de los artifacts,
+  normaliza sus IDs y delega el ensamblado a `SourceBundleService` existente.
+- El stage exige que el bundle durable devuelto pertenezca exactamente al Run
+  y contenga el mismo set de Claims antes de exponerlo al orchestrator.
+- El workspace SQLite ahora ensambla `SourceBundleService` con los repositories
+  reales de request/run, Claims, Sources, Evidence, TrustDecisions,
+  VerificationResults, conflicts y freshness; lectura/export siguen usando el
+  mismo servicio y repository append-only.
+- `source-bundle-v1` conserva roles primary/supporting/historical, issues,
+  freshness agregada, conflicts, estado, summary y hash canónico reproducible.
+- El bundle y sus colecciones/punteros se copian defensivamente en todos los
+  hand-offs del orchestrator.
+- El composition boundary de app conecta el bundle workspace-scoped al stage
+  sin acceso directo a SQLite ni reimplementación de policy.
+
+### Decisions
+
+- Request, Run y query plan quedan referenciados por `RunID`: el audit durable
+  del Run conserva queries y policy versions. Claims referencian Evidence y
+  cada Evidence referencia snapshot/Source; el bundle no duplica bodies,
+  excerpts ni records ya persistidos.
+- El assembler acepta únicamente runs `running` o `completed`; durante live
+  research se construye sobre `running`, y el Paso 31 es responsable de
+  publicar el estado terminal sólo después de validar el bundle.
+- El estado puede ser `ready`, `ready_with_caveats`, `incomplete` o
+  `conflicted` según los records canónicos. La integración no eleva ni corrige
+  resultados insuficientes.
+- No se modificó `source-bundle-v1`, no se añadió migration, no se finalizó la
+  queue/run y no se implementó provenance ni I-04.
+
+### Verification
+
+- Test de integración memory con Run running, Claim/Evidence/Source/Trust/
+  Verification/Freshness reales, persistencia append-only y bundle `ready`.
+- Tests de Claim set vacío, match exacto run/Claims y ownership defensivo.
+- Test del composition boundary app y tests existentes del assembler/export.
+- `go test -race ./internal/research/application ./internal/research/bundle ./internal/app ./internal/infra/researchdb -run 'LiveSourceBundle|LiveBundle' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 31 debe convertir Run y queue execution en terminal success sólo
+  cuando el bundle durable validado pertenece al mismo Run.
+- Un fallo debe conservar una razón estructurada segura y no dejar
+  `DiscoveryPending=true` para outcomes terminales.

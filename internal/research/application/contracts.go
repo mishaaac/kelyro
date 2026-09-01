@@ -1219,6 +1219,11 @@ type LiveMultiSourceVerificationService interface {
 	LiveResearchStageService
 }
 
+type LiveSourceBundleService interface {
+	Assemble(context.Context, LiveSourceBundleRequest) (LiveSourceBundleResult, error)
+	LiveResearchStageService
+}
+
 type MetadataExtractor interface {
 	Extract(context.Context, NormalizedSource) (research.SourceMetadata, error)
 }
