@@ -106,6 +106,16 @@ older graphs remain available as audit history rather than being overwritten.
 adapter preserves defensive ownership and the SQLite adapter validates stored
 JSON again when reading it.
 
+The live query-to-bundle pipeline records these graphs through the separately
+versioned `live-research-provenance-v1` stage. Before a graph is appended, the
+stage validates the exact request/run/discovery/source/snapshot/evidence/claim
+relationships and requires the Claim's durable `VerificationResult` to cover
+the same Sources. Verification remains a separate durable policy result rather
+than a new graph node, preserving the stable v1 node vocabulary; only after
+that gate succeeds is the existing `claim -> source_bundle` edge recorded.
+Stable graph IDs make worker replay idempotent, and a replay is accepted only
+when the stored canonical graph is byte-equivalent.
+
 The internal read command is:
 
 ```text

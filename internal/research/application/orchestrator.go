@@ -21,6 +21,7 @@ const (
 	LiveResearchStageExtract            LiveResearchStage = "extract"
 	LiveResearchStageVerify             LiveResearchStage = "verify"
 	LiveResearchStageBundle             LiveResearchStage = "bundle"
+	LiveResearchStageProvenance         LiveResearchStage = "provenance"
 	LiveResearchStageFinalize           LiveResearchStage = "finalize"
 )
 
@@ -33,6 +34,7 @@ var liveResearchStageOrder = []LiveResearchStage{
 	LiveResearchStageExtract,
 	LiveResearchStageVerify,
 	LiveResearchStageBundle,
+	LiveResearchStageProvenance,
 	LiveResearchStageFinalize,
 }
 
@@ -83,6 +85,7 @@ type LiveResearchArtifacts struct {
 	Verifications          []research.VerificationResult
 	DiversityAssessments   []LiveClaimDiversityAssessment
 	Bundle                 *research.SourceBundle
+	ProvenanceGraphs       []research.ProvenanceGraph
 }
 
 type LiveResearchStageInput struct {
@@ -114,6 +117,7 @@ type LiveResearchOrchestratorDependencies struct {
 	Extract            LiveResearchStageService
 	Verify             LiveResearchStageService
 	Bundle             LiveResearchStageService
+	Provenance         LiveResearchStageService
 	Finalize           LiveResearchStageService
 }
 
@@ -242,6 +246,7 @@ func validateLiveResearchOrchestratorDependencies(dependencies LiveResearchOrche
 		{"extraction stage", dependencies.Extract},
 		{"verification stage", dependencies.Verify},
 		{"bundle stage", dependencies.Bundle},
+		{"provenance stage", dependencies.Provenance},
 		{"finalization stage", dependencies.Finalize},
 	} {
 		if err := requireDependency(operation, dependency.name, dependency.value); err != nil {
@@ -269,6 +274,8 @@ func liveResearchStageService(dependencies LiveResearchOrchestratorDependencies,
 		return dependencies.Verify
 	case LiveResearchStageBundle:
 		return dependencies.Bundle
+	case LiveResearchStageProvenance:
+		return dependencies.Provenance
 	case LiveResearchStageFinalize:
 		return dependencies.Finalize
 	default:
@@ -365,7 +372,18 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 		bundle := cloneSourceBundleArtifact(*artifacts.Bundle)
 		result.Bundle = &bundle
 	}
+	result.ProvenanceGraphs = make([]research.ProvenanceGraph, len(artifacts.ProvenanceGraphs))
+	for index, graph := range artifacts.ProvenanceGraphs {
+		result.ProvenanceGraphs[index] = cloneProvenanceGraphArtifact(graph)
+	}
 	return result
+}
+
+func cloneProvenanceGraphArtifact(graph research.ProvenanceGraph) research.ProvenanceGraph {
+	clone := graph
+	clone.Nodes = append([]research.ProvenanceNode(nil), graph.Nodes...)
+	clone.Edges = append([]research.ProvenanceEdge(nil), graph.Edges...)
+	return clone
 }
 
 func cloneTrustDecisionArtifact(decision research.TrustDecision) research.TrustDecision {

@@ -1214,7 +1214,7 @@ feat(research): finalize live research runs transactionally
 
 ## Paso 32 — Provenance end-to-end
 
-- [ ] Paso 32 completado
+- [x] Paso 32 completado
 
 Verificar:
 

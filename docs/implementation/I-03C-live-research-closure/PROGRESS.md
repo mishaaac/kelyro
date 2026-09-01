@@ -2,14 +2,13 @@
 
 ## Estado general
 
-Current step: 32
-Last completed step: 31
+Current step: 33
+Last completed step: 32
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- end-to-end provenance wiring pending
 - terminal audit and final cost reconciliation pending
 - production command composition of all completed stages pending
 - CLI status/show and output rendering pending
@@ -1752,3 +1751,61 @@ Release: unreleased
   terminalizadas sin cambiar la transacción Run/queue.
 - El Paso 33 sigue siendo dueño del audit terminal y cost final; no debe
   duplicar `execution_bundle_id` ni persistir mensajes externos como failure.
+
+## Step 32 — End-to-end provenance
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-research-provenance-v1` construye y persiste un
+  `provenance-graph-v1` por cada Claim real después de ensamblar el Source
+  Bundle y antes del validation stage de finalización.
+- Cada grafo enlaza las identidades reales ResearchRequest → ResearchRun →
+  query → DiscoveredSource → Source → SourceSnapshot → Evidence → Claim →
+  SourceBundle.
+- El stage exige un `VerificationResult` válido y único por Claim, con el mismo
+  conjunto exacto de Sources, antes de publicar el enlace Claim → Bundle.
+- Queries sin ID durable reciben IDs semánticos estables derivados del request
+  y texto exacto; los graph IDs son estables por run, Claim y bundle.
+- Replay idempotente acepta únicamente el grafo byte-equivalente ya persistido;
+  una colisión divergente falla sin sobrescribir historia.
+- Los artifacts transportan copias defensivas de los grafos para el consumer y
+  la composition boundary de app reutiliza el `ProvenanceService` del
+  workspace.
+
+### Decisions
+
+- Se preservó sin cambios el vocabulario estable de `provenance-graph-v1`.
+  Verification sigue siendo un record durable separado: el live stage valida
+  Claim → Verification → Bundle antes de grabar el edge histórico Claim →
+  SourceBundle, en lugar de introducir un node kind incompatible.
+- Para una Source observada por múltiples queries se selecciona de forma
+  determinista una observación durable que pruebe el camino de discovery; las
+  demás observaciones continúan disponibles en `source_discoveries`.
+- Provider/rank se conservan exclusivamente como provenance de discovery y no
+  participan en authority, trust ni verificación.
+- Labels del grafo son metadata bounded y no copian snippets, excerpts, bodies
+  ni statements externos. Snapshot y Evidence conservan sus tool versions
+  durables.
+- Este paso no registra audit terminal, no reconcilia coste y no cambia la
+  transacción Run/queue del Paso 31.
+
+### Verification
+
+- Tests de chain completa, ausencia de discovery/verification, persistencia,
+  replay idempotente, ownership defensivo y orden del orchestrator.
+- `go test -race ./internal/research/application ./internal/app ./internal/infra/researchdb ./internal/storage/sqlite -run 'LiveResearchProvenance|LiveResearchOrchestrator|LiveProvenance|Provenance' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 33 debe producir el checkpoint audit terminal desde los artifacts ya
+  validados y la conciliación durable de `ResearchRun.Cost`.
+- Provider ID, adapter version, counts, bytes, outcome, bundle ID y policy
+  versions pertenecen al audit/cost metadata, no deben duplicarse dentro de
+  cada provenance graph.

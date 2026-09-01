@@ -38,6 +38,7 @@ func TestLiveResearchOrchestratorLoadsDurableWorkAndExecutesFixedStageOrder(t *t
 		application.LiveResearchStageExtract,
 		application.LiveResearchStageVerify,
 		application.LiveResearchStageBundle,
+		application.LiveResearchStageProvenance,
 		application.LiveResearchStageFinalize,
 	}
 	if !reflect.DeepEqual(calls, want) || !reflect.DeepEqual(result.CompletedStages, want) {
@@ -244,7 +245,8 @@ func liveResearchDependencies(queue application.ResearchTriggerService, service 
 		Fetch:              stage(application.LiveResearchStageFetch), Snapshot: stage(application.LiveResearchStageSnapshot),
 		Normalize: stage(application.LiveResearchStageNormalize), Extract: stage(application.LiveResearchStageExtract),
 		Verify: stage(application.LiveResearchStageVerify), Bundle: stage(application.LiveResearchStageBundle),
-		Finalize: stage(application.LiveResearchStageFinalize),
+		Provenance: stage(application.LiveResearchStageProvenance),
+		Finalize:   stage(application.LiveResearchStageFinalize),
 	}
 }
 
