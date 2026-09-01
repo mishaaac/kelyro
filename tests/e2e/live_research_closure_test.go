@@ -200,6 +200,110 @@ func TestResearchTopicPrivacyDisabledEndToEnd(t *testing.T) {
 	}
 }
 
+func TestResearchTopicPartialSourceFailureEndToEnd(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	workspaces := workspacefs.New("partial-source-failure-e2e")
+	if _, err := workspaces.Init(root, workspace.InitOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newPartialSourceFailureFixture(t)
+	stores := researchdb.NewFactory("partial-source-failure-e2e")
+	seedQueryToBundleSources(t, ctx, stores, root, fixture)
+
+	httpConfig := researchhttp.DefaultConfig()
+	httpConfig.UserAgent = "Kelyro/partial-source-failure-e2e"
+	httpConfig.RequestTimeout = 100 * time.Millisecond
+	httpConfig.DialTimeout = time.Second
+	httpConfig.MaxAttempts = 1
+	httpConfig.MinimumIntervalPerHost = time.Millisecond
+	httpClient, err := researchhttp.NewLoopbackFixtureClient(httpConfig, fixture.contentHosts, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(httpClient.CloseIdleConnections)
+
+	service := app.NewService(workspaces, func() (string, error) { return root, nil }).
+		WithConfig(&queryToBundleConfigStore{}).
+		WithSecrets(&queryToBundleSecretStore{values: map[string]string{queryToBundleSecretName: "fixture-token"}}).
+		WithResearchStores(stores).
+		WithResearchCaches(researchcachefs.NewFactory()).
+		WithResearchSearch(&queryToBundleSearchFactory{client: fixture.searchAPI.Client(), endpoint: fixture.searchAPI.URL}).
+		WithResearchFetcher(researchfetch.New(httpClient)).
+		WithResearchNormalizer(researchnormalize.New())
+
+	result, err := service.Execute(ctx, app.Command{
+		Action: app.ActionResearch, Workspace: root, ResearchOperation: "topic", ResearchTopic: "Fixture API",
+		ConfigOverrides: config.Settings{
+			config.KeyAllowNetwork:                     config.BoolValue(true),
+			config.KeyResearchSearchProvider:           config.StringValue(queryToBundleProviderID),
+			config.KeyResearchSearchMaxResultsPerQuery: config.NumberValue(4),
+			config.KeyResearchSearchMaxQueriesPerRun:   config.NumberValue(1),
+		},
+	})
+	if err != nil {
+		t.Fatalf("research topic with partial source failures: %v", err)
+	}
+	if result.ResearchView == nil || result.ResearchView.Execution == nil || result.ResearchView.Bundle == nil {
+		t.Fatalf("partial source failure view = %+v", result.ResearchView)
+	}
+	view := result.ResearchView
+	if view.Run.Status != research.ResearchRunCompleted || view.DiscoveryPending ||
+		view.Execution.Disposition != application.ResearchQueueConsumeCompleted {
+		t.Fatalf("partial source terminal view = %+v", view)
+	}
+	artifacts := view.Execution.Orchestration.Artifacts
+	if len(artifacts.SearchResults) != 4 || len(artifacts.Sources) != 4 || len(artifacts.FetchedSources) != 2 ||
+		len(artifacts.FetchFailures) != 2 || len(artifacts.Snapshots) != 2 || artifacts.Bundle == nil {
+		t.Fatalf("partial source artifacts = %+v", artifacts)
+	}
+	failureKinds := map[application.ErrorKind]int{}
+	for _, failure := range artifacts.FetchFailures {
+		failureKinds[failure.Kind]++
+	}
+	if failureKinds[application.ErrorExternalFailure] != 1 || failureKinds[application.ErrorUnavailable] != 1 {
+		t.Fatalf("partial source failure kinds = %+v", failureKinds)
+	}
+	if fixture.searchCalls.Load() != 1 {
+		t.Fatalf("search calls = %d, want 1", fixture.searchCalls.Load())
+	}
+	for index := range fixture.contentCalls {
+		if fixture.contentCalls[index].Load() != 1 {
+			t.Fatalf("content call %d = %d, want 1", index, fixture.contentCalls[index].Load())
+		}
+	}
+
+	status, err := service.Execute(ctx, app.Command{
+		Action: app.ActionResearch, Workspace: root, ResearchOperation: "status", ResearchRunID: view.Run.ID,
+	})
+	if err != nil || status.ResearchView == nil || status.ResearchView.Progress == nil {
+		t.Fatalf("research status after partial source failure = (%+v, %v)", status.ResearchView, err)
+	}
+	progress := status.ResearchView.Progress
+	if progress.Fetches != 4 || progress.Snapshots != 2 || !containsString(progress.Warnings, "partial_source_processing") {
+		t.Fatalf("partial source durable progress = %+v", progress)
+	}
+
+	store, err := stores.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	audits, err := store.Research().AuditTrail(ctx, view.Run.ID)
+	if err != nil || len(audits) == 0 {
+		t.Fatalf("partial source audit trail = (%+v, %v)", audits, err)
+	}
+	terminal := audits[len(audits)-1]
+	if terminal.Outcome != research.ResearchRunCompleted || terminal.Execution == nil ||
+		terminal.Execution.FetchCount != 4 || len(terminal.Sources) != 2 || terminal.Execution.BundleID == nil {
+		t.Fatalf("partial source terminal audit = %+v", terminal)
+	}
+	bundles, err := store.Bundles().ListForRun(ctx, view.Run.ID)
+	if err != nil || len(bundles) != 1 || bundles[0].ID != view.Bundle.ID {
+		t.Fatalf("partial source durable bundles = (%+v, %v)", bundles, err)
+	}
+}
+
 const (
 	queryToBundleProviderID = "fixture-search-api"
 	queryToBundleSecretName = "research.search.fixture-search-api.api_key"
@@ -211,32 +315,71 @@ type queryToBundleFixture struct {
 	locators     []research.SourceLocator
 	contentHosts []string
 	searchCalls  atomic.Int32
-	contentCalls [2]atomic.Int32
+	contentCalls []atomic.Int32
 }
 
 func newQueryToBundleFixture(t *testing.T) *queryToBundleFixture {
 	t.Helper()
-	fixture := &queryToBundleFixture{contentHosts: []string{"docs-one.fixture.test", "docs-two.fixture.test"}}
+	return newQueryToBundleFixtureWithDocuments(t, []queryToBundleDocument{
+		{host: "docs-one.fixture.test", path: "/reference", body: `<html><head><title>Fixture API reference</title></head><body><h1>Fixture API</h1><p>Fixture API is a stable interface.</p></body></html>`},
+		{host: "docs-two.fixture.test", path: "/guide", body: `<html><head><title>Fixture API guide</title></head><body><h1>Fixture API</h1><p>Fixture API is a stable contract.</p></body></html>`},
+	})
+}
+
+func newPartialSourceFailureFixture(t *testing.T) *queryToBundleFixture {
+	t.Helper()
+	return newQueryToBundleFixtureWithDocuments(t, []queryToBundleDocument{
+		{host: "docs-a.fixture.test", path: "/success-a", body: `<html><head><title>Fixture API reference</title></head><body><h1>Fixture API</h1><p>Fixture API is a stable interface.</p></body></html>`},
+		{host: "docs-b.fixture.test", path: "/timeout", waitForCancellation: true},
+		{host: "docs-c.fixture.test", path: "/missing", status: http.StatusNotFound},
+		{host: "docs-d.fixture.test", path: "/success-d", body: `<html><head><title>Fixture API guide</title></head><body><h1>Fixture API</h1><p>Fixture API is a stable contract.</p></body></html>`},
+	})
+}
+
+type queryToBundleDocument struct {
+	host                string
+	path                string
+	body                string
+	status              int
+	waitForCancellation bool
+}
+
+func newQueryToBundleFixtureWithDocuments(t *testing.T, documents []queryToBundleDocument) *queryToBundleFixture {
+	t.Helper()
+	fixture := &queryToBundleFixture{
+		contentHosts: make([]string, len(documents)),
+		contentCalls: make([]atomic.Int32, len(documents)),
+	}
+	for index, document := range documents {
+		fixture.contentHosts[index] = document.host
+	}
 	fixture.content = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-		switch request.URL.Path {
-		case "/reference":
-			fixture.contentCalls[0].Add(1)
-			_, _ = io.WriteString(writer, `<html><head><title>Fixture API reference</title></head><body><h1>Fixture API</h1><p>Fixture API is a stable interface.</p></body></html>`)
-		case "/guide":
-			fixture.contentCalls[1].Add(1)
-			_, _ = io.WriteString(writer, `<html><head><title>Fixture API guide</title></head><body><h1>Fixture API</h1><p>Fixture API is a stable contract.</p></body></html>`)
-		default:
-			http.NotFound(writer, request)
+		for index, document := range documents {
+			if request.URL.Path != document.path {
+				continue
+			}
+			fixture.contentCalls[index].Add(1)
+			if document.waitForCancellation {
+				<-request.Context().Done()
+				return
+			}
+			if document.status != 0 {
+				http.Error(writer, http.StatusText(document.status), document.status)
+				return
+			}
+			writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = io.WriteString(writer, document.body)
+			return
 		}
+		http.NotFound(writer, request)
 	}))
 	t.Cleanup(fixture.content.Close)
 	contentURL, err := url.Parse(fixture.content.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for index, path := range []string{"/reference", "/guide"} {
-		locator, err := research.NewSourceLocator("http://" + fixture.contentHosts[index] + ":" + contentURL.Port() + path)
+	for index, document := range documents {
+		locator, err := research.NewSourceLocator("http://" + fixture.contentHosts[index] + ":" + contentURL.Port() + document.path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -267,6 +410,15 @@ func newQueryToBundleFixture(t *testing.T) *queryToBundleFixture {
 	}))
 	t.Cleanup(fixture.searchAPI.Close)
 	return fixture
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func seedQueryToBundleSources(t *testing.T, ctx context.Context, stores *researchdb.Factory, root string, fixture *queryToBundleFixture) {

@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 40
-Last completed step: 39
+Current step: 41
+Last completed step: 40
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- partial failure, idempotency, and live smoke coverage pending
+- retry/idempotency and live smoke coverage pending
 
 ## Registro
 
@@ -2196,3 +2196,52 @@ Release: unreleased
 - El Paso 40 debe cubrir fallos parciales bounded de fuentes sin cambiar la
   frontera offline demostrada aquí.
 - Idempotency y live smoke continúan reservados a los Pasos 41–42.
+
+## Step 40 — E2E partial source failure
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- E2E `TestResearchTopicPartialSourceFailureEndToEnd` añadido bajo el gate
+  `e2e`, con una Search API local que devuelve exactamente cuatro Sources.
+- El content server ejecuta la matriz A success, B timeout, C 404 y D success;
+  los dos fallos quedan preservados como `unavailable` y `external_failure` sin
+  impedir que las dos Sources restantes alcancen snapshots, Claims y bundle.
+- El escenario confirma Run `completed`, cuatro intentos de fetch, dos
+  snapshots, un único bundle durable y cero requests fuera de loopback.
+- `research status` reabre el workspace y reconstruye el warning
+  `partial_source_processing` desde audit y bundle durables.
+- El máximo productivo por Source se redujo de 4 MiB a 2 MiB para reconciliarlo
+  con el presupuesto v1 de 8 MiB por Run: así cuatro fetches bounded pueden ser
+  autorizados sin ampliar el presupuesto ni omitir Sources por scheduling.
+
+### Decisions
+
+- Timeout y 404 son fallos individuales, no outcomes terminales mientras otras
+  Sources satisfagan verification y permitan un bundle válido.
+- El HTTP fixture usa un solo intento por Source para aislar partial failure de
+  la política de retry de transporte, que ya tiene cobertura propia.
+- El 404 atraviesa la frontera productiva actual como `external_failure`; el
+  test no introduce una taxonomía HTTP nueva fuera del alcance del paso.
+- El warning no se persiste como texto duplicado: se deriva del conteo durable
+  `fetches > snapshots`, conforme a la proyección de progreso existente.
+- No se cambió schema, provider, lifecycle, trust/verification policy, UX ni
+  ninguna frontera de red o privacidad.
+
+### Verification
+
+- `go test -race -tags=e2e ./tests/e2e -run '^TestResearchTopicPartialSourceFailureEndToEnd$' -count=1`.
+- `go test -race -tags=e2e ./tests/e2e -run '^TestResearchTopic(QueryToBundle|PrivacyDisabled|PartialSourceFailure)EndToEnd$' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 41 debe interrumpir un intento después de producir datos durables y
+  reintentar el mismo queue item mediante un nuevo Run conforme al modelo.
+- El replay no debe duplicar lógicamente Source, snapshot, Claim ni bundle.
+- El smoke live continúa reservado al Paso 42.

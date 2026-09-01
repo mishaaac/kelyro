@@ -11,7 +11,7 @@ import (
 
 const (
 	LiveSourceFetchV1                   = "live-source-fetch-v1"
-	DefaultLiveSourceMaximumBytes int64 = 4 << 20
+	DefaultLiveSourceMaximumBytes int64 = 2 << 20
 )
 
 type SourceFetchFailure struct {

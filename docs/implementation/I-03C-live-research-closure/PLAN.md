@@ -1429,7 +1429,7 @@ test(e2e): enforce offline research privacy boundary
 
 ## Paso 40 — E2E partial source failure
 
-- [ ] Paso 40 completado
+- [x] Paso 40 completado
 
 Fixture:
 
