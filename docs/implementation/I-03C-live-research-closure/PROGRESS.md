@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 44
-Last completed step: 43
+Current step: 45
+Last completed step: 44
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- security, bounds, offline regression, and closure reviews pending
+- bounds, offline regression, and closure reviews pending
 
 ## Registro
 
@@ -2419,3 +2419,56 @@ Release: unreleased
 - El Paso 44 debe revisar amenazas de discovery live sin refactorizar el
   pipeline cerrado salvo una regresión reproducible.
 - Smokes live son diagnósticos opt-in y no sustituyen fixtures E2E offline.
+
+## Step 44 — Security review
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- Threat model live añadido en `docs/security/research-threat-model.md` con
+  assets, trust boundaries, fail-closed behavior, residual risks y ownership
+  de controles para las ocho amenazas exigidas.
+- El contrato provider-neutral ahora impone directamente los límites
+  persistentes de query, title, snippet y provider metadata.
+- Query y metadata de resultados rechazan UTF-8 inválido y caracteres de
+  control antes del provider o del candidate mapper, cerrando inyección de
+  terminal/log observada durante la revisión.
+- Matriz del adapter ampliada para `javascript:`, `data:`, `file:`, URLs
+  oversized, metadata con controles y title/snippet oversized.
+- La arquitectura de hardening existente enlaza el threat model live para
+  mantener una única explicación detallada de las fronteras HTTP/fetch.
+
+### Decisions
+
+- Un resultado inválido hace fallar cerradamente la página completa; no se
+  conserva un subconjunto posiblemente ambiguo del provider response.
+- Los límites del contrato usan las constantes durables ya existentes: query
+  8 KiB, title 8 KiB, snippet 16 KiB y provider 1 KiB. Brave conserva además
+  su límite más estricto de 400 runes y 50 words.
+- Search permanece fijado a un único endpoint HTTPS, sin redirects,
+  compresión automática ni headers arbitrarios. Fetch de candidate URLs sigue
+  siendo una frontera separada con SSRF/redirect validation propia.
+- API key, query, URLs, bodies, headers y mensajes externos no forman parte de
+  observers, audit terminal ni errores estables.
+- No se refactorizó el pipeline, no se añadió dependencia, browser, crawler,
+  IA ni comportamiento I-04.
+
+### Verification
+
+- Tests dirigidos del contrato `SearchProvider`, Discovery, adapter Brave y
+  transporte endurecido.
+- Matriz de metadata hostil en el adapter y validación directa de bounds y
+  controles en el port application-owned.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 45 debe auditar y hacer explícitos los bounds del composition root
+  live: queries/run, results/query, fetch concurrency/bytes y Claims/source.
+- No ampliar ceilings existentes ni adelantar la regresión offline del Paso
+  46.

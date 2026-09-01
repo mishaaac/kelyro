@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/mishaaac/kelyro/internal/privacy"
@@ -51,6 +52,8 @@ func TestSearchProviderContractRejectsMissingOrInvalidFields(t *testing.T) {
 	}{
 		{name: "request ID", query: application.SearchQuery{Text: "docs"}},
 		{name: "query text", query: application.SearchQuery{RequestID: validRequestID}},
+		{name: "query control", query: application.SearchQuery{RequestID: validRequestID, Text: "docs\x1b[2J"}},
+		{name: "query bytes", query: application.SearchQuery{RequestID: validRequestID, Text: strings.Repeat("q", research.MaximumDiscoveryQueryBytes+1)}},
 	} {
 		t.Run("query "+test.name, func(t *testing.T) {
 			if err := test.query.Validate(); err == nil {
@@ -92,6 +95,18 @@ func TestSearchProviderContractRejectsMissingOrInvalidFields(t *testing.T) {
 		{name: "rank", mutate: func(result *application.SearchResult) { result.Rank = -1 }},
 		{name: "published hint", mutate: func(result *application.SearchResult) { result.PublishedHint = &invalidTimestamp }},
 		{name: "snippet whitespace", mutate: func(result *application.SearchResult) { result.Snippet = "  fragment  " }},
+		{name: "title control", mutate: func(result *application.SearchResult) { result.Title = "docs\x1b[2J" }},
+		{name: "snippet control", mutate: func(result *application.SearchResult) { result.Snippet = "docs\x00" }},
+		{name: "provider control", mutate: func(result *application.SearchResult) { result.Provider = "fixture\x1b" }},
+		{name: "title bytes", mutate: func(result *application.SearchResult) {
+			result.Title = strings.Repeat("t", research.MaximumDiscoveryTitleBytes+1)
+		}},
+		{name: "snippet bytes", mutate: func(result *application.SearchResult) {
+			result.Snippet = strings.Repeat("s", research.MaximumDiscoverySnippetBytes+1)
+		}},
+		{name: "provider bytes", mutate: func(result *application.SearchResult) {
+			result.Provider = strings.Repeat("p", research.MaximumDiscoveryProviderBytes+1)
+		}},
 	} {
 		t.Run("result "+test.name, func(t *testing.T) {
 			result := valid

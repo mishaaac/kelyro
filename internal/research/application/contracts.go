@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/mishaaac/kelyro/internal/research"
 	"github.com/mishaaac/kelyro/internal/research/citation"
@@ -398,7 +400,10 @@ func (query SearchQuery) Validate() error {
 	if err := query.RequestID.Validate(); err != nil {
 		return fmt.Errorf("search request: %w", err)
 	}
-	return requireText("search query", query.Text)
+	if err := validateSearchBoundaryText("search query", query.Text, research.MaximumDiscoveryQueryBytes, true); err != nil {
+		return err
+	}
+	return nil
 }
 
 type SearchOptions struct {
@@ -452,16 +457,16 @@ type SearchResult struct {
 const MaximumSearchResults = 100
 
 func (result SearchResult) Validate() error {
-	if err := requireText("search result title", result.Title); err != nil {
+	if err := validateSearchBoundaryText("search result title", result.Title, research.MaximumDiscoveryTitleBytes, true); err != nil {
 		return err
 	}
 	if err := result.Locator.Validate(); err != nil {
 		return err
 	}
-	if err := validateOptionalText("search result snippet", result.Snippet); err != nil {
+	if err := validateSearchBoundaryText("search result snippet", result.Snippet, research.MaximumDiscoverySnippetBytes, false); err != nil {
 		return err
 	}
-	if err := requireText("search result provider", result.Provider); err != nil {
+	if err := validateSearchBoundaryText("search result provider", result.Provider, research.MaximumDiscoveryProviderBytes, true); err != nil {
 		return err
 	}
 	if result.Rank < 0 {
@@ -477,6 +482,26 @@ func (result SearchResult) Validate() error {
 	}
 	if !result.CacheStale && result.CacheWarning != "" {
 		return fmt.Errorf("fresh search result cannot contain a cache warning")
+	}
+	return nil
+}
+
+func validateSearchBoundaryText(name, value string, maximum int, required bool) error {
+	if required {
+		if err := requireText(name, value); err != nil {
+			return err
+		}
+	} else if err := validateOptionalText(name, value); err != nil {
+		return err
+	}
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("%s is not valid UTF-8", name)
+	}
+	if len(value) > maximum {
+		return fmt.Errorf("%s exceeds %d bytes", name, maximum)
+	}
+	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		return fmt.Errorf("%s contains control characters", name)
 	}
 	return nil
 }

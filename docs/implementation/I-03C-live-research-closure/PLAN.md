@@ -1529,7 +1529,7 @@ test(research): add opt-in live query-to-bundle smoke
 
 ## Paso 44 — Security review
 
-- [ ] Paso 44 completado
+- [x] Paso 44 completado
 
 Threats:
 

@@ -1,5 +1,8 @@
 # Research Engine input security v1
 
+The live-discovery-specific threat analysis and reviewed control ownership are
+recorded in `docs/security/research-threat-model.md`.
+
 Step 44 defines `research-input-security-v1`. Every URL, header, response,
 document, cache record, provider field, filename, and excerpt entering Research
 is untrusted. Trust/authority scoring evaluates usefulness of evidence; it does

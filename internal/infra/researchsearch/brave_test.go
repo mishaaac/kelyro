@@ -367,6 +367,39 @@ func TestBraveSearchProviderHTTPResponseMatrix(t *testing.T) {
 	}
 }
 
+func TestBraveSearchRejectsUnsafeResultMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		title       string
+		locator     string
+		description string
+	}{
+		{name: "javascript URL", title: "result", locator: "javascript:alert(1)"},
+		{name: "data URL", title: "result", locator: "data:text/plain,unsafe"},
+		{name: "file URL", title: "result", locator: "file:///etc/passwd"},
+		{name: "oversized URL", title: "result", locator: "https://example.test/" + strings.Repeat("x", 9<<10)},
+		{name: "title control", title: "result\x1b[2J", locator: "https://example.test/docs"},
+		{name: "snippet control", title: "result", locator: "https://example.test/docs", description: "snippet\x00tail"},
+		{name: "oversized title", title: strings.Repeat("t", research.MaximumDiscoveryTitleBytes+1), locator: "https://example.test/docs"},
+		{name: "oversized snippet", title: "result", locator: "https://example.test/docs", description: strings.Repeat("s", research.MaximumDiscoverySnippetBytes+1)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			body := fmt.Sprintf(`{"web":{"results":[{"title":%q,"url":%q,"description":%q}]}}`, test.title, test.locator, test.description)
+			provider, err := NewBrave(staticClient(jsonResponse(http.StatusOK, body, nil)), "fixture-token")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 1}); !errors.Is(err, ErrResponse) {
+				t.Fatalf("unsafe result error = %v, want response error", err)
+			}
+		})
+	}
+}
+
 func TestBraveSearchProviderHTTPTimeout(t *testing.T) {
 	t.Parallel()
 
