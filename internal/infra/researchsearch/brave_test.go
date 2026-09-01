@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/mishaaac/kelyro/internal/privacy"
 	"github.com/mishaaac/kelyro/internal/research"
@@ -283,6 +286,150 @@ func TestBraveSearchValidatesInputsAndCancellation(t *testing.T) {
 	if _, err := provider.Search(ctx, validQuery(t), application.SearchOptions{Limit: 1}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled search error = %v", err)
 	}
+}
+
+func TestBraveSearchProviderHTTPResponseMatrix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		status     int
+		body       string
+		want       error
+		wantResult bool
+	}{
+		{
+			name:       "success",
+			status:     http.StatusOK,
+			body:       `{"web":{"results":[{"title":" Go  specification ","url":"https://go.dev/ref/spec#Interface_types","description":" Interface  types. "}]}}`,
+			wantResult: true,
+		},
+		{name: "empty", status: http.StatusOK, body: `{"web":{"results":[]}}`},
+		{name: "malformed", status: http.StatusOK, body: `{`, want: ErrResponse},
+		{name: "401", status: http.StatusUnauthorized, body: `{"error":"unauthorized"}`, want: ErrAuthentication},
+		{name: "403", status: http.StatusForbidden, body: `{"error":"forbidden"}`, want: ErrAuthentication},
+		{name: "429", status: http.StatusTooManyRequests, body: `{"error":"rate limited"}`, want: ErrRateLimited},
+		{name: "500", status: http.StatusInternalServerError, body: `{"error":"unavailable"}`, want: ErrUnavailable},
+		{name: "oversized response", status: http.StatusOK, body: strings.Repeat("x", maximumResponseBytes+1), want: ErrResponse},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			provider := newHTTPFixtureBrave(t, DefaultTransportConfig(), http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				if request.Method != http.MethodGet || request.URL.Path != "/res/v1/web/search" ||
+					request.URL.Query().Get("q") != "Go interfaces" || request.URL.Query().Get("count") != "1" ||
+					request.URL.Query().Get("offset") != "0" {
+					t.Errorf("unexpected provider request: %s %s", request.Method, request.URL)
+				}
+				if request.Header.Get(credentialHeader) != "fixture-token" ||
+					request.Header.Get("Accept") != "application/json" ||
+					request.Header.Get("User-Agent") != "Kelyro/dev" ||
+					request.Header.Get("Accept-Encoding") != "identity" {
+					t.Errorf("unexpected provider request headers: %v", request.Header)
+				}
+				writer.Header().Set("Content-Type", "application/json")
+				if test.status == http.StatusTooManyRequests {
+					writer.Header().Set("X-RateLimit-Remaining", "0")
+				}
+				writer.WriteHeader(test.status)
+				_, _ = io.WriteString(writer, test.body)
+			}))
+
+			results, err := provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 1})
+			if test.want != nil {
+				if !errors.Is(err, test.want) {
+					t.Fatalf("Search() error = %v, want %v", err, test.want)
+				}
+				if test.status == http.StatusTooManyRequests {
+					var providerErr *Error
+					if !errors.As(err, &providerErr) || providerErr.RateLimit.Remaining != "0" {
+						t.Fatalf("rate-limit metadata = %+v", providerErr)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Search() error = %v", err)
+			}
+			if !test.wantResult {
+				if len(results) != 0 {
+					t.Fatalf("Search() results = %+v, want empty", results)
+				}
+				return
+			}
+			if len(results) != 1 || results[0].Title != "Go specification" ||
+				results[0].Locator.String() != "https://go.dev/ref/spec" ||
+				results[0].Snippet != "Interface types." || results[0].Provider != ProviderID || results[0].Rank != 0 {
+				t.Fatalf("Search() result = %+v", results)
+			}
+		})
+	}
+}
+
+func TestBraveSearchProviderHTTPTimeout(t *testing.T) {
+	t.Parallel()
+
+	config := DefaultTransportConfig()
+	config.RequestTimeout = 20 * time.Millisecond
+	provider := newHTTPFixtureBrave(t, config, http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		<-request.Context().Done()
+	}))
+
+	_, err := provider.Search(context.Background(), validQuery(t), application.SearchOptions{Limit: 1})
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Search() timeout error = %v, want unavailable", err)
+	}
+}
+
+func TestBraveSearchProviderHTTPInFlightCancellation(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	provider := newHTTPFixtureBrave(t, DefaultTransportConfig(), http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		close(started)
+		<-request.Context().Done()
+	}))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := provider.Search(ctx, validQuery(t), application.SearchOptions{Limit: 1})
+		done <- err
+	}()
+
+	select {
+	case <-started:
+		cancel()
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("provider request did not start")
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Search() cancellation error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("provider search did not stop after cancellation")
+	}
+}
+
+func newHTTPFixtureBrave(t *testing.T, config TransportConfig, handler http.Handler) *Brave {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	endpoint, err := url.Parse(server.URL + "/res/v1/web/search")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := newSecureHTTPClient(config, endpoint, server.Client().Transport)
+	t.Cleanup(client.CloseIdleConnections)
+	provider, err := NewBrave(client, "fixture-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.endpoint = endpoint.String()
+	return provider
 }
 
 func validQuery(t *testing.T) application.SearchQuery {

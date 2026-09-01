@@ -1326,7 +1326,7 @@ feat(cli): expose live research run progress
 
 ## Paso 36 — Unit tests del SearchProvider real
 
-- [ ] Paso 36 completado
+- [x] Paso 36 completado
 
 Sin Internet, con `httptest.Server`.
 

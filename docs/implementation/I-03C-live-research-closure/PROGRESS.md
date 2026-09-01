@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 36
-Last completed step: 35
+Current step: 37
+Last completed step: 36
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -2000,3 +2000,48 @@ Release: unreleased
   Internet público; no modificar la UX salvo que revele una regresión real.
 - Los Pasos 38–41 siguen siendo dueños de la matriz E2E query-to-bundle,
   privacy, partial failure e idempotency.
+
+## Step 36 — Production SearchProvider unit tests
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- Matriz HTTP del adapter Brave ejecutada exclusivamente contra
+  `httptest.Server`, sin acceso a Internet público.
+- Casos success y empty verifican el request GET bounded, query params,
+  credencial, media type, user agent, compresión identity y mapping de
+  resultados normalizados.
+- Respuestas malformed y oversized se rechazan como `response` sin consumir
+  contenido sin límite.
+- Estados 401 y 403 se clasifican como `authentication`, 429 como
+  `rate_limited` con metadata bounded y 500 como `unavailable`.
+- Timeout real del cliente se clasifica como `unavailable`; cancelación del
+  caller durante una petición en vuelo preserva `context.Canceled` y detiene el
+  handler local.
+
+### Decisions
+
+- Las pruebas atraviesan juntas las fronteras reales `Brave` y
+  `SecureHTTPClient`; el endpoint se sustituye sólo dentro del paquete de test
+  por el servidor loopback.
+- Se mantuvieron los tests aislados existentes de mapping, pagination, cost
+  authorization, input validation y transport hardening; la nueva matriz
+  prueba outcomes end-to-end del adapter sin duplicar producción.
+- No se cambió código productivo, UX, configuración, contracts ni lifecycle.
+
+### Verification
+
+- `go test -race ./internal/infra/researchsearch -run 'BraveSearchProviderHTTP|BraveSearch' -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 37 debe extraer un suite de conformance reusable y ejecutarlo contra
+  `StaticSearchProvider` y el adapter Brave.
+- Los checks vendor-specific de HTTP/status/limits permanecen en este paquete;
+  conformance debe probar únicamente el contrato neutral `SearchProvider`.
