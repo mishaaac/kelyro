@@ -8,7 +8,8 @@ import (
 
 func (service *Service) researchEvidenceForRun(store researchapp.SourceRegistryStore) (researchapp.LiveResearchStageService, error) {
 	if store == nil || store.Evidence() == nil || store.Claims() == nil || store.Citations() == nil ||
-		store.TrustRepository() == nil || store.Registry() == nil {
+		store.TrustRepository() == nil || store.Registry() == nil || store.Freshness() == nil ||
+		store.Releases() == nil || store.Deprecations() == nil {
 		return nil, fmt.Errorf("research extraction repositories are unavailable")
 	}
 	clock := researchSearchClock{now: service.researchClock}
@@ -28,7 +29,13 @@ func (service *Service) researchEvidenceForRun(store researchapp.SourceRegistryS
 	if err != nil {
 		return nil, fmt.Errorf("assemble live research trust evaluation: %w", err)
 	}
-	stage, err := researchapp.NewLiveResearchExtractionStage(evidence, claims, trust)
+	temporal, err := researchapp.NewLiveTemporalEvaluationService(
+		store.Freshness(), trust, store.TrustRepository(), store.Releases(), store.Deprecations(), clock,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("assemble live research temporal evaluation: %w", err)
+	}
+	stage, err := researchapp.NewLiveResearchExtractionStage(evidence, claims, temporal)
 	if err != nil {
 		return nil, fmt.Errorf("assemble live research extraction: %w", err)
 	}

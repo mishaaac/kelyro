@@ -119,6 +119,24 @@ absent.
 Refresh scheduling is specified separately in
 [refresh-scheduling-v1.md](refresh-scheduling-v1.md).
 
+## Live research integration
+
+I-03C Step 28 evaluates freshness only after Claims and their `citation-v1`
+records are durable. `citation.last_verified` supplies `last_verified_at`;
+snapshot fetch time remains a separate observation and is never substituted.
+Normalized `updated_at` may trigger staleness, while `published_at` and bounded
+version hints remain captured temporal metadata rather than score inputs.
+
+The live stage evaluates each Claim/Source pair and persists one conservative
+Claim record using the worst state, minimum score, and oldest verification.
+Authority Profile TTL hints are reused when a topic profile matches. A durable
+current release linked to the same Source can trigger `known_new_release` only
+against an explicit differing baseline. Exact deprecation records sharing both
+Source and Evidence may advance the last verification time.
+
+After assessment, live trust is reevaluated with the known freshness state;
+provider rank and discovery metadata remain absent from both policies.
+
 ## I-03 closure status
 
 Step 49 reconfirmed `freshness-v1` and its injectable clock as the shipped

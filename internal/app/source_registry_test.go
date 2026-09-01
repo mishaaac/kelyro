@@ -99,6 +99,8 @@ type fakeSourceRegistryStoreFactory struct {
 	evidence        researchapp.EvidenceRepository
 	claims          researchapp.ClaimRepository
 	citations       researchapp.CitationRepository
+	releases        researchapp.ReleaseRepository
+	deprecations    researchapp.DeprecationRepository
 	registry        researchapp.SourceRegistryService
 	trust           researchapp.TrustDecisionService
 	trustRepository researchapp.TrustRegistryRepository
@@ -116,7 +118,7 @@ type fakeSourceRegistryStoreFactory struct {
 
 func (factory *fakeSourceRegistryStoreFactory) Open(_ context.Context, root string) (researchapp.SourceRegistryStore, error) {
 	factory.openRoot = root
-	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
+	return &fakeSourceRegistryStore{sources: factory.sources, snapshots: factory.snapshots, evidence: factory.evidence, claims: factory.claims, citations: factory.citations, releases: factory.releases, deprecations: factory.deprecations, registry: factory.registry, trust: factory.trust, trustRepository: factory.trustRepository, provenance: factory.provenance, freshness: factory.freshness, costs: factory.costs, research: factory.research, bundles: factory.bundles, conflicts: factory.conflicts, triggers: factory.triggers, updateScan: factory.updateScan, close: func() { factory.closed++ }}, nil
 }
 
 type fakeSourceRegistryStore struct {
@@ -125,6 +127,8 @@ type fakeSourceRegistryStore struct {
 	evidence        researchapp.EvidenceRepository
 	claims          researchapp.ClaimRepository
 	citations       researchapp.CitationRepository
+	releases        researchapp.ReleaseRepository
+	deprecations    researchapp.DeprecationRepository
 	registry        researchapp.SourceRegistryService
 	trust           researchapp.TrustDecisionService
 	trustRepository researchapp.TrustRegistryRepository
@@ -152,6 +156,12 @@ func (store *fakeSourceRegistryStore) Evidence() researchapp.EvidenceRepository 
 func (store *fakeSourceRegistryStore) Claims() researchapp.ClaimRepository { return store.claims }
 func (store *fakeSourceRegistryStore) Citations() researchapp.CitationRepository {
 	return store.citations
+}
+func (store *fakeSourceRegistryStore) Releases() researchapp.ReleaseRepository {
+	return store.releases
+}
+func (store *fakeSourceRegistryStore) Deprecations() researchapp.DeprecationRepository {
+	return store.deprecations
 }
 func (store *fakeSourceRegistryStore) TrustDecisions() researchapp.TrustDecisionService {
 	return store.trust

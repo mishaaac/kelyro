@@ -14,10 +14,11 @@ import (
 const LiveTrustEvaluationV1 = "live-trust-evaluation-v1"
 
 type LiveTrustEvaluationRequest struct {
-	Topic   research.ResearchTopic
-	Purpose research.ResearchPurpose
-	Sources []research.Source
-	Claims  []research.Claim
+	Topic           research.ResearchTopic
+	Purpose         research.ResearchPurpose
+	Sources         []research.Source
+	Claims          []research.Claim
+	FreshnessStates map[research.SourceID]research.FreshnessState
 }
 
 type LiveTrustEvaluationResult struct {
@@ -69,6 +70,7 @@ func NewLiveTrustEvaluationService(repository TrustRegistryRepository, registry 
 
 type liveSourceClaimContextV1 struct {
 	source        research.Source
+	freshness     research.FreshnessState
 	relevance     trustpolicy.Relevance
 	stability     trustpolicy.Stability
 	corroboration trustpolicy.Corroboration
@@ -127,7 +129,7 @@ func (service *liveTrustEvaluationService) EvaluateTrust(ctx context.Context, re
 		}
 		decision, evaluateErr := policy.Evaluate(trustpolicy.Input{
 			Source: item.source, Topic: request.Topic, Purpose: request.Purpose,
-			UseCase: liveTrustUseCaseV1(request.Purpose, item.source), Freshness: research.FreshnessUnknown,
+			UseCase: liveTrustUseCaseV1(request.Purpose, item.source), Freshness: item.freshness,
 			Relevance: item.relevance, Directness: trustpolicy.DirectnessPrimary,
 			Stability: item.stability, Corroboration: item.corroboration,
 			Registry: matched, EvaluatedAt: evaluatedAt,
@@ -163,6 +165,14 @@ func liveTrustSourceContextsV1(request LiveTrustEvaluationRequest) (map[research
 		}
 		sources[source.ID] = source
 	}
+	for sourceID, state := range request.FreshnessStates {
+		if _, exists := sources[sourceID]; !exists {
+			return nil, fmt.Errorf("trust freshness references missing Source %q", sourceID)
+		}
+		if err := state.Validate(); err != nil {
+			return nil, err
+		}
+	}
 	contexts := make(map[research.SourceID]liveSourceClaimContextV1)
 	for index, claim := range request.Claims {
 		if err := claim.Validate(); err != nil {
@@ -176,6 +186,10 @@ func liveTrustSourceContextsV1(request LiveTrustEvaluationRequest) (map[research
 			relevance := liveTrustRelevanceV1(claim.Statement, request.Topic)
 			stability := liveTrustStabilityV1(claim.StatusScope)
 			corroboration := trustpolicy.CorroborationSingleSource
+			freshnessState := research.FreshnessUnknown
+			if state, exists := request.FreshnessStates[sourceID]; exists {
+				freshnessState = state
+			}
 			if len(claim.SourceIDs) > 1 {
 				// Multiple locators do not establish organizational independence.
 				// Step 29 owns corroboration and diversity evaluation.
@@ -183,7 +197,7 @@ func liveTrustSourceContextsV1(request LiveTrustEvaluationRequest) (map[research
 			}
 			current, found := contexts[sourceID]
 			if !found {
-				contexts[sourceID] = liveSourceClaimContextV1{source: source, relevance: relevance, stability: stability, corroboration: corroboration}
+				contexts[sourceID] = liveSourceClaimContextV1{source: source, freshness: freshnessState, relevance: relevance, stability: stability, corroboration: corroboration}
 				continue
 			}
 			current.relevance = conservativeTrustRelevanceV1(current.relevance, relevance)

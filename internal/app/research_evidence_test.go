@@ -40,8 +40,9 @@ func TestServiceAssemblesDeterministicEvidenceStageWithWorkspaceRepository(t *te
 	}
 	store := &fakeSourceRegistryStore{
 		evidence: repositories.Evidence, claims: repositories.Claims, citations: repositories.Citations,
-		trustRepository: repositories.TrustRegistry,
-		registry:        researchapp.NewSourceRegistryService(repositories.SourceRegistry), close: func() {},
+		trustRepository: repositories.TrustRegistry, freshness: researchapp.NewFreshnessService(repositories.Freshness),
+		releases: repositories.Releases, deprecations: repositories.Deprecations,
+		registry: researchapp.NewSourceRegistryService(repositories.SourceRegistry), close: func() {},
 	}
 	service := NewService(nil, nil).WithResearchClock(func() time.Time { return fetchedAt.Time().Add(time.Hour) })
 	stage, err := service.researchEvidenceForRun(store)
@@ -67,7 +68,8 @@ func TestServiceAssemblesDeterministicEvidenceStageWithWorkspaceRepository(t *te
 		},
 	})
 	if err != nil || len(artifacts.Evidence) == 0 || artifacts.Evidence[0].ExtractorVersion != researchapp.EvidenceExtractorV1 ||
-		len(artifacts.Claims) != 1 || len(artifacts.Citations) != 1 || len(artifacts.TrustDecisions) != 1 {
+		len(artifacts.Claims) != 1 || len(artifacts.Citations) != 1 || len(artifacts.TrustDecisions) != 1 ||
+		len(artifacts.FreshnessRecords) != 1 || len(artifacts.TemporalObservations) != 1 {
 		t.Fatalf("evidence stage artifacts=%+v error=%v", artifacts, err)
 	}
 }

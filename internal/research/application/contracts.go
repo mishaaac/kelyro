@@ -1209,6 +1209,11 @@ type LiveTrustEvaluationService interface {
 	LiveResearchStageService
 }
 
+type LiveTemporalEvaluationService interface {
+	EvaluateTemporal(context.Context, LiveTemporalEvaluationRequest) (LiveTemporalEvaluationResult, error)
+	LiveResearchStageService
+}
+
 type MetadataExtractor interface {
 	Extract(context.Context, NormalizedSource) (research.SourceMetadata, error)
 }
@@ -1439,6 +1444,8 @@ type SourceRegistryStore interface {
 	Claims() ClaimRepository
 	Citations() CitationRepository
 	TrustRepository() TrustRegistryRepository
+	Releases() ReleaseRepository
+	Deprecations() DeprecationRepository
 	Registry() SourceRegistryService
 	TrustDecisions() TrustDecisionService
 	Provenance() ProvenanceService

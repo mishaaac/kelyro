@@ -160,7 +160,8 @@ Provider ID, search rank, snippet, and discovery order are absent from the
 evaluation contract and therefore cannot influence authority. Newly discovered
 Sources that remain conservatively classified as `other` remain tier E and are
 rejected until reviewed classification exists. Step 27 supplies `unknown`
-freshness; the temporal integration reevaluates trust after freshness is known.
+freshness when used alone; Step 28's production composition reevaluates and
+persists trust after `freshness-v1` produces a known state.
 
 ## I-03 closure status
 

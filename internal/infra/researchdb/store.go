@@ -35,6 +35,8 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	evidence := database.Repositories().Research.Evidence
 	claims := database.Repositories().Research.Claims
 	citations := database.Repositories().Research.Citations
+	releases := database.Repositories().Research.Releases
+	deprecations := database.Repositories().Research.Deprecations
 	provenance := application.NewProvenanceService(database.Repositories().Research.Provenance)
 	freshness := application.NewFreshnessService(database.Repositories().Research.Freshness)
 	researchService := application.NewResearchService(database.Repositories().Research.Runs)
@@ -51,7 +53,7 @@ func (factory *Factory) Open(ctx context.Context, workspaceRoot string) (applica
 	)
 	bundles := application.NewSourceBundleService(database.Repositories().Research.Bundles, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	conflicts := application.NewConflictResolutionService(database.Repositories().Research.Conflicts, nil, nil, nil, nil)
-	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
+	return &store{database: database, sources: sources, snapshots: snapshots, evidence: evidence, claims: claims, citations: citations, releases: releases, deprecations: deprecations, registry: registry, trust: trust, trustRepository: trustRepository, provenance: provenance, freshness: freshness, research: researchService, bundles: bundles, conflicts: conflicts, costs: costs, triggers: triggers, updateScan: updateScan}, nil
 }
 
 type store struct {
@@ -61,6 +63,8 @@ type store struct {
 	evidence        application.EvidenceRepository
 	claims          application.ClaimRepository
 	citations       application.CitationRepository
+	releases        application.ReleaseRepository
+	deprecations    application.DeprecationRepository
 	registry        application.SourceRegistryService
 	trust           application.TrustDecisionService
 	trustRepository application.TrustRegistryRepository
@@ -79,6 +83,8 @@ func (store *store) Snapshots() application.SnapshotCaptureService    { return s
 func (store *store) Evidence() application.EvidenceRepository         { return store.evidence }
 func (store *store) Claims() application.ClaimRepository              { return store.claims }
 func (store *store) Citations() application.CitationRepository        { return store.citations }
+func (store *store) Releases() application.ReleaseRepository          { return store.releases }
+func (store *store) Deprecations() application.DeprecationRepository  { return store.deprecations }
 func (store *store) Registry() application.SourceRegistryService      { return store.registry }
 func (store *store) TrustDecisions() application.TrustDecisionService { return store.trust }
 func (store *store) TrustRepository() application.TrustRegistryRepository {

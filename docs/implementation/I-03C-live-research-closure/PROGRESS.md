@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 28
-Last completed step: 27
+Current step: 29
+Last completed step: 28
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -1502,3 +1502,71 @@ Release: unreleased
   durable sin confundir fetched, published, updated y last verified.
 - Freshness conocida debe persistirse por Claim y alimentar una reevaluación
   de trust; release/deprecation signals deben seguir siendo explícitos.
+
+## Step 28 — Freshness / Temporal Scope integration
+
+Status: completed
+Date: 2026-08-31
+Release: unreleased
+
+### Delivered
+
+- `live-temporal-evaluation-v1` conecta Claims/citations reales con
+  `freshness-v1` y `source-temporal-policy-v1` sin modificar ambas policies.
+- Metadata `published_at`, `updated_at` y version hints se captura de la salida
+  normalizada bounded, con fallback a Source metadata durable y provenance por
+  Source; nunca se infiere desde search snippets.
+- Cada Source recibe una assessment temporal explícita current,
+  version-authority, historical-context o not-applicable con warning/version.
+- Freshness se calcula por par Claim/Source usando `citation.last_verified`;
+  `snapshot.fetched_at` permanece separado y no se usa como sustituto.
+- Assessments multi-source se agregan por peor state/score y verificación más
+  antigua en un `FreshnessRecord` durable por Claim, compatible con el Source
+  Bundle I-03 existente.
+- Authority Profiles actuales aportan TTL hints cuando hay match exacto; sin
+  profile se conservan los defaults `freshness-v1`.
+- Release intelligence solo activa `known_new_release` cuando un release
+  durable `current`, ligado a la Source, difiere de la versión baseline
+  explícita.
+- Deprecation intelligence puede avanzar `last_verified_at` únicamente cuando
+  el record durable comparte la misma Source y Evidence de una Claim de
+  deprecation.
+- Trust se reevalúa después de freshness y persiste una decisión final con
+  `fresh`, `aging` o `stale` real en sus razones.
+- Artifacts transportan observaciones temporales, assessments por Claim/Source,
+  records agregados y TrustDecisions con copias defensivas.
+
+### Decisions
+
+- Publication, source update, snapshot fetch, Evidence extraction, citation
+  verification y freshness evaluation siguen siendo timestamps distintos.
+- Version hints se preservan como metadata observada; no cambian
+  `Source.Version` ni `TemporalScope` porque eso exigiría clasificación
+  revisada, no una heurística live.
+- Un release `current` diferente solo es trigger cuando existe baseline
+  explícita y comparte Source; no se ordenan versiones opacas ni se asume
+  SemVer.
+- Historical/version-bound behavior depende exclusivamente del scope/version
+  durable y de `source-temporal-policy-v1`; una fecha antigua no reclasifica la
+  Source automáticamente.
+- El inventario release/deprecation consumido por run tiene hard cap de 5.000
+  records; Sources, Claims y citations conservan sus límites I-03C.
+- Este paso no hace discovery de releases, no crea deprecation conclusions, no
+  verifica diversidad y no implementa I-04.
+
+### Verification
+
+- `go test -race ./internal/research/application ./internal/app ./internal/infra/researchdb -run 'LiveTemporal|LiveTrust|AssemblesDeterministicEvidence' -count=1`.
+- Tests de metadata temporal normalizada, version authority, freshness
+  persistida, update trigger, current-release trigger, deprecation exacta y
+  reevaluación trust con stale.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 29 debe consumir Claims, Sources, TrustDecisions y temporal scope ya
+  persistidos para ejecutar verification/diversity existente.
+- Multi-source wording idéntico aún conserva corroboration unknown; solo la
+  policy de verification puede confirmar independencia y suficiencia.

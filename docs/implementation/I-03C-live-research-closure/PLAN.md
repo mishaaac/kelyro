@@ -1116,7 +1116,7 @@ feat(research): apply existing trust policy to discovered sources
 
 ## Paso 28 — Freshness / Temporal Scope integration
 
-- [ ] Paso 28 completado
+- [x] Paso 28 completado
 
 Reusar:
 

@@ -76,6 +76,9 @@ type LiveResearchArtifacts struct {
 	ClaimCandidates        []ClaimCandidate
 	Claims                 []research.Claim
 	Citations              []research.Citation
+	TemporalObservations   []LiveTemporalSourceObservation
+	FreshnessAssessments   []LiveClaimSourceFreshness
+	FreshnessRecords       []FreshnessRecord
 	TrustDecisions         []research.TrustDecision
 	Verifications          []research.VerificationResult
 	Bundle                 *research.SourceBundle
@@ -350,6 +353,18 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 	result.Citations = make([]research.Citation, len(artifacts.Citations))
 	for index, item := range artifacts.Citations {
 		result.Citations[index] = cloneCitationArtifact(item)
+	}
+	result.TemporalObservations = make([]LiveTemporalSourceObservation, len(artifacts.TemporalObservations))
+	for index, observation := range artifacts.TemporalObservations {
+		result.TemporalObservations[index] = cloneLiveTemporalSourceObservation(observation)
+	}
+	result.FreshnessAssessments = make([]LiveClaimSourceFreshness, len(artifacts.FreshnessAssessments))
+	for index, assessment := range artifacts.FreshnessAssessments {
+		result.FreshnessAssessments[index] = cloneLiveClaimSourceFreshness(assessment)
+	}
+	result.FreshnessRecords = make([]FreshnessRecord, len(artifacts.FreshnessRecords))
+	for index, record := range artifacts.FreshnessRecords {
+		result.FreshnessRecords[index] = cloneFreshnessRecordArtifact(record)
 	}
 	result.TrustDecisions = make([]research.TrustDecision, len(artifacts.TrustDecisions))
 	for index, decision := range artifacts.TrustDecisions {
