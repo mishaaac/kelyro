@@ -117,7 +117,7 @@ func (stage *researchTopicSearchStage) Execute(ctx context.Context, input resear
 	}
 	artifacts.SearchExecution = &metadata
 	for _, planned := range stage.request.Plan.Queries {
-		remaining := researchapp.MaximumDiscoveryCandidatesPerRun - len(artifacts.Candidates)
+		remaining := researchapp.MaximumLiveResearchSourcesPerRun - len(artifacts.Candidates)
 		if remaining == 0 {
 			break
 		}

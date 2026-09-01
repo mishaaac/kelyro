@@ -225,6 +225,7 @@ func (service *liveClaimExtractionService) validateInputs(ctx context.Context, r
 		snapshots[snapshot.ID] = snapshot
 	}
 	evidenceByID := make(map[research.ID]research.Evidence, len(request.Evidence))
+	evidenceBySource := make(map[research.SourceID]int, len(sources))
 	for index, item := range request.Evidence {
 		if err := item.Validate(); err != nil {
 			return nil, nil, nil, invalid(operation, fmt.Errorf("Evidence %d: %w", index, err))
@@ -236,6 +237,13 @@ func (service *liveClaimExtractionService) validateInputs(ctx context.Context, r
 		snapshot, snapshotExists := snapshots[item.SnapshotID]
 		if !sourceExists || !snapshotExists || snapshot.SourceID != source.ID || snapshot.Locator != source.Locator {
 			return nil, nil, nil, invalid(operation, fmt.Errorf("Evidence %q lacks an exact Source/snapshot chain", item.ID))
+		}
+		evidenceBySource[item.SourceID]++
+		if evidenceBySource[item.SourceID] > MaximumEvidenceCandidatesPerSource {
+			return nil, nil, nil, invalid(operation, fmt.Errorf(
+				"source %q exceeds %d Evidence and the %d Claim candidate bound",
+				item.SourceID, MaximumEvidenceCandidatesPerSource, MaximumClaimCandidatesPerSource,
+			))
 		}
 		stored, err := service.evidence.Get(ctx, item.ID)
 		if err != nil {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -68,9 +69,82 @@ func TestResearchTopicSearchStageExecutesBoundedPlanAndRecordsAdapterMetadata(t 
 	}
 }
 
+func TestResearchTopicSearchStageStopsAtLiveSourceProcessingBound(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	requestID, _ := research.NewID("request.topic-search-bounds")
+	runID, _ := research.NewID("run.topic-search-bounds")
+	discovery := &saturatingTopicSearchDiscovery{}
+	costs := &fakeResearchCostService{metadata: research.ResearchCostMetadata{
+		Used:   research.ResearchCostUsage{SearchRequests: 2, ProviderAPICalls: 2},
+		Budget: research.DefaultResearchCostBudgetV1(), AlgorithmVersion: research.ResearchCostControlAlgorithmV1,
+	}}
+	store := &fakeSourceRegistryStore{costs: costs, close: func() {}}
+	searchFactory := &topicSearchFactory{result: researchapp.LiveSearchBuildResult{
+		Discovery: discovery, ProviderID: "fixture", AdapterVersion: "fixture-search-v1",
+	}}
+	service := NewService(nil, nil).
+		WithConfig(&recordingConfigStore{project: config.Settings{
+			config.KeyAllowNetwork: config.BoolValue(true), config.KeyResearchSearchProvider: config.StringValue("fixture"),
+			config.KeyResearchSearchMaxResultsPerQuery: config.NumberValue(100), config.KeyResearchSearchMaxQueriesPerRun: config.NumberValue(3),
+		}}).
+		WithSecrets(&recordingSecretStore{}).
+		WithResearchSearch(searchFactory).
+		WithResearchClock(func() time.Time { return at })
+	plan := queryplanner.ResearchQueryPlan{AlgorithmVersion: queryplanner.AlgorithmVersion, Queries: []queryplanner.ResearchQuery{
+		{Query: "bounded documentation", DesiredSourceKind: research.SourceOfficialDocumentation, RequiredAuthority: research.AuthorityTierC, Priority: 1},
+		{Query: "bounded specification", DesiredSourceKind: research.SourceSpecification, RequiredAuthority: research.AuthorityTierC, Priority: 2},
+		{Query: "bounded standard", DesiredSourceKind: research.SourceStandard, RequiredAuthority: research.AuthorityTierC, Priority: 3},
+	}}
+	stage := &researchTopicSearchStage{service: service, request: ResearchTopicExecutionRequest{
+		Store: store, Workspace: "/workspace", RunID: runID, Plan: plan, MaxResultsPerQuery: researchapp.MaximumSearchResults,
+	}}
+	topic, _ := research.NewResearchTopic("bounded research", "software", "Go")
+	requestedAt, _ := research.NewTimestamp(at)
+	artifacts, err := stage.Execute(context.Background(), researchapp.LiveResearchStageInput{
+		Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: requestedAt},
+		Mode:    researchapp.ResearchModeAuto,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discovery.calls != 2 || len(discovery.limits) != 2 ||
+		discovery.limits[0] != researchapp.MaximumSearchResults || discovery.limits[1] != researchapp.MaximumSearchResults {
+		t.Fatalf("discovery calls/limits = %d/%v", discovery.calls, discovery.limits)
+	}
+	if len(artifacts.SearchResults) != researchapp.MaximumLiveResearchSourcesPerRun ||
+		len(artifacts.Candidates) != researchapp.MaximumLiveResearchSourcesPerRun || artifacts.SearchExecution == nil ||
+		artifacts.SearchExecution.QueryCount != 2 || artifacts.SearchExecution.ResultCount != researchapp.MaximumLiveResearchSourcesPerRun {
+		t.Fatalf("bounded search artifacts = results:%d candidates:%d metadata:%+v",
+			len(artifacts.SearchResults), len(artifacts.Candidates), artifacts.SearchExecution)
+	}
+}
+
 type topicSearchDiscovery struct {
 	results [][]researchapp.SearchResult
 	calls   int
+}
+
+type saturatingTopicSearchDiscovery struct {
+	calls  int
+	limits []int
+}
+
+func (discovery *saturatingTopicSearchDiscovery) Search(
+	_ context.Context,
+	_ researchapp.ResearchMode,
+	_ researchapp.SearchQuery,
+	options researchapp.SearchOptions,
+) ([]researchapp.SearchResult, error) {
+	call := discovery.calls
+	discovery.calls++
+	discovery.limits = append(discovery.limits, options.Limit)
+	results := make([]researchapp.SearchResult, options.Limit)
+	for index := range results {
+		locator, _ := research.NewSourceLocator(fmt.Sprintf("https://source-%03d-%03d.example.test/docs", call, index))
+		results[index] = researchapp.SearchResult{Title: "Bounded result", Locator: locator, Provider: "fixture", Rank: index}
+	}
+	return results, nil
 }
 
 func (discovery *topicSearchDiscovery) Search(_ context.Context, _ researchapp.ResearchMode, _ researchapp.SearchQuery, _ researchapp.SearchOptions) ([]researchapp.SearchResult, error) {

@@ -3,7 +3,9 @@ package application_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/mishaaac/kelyro/internal/research"
@@ -181,6 +183,57 @@ func TestLiveClaimExtractionRejectsUnpersistedOrAmbiguousEvidence(t *testing.T) 
 	if _, err := service.ExtractClaims(context.Background(), request); !errors.Is(err, application.ErrInvalidState) {
 		t.Fatalf("ambiguous Evidence error = %v", err)
 	}
+}
+
+func TestLiveClaimExtractionRejectsEvidenceAbovePerSourceClaimBoundBeforeWrites(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repositories := memory.New().Repositories()
+	topic, _ := research.NewResearchTopic("Go module", "software", "Go")
+	source := testSource(t, "claim-source-bound")
+	snapshot := testSnapshot(t, source, "claim-source-bound", 10)
+	if err := repositories.Sources.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	if err := repositories.Snapshots.Append(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	evidence := make([]research.Evidence, application.MaximumEvidenceCandidatesPerSource+1)
+	for index := range evidence {
+		statement := fmt.Sprintf("Go module feature %d is supported.", index)
+		item := claimEvidenceFixtureForChain(t, fmt.Sprintf("claim-source-bound.%03d", index), statement, source, snapshot, 11)
+		item.Location = fmt.Sprintf("text[%04d]", index)
+		if err := repositories.Evidence.Append(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		evidence[index] = item
+	}
+	extractor := &recordingClaimExtractor{}
+	service, err := application.NewLiveClaimExtractionService(
+		extractor, repositories.Evidence, repositories.Claims, repositories.Citations,
+		fixedClock{now: testTimestamp(t, 12)},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.ExtractClaims(ctx, application.LiveClaimExtractionRequest{
+		Topic: topic, Purpose: research.PurposeCurrentUsage, Sources: []research.Source{source},
+		Snapshots: []research.SourceSnapshot{snapshot}, Evidence: evidence,
+	})
+	if !errors.Is(err, application.ErrInvalidState) ||
+		!strings.Contains(err.Error(), fmt.Sprintf("%d Claim candidate bound", application.MaximumClaimCandidatesPerSource)) {
+		t.Fatalf("per-source Claim bound error = %v", err)
+	}
+	if extractor.calls != 0 {
+		t.Fatalf("Claim extractor ran %d times before source bound rejection", extractor.calls)
+	}
+}
+
+type recordingClaimExtractor struct{ calls int }
+
+func (extractor *recordingClaimExtractor) Extract(context.Context, application.ClaimExtractionRequest) (application.ClaimExtractionResult, error) {
+	extractor.calls++
+	return application.ClaimExtractionResult{}, nil
 }
 
 func claimEvidenceFixture(t *testing.T, suffix, statement string, hour int) research.Evidence {

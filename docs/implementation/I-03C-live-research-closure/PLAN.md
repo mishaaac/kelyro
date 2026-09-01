@@ -1560,7 +1560,7 @@ fix(security): harden live research discovery
 
 ## Paso 45 — Performance / bounds
 
-- [ ] Paso 45 completado
+- [x] Paso 45 completado
 
 Mantener límites conservadores:
 

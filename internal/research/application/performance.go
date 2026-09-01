@@ -16,6 +16,7 @@ const (
 	MaximumDiscoveryQueriesPerRun          = 100
 	MaximumDiscoveryCandidatesPerRun       = 500
 	MaximumFetchesPerRun                   = 200
+	MaximumLiveResearchSourcesPerRun       = MaximumFetchesPerRun
 	MaximumClaimsPerRun                    = 5_000
 	MaximumFetchedBytesPerRun        int64 = 64 << 20
 )

@@ -13,6 +13,7 @@ const (
 	MaximumClaimCandidateStatementBytes = 2 << 10
 	MaximumClaimCandidateMarkerBytes    = 256
 	MaximumClaimCandidatesPerEvidence   = 8
+	MaximumClaimCandidatesPerSource     = MaximumEvidenceCandidatesPerSource * MaximumClaimCandidatesPerEvidence
 	MaximumClaimCandidatesPerRun        = 1000
 )
 

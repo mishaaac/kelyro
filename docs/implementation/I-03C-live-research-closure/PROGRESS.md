@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 45
-Last completed step: 44
+Current step: 46
+Last completed step: 45
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- bounds, offline regression, and closure reviews pending
+- offline regression and closure reviews pending
 
 ## Registro
 
@@ -2472,3 +2472,61 @@ Release: unreleased
   live: queries/run, results/query, fetch concurrency/bytes y Claims/source.
 - No ampliar ceilings existentes ni adelantar la regresión offline del Paso
   46.
+
+## Step 45 — Performance / bounds
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- Matriz productiva documentada en
+  `docs/architecture/research-live-bounds-v1.md` para queries, resultados,
+  Sources, concurrency, bytes, Evidence y Claims.
+- El search stage live ahora se detiene en 200 candidates, alineado con
+  `MaximumFetchesPerRun`, en lugar de poder producir hasta 500 Sources que el
+  siguiente stage rechazaría completamente.
+- `MaximumLiveResearchSourcesPerRun` hace explícito el ceiling interoperable
+  del query-to-bundle sin reducir el límite genérico de candidate tooling.
+- Límite derivado `MaximumClaimCandidatesPerSource=192` añadido como
+  `24 Evidence/Source × 8 Claim candidates/Evidence`.
+- Live Claim extraction cuenta Evidence por Source y rechaza overflow antes de
+  invocar el extractor o persistir Claims/citations.
+- Tests nuevos saturan tres queries de 100 resultados y confirman que sólo se
+  ejecutan dos, con exactamente 200 results/candidates; otro test confirma
+  rechazo pre-extraction de la Evidence número 25 para una Source.
+
+### Decisions
+
+- Los defaults conservadores permanecen: cuatro queries, ocho resultados por
+  query, ocho fetch workers, 2 MiB por Source y 64 MiB por Run.
+- Configuración puede reducir límites; sus hard ceilings siguen siendo ocho
+  queries y 100 resultados/query. El fan-out live total se cierra en 200 para
+  que cada Source registrada sea procesable por fetch.
+- La cuota de bytes por Source es
+  `min(2 MiB, 64 MiB / source_count)`, de modo que elevar Sources nunca eleva
+  el presupuesto total de cuerpos.
+- El bound de Claims/Source se valida mediante su input durable de Evidence y
+  los contratos versionados de ambos extractors; no se añadió otra queue,
+  scheduler ni configuración paralela.
+- No se elevaron ceilings, no se añadió dependencia y no se modificaron
+  privacidad, ranking, trust, verification, retry, bundle ni I-04.
+
+### Verification
+
+- `go test -race ./internal/app ./internal/research/application -run
+  'ResearchTopicSearchStage|LiveClaimExtraction|LiveSourceFetch|ResearchProcessing'
+  -count=1`.
+- `go test -race -tags=e2e ./tests/e2e -count=1`.
+- `go vet -tags=e2e ./tests/e2e`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 46 debe verificar exclusivamente la regresión offline sin provider
+  ni red; no está autorizado por este cierre.
+- Los ceilings y fórmulas de `research-live-bounds-v1.md` deben permanecer
+  coordinados si un cambio posterior reduce límites productivos.
