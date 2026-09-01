@@ -22,12 +22,16 @@ func NewStaticSearchProvider(results []application.SearchResult) *StaticSearchPr
 func (provider *StaticSearchProvider) Search(
 	ctx context.Context,
 	_ application.SearchQuery,
-	_ application.SearchOptions,
+	options application.SearchOptions,
 ) ([]application.SearchResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return cloneSearchResults(provider.results), nil
+	results := provider.results
+	if len(results) > options.Limit {
+		results = results[:options.Limit]
+	}
+	return cloneSearchResults(results), nil
 }
 
 func cloneSearchResults(results []application.SearchResult) []application.SearchResult {

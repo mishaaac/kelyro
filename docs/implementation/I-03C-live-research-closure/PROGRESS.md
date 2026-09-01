@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 37
-Last completed step: 36
+Current step: 38
+Last completed step: 37
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -2045,3 +2045,51 @@ Release: unreleased
   `StaticSearchProvider` y el adapter Brave.
 - Los checks vendor-specific de HTTP/status/limits permanecen en este paquete;
   conformance debe probar únicamente el contrato neutral `SearchProvider`.
+
+## Step 37 — SearchProvider conformance tests
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- Paquete reusable `searchprovidertest` añadido como test harness del port
+  application-owned `SearchProvider`, listo para adapters futuros.
+- El mismo suite se ejecuta contra `StaticSearchProvider` y contra el adapter
+  real Brave, sin dos copias divergentes de las expectativas.
+- Conformance cubre resultados válidos y bounded, hints opcionales, empty,
+  cancelación, preservación de inputs y ownership defensivo de slices y
+  timestamps retornados.
+- El fixture estático ahora respeta `SearchOptions.Limit`; el suite detectó que
+  antes devolvía todo su result set aunque el caller pidiera menos resultados.
+- Brave cruza el suite mediante su implementación real y una respuesta nativa
+  JSON determinista inyectada por `HTTPClient`, sin Internet público.
+
+### Decisions
+
+- El suite contiene sólo semántica provider-neutral. Status HTTP, headers,
+  pagination, response bounds, auth, rate limiting y timeouts permanecen en los
+  unit tests vendor-specific del Paso 36.
+- La factory reusable recibe fixtures contractuales y debe devolver la
+  implementación real; así un futuro adapter puede traducirlos a su wire format
+  sin debilitar las mismas assertions.
+- `StaticSearchProvider` continúa siendo network-free y defensivo. Honrar
+  `Limit` es una corrección de conformance acotada, no una nueva policy.
+- No se cambió la interface `SearchProvider`, el DiscoveryService, la UX, el
+  lifecycle ni la configuración productiva.
+
+### Verification
+
+- `go test -race ./internal/research/application/... ./internal/infra/researchsearch -run 'SearchProviderConformance' -count=1`.
+- `go test -race ./internal/research/application/... ./internal/infra/researchsearch -count=1`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 38 debe añadir el E2E query-to-bundle completo con Search API y
+  content server locales; este paso no adelanta esa matriz.
+- Adapters futuros deben invocar `searchprovidertest.Run` además de conservar
+  sus propios tests de transporte y mapping vendor-specific.

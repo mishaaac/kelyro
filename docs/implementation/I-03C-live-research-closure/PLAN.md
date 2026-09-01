@@ -1355,7 +1355,7 @@ test(research): cover production search provider adapter
 
 ## Paso 37 — SearchProvider conformance tests
 
-- [ ] Paso 37 completado
+- [x] Paso 37 completado
 
 Mismo suite para:
 
