@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 39
-Last completed step: 38
+Current step: 40
+Last completed step: 39
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- privacy, partial failure, idempotency, and live smoke coverage pending
+- partial failure, idempotency, and live smoke coverage pending
 
 ## Registro
 
@@ -2149,3 +2149,50 @@ Release: unreleased
   la Search API y cero fetches, sin reutilizar este success como atajo.
 - Partial failure, idempotency y live smoke continúan reservados a los Pasos
   40–42.
+
+## Step 39 — E2E privacy disabled
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- E2E `TestResearchTopicPrivacyDisabledEndToEnd` añadido bajo el gate `e2e`
+  con `privacy.allow_network=false` y toda la infraestructura live configurada.
+- El fixture cuenta por separado invocaciones al método del provider, requests
+  a la Search API y requests a cada documento del content server.
+- El escenario exige cero provider calls, cero Search API requests y cero
+  fetches aun cuando provider, credencial, discovery, fetcher y normalizer
+  están disponibles.
+- El workspace reabierto confirma un Run terminal `failed`, audit durable con
+  `network_research_blocked`, cero resultados/fetches/providers usados y cero
+  bundles persistidos.
+
+### Decisions
+
+- La factory sí debe construirse una vez: esto demuestra que el bloqueo ocurre
+  en la compuerta de privacidad del flujo real y no por configuración ausente.
+- `QueryCount` conserva la consulta planificada aunque la red esté bloqueada;
+  por ello la frontera se prueba con contadores directos del provider/HTTP y
+  con `ResultCount`, `FetchCount` y providers usados iguales a cero.
+- Se reutilizan los mismos servidores loopback y el mismo adapter fixture del
+  E2E query-to-bundle, pero no se precargan Sources ni registry entries porque
+  ninguna candidate debe atravesar discovery.
+- No se cambió código productivo, UX, schema, lifecycle, políticas ni I-04.
+
+### Verification
+
+- `go test -race -tags=e2e ./tests/e2e -run '^TestResearchTopicPrivacyDisabledEndToEnd$' -count=1`.
+- `go test -race -tags=e2e ./tests/e2e -run '^TestResearchTopic(QueryToBundle|PrivacyDisabled)EndToEnd$' -count=1`.
+- `go test -tags=e2e ./tests/e2e -count=1`.
+- `go vet -tags=e2e ./tests/e2e`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 40 debe cubrir fallos parciales bounded de fuentes sin cambiar la
+  frontera offline demostrada aquí.
+- Idempotency y live smoke continúan reservados a los Pasos 41–42.

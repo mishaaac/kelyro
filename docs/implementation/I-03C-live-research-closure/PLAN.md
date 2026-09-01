@@ -1409,7 +1409,7 @@ test(e2e): cover research query-to-bundle workflow
 
 ## Paso 39 — E2E privacy disabled
 
-- [ ] Paso 39 completado
+- [x] Paso 39 completado
 
 Con:
 

@@ -120,6 +120,86 @@ func TestResearchTopicQueryToBundleEndToEnd(t *testing.T) {
 	}
 }
 
+func TestResearchTopicPrivacyDisabledEndToEnd(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	workspaces := workspacefs.New("privacy-disabled-e2e")
+	if _, err := workspaces.Init(root, workspace.InitOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newQueryToBundleFixture(t)
+	stores := researchdb.NewFactory("privacy-disabled-e2e")
+
+	httpConfig := researchhttp.DefaultConfig()
+	httpConfig.UserAgent = "Kelyro/privacy-disabled-e2e"
+	httpConfig.RequestTimeout = 3 * time.Second
+	httpConfig.DialTimeout = time.Second
+	httpConfig.MinimumIntervalPerHost = time.Millisecond
+	httpClient, err := researchhttp.NewLoopbackFixtureClient(httpConfig, fixture.contentHosts, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(httpClient.CloseIdleConnections)
+
+	searchFactory := &queryToBundleSearchFactory{client: fixture.searchAPI.Client(), endpoint: fixture.searchAPI.URL}
+	service := app.NewService(workspaces, func() (string, error) { return root, nil }).
+		WithConfig(&queryToBundleConfigStore{}).
+		WithSecrets(&queryToBundleSecretStore{values: map[string]string{queryToBundleSecretName: "fixture-token"}}).
+		WithResearchStores(stores).
+		WithResearchCaches(researchcachefs.NewFactory()).
+		WithResearchSearch(searchFactory).
+		WithResearchFetcher(researchfetch.New(httpClient)).
+		WithResearchNormalizer(researchnormalize.New())
+
+	_, err = service.Execute(ctx, app.Command{
+		Action: app.ActionResearch, Workspace: root, ResearchOperation: "topic", ResearchTopic: "Fixture API",
+		ConfigOverrides: config.Settings{
+			config.KeyAllowNetwork:                     config.BoolValue(false),
+			config.KeyResearchSearchProvider:           config.StringValue(queryToBundleProviderID),
+			config.KeyResearchSearchMaxResultsPerQuery: config.NumberValue(2),
+			config.KeyResearchSearchMaxQueriesPerRun:   config.NumberValue(1),
+		},
+	})
+	if !errors.Is(err, application.ErrNetworkResearchBlocked) {
+		t.Fatalf("research topic error = %v, want network research blocked", err)
+	}
+	if searchFactory.buildCalls.Load() != 1 || searchFactory.provider == nil {
+		t.Fatalf("search factory build/provider = %d/%v", searchFactory.buildCalls.Load(), searchFactory.provider != nil)
+	}
+	if searchFactory.provider.calls.Load() != 0 || fixture.searchCalls.Load() != 0 ||
+		fixture.contentCalls[0].Load() != 0 || fixture.contentCalls[1].Load() != 0 {
+		t.Fatalf(
+			"provider/search/content calls = %d/%d/[%d,%d], want all zero",
+			searchFactory.provider.calls.Load(), fixture.searchCalls.Load(),
+			fixture.contentCalls[0].Load(), fixture.contentCalls[1].Load(),
+		)
+	}
+
+	store, err := stores.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	durableRun, err := store.Research().Run(ctx, searchFactory.runID)
+	if err != nil || durableRun.Status != research.ResearchRunFailed || durableRun.CompletedAt == nil {
+		t.Fatalf("durable run = (%+v, %v)", durableRun, err)
+	}
+	audits, err := store.Research().AuditTrail(ctx, durableRun.ID)
+	if err != nil || len(audits) == 0 {
+		t.Fatalf("durable audit trail = (%+v, %v)", audits, err)
+	}
+	terminal := audits[len(audits)-1]
+	if terminal.Outcome != research.ResearchRunFailed || terminal.NetworkAllowed || terminal.Execution == nil ||
+		terminal.Execution.FailureKind != string(application.ErrorNetworkResearchBlocked) ||
+		terminal.Execution.ResultCount != 0 || terminal.Execution.FetchCount != 0 || len(terminal.Execution.Providers) != 0 {
+		t.Fatalf("terminal privacy audit = %+v", terminal)
+	}
+	bundles, err := store.Bundles().ListForRun(ctx, durableRun.ID)
+	if err != nil || len(bundles) != 0 {
+		t.Fatalf("durable bundles = (%+v, %v), want none", bundles, err)
+	}
+}
+
 const (
 	queryToBundleProviderID = "fixture-search-api"
 	queryToBundleSecretName = "research.search.fixture-search-api.api_key"
@@ -239,8 +319,11 @@ func seedQueryToBundleSources(t *testing.T, ctx context.Context, stores *researc
 }
 
 type queryToBundleSearchFactory struct {
-	client   *http.Client
-	endpoint string
+	client     *http.Client
+	endpoint   string
+	buildCalls atomic.Int32
+	runID      research.ID
+	provider   *queryToBundleSearchProvider
 }
 
 func (factory *queryToBundleSearchFactory) Build(ctx context.Context, request application.LiveSearchBuildRequest) (application.LiveSearchBuildResult, error) {
@@ -255,6 +338,9 @@ func (factory *queryToBundleSearchFactory) Build(ctx context.Context, request ap
 		return application.LiveSearchBuildResult{}, err
 	}
 	provider := &queryToBundleSearchProvider{client: factory.client, endpoint: factory.endpoint, token: token}
+	factory.buildCalls.Add(1)
+	factory.runID = request.RunID
+	factory.provider = provider
 	discovery, err := application.NewCostControlledDiscoveryService(
 		provider, nil, request.Access, request.Costs, request.Clock,
 		application.LiveSearchCostPolicy{
@@ -274,9 +360,11 @@ type queryToBundleSearchProvider struct {
 	client   *http.Client
 	endpoint string
 	token    string
+	calls    atomic.Int32
 }
 
 func (provider *queryToBundleSearchProvider) Search(ctx context.Context, query application.SearchQuery, options application.SearchOptions) ([]application.SearchResult, error) {
+	provider.calls.Add(1)
 	return provider.search(ctx, query, options, nil)
 }
 
@@ -286,6 +374,7 @@ func (provider *queryToBundleSearchProvider) SearchWithCostControl(
 	options application.SearchOptions,
 	authorize application.ProviderCallAuthorizer,
 ) ([]application.SearchResult, error) {
+	provider.calls.Add(1)
 	if authorize == nil {
 		return nil, errors.New("fixture provider authorizer is unavailable")
 	}
