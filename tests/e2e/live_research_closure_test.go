@@ -304,6 +304,180 @@ func TestResearchTopicPartialSourceFailureEndToEnd(t *testing.T) {
 	}
 }
 
+func TestResearchTopicRetryIdempotencyEndToEnd(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	workspaces := workspacefs.New("retry-idempotency-e2e")
+	if _, err := workspaces.Init(root, workspace.InitOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newQueryToBundleFixture(t)
+	stores := researchdb.NewFactory("retry-idempotency-e2e")
+	seedQueryToBundleSources(t, ctx, stores, root, fixture)
+
+	httpConfig := researchhttp.DefaultConfig()
+	httpConfig.UserAgent = "Kelyro/retry-idempotency-e2e"
+	httpConfig.RequestTimeout = 3 * time.Second
+	httpConfig.DialTimeout = time.Second
+	httpConfig.MinimumIntervalPerHost = time.Millisecond
+	httpClient, err := researchhttp.NewLoopbackFixtureClient(httpConfig, fixture.contentHosts, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(httpClient.CloseIdleConnections)
+
+	searchCache := &queryToBundleSearchCache{results: fixture.searchResults()}
+	searchFactory := &queryToBundleSearchFactory{
+		client: fixture.searchAPI.Client(), endpoint: fixture.searchAPI.URL, cache: searchCache,
+	}
+	normalizer := &interruptingQueryToBundleNormalizer{delegate: researchnormalize.New()}
+	normalizer.interrupted.Store(true)
+	service := app.NewService(workspaces, func() (string, error) { return root, nil }).
+		WithConfig(&queryToBundleConfigStore{}).
+		WithSecrets(&queryToBundleSecretStore{values: map[string]string{queryToBundleSecretName: "fixture-token"}}).
+		WithResearchStores(stores).
+		WithResearchCaches(researchcachefs.NewFactory()).
+		WithResearchSearch(searchFactory).
+		WithResearchFetcher(researchfetch.New(httpClient)).
+		WithResearchNormalizer(normalizer)
+
+	command := app.Command{
+		Action: app.ActionResearch, Workspace: root, ResearchOperation: "topic", ResearchTopic: "Fixture API",
+		ConfigOverrides: config.Settings{
+			config.KeyAllowNetwork:                     config.BoolValue(true),
+			config.KeyResearchSearchProvider:           config.StringValue(queryToBundleProviderID),
+			config.KeyResearchSearchMaxResultsPerQuery: config.NumberValue(2),
+			config.KeyResearchSearchMaxQueriesPerRun:   config.NumberValue(1),
+		},
+	}
+	_, err = service.Execute(ctx, command)
+	if !errors.Is(err, application.ErrUnavailable) {
+		t.Fatalf("interrupted research topic error = %v, want unavailable", err)
+	}
+	if normalizer.calls.Load() != 2 || fixture.searchCalls.Load() != 1 ||
+		fixture.contentCalls[0].Load() != 1 || fixture.contentCalls[1].Load() != 1 {
+		t.Fatalf(
+			"interrupted calls = normalizer:%d search:%d content:[%d,%d]",
+			normalizer.calls.Load(), fixture.searchCalls.Load(), fixture.contentCalls[0].Load(), fixture.contentCalls[1].Load(),
+		)
+	}
+	firstStore, err := stores.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queued, err := firstStore.Triggers().Queued(ctx)
+	if err != nil || len(queued) != 1 {
+		t.Fatalf("interrupted queue = (%+v, %v)", queued, err)
+	}
+	firstQueue := queued[0]
+	firstExecution, err := firstStore.Triggers().Execution(ctx, firstQueue.ID)
+	if err != nil || firstExecution.Status != application.ResearchQueueExecutionRetry || firstExecution.Attempts != 1 ||
+		firstExecution.RunID.Validate() != nil || firstQueue.Status != research.ResearchQueueQueued {
+		t.Fatalf("interrupted durable execution = (%+v, %v)", firstExecution, err)
+	}
+	firstRun, err := firstStore.Research().Run(ctx, firstExecution.RunID)
+	if err != nil || firstRun.Status != research.ResearchRunFailed || firstRun.RequestID != firstQueue.Request.ID {
+		t.Fatalf("interrupted durable run = (%+v, %v)", firstRun, err)
+	}
+	firstSources, err := firstStore.Sources().List(ctx)
+	if err != nil || len(firstSources) != 2 {
+		t.Fatalf("interrupted durable sources = (%+v, %v)", firstSources, err)
+	}
+	firstSnapshots := make(map[research.SourceID]research.ID, len(firstSources))
+	for _, source := range firstSources {
+		snapshot, snapshotErr := firstStore.Sources().LatestSnapshot(ctx, source.ID)
+		if snapshotErr != nil {
+			t.Fatalf("interrupted latest snapshot for %q: %v", source.ID, snapshotErr)
+		}
+		firstSnapshots[source.ID] = snapshot.ID
+	}
+	firstBundles, err := firstStore.Bundles().ListForRun(ctx, firstRun.ID)
+	if err != nil || len(firstBundles) != 0 {
+		t.Fatalf("interrupted run bundles = (%+v, %v), want none", firstBundles, err)
+	}
+	firstAudits, err := firstStore.Research().AuditTrail(ctx, firstRun.ID)
+	if err != nil || len(firstAudits) == 0 || firstAudits[len(firstAudits)-1].Execution == nil ||
+		firstAudits[len(firstAudits)-1].Execution.FailureKind != string(application.ErrorUnavailable) {
+		t.Fatalf("interrupted run audit = (%+v, %v)", firstAudits, err)
+	}
+	if err := firstStore.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	normalizer.interrupted.Store(false)
+	command.ConfigOverrides[config.KeyAllowNetwork] = config.BoolValue(false)
+	second, err := service.Execute(ctx, command)
+	if err != nil {
+		t.Fatalf("retry research topic: %v", err)
+	}
+	if second.ResearchView == nil || second.ResearchView.Execution == nil || second.ResearchView.Bundle == nil {
+		t.Fatalf("retry research view = %+v", second.ResearchView)
+	}
+	secondView := second.ResearchView
+	secondExecution := secondView.Execution
+	if secondView.Run.Status != research.ResearchRunCompleted || secondView.DiscoveryPending ||
+		secondExecution.Disposition != application.ResearchQueueConsumeCompleted || secondExecution.Execution.Attempts != 2 ||
+		secondExecution.QueueItem.ID != firstQueue.ID || secondView.Request.ID != firstQueue.Request.ID ||
+		secondView.Run.ID == firstRun.ID || secondExecution.Execution.RunID != secondView.Run.ID {
+		t.Fatalf("retry research execution = %+v", secondExecution)
+	}
+	artifacts := secondExecution.Orchestration.Artifacts
+	if len(artifacts.Sources) != 2 || len(artifacts.Snapshots) != 2 || len(artifacts.Claims) != 2 || artifacts.Bundle == nil {
+		t.Fatalf("retry artifacts = %+v", artifacts)
+	}
+	secondSnapshots := snapshotIDsBySource(artifacts.Snapshots)
+	if !equalSnapshotIDs(firstSnapshots, secondSnapshots) {
+		t.Fatalf("retry snapshots = %+v, want reused %+v", secondSnapshots, firstSnapshots)
+	}
+	if fixture.searchCalls.Load() != 1 || fixture.contentCalls[0].Load() != 1 || fixture.contentCalls[1].Load() != 1 {
+		t.Fatalf(
+			"retry reached network: search/content = %d/[%d,%d]",
+			fixture.searchCalls.Load(), fixture.contentCalls[0].Load(), fixture.contentCalls[1].Load(),
+		)
+	}
+
+	store, err := stores.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	sources, err := store.Sources().List(ctx)
+	if err != nil || len(sources) != 2 {
+		t.Fatalf("retry durable sources = (%+v, %v)", sources, err)
+	}
+	for _, source := range sources {
+		latest, latestErr := store.Sources().LatestSnapshot(ctx, source.ID)
+		if latestErr != nil || latest.ID != firstSnapshots[source.ID] {
+			t.Fatalf("retry latest snapshot for %q = (%+v, %v)", source.ID, latest, latestErr)
+		}
+	}
+	for _, claim := range artifacts.Claims {
+		durable, claimErr := store.Claims().Get(ctx, claim.ID)
+		if claimErr != nil || durable.ID != claim.ID {
+			t.Fatalf("retry durable claim %q = (%+v, %v)", claim.ID, durable, claimErr)
+		}
+	}
+	firstBundles, err = store.Bundles().ListForRun(ctx, firstRun.ID)
+	if err != nil || len(firstBundles) != 0 {
+		t.Fatalf("interrupted run bundles = (%+v, %v), want none", firstBundles, err)
+	}
+	secondBundles, err := store.Bundles().ListForRun(ctx, secondView.Run.ID)
+	if err != nil || len(secondBundles) != 1 || secondBundles[0].ID != secondView.Bundle.ID ||
+		len(secondBundles[0].ClaimIDs) != len(artifacts.Claims) {
+		t.Fatalf("retry run bundles = (%+v, %v)", secondBundles, err)
+	}
+	execution, err := store.Triggers().Execution(ctx, firstQueue.ID)
+	if err != nil || execution.Status != application.ResearchQueueExecutionCompleted || execution.Attempts != 2 ||
+		execution.RunID != secondView.Run.ID || execution.BundleID == nil || *execution.BundleID != secondView.Bundle.ID {
+		t.Fatalf("retry durable queue execution = (%+v, %v)", execution, err)
+	}
+	firstAudits, err = store.Research().AuditTrail(ctx, firstRun.ID)
+	if err != nil || len(firstAudits) == 0 || firstAudits[len(firstAudits)-1].Execution == nil ||
+		firstAudits[len(firstAudits)-1].Execution.FailureKind != string(application.ErrorUnavailable) {
+		t.Fatalf("interrupted run audit = (%+v, %v)", firstAudits, err)
+	}
+}
+
 const (
 	queryToBundleProviderID = "fixture-search-api"
 	queryToBundleSecretName = "research.search.fixture-search-api.api_key"
@@ -412,6 +586,37 @@ func newQueryToBundleFixtureWithDocuments(t *testing.T, documents []queryToBundl
 	return fixture
 }
 
+func (fixture *queryToBundleFixture) searchResults() []application.SearchResult {
+	results := make([]application.SearchResult, len(fixture.locators))
+	for index, locator := range fixture.locators {
+		results[index] = application.SearchResult{
+			Title: fmt.Sprintf("Fixture API source %d", index+1), Locator: locator,
+			Snippet: "Controlled query-to-bundle candidate.", Provider: queryToBundleProviderID, Rank: index,
+		}
+	}
+	return results
+}
+
+func snapshotIDsBySource(snapshots []research.SourceSnapshot) map[research.SourceID]research.ID {
+	result := make(map[research.SourceID]research.ID, len(snapshots))
+	for _, snapshot := range snapshots {
+		result[snapshot.SourceID] = snapshot.ID
+	}
+	return result
+}
+
+func equalSnapshotIDs(left, right map[research.SourceID]research.ID) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for sourceID, snapshotID := range left {
+		if right[sourceID] != snapshotID {
+			return false
+		}
+	}
+	return true
+}
+
 func containsString(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
@@ -473,6 +678,7 @@ func seedQueryToBundleSources(t *testing.T, ctx context.Context, stores *researc
 type queryToBundleSearchFactory struct {
 	client     *http.Client
 	endpoint   string
+	cache      application.SearchCache
 	buildCalls atomic.Int32
 	runID      research.ID
 	provider   *queryToBundleSearchProvider
@@ -494,7 +700,7 @@ func (factory *queryToBundleSearchFactory) Build(ctx context.Context, request ap
 	factory.runID = request.RunID
 	factory.provider = provider
 	discovery, err := application.NewCostControlledDiscoveryService(
-		provider, nil, request.Access, request.Costs, request.Clock,
+		provider, factory.cache, request.Access, request.Costs, request.Clock,
 		application.LiveSearchCostPolicy{
 			RunID: request.RunID, MaxResultsPerQuery: request.Settings.MaxResultsPerQuery,
 			AlgorithmVersion: application.LiveSearchCostPolicyV1,
@@ -506,6 +712,34 @@ func (factory *queryToBundleSearchFactory) Build(ctx context.Context, request ap
 	return application.LiveSearchBuildResult{
 		Provider: provider, Discovery: discovery, ProviderID: queryToBundleProviderID, AdapterVersion: "fixture-search-api-v1",
 	}, nil
+}
+
+type queryToBundleSearchCache struct {
+	results []application.SearchResult
+}
+
+func (cache *queryToBundleSearchCache) SearchCached(_ context.Context, _ application.SearchQuery, options application.SearchOptions) ([]application.SearchResult, error) {
+	if cache == nil || len(cache.results) == 0 {
+		return nil, application.ErrNotFound
+	}
+	limit := min(options.Limit, len(cache.results))
+	return append([]application.SearchResult(nil), cache.results[:limit]...), nil
+}
+
+type interruptingQueryToBundleNormalizer struct {
+	delegate    application.SourceNormalizer
+	interrupted atomic.Bool
+	calls       atomic.Int32
+}
+
+func (normalizer *interruptingQueryToBundleNormalizer) Normalize(ctx context.Context, fetched application.FetchedSource) (application.NormalizedSource, error) {
+	normalizer.calls.Add(1)
+	if normalizer.interrupted.Load() {
+		return application.NormalizedSource{}, application.Classify(
+			application.ErrorUnavailable, "interrupt E2E after durable snapshot", errors.New("controlled retry interruption"),
+		)
+	}
+	return normalizer.delegate.Normalize(ctx, fetched)
 }
 
 type queryToBundleSearchProvider struct {

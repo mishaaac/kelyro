@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 41
-Last completed step: 40
+Current step: 42
+Last completed step: 41
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- retry/idempotency and live smoke coverage pending
+- live smoke coverage pending
 
 ## Registro
 
@@ -2245,3 +2245,59 @@ Release: unreleased
   reintentar el mismo queue item mediante un nuevo Run conforme al modelo.
 - El replay no debe duplicar lógicamente Source, snapshot, Claim ni bundle.
 - El smoke live continúa reservado al Paso 42.
+
+## Step 41 — E2E retry/idempotency
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- E2E `TestResearchTopicRetryIdempotencyEndToEnd` añadido bajo el gate `e2e`
+  sobre el composition root síncrono real de `research topic`.
+- El primer intento ejecuta search, fetch y snapshot para dos Sources y luego
+  recibe una interrupción transitoria controlada en normalization.
+- El primer Run queda durable como `failed`, la queue original como `retry`,
+  `attempts=1`, dos snapshots persistidos, failure kind seguro `unavailable` y
+  ningún bundle.
+- La segunda invocación reutiliza el mismo ResearchRequest y queue item, crea
+  el nuevo Run permitido por el modelo y completa con `attempts=2`.
+- El retry se ejecuta con red deshabilitada: discovery usa un SearchCache
+  determinista y fetch usa el cache filesystem productivo llenado por el primer
+  intento, con cero llamadas adicionales a Search API o content server.
+- Tras reabrir el workspace se verifican exactamente dos Sources, los mismos
+  dos snapshot IDs, cada Claim del resultado durable, cero bundles para el Run
+  fallido, un bundle para el Run completado y un único settlement de queue.
+
+### Decisions
+
+- La interrupción se inyecta en la frontera `SourceNormalizer`, inmediatamente
+  después de que el stage anterior haya persistido snapshots; no se añadió un
+  hook productivo ni una state machine alternativa.
+- `unavailable` es transitorio según `research-queue-worker-v1`; el consumer no
+  crea un loop automático y la segunda invocación explícita posee el retry.
+- El retry conserva la identidad lógica de request/queue pero usa un Run nuevo,
+  conforme al acceptance contract y a la arquitectura existente.
+- Reutilizar cache con `privacy.allow_network=false` prueba simultáneamente que
+  el replay durable no necesita refetch ni crea una segunda observación de
+  snapshot para contenido ya capturado.
+- Claims y bundle se construyen sólo en el intento que supera normalization;
+  Source y snapshot se reutilizan por identidad durable.
+- No se cambió código productivo, schema, lifecycle, política de retry,
+  provider, UX, trust/verification ni I-04.
+
+### Verification
+
+- `go test -race -tags=e2e ./tests/e2e -run '^TestResearchTopicRetryIdempotencyEndToEnd$' -count=1`.
+- `go test -race -tags=e2e ./tests/e2e -count=1`.
+- `go vet -tags=e2e ./tests/e2e`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 42 es el único paso pendiente y requiere un smoke live explícitamente
+  opt-in contra el provider externo real.
+- El smoke no debe usar URL hardcodeada ni contaminar las suites offline.

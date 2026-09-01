@@ -1452,7 +1452,7 @@ test(e2e): tolerate bounded source failures
 
 ## Paso 41 — E2E retry/idempotency
 
-- [ ] Paso 41 completado
+- [x] Paso 41 completado
 
 Interrumpir después de fetch/snapshot y reintentar.
 
