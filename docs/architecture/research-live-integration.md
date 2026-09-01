@@ -91,3 +91,31 @@ privacy gate, and the real Brave adapter. It submits a bounded query and
 requires one to three valid, unique result URLs returned dynamically by the
 provider. It does not assert an exact URL, title, ranking, snippet, or result
 count, and it never renders the credential.
+
+### Live query-to-bundle smoke
+
+The same explicit opt-in also guards a diagnostic full-pipeline smoke:
+
+```sh
+KELYRO_LIVE_RESEARCH_SEARCH_TESTS=1 go test ./tests/live -run '^TestLiveResearchQueryToBundle$' -count=1 -v
+```
+
+It queries the external provider for official Go documentation, selects an
+HTTPS result below `go.dev/doc/` returned by that request, and passes the
+discovered URL through the hardened fetcher. The resulting bounded body then
+traverses the real snapshot, normalization, deterministic Evidence/Claim
+extraction, trust/freshness, verification, and Source Bundle services.
+
+The test declares `go.dev` as reviewed official documentation in its temporary
+in-memory registry before evaluating trust. It does not invent a publication or
+update timestamp when the page supplies none. That declaration is independent
+of provider rank: search output remains only a candidate, while fetched content
+and its durable snapshot are the Evidence boundary. The smoke asserts identity
+links, non-empty stage outputs, verified or verified-with-caveat Claims, a ready
+or ready-with-caveats bundle, and bundle roundtrip. It does not assert exact
+ranking, prose, Claim count, bundle ID, or result URL.
+
+No public body or credential is written to the repository or SQLite. The
+temporary memory repositories retain bounded Evidence and metadata only for
+the lifetime of the test process. This diagnostic remains outside default CI
+and cannot replace the deterministic E2E suite.

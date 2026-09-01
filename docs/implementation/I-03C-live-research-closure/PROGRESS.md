@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 43
-Last completed step: 42
+Current step: 44
+Last completed step: 43
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- live query-to-bundle smoke and closure reviews pending
+- security, bounds, offline regression, and closure reviews pending
 
 ## Registro
 
@@ -2356,3 +2356,66 @@ Release: unreleased
   fetch → normalize → evidence → claim → verify → bundle.
 - El smoke completo debe afirmar invariantes, no ranking ni contenido exacto.
 - Security review y pasos posteriores permanecen fuera de alcance.
+
+## Step 43 — Live query-to-bundle smoke
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- Smoke `TestLiveResearchQueryToBundle` añadido bajo el mismo opt-in explícito
+  `KELYRO_LIVE_RESEARCH_SEARCH_TESTS=1` del provider real.
+- Una query bounded obtiene hasta cinco candidates desde Brave y selecciona una
+  URL HTTPS bajo `go.dev/doc/` devuelta dinámicamente; ninguna URL de fuente
+  está fijada en el test.
+- La URL descubierta atraviesa el `researchhttp` y `researchfetch` endurecidos,
+  snapshot durable en memoria y `researchnormalize` productivo.
+- El contenido normalizado continúa por Evidence y Claims deterministas,
+  citations, trust/freshness temporal, multi-source verification/diversity y
+  Source Bundle reales.
+- El registry temporal declara únicamente el dominio oficial `go.dev` como
+  documentación revisada Tier B. Ranking y snippet del provider no participan
+  en authority, trust, Evidence ni verification.
+- Las invariantes exigen cadena de identidad search result → Source → snapshot,
+  Evidence/Claims/trust no vacíos, una verification por Claim, estados
+  `verified`/`verified_with_caveat`, bundle `ready`/`ready_with_caveats`, hash y
+  roundtrip durable.
+- La guía live documenta el comando, las invariantes deliberadamente estables,
+  la declaración de authority separada y la ausencia de bodies/credenciales en
+  repositorio o SQLite.
+
+### Decisions
+
+- El smoke usa los services application y adapters productivos sobre los
+  repositories memory existentes; no duplica algoritmos ni abre un workspace
+  persistente para contenido web diagnóstico.
+- La query usa un operador `site:` para acotar el dominio revisado, pero la URL
+  exacta sigue procediendo exclusivamente del provider externo.
+- Se selecciona por esquema HTTPS, hostname oficial y familia `/doc/`, nunca por
+  rank, título, snippet, posición o path exacto.
+- La request declara propósito de definición conceptual y no fabrica
+  `PublishedAt`/`UpdatedAt` cuando la página no aporta esos metadatos.
+- Las assertions no congelan prose, número de Evidence/Claims, IDs, hash ni
+  bundle summary porque todos dependen de contenido público mutable.
+- El test permanece skip-before-network en suites normales. En esta sesión el
+  opt-in no estaba habilitado, por lo que se verificó compilación y skip seguro,
+  no una llamada pública autenticada.
+- No se cambió código productivo, schema, contratos, lifecycle, políticas,
+  costes, UX ni I-04.
+
+### Verification
+
+- `go test ./tests/live -run '^TestLiveResearch(QueryToBundle|SearchProvider)$' -count=1 -v`
+  (ambos skips esperados sin opt-in, antes de construir red).
+- `go vet ./tests/live`.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 44 debe revisar amenazas de discovery live sin refactorizar el
+  pipeline cerrado salvo una regresión reproducible.
+- Smokes live son diagnósticos opt-in y no sustituyen fixtures E2E offline.

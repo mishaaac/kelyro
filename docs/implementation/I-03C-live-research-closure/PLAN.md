@@ -1501,7 +1501,7 @@ test(research): add opt-in live web search smoke
 
 ## Paso 43 — Live query-to-bundle smoke
 
-- [ ] Paso 43 completado
+- [x] Paso 43 completado
 
 Flujo real opt-in:
 
