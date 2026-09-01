@@ -74,6 +74,61 @@ func TestServiceCoordinatesOfflineResearchUpdateScan(t *testing.T) {
 	}
 }
 
+func TestResearchRunProgressUsesDurableAuditAndBundleState(t *testing.T) {
+	t.Parallel()
+	started, _ := research.NewTimestamp(time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC))
+	completed, _ := research.NewTimestamp(time.Date(2026, 9, 1, 9, 1, 0, 0, time.UTC))
+	runID, _ := research.NewID("run.progress.failed")
+	query := "Go interfaces official documentation"
+	planned, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: mustAppResearchID(t, "audit.progress.planned"), RunID: runID, RecordedAt: started, StartedAt: started,
+		Outcome: research.ResearchRunPlanned, QueryPlannerVersion: "query-planner-v1", TrustPolicyVersion: "trust-policy-v1",
+		FreshnessVersion: research.FreshnessAlgorithmV1, ConflictResolverVersion: research.ConflictResolverAlgorithmV1,
+		NetworkMode: research.ResearchAuditNetworkAuto, NetworkAllowed: true, Queries: []string{query},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	terminal, err := research.SealResearchRunAuditV1(research.ResearchRunAudit{
+		ID: mustAppResearchID(t, "audit.progress.failed"), RunID: runID, RecordedAt: completed, StartedAt: started, CompletedAt: &completed,
+		Outcome: research.ResearchRunFailed, QueryPlannerVersion: "query-planner-v1", TrustPolicyVersion: "trust-policy-v1",
+		FreshnessVersion: research.FreshnessAlgorithmV1, ConflictResolverVersion: research.ConflictResolverAlgorithmV1,
+		ProvidersUsed: []string{"brave"}, NetworkMode: research.ResearchAuditNetworkAuto, NetworkAllowed: true, Queries: []string{query},
+		Execution: &research.ResearchAuditExecution{
+			Providers:  []research.ResearchAuditProvider{{ProviderID: "brave", AdapterVersion: "brave-web-search-v1", APICalls: 1}},
+			QueryCount: 1, ResultCount: 2, FailureKind: string(researchapp.ErrorExternalFailure),
+			CostUsed: research.ResearchCostUsage{SearchRequests: 1, ProviderAPICalls: 1}, AlgorithmVersion: research.LiveResearchExecutionAuditV1,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress, err := researchRunProgress(research.ResearchRun{
+		ID: runID, RequestID: mustAppResearchID(t, "request.progress.failed"), Status: research.ResearchRunFailed,
+		StartedAt: started, CompletedAt: &completed,
+	}, []research.ResearchRunAudit{planned, terminal}, nil)
+	if err != nil || progress.Phase != "failed" || len(progress.Queries) != 1 || progress.Queries[0] != query ||
+		len(progress.Providers) != 1 || progress.Providers[0].AdapterVersion != "brave-web-search-v1" ||
+		progress.Results != 2 || progress.FailureReason != string(researchapp.ErrorExternalFailure) {
+		t.Fatalf("failed progress = (%+v, %v)", progress, err)
+	}
+
+	bundleID := mustAppResearchID(t, "bundle.progress.completed")
+	completedRunID := mustAppResearchID(t, "run.progress.completed")
+	completedProgress, err := researchRunProgress(research.ResearchRun{
+		ID: completedRunID, RequestID: mustAppResearchID(t, "request.progress.completed"), Status: research.ResearchRunCompleted,
+		StartedAt: started, CompletedAt: &completed,
+	}, nil, &research.SourceBundle{
+		ID: bundleID, RunID: completedRunID, State: research.BundleReadyWithCaveats,
+		Issues: []research.SourceBundleIssue{research.BundleIssueVerificationCaveat},
+	})
+	if err != nil || completedProgress.BundleID == nil || *completedProgress.BundleID != bundleID ||
+		completedProgress.BundleState != research.BundleReadyWithCaveats || len(completedProgress.Warnings) != 1 ||
+		completedProgress.Warnings[0] != string(research.BundleIssueVerificationCaveat) {
+		t.Fatalf("completed progress = (%+v, %v)", completedProgress, err)
+	}
+}
+
 func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
 	t.Parallel()
 	root := "/workspaces/research-topic"
@@ -102,14 +157,17 @@ func TestServicePlansAndInspectsManualResearchTopic(t *testing.T) {
 		t.Fatalf("repeated research topic = (%+v, %v)", repeated.ResearchView, err)
 	}
 	status, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "status", ResearchRunID: planned.ResearchView.Run.ID})
-	if err != nil || status.ResearchView == nil || status.ResearchView.Request.Topic.Subject != "Go range over func" || status.ResearchView.Run.Status != research.ResearchRunPlanned {
+	if err != nil || status.ResearchView == nil || status.ResearchView.Request.Topic.Subject != "Go range over func" ||
+		status.ResearchView.Run.Status != research.ResearchRunPlanned || status.ResearchView.Progress == nil ||
+		status.ResearchView.Progress.Phase != "queued" || len(status.ResearchView.Progress.Queries) != 2 {
 		t.Fatalf("research status = (%+v, %v)", status.ResearchView, err)
 	}
 	audit, err := service.Execute(context.Background(), Command{Action: ActionResearch, Workspace: root, ResearchOperation: "show", ResearchRunID: planned.ResearchView.Run.ID})
 	if err != nil || audit.ResearchAuditView == nil || len(audit.ResearchAuditView.Records) != 1 ||
 		audit.ResearchAuditView.Records[0].QueryPlannerVersion != "query-planner-v1" ||
 		audit.ResearchAuditView.Records[0].Outcome != research.ResearchRunPlanned ||
-		audit.ResearchAuditView.Records[0].NetworkAllowed {
+		audit.ResearchAuditView.Records[0].NetworkAllowed || audit.ResearchAuditView.Progress.Phase != "queued" ||
+		len(audit.ResearchAuditView.Progress.Queries) != 2 {
 		t.Fatalf("research audit = (%+v, %v)", audit.ResearchAuditView, err)
 	}
 }

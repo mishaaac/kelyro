@@ -76,7 +76,23 @@ type ResearchCLIView struct {
 	NetworkAllowed   bool
 	DiscoveryPending bool
 	Execution        *researchapp.ResearchQueueConsumeResult
+	Progress         *ResearchRunProgressCLIView
 	AlgorithmVersion string
+}
+
+// ResearchRunProgressCLIView projects only durable run/audit/bundle state for
+// status and show. It is safe to rebuild after reopening the workspace.
+type ResearchRunProgressCLIView struct {
+	Phase         string
+	Queries       []string
+	Providers     []research.ResearchAuditProvider
+	Results       int
+	Fetches       int
+	Snapshots     int
+	Warnings      []string
+	BundleID      *research.ID
+	BundleState   research.SourceBundleState
+	FailureReason string
 }
 
 type SourceCLIView struct {
@@ -87,9 +103,10 @@ type SourceCLIView struct {
 }
 
 type ResearchAuditCLIView struct {
-	Request research.ResearchRequest
-	Run     research.ResearchRun
-	Records []research.ResearchRunAudit
+	Request  research.ResearchRequest
+	Run      research.ResearchRun
+	Records  []research.ResearchRunAudit
+	Progress ResearchRunProgressCLIView
 }
 
 func (service *Service) startResearchTopic(ctx context.Context, command Command, store researchapp.SourceRegistryStore) (ResearchCLIView, error) {
@@ -284,6 +301,15 @@ func researchStatus(ctx context.Context, store researchapp.SourceRegistryStore, 
 			view.Bundle = &bundles[len(bundles)-1]
 		}
 	}
+	records, err := store.Research().AuditTrail(ctx, runID)
+	if err != nil {
+		return ResearchCLIView{}, err
+	}
+	progress, err := researchRunProgress(run, records, view.Bundle)
+	if err != nil {
+		return ResearchCLIView{}, err
+	}
+	view.Progress = &progress
 	return view, nil
 }
 
@@ -303,5 +329,84 @@ func researchAudit(ctx context.Context, store researchapp.SourceRegistryStore, r
 	if err != nil {
 		return ResearchAuditCLIView{}, err
 	}
-	return ResearchAuditCLIView{Request: request, Run: run, Records: records}, nil
+	var bundle *research.SourceBundle
+	if store.Bundles() != nil {
+		bundles, listErr := store.Bundles().ListForRun(ctx, runID)
+		if listErr != nil {
+			return ResearchAuditCLIView{}, listErr
+		}
+		if len(bundles) > 0 {
+			bundle = &bundles[len(bundles)-1]
+		}
+	}
+	progress, err := researchRunProgress(run, records, bundle)
+	if err != nil {
+		return ResearchAuditCLIView{}, err
+	}
+	return ResearchAuditCLIView{Request: request, Run: run, Records: records, Progress: progress}, nil
+}
+
+func researchRunProgress(run research.ResearchRun, records []research.ResearchRunAudit, bundle *research.SourceBundle) (ResearchRunProgressCLIView, error) {
+	progress := ResearchRunProgressCLIView{Phase: researchRunPhase(run.Status)}
+	var terminal *research.ResearchRunAudit
+	for index := range records {
+		record := records[index]
+		if len(progress.Queries) == 0 && len(record.Queries) > 0 {
+			progress.Queries = append([]string(nil), record.Queries...)
+		}
+		if record.Outcome.IsTerminal() {
+			copy := record
+			terminal = &copy
+		}
+	}
+	if terminal != nil && terminal.Execution != nil {
+		execution := terminal.Execution
+		progress.Providers = append([]research.ResearchAuditProvider(nil), execution.Providers...)
+		progress.Results = execution.ResultCount
+		progress.Fetches = execution.FetchCount
+		progress.Snapshots = terminal.SourceCount
+		progress.FailureReason = execution.FailureKind
+		if execution.BundleID != nil {
+			id := *execution.BundleID
+			progress.BundleID = &id
+		}
+		if progress.Snapshots > 0 && progress.Fetches > progress.Snapshots {
+			progress.Warnings = append(progress.Warnings, "partial_source_processing")
+		}
+	}
+	if bundle != nil {
+		if bundle.RunID != run.ID {
+			return ResearchRunProgressCLIView{}, errors.New("research progress bundle belongs to a different run")
+		}
+		if progress.BundleID != nil && *progress.BundleID != bundle.ID {
+			return ResearchRunProgressCLIView{}, errors.New("research progress audit and bundle identities do not match")
+		}
+		id := bundle.ID
+		progress.BundleID = &id
+		progress.BundleState = bundle.State
+		for _, issue := range bundle.Issues {
+			progress.Warnings = appendResearchProgressWarning(progress.Warnings, string(issue))
+		}
+	}
+	return progress, nil
+}
+
+func researchRunPhase(status research.ResearchRunStatus) string {
+	switch status {
+	case research.ResearchRunPlanned:
+		return "queued"
+	case research.ResearchRunRunning:
+		return "query_to_bundle"
+	default:
+		return string(status)
+	}
+}
+
+func appendResearchProgressWarning(warnings []string, warning string) []string {
+	for _, existing := range warnings {
+		if existing == warning {
+			return warnings
+		}
+	}
+	return append(warnings, warning)
 }

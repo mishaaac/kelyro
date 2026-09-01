@@ -1301,7 +1301,7 @@ feat(cli): complete live research topic workflow
 
 ## Paso 35 — Mejorar `research status/show`
 
-- [ ] Paso 35 completado
+- [x] Paso 35 completado
 
 Mostrar:
 

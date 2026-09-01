@@ -1495,11 +1495,14 @@ func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
 		requestID := cliID(t, "request.cli-status")
 		runID := cliID(t, "run.cli-status")
 		topic, _ := research.NewResearchTopic("Status topic", "general", "")
-		view := app.ResearchCLIView{Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at}, Run: research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunRunning, StartedAt: at}}
+		view := app.ResearchCLIView{Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at}, Run: research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunRunning, StartedAt: at}, Progress: &app.ResearchRunProgressCLIView{Phase: "query_to_bundle", Queries: []string{"Status topic official documentation"}}}
 		service := &fakeService{result: app.Result{ResearchView: &view}}
 		var stdout, stderr bytes.Buffer
 		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "status", runID.String()})
-		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Status: running") || service.commands[0].ResearchRunID != runID {
+		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Status: running") ||
+			!strings.Contains(stdout.String(), "Phase: query_to_bundle") || !strings.Contains(stdout.String(), "Queries: 1") ||
+			!strings.Contains(stdout.String(), "Provider: none") || !strings.Contains(stdout.String(), "Warnings: none") ||
+			!strings.Contains(stdout.String(), "Bundle: none") || !strings.Contains(stdout.String(), "Failure reason: none") || service.commands[0].ResearchRunID != runID {
 			t.Fatalf("run status = code %d stdout %q stderr %q command %+v", code, stdout.String(), stderr.String(), service.commands[0])
 		}
 	})
@@ -1521,12 +1524,22 @@ func TestRunnerParsesAndRendersResearchCacheCommands(t *testing.T) {
 			Request: research.ResearchRequest{ID: requestID, Topic: topic, Purpose: research.PurposeCurrentUsage, RequestedAt: at},
 			Run:     research.ResearchRun{ID: runID, RequestID: requestID, Status: research.ResearchRunPlanned, StartedAt: at},
 			Records: []research.ResearchRunAudit{record},
+			Progress: app.ResearchRunProgressCLIView{
+				Phase: "completed", Queries: []string{"Go audited topic official documentation"},
+				Providers: []research.ResearchAuditProvider{{ProviderID: "brave", AdapterVersion: "brave-web-search-v1", APICalls: 1}},
+				Results:   3, Fetches: 2, Snapshots: 1, Warnings: []string{"partial_source_processing"},
+				BundleID: func() *research.ID { id := cliID(t, "bundle.cli-audit"); return &id }(), BundleState: research.BundleReadyWithCaveats,
+			},
 		}
 		service := &fakeService{result: app.Result{ResearchAuditView: &view}}
 		var stdout, stderr bytes.Buffer
 		code := NewRunner(service, &stdout, &stderr).Run(context.Background(), []string{"research", "show", runID.String()})
 		if code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), "Research audit: "+runID.String()) ||
 			!strings.Contains(stdout.String(), "Query planner: query-planner-v1") ||
+			!strings.Contains(stdout.String(), "Provider: brave (brave-web-search-v1, 1 API calls)") ||
+			!strings.Contains(stdout.String(), "Sources: 3 results, 2 fetch attempts, 1 snapshots") ||
+			!strings.Contains(stdout.String(), "Warnings: partial_source_processing") ||
+			!strings.Contains(stdout.String(), "Bundle: bundle.cli-audit (ready with caveats)") ||
 			!strings.Contains(stdout.String(), "cannot guarantee that the future Internet") {
 			t.Fatalf("run audit show = code %d stdout %q stderr %q", code, stdout.String(), stderr.String())
 		}

@@ -239,7 +239,8 @@ func TestResearchEngineEvidencePipelineEndToEnd(t *testing.T) {
 	}
 
 	statusOutput := scenario.mustRun("research", "status", run.ID.String())
-	if !strings.Contains(statusOutput, "Evidence pipeline") || !strings.Contains(statusOutput, "Status: ready with caveats") {
+	if !strings.Contains(statusOutput, "Evidence pipeline") || !strings.Contains(statusOutput, "Status: completed") ||
+		!strings.Contains(statusOutput, "Bundle: "+bundle.ID.String()+" (ready with caveats)") {
 		t.Fatalf("research status did not inspect persisted bundle:\n%s", statusOutput)
 	}
 	sourceOutput := scenario.mustRun("sources", "show", sources["official"].ID.String())

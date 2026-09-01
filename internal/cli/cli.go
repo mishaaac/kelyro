@@ -1683,8 +1683,10 @@ func formatResearchView(view app.ResearchCLIView) string {
 	status := string(view.Run.Status)
 	primary, supporting, conflicts := 0, 0, 0
 	lastVerified := "not available"
-	if view.Bundle != nil {
+	if view.Bundle != nil && view.Progress == nil {
 		status = strings.ReplaceAll(string(view.Bundle.State), "_", " ")
+	}
+	if view.Bundle != nil {
 		for _, source := range view.Bundle.Sources {
 			switch source.Role {
 			case research.BundleSourcePrimary:
@@ -1704,6 +1706,9 @@ func formatResearchView(view app.ResearchCLIView) string {
 		fmt.Sprintf("Supporting sources: %d", supporting),
 		fmt.Sprintf("Conflicts: %d", conflicts),
 		"Last verified: " + lastVerified,
+	}
+	if view.Progress != nil {
+		lines = append(lines, formatResearchProgress(*view.Progress)...)
 	}
 	if view.Execution != nil {
 		artifacts := view.Execution.Orchestration.Artifacts
@@ -1760,6 +1765,7 @@ func formatResearchAuditView(view app.ResearchAuditCLIView) string {
 		"Run status: " + string(view.Run.Status),
 		fmt.Sprintf("Checkpoints: %d", len(view.Records)),
 	}
+	lines = append(lines, formatResearchProgress(view.Progress)...)
 	if len(view.Records) == 0 {
 		lines = append(lines, "Audit metadata: not recorded")
 	}
@@ -1820,6 +1826,40 @@ func formatResearchAuditView(view app.ResearchAuditCLIView) string {
 		}
 	}
 	return strings.Join(append(lines, "", research.ResearchAuditInternetDisclaimer), "\n")
+}
+
+func formatResearchProgress(progress app.ResearchRunProgressCLIView) []string {
+	lines := []string{"Phase: " + progress.Phase}
+	lines = append(lines, fmt.Sprintf("Queries: %d", len(progress.Queries)))
+	for _, query := range progress.Queries {
+		lines = append(lines, "- "+query)
+	}
+	if len(progress.Providers) == 0 {
+		lines = append(lines, "Provider: none")
+	} else {
+		for _, provider := range progress.Providers {
+			lines = append(lines, fmt.Sprintf("Provider: %s (%s, %d API calls)", provider.ProviderID, provider.AdapterVersion, provider.APICalls))
+		}
+	}
+	lines = append(lines, fmt.Sprintf("Sources: %d results, %d fetch attempts, %d snapshots", progress.Results, progress.Fetches, progress.Snapshots))
+	if len(progress.Warnings) == 0 {
+		lines = append(lines, "Warnings: none")
+	} else {
+		lines = append(lines, "Warnings: "+strings.Join(progress.Warnings, ", "))
+	}
+	bundle := "none"
+	if progress.BundleID != nil {
+		bundle = progress.BundleID.String()
+		if progress.BundleState != "" {
+			bundle += " (" + strings.ReplaceAll(string(progress.BundleState), "_", " ") + ")"
+		}
+	}
+	lines = append(lines, "Bundle: "+bundle)
+	failure := progress.FailureReason
+	if failure == "" {
+		failure = "none"
+	}
+	return append(lines, "Failure reason: "+failure)
 }
 
 func formatSources(sources []research.Source) string {

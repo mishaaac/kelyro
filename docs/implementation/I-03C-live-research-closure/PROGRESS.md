@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 35
-Last completed step: 34
+Current step: 36
+Last completed step: 35
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- CLI status/show and output rendering pending
+- automated query-to-bundle acceptance matrix and live smoke coverage pending
 
 ## Registro
 
@@ -1940,3 +1940,63 @@ Release: unreleased
   queue/audit y bundle ya durables.
 - Provider, queries, counts, warnings, bundle y failure reason deben salir de
   records tipados; no reconstruirlos desde logs o mensajes externos.
+
+## Step 35 — Improve `research status/show`
+
+Status: completed
+Date: 2026-09-01
+Release: unreleased
+
+### Delivered
+
+- Proyección `ResearchRunProgressCLIView` añadida para reconstruir progreso
+  exclusivamente desde `ResearchRun`, audit trail y Source Bundle durables.
+- `research status` y `research show` reabren el workspace y muestran status,
+  phase, queries, provider/adapter/API calls, resultados, fetch attempts,
+  snapshots, warnings, bundle ID/state y failure reason seguro.
+- Phase distingue `queued`, `query_to_bundle` y los estados terminales
+  completed/failed/cancelled sin introducir otra state machine persistida.
+- Queries proceden del checkpoint planned; provider, conteos y failure reason
+  proceden de la extensión terminal `ResearchAuditExecution`.
+- Warnings combinan progreso parcial observable (`fetches > snapshots`) con
+  los `SourceBundleIssue` cerrados y versionados; no incluyen mensajes de red.
+- Status vuelve a mostrar el estado real del Run. El estado del bundle queda
+  separado junto a su ID, evitando presentar `ready_with_caveats` como si fuera
+  un lifecycle status.
+- `research show` conserva todos los checkpoints, hashes, policy versions,
+  snapshots y disclaimer existentes debajo del nuevo resumen durable.
+
+### Decisions
+
+- No se añadió una tabla/columna de progreso: los stages ya producen toda la
+  información durable requerida en Run, audit y bundle.
+- Si existe audit terminal y bundle, sus IDs deben coincidir; una divergencia
+  falla la inspección en lugar de mostrar una combinación incoherente.
+- `partial_source_processing` es una advertencia factual y conservadora cuando
+  hubo más fetch attempts que snapshots; no adivina si la pérdida ocurrió en
+  fetch, snapshot, cache o normalization.
+- Provider ausente se muestra como `none`; failure reason ausente como `none`.
+  Nunca se renderizan credentials, headers, endpoints, bodies ni mensajes
+  externos.
+- No se implementaron tests del adapter, conformance, E2E nuevos, smoke live,
+  daemon, IA ni I-04; pertenecen a pasos posteriores.
+
+### Verification
+
+- Tests de proyección durable para failure con provider/counters/reason y
+  completion con bundle caveat/warning.
+- Tests application de roundtrip lógico status/show sobre el store reabierto.
+- Tests CLI de status running y show con todos los campos nuevos.
+- Expectativa del E2E existente actualizada para separar Run status y bundle
+  state, sin ampliar todavía su alcance al Paso 38.
+- Tests dirigidos de app, CLI, application, researchdb y composition.
+- `go test ./...`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 36 debe cubrir exhaustivamente el adapter Brave con `httptest` y sin
+  Internet público; no modificar la UX salvo que revele una regresión real.
+- Los Pasos 38–41 siguen siendo dueños de la matriz E2E query-to-bundle,
+  privacy, partial failure e idempotency.
