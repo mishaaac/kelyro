@@ -2,14 +2,14 @@
 
 ## Estado general
 
-Current step: 47
-Last completed step: 46
+Current step: 48
+Last completed step: 47
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- regression and closure reviews pending
+- dogfooding and closure reviews pending
 
 ## Registro
 
@@ -2589,3 +2589,48 @@ Release: unreleased
   está autorizado por este cierre.
 - Mantener los checks offline sin componentes live cuando se amplíen las
   vistas read-only de Sources, Evidence, Bundle o ResearchRun.
+
+## Step 47 — Regression I-01/I-02/I-03
+
+Status: completed
+Date: 2026-09-07
+Release: unreleased
+
+### Delivered
+
+- Matriz formal de regresión del plan ejecutada sobre el HEAD que contiene los
+  Pasos 0–46 de I-03C.
+- Suite Go completa validó Foundation, Student & Learning Core, Research &
+  Source Intelligence, adapters, storage, CLI y TUI.
+- Análisis estático completo finalizó sin hallazgos.
+- Suite E2E completa validó los lifecycles de I-01, I-02 e I-03, incluyendo
+  query-to-bundle, privacidad, partial source failure, retry/idempotency y
+  reapertura offline.
+- No se encontró ninguna regresión reproducible y no fue necesario cambiar
+  código productivo ni tests.
+
+### Decisions
+
+- El Paso 47 registra evidencia de regresión; no duplica casos ya incorporados
+  en los pasos anteriores cuando la matriz completa pasa sin fallos.
+- El fallo inicial del E2E fue una restricción del sandbox al abrir listeners
+  loopback de `httptest`, no un fallo del producto. El mismo comando pasó al
+  ejecutarse fuera del sandbox con esa capacidad habilitada.
+- Los smokes live opt-in permanecieron excluidos: `go test ./...` sólo confirmó
+  su skip offline seguro y el Paso 47 no autoriza red pública ni credenciales.
+- No se inició dogfooding del Paso 48 ni se implementó I-04.
+
+### Verification
+
+- `go test ./...`.
+- `go vet ./...`.
+- `go test -tags=e2e ./tests/e2e` fuera del sandbox para permitir listeners
+  loopback deterministas de `httptest`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 48 debe realizar dogfooding live explícito sobre los cinco escenarios
+  previstos y requiere su propia autorización/configuración de credencial.
+- Mantener los smokes públicos opt-in; la regresión ordinaria y E2E debe seguir
+  siendo determinista y no depender de Internet.

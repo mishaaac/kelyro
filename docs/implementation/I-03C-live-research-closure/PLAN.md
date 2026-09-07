@@ -1605,7 +1605,7 @@ test(research): preserve offline-first research behavior
 
 ## Paso 47 — Regression I-01/I-02/I-03
 
-- [ ] Paso 47 completado
+- [x] Paso 47 completado
 
 ```bash
 go test ./...
