@@ -147,3 +147,71 @@ tested corrective change closes both observed boundaries:
 2. fetched Sources need an evidence-based, provider-rank-independent
    classification/registry path before trust evaluation.
 
+## Corrective rerun
+
+Date: 2026-09-08
+
+Tested commit: `b3ba758`
+
+The authorized correction introduced versioned natural-topic extractors and a
+post-normalization Source classifier. The full offline suite, vet, and E2E suite
+passed before five new isolated public-network runs were executed. The final
+matrix was:
+
+| Scenario | Sources | Classified fetched Sources | Snapshots | Evidence | Claims | Trust | Verification | Conflicts | Bundles |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Official documentation | 24 | 1 community article | 3 | 1 | 0 | 0 | 0 | 0 | 0 |
+| Release/version | 14 | 1 release notes, 1 official blog, 2 community articles | 4 | 71 | 7 | 3 | 7 insufficient | 0 | 1 incomplete |
+| Deprecation | 18 | 1 source code, 1 issue tracker, 2 community articles | 4 | 14 | 0 | 0 | 0 | 0 | 0 |
+| Multi-source | 18 | 1 package reference, 1 official documentation, 2 community articles | 4 | 10 | 1 | 1 | 1 insufficient | 0 | 1 incomplete |
+| Noisy/irrelevant | 26 | 3 community articles | 4 | 18 | 0 | 0 | 0 | 0 | 0 |
+
+All five runs again stopped safely as `failed / invalid_state`. Release and
+multi-source now traversed the entire pipeline and persisted an `incomplete`
+bundle instead of stopping at Evidence/Claim extraction. The multi-source Claim
+was the literal package-reference statement:
+
+```text
+Package context defines the Context type, which carries deadlines, cancellation signals, and other request-scoped values across API boundaries and between processes.
+```
+
+Release extraction preserved literal official statements including:
+
+```text
+Today the Go team is pleased to release Go 1.27.
+The latest Go release, version 1.27, arrives in August 2026, six months after Go 1.26.
+```
+
+The classifier persisted kinds only for successfully normalized content. It did
+not use Brave rank/title/snippet, did not upgrade unfetched candidates, and did
+not rewrite redirected identities. A real `medium.com` redirect was isolated as
+a partial normalization failure rather than being silently relabeled.
+
+The extraction correction is effective but deliberately conservative. Which
+four Sources receive the fixed 8 MiB fetch budget varies with concurrent
+reservations. In an intermediate clean run where `pkg.go.dev/io/ioutil` was
+fetched, the deprecation scenario produced 42 Evidence and 8 literal Claims;
+the final matrix fetched Go source plus community pages instead, and correctly
+invented no deprecation Claim. Noisy results likewise produced no unsupported
+Claim.
+
+### Newly exposed trust/verification boundary
+
+Every evaluated Source in the corrective rerun received
+`TrustRequiresVerification`; every resulting verification was
+`insufficient_evidence`. A fresh workspace has no applicable reviewed Source
+Registry entry, and natural literal statements normally have `status_scope=all`,
+which `live-trust-evaluation-v1` maps to unknown stability. The verification
+policy counts only `TrustAccepted` or `TrustAcceptedSupplement` as support, so
+even classified `release_notes`, `official_blog`, and `package_reference`
+Sources contribute zero accepted support and force an incomplete bundle.
+
+This is distinct from the two corrected boundaries. Resolving it requires an
+explicitly scoped decision about built-in reviewed registry data and/or how
+trust and verification treat a classified primary Source that still requires
+verification. The dogfooding step must not silently relax those policies.
+
+Every final run retained the same cost and audit bounds as the first attempt:
+four searches, four fetch reservations, 8 MiB reserved, four provider API calls,
+zero model calls, and two sealed audit checkpoints. Step 48 therefore remains
+blocked and Step 49 remains pending.

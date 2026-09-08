@@ -9,7 +9,8 @@ I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- live dogfooding exposed unresolved extraction and authority gaps
+- live dogfooding extraction and Source-kind gaps corrected in `b3ba758`
+- reviewed registry/trust handoff still prevents a ready live bundle
 - administrative closure and closure reviews pending
 
 ## Registro
@@ -2709,3 +2710,74 @@ Release: unreleased
 - Después de la corrección deben repetirse los cinco escenarios en workspaces
   limpios y sólo entonces cerrar el Paso 48.
 - El Paso 49 permanece pendiente y no debe adelantarse.
+
+## Step 48 — Dogfooding live research (attempt 2)
+
+Status: blocked
+Date: 2026-09-08
+Release: unreleased
+
+### Delivered
+
+- `evidence-extractor-v2` y `claim-extractor-v2` implementados y conectados al
+  composition root productivo, preservando los contratos v1.
+- Tópicos CLI naturales admiten overlap proporcional sólo cuando el statement
+  literal conserva un anchor local; versiones de release deben repetirse
+  literalmente y las formas de definición permanecen cerradas.
+- `source-classifier-v1` ejecutado únicamente después de fetch, snapshot y
+  normalización exitosos, independiente de rank/title/snippet de Brave.
+- Clasificación persistente añadida para documentación oficial, specifications,
+  release notes, blog/tutorial oficial, package reference, source code, issue
+  trackers, community material, video y paper mediante reglas cerradas.
+- Redirecciones que cambian locator se degradan a fallo parcial en vez de
+  reescribir la identidad durable o inventar aliases.
+- Cinco escenarios live repetidos en workspaces nuevos sobre `b3ba758`; matriz,
+  statements y métricas registrados en `DOGFOODING.md`.
+
+### Findings
+
+- Los gaps autorizados de extracción y Source kind quedaron corregidos: release
+  y multi-source atravesaron trust/verification/bundle, y Sources normalizadas
+  conservaron sus kinds en SQLite.
+- Los cinco Runs siguieron fallando de forma segura. Release produjo 71 Evidence,
+  7 Claims y un bundle incomplete; multi-source produjo 10 Evidence, 1 Claim y
+  un bundle incomplete.
+- Todas las decisiones producidas fueron `requires_verification` y todas las
+  verificaciones `insufficient_evidence`, incluso para `release_notes`,
+  `official_blog` y `package_reference`.
+- La causa restante es una frontera nueva: workspace sin registry revisado más
+  `status_scope=all` tratado como estabilidad desconocida; verification sólo
+  cuenta estados de trust aceptados como soporte.
+- La selección de cuatro fetches dentro del budget concurrente continúa
+  afectando qué fuente relevante alcanza extracción. Cuando no se descargó un
+  statement explícito, official/deprecation/noisy emitieron cero Claims en vez
+  de fabricar uno.
+
+### Decisions
+
+- Mantener Paso 48 sin completar y Paso 49 pendiente; no existe todavía un
+  Source Bundle `ready` o `ready_with_caveats` desde la red pública.
+- No sembrar registry entries ni relajar trust/verification bajo la autorización
+  limitada a extracción y clasificación. Esa decisión altera autoridad y exige
+  alcance explícito y tests propios.
+- Conservar los fallos seguros en official/deprecation/noisy cuando el conjunto
+  fetched no contiene una afirmación literal de una familia soportada.
+
+### Verification
+
+- `go test ./...`.
+- `go vet ./...`.
+- `go test -tags=e2e ./tests/e2e`.
+- Cinco invocaciones públicas reales de `kelyro research topic` sobre workspaces
+  limpios y el commit `b3ba758`.
+- Inspección SQLite read-only de Sources/kinds, snapshots, Evidence, Claims,
+  trust, verification, conflicts, bundles, cost y audit.
+- Cada Run: 4 searches, 4 fetch reservations, 8 MiB, 4 provider API calls,
+  0 model calls y 2 audit checkpoints.
+
+### Notes for next session
+
+- Hace falta autorización explícita para diseñar y corregir la frontera
+  registry/trust/verification revelada por el segundo dogfooding.
+- Repetir los cinco escenarios después de esa corrección; sólo entonces evaluar
+  cierre del Paso 48 y ejecutar Paso 49.
