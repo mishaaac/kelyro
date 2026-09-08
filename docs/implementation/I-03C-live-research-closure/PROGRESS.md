@@ -9,7 +9,8 @@ I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- dogfooding and closure reviews pending
+- live dogfooding exposed unresolved extraction and authority gaps
+- administrative closure and closure reviews pending
 
 ## Registro
 
@@ -2634,3 +2635,77 @@ Release: unreleased
   previstos y requiere su propia autorización/configuración de credencial.
 - Mantener los smokes públicos opt-in; la regresión ordinaria y E2E debe seguir
   siendo determinista y no depender de Internet.
+
+## Step 48 — Dogfooding live research (attempt 1)
+
+Status: blocked
+Date: 2026-09-08
+Release: unreleased
+
+### Delivered
+
+- Provider Brave, permiso de red y credencial verificados como disponibles por
+  Doctor dentro de un workspace temporal real.
+- Cinco ejecuciones aisladas realizadas desde el binario productivo para
+  documentación oficial, release/version, deprecation, multi-source y
+  resultados ruidosos.
+- Queries, Sources, snapshots, authority, Evidence, Claims, verification,
+  conflicts, bundle, cost y audit inspeccionados directamente desde los
+  artifacts SQLite durables de cada workspace.
+- Resultados completos, métricas, ejemplos y decisión de cierre registrados en
+  `DOGFOODING.md`, sin almacenar la credencial ni bodies web en el repositorio.
+- Regresión del primer secreto en un keychain Linux vacío corregida en
+  `a9afbc2`, con distinción entre not-found silencioso y fallo diagnóstico del
+  backend.
+
+### Findings
+
+- Los cinco Runs finalizaron como `failed / invalid_state`; ninguno produjo un
+  Source Bundle.
+- Discovery, Brave, privacidad, fetch, snapshots, límites de coste y audit
+  funcionaron y dejaron provenance durable. Cada Run registró cuatro búsquedas,
+  cuatro provider API calls, cuatro reservas de fetch, 8 MiB reservados, cero
+  model calls y dos checkpoints de audit.
+- Cuatro escenarios produjeron Evidence; tres llegaron a Claim extraction pero
+  no encontraron un statement admitido. El escenario multi-source no produjo
+  Evidence relevante.
+- El anchor exacto de `claim-extractor-v1` no interopera con subjects CLI
+  naturales que contienen calificadores, aunque Evidence incluya statements
+  literales explícitos de release o deprecation.
+- Todas las URLs descubiertas quedaron registradas como `SourceOther`; no hubo
+  una etapa productiva de clasificación ni registry entries aplicables. Ningún
+  Run alcanzó trust, verification, conflict analysis o bundle assembly.
+
+### Decisions
+
+- No marcar el Paso 48 como completado mientras el acceptance query-to-bundle
+  falle en los cinco escenarios live requeridos.
+- No ejecutar el Paso 49 ni afirmar que I-03 quedó corregido: el texto requerido
+  por ese paso exige un `<commit/release>` realmente resuelto.
+- No relajar extractors ni fabricar source kinds durante dogfooding. Ambos
+  cambios alteran algoritmos y requieren un alcance correctivo explícito con
+  tests deterministas antes de repetir red pública.
+- Search results siguen siendo candidates; los fallos observados no autorizan
+  usar rank, title o snippet como Evidence, authority o trust.
+
+### Verification
+
+- `kelyro doctor` sobre el workspace temporal: Foundation y Research Search
+  completamente disponibles.
+- Cinco invocaciones reales `kelyro research topic`, una por escenario.
+- Inspección CLI con `sources list`, `sources conflicts` y `research stats`.
+- Inspección SQLite read-only de Runs, queue, audit, Sources, snapshots,
+  Evidence, Claims, trust, verification, conflicts, bundles y cost events.
+- `GOCACHE=/tmp/kelyro-secretstore-full-test go test ./...` fuera del sandbox
+  para permitir listeners loopback deterministas.
+- `GOCACHE=/tmp/kelyro-secretstore-full-vet go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- Hace falta autorización explícita para una corrección posterior de los dos
+  gaps reproducibles documentados en `DOGFOODING.md`; no tratarlos como un
+  cambio documental del Paso 48.
+- Después de la corrección deben repetirse los cinco escenarios en workspaces
+  limpios y sólo entonces cerrar el Paso 48.
+- El Paso 49 permanece pendiente y no debe adelantarse.
