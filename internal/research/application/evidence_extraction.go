@@ -10,6 +10,7 @@ import (
 
 const (
 	EvidenceExtractorV1                  = "evidence-extractor-v1"
+	EvidenceExtractorV2                  = "evidence-extractor-v2"
 	MinimumEvidenceCandidateScore        = 50
 	MaximumEvidenceCandidatesPerSource   = 24
 	MaximumEvidenceCandidatesPerRun      = 1000
@@ -128,8 +129,8 @@ func (candidate EvidenceCandidate) Validate() error {
 		}
 		seen[signal] = struct{}{}
 	}
-	if candidate.ExtractorVersion != EvidenceExtractorV1 {
-		return fmt.Errorf("evidence candidate extractor must be %q", EvidenceExtractorV1)
+	if !supportedEvidenceExtractorVersion(candidate.ExtractorVersion) {
+		return fmt.Errorf("unsupported evidence candidate extractor %q", candidate.ExtractorVersion)
 	}
 	return nil
 }
@@ -197,10 +198,14 @@ func (result EvidenceExtractionResult) Validate() error {
 			return fmt.Errorf("evidence candidate %d: %w", index, err)
 		}
 	}
-	if result.AlgorithmVersion != EvidenceExtractorV1 {
-		return fmt.Errorf("evidence extraction algorithm must be %q", EvidenceExtractorV1)
+	if !supportedEvidenceExtractorVersion(result.AlgorithmVersion) {
+		return fmt.Errorf("unsupported evidence extraction algorithm %q", result.AlgorithmVersion)
 	}
 	return nil
+}
+
+func supportedEvidenceExtractorVersion(version string) bool {
+	return version == EvidenceExtractorV1 || version == EvidenceExtractorV2
 }
 
 // EvidenceExtractor deterministically selects bounded literal observations

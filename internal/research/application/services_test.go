@@ -620,6 +620,9 @@ func (repository failingSourceRepository) FindByLocator(context.Context, researc
 func (repository failingSourceRepository) List(context.Context) ([]research.Source, error) {
 	return nil, repository.err
 }
+func (repository failingSourceRepository) SetKind(context.Context, research.SourceID, research.SourceKind) error {
+	return repository.err
+}
 func (repository failingSourceRepository) SetTemporalScope(context.Context, research.SourceID, research.SourceTemporalScope) error {
 	return repository.err
 }

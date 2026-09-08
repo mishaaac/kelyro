@@ -638,6 +638,12 @@ func TestResearchSourceSnapshotEvidenceRepositoriesRoundTrip(t *testing.T) {
 	if got, err := repositories.Sources.Get(ctx, source.ID); err != nil || got.TemporalScope != research.SourceTemporalArchived {
 		t.Fatalf("archived source=(%+v,%v)", got, err)
 	}
+	if err := repositories.Sources.SetKind(ctx, source.ID, research.SourceOfficialDocumentation); err != nil {
+		t.Fatalf("set source kind: %v", err)
+	}
+	if got, err := repositories.Sources.Get(ctx, source.ID); err != nil || got.Kind != research.SourceOfficialDocumentation {
+		t.Fatalf("classified source=(%+v,%v)", got, err)
+	}
 	archivedCitation := citation
 	archivedCitation.ID = researchTestID(t, "citation.archived")
 	archivedCitation.TemporalScope = research.SourceTemporalArchived

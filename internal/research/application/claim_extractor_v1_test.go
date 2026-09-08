@@ -94,6 +94,56 @@ func TestDeterministicClaimExtractorV1IsStableBoundedAndCancellationAware(t *tes
 	}
 }
 
+func TestDeterministicClaimExtractorV2SupportsNaturalCLITopicsWithoutInventingStatements(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		topic     string
+		statement string
+		family    application.ClaimFamily
+		version   string
+		admitted  bool
+	}{
+		{name: "interfaces", topic: "Go interfaces", statement: "Interfaces are named collections of method signatures.", family: application.ClaimFamilyExplicitDefinition, admitted: true},
+		{name: "release", topic: "Go 1.27 release notes", statement: "Today the Go team is pleased to release Go 1.27.", family: application.ClaimFamilyVersionReleaseFact, version: "1.27", admitted: true},
+		{name: "deprecation", topic: "Go io/ioutil deprecated", statement: "Deprecated: As of Go 1.16, the same functionality is now provided by package io or package os.", family: application.ClaimFamilyDeprecationStatement, admitted: true},
+		{name: "context", topic: "Go context cancellation", statement: "The package, introduced in Go 1.7, provides a way to carry cancellation signals across goroutines.", family: application.ClaimFamilyExplicitDefinition, admitted: true},
+		{name: "channels", topic: "Go channels", statement: "Channels are the pipes that connect concurrent goroutines.", family: application.ClaimFamilyExplicitDefinition, admitted: true},
+		{name: "unrelated", topic: "Go channels", statement: "This database feature is deprecated.", admitted: false},
+	}
+	extractor := application.NewDeterministicClaimExtractorV2()
+	for index, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			topic, err := research.NewResearchTopic(test.topic, "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := extractor.Extract(context.Background(), application.ClaimExtractionRequest{
+				Topic: topic, Purpose: research.PurposeConceptDefinition,
+				Evidence: claimEvidenceFixture(t, fmt.Sprintf("v2.%d", index), test.statement, 11),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !test.admitted {
+				if len(result.Candidates) != 0 {
+					t.Fatalf("unrelated statement admitted: %+v", result.Candidates)
+				}
+				return
+			}
+			if len(result.Candidates) != 1 || result.Candidates[0].Statement != test.statement ||
+				result.Candidates[0].Family != test.family || result.Candidates[0].ExtractorVersion != application.ClaimExtractorV2 {
+				t.Fatalf("v2 candidates = %+v", result.Candidates)
+			}
+			candidate := result.Candidates[0]
+			if test.version == "" && candidate.VersionScope != nil || test.version != "" &&
+				(candidate.VersionScope == nil || candidate.VersionScope.String() != test.version) {
+				t.Fatalf("version scope = %+v, want %q", candidate.VersionScope, test.version)
+			}
+		})
+	}
+}
+
 func TestLiveClaimExtractionAggregatesExactStatementsPersistsCitationsAndReplaysIdempotently(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -38,7 +38,7 @@ func (service *Service) executeResearchTopic(ctx context.Context, request Resear
 	if err != nil {
 		return researchapp.ResearchQueueConsumeResult{}, err
 	}
-	normalize, err := service.researchNormalizationForRun()
+	normalize, err := service.researchNormalizationForRun(store)
 	if err != nil {
 		return researchapp.ResearchQueueConsumeResult{}, err
 	}

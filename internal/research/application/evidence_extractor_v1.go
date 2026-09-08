@@ -12,13 +12,22 @@ import (
 	"github.com/mishaaac/kelyro/internal/research"
 )
 
-type deterministicEvidenceExtractorV1 struct{}
-
-func NewDeterministicEvidenceExtractorV1() EvidenceExtractor {
-	return deterministicEvidenceExtractorV1{}
+type deterministicEvidenceExtractor struct {
+	version string
 }
 
-func (deterministicEvidenceExtractorV1) Extract(ctx context.Context, request EvidenceExtractionRequest) (EvidenceExtractionResult, error) {
+func NewDeterministicEvidenceExtractorV1() EvidenceExtractor {
+	return deterministicEvidenceExtractor{version: EvidenceExtractorV1}
+}
+
+// NewDeterministicEvidenceExtractorV2 accepts proportional topic overlap in a
+// document whose title or headings establish the full topic. Literal excerpts,
+// bounds, provenance, and the no-I/O contract remain unchanged.
+func NewDeterministicEvidenceExtractorV2() EvidenceExtractor {
+	return deterministicEvidenceExtractor{version: EvidenceExtractorV2}
+}
+
+func (extractor deterministicEvidenceExtractor) Extract(ctx context.Context, request EvidenceExtractionRequest) (EvidenceExtractionResult, error) {
 	const operation = "extract deterministic evidence candidates"
 	if ctx == nil {
 		return EvidenceExtractionResult{}, invalid(operation, errors.New("context is nil"))
@@ -42,7 +51,7 @@ func (deterministicEvidenceExtractorV1) Extract(ctx context.Context, request Evi
 
 	candidates := make([]EvidenceCandidate, 0, len(request.Source.Headings)+len(request.Source.TextSegments)+len(request.Source.VersionHints)+1)
 	if request.Source.Title != "" {
-		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidateMetadata, "metadata/title", "title: "+request.Source.Title, "", "", documentTopic)
+		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidateMetadata, "metadata/title", "title: "+request.Source.Title, "", "", documentTopic, extractor.version)
 		if admitted {
 			candidates = append(candidates, candidate)
 		}
@@ -51,7 +60,7 @@ func (deterministicEvidenceExtractorV1) Extract(ctx context.Context, request Evi
 		if err := ctx.Err(); err != nil {
 			return EvidenceExtractionResult{}, Classify(ErrorUnavailable, operation, err)
 		}
-		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidateHeading, indexedEvidenceLocation("heading", index), heading.Text, "", "", documentTopic)
+		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidateHeading, indexedEvidenceLocation("heading", index), heading.Text, "", "", documentTopic, extractor.version)
 		if admitted {
 			candidates = append(candidates, candidate)
 		}
@@ -68,7 +77,7 @@ func (deterministicEvidenceExtractorV1) Extract(ctx context.Context, request Evi
 		if after == "" && index+1 < len(request.Source.TextSegments) {
 			after = boundedContextStart(request.Source.TextSegments[index+1])
 		}
-		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidatePassage, indexedEvidenceLocation("text", index), excerpt, before, after, documentTopic)
+		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidatePassage, indexedEvidenceLocation("text", index), excerpt, before, after, documentTopic, extractor.version)
 		if admitted {
 			candidates = append(candidates, candidate)
 		}
@@ -77,7 +86,7 @@ func (deterministicEvidenceExtractorV1) Extract(ctx context.Context, request Evi
 		if err := ctx.Err(); err != nil {
 			return EvidenceExtractionResult{}, Classify(ErrorUnavailable, operation, err)
 		}
-		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidateMetadata, indexedEvidenceLocation("metadata/version", index), "version: "+version, "", "", documentTopic)
+		candidate, admitted := buildEvidenceCandidate(request, EvidenceCandidateMetadata, indexedEvidenceLocation("metadata/version", index), "version: "+version, "", "", documentTopic, extractor.version)
 		if admitted {
 			candidates = append(candidates, candidate)
 		}
@@ -87,7 +96,7 @@ func (deterministicEvidenceExtractorV1) Extract(ctx context.Context, request Evi
 	if len(candidates) > MaximumEvidenceCandidatesPerSource {
 		candidates = candidates[:MaximumEvidenceCandidatesPerSource]
 	}
-	result := EvidenceExtractionResult{Candidates: candidates, AlgorithmVersion: EvidenceExtractorV1}
+	result := EvidenceExtractionResult{Candidates: candidates, AlgorithmVersion: extractor.version}
 	if err := result.Validate(); err != nil {
 		return EvidenceExtractionResult{}, invalid(operation, err)
 	}
@@ -99,8 +108,9 @@ func buildEvidenceCandidate(
 	kind EvidenceCandidateKind,
 	location, excerpt, before, after string,
 	documentTopic bool,
+	extractorVersion string,
 ) (EvidenceCandidate, bool) {
-	score, signals, anchored := scoreEvidenceText(excerpt, kind, request, documentTopic)
+	score, signals, anchored := scoreEvidenceText(excerpt, kind, request, documentTopic, extractorVersion)
 	if !anchored || score < MinimumEvidenceCandidateScore {
 		return EvidenceCandidate{}, false
 	}
@@ -112,12 +122,12 @@ func buildEvidenceCandidate(
 		Kind: kind, Location: location, Excerpt: excerpt,
 		ExcerptHash:   research.CanonicalEvidenceExcerptHashV1(excerpt),
 		ContextBefore: before, ContextAfter: after, Score: score,
-		Signals: signals, ExtractorVersion: EvidenceExtractorV1,
+		Signals: signals, ExtractorVersion: extractorVersion,
 	}
 	return candidate, candidate.Validate() == nil
 }
 
-func scoreEvidenceText(text string, kind EvidenceCandidateKind, request EvidenceExtractionRequest, documentTopic bool) (int, []EvidenceSignal, bool) {
+func scoreEvidenceText(text string, kind EvidenceCandidateKind, request EvidenceExtractionRequest, documentTopic bool, extractorVersion string) (int, []EvidenceSignal, bool) {
 	words := evidenceWords(text)
 	wordSet := make(map[string]struct{}, len(words))
 	for _, word := range words {
@@ -146,7 +156,11 @@ func scoreEvidenceText(text string, kind EvidenceCandidateKind, request Evidence
 		if overlap > 3 {
 			overlap = 3
 		}
-		add(EvidenceSignalTopicTerms, overlap*12, true)
+		weight := 12
+		if extractorVersion == EvidenceExtractorV2 {
+			weight = 18
+		}
+		add(EvidenceSignalTopicTerms, overlap*weight, true)
 	}
 	if request.Topic.Technology != "" && containsEvidencePhrase(words, evidenceWords(request.Topic.Technology)) {
 		add(EvidenceSignalTechnology, 15, true)
@@ -157,8 +171,8 @@ func scoreEvidenceText(text string, kind EvidenceCandidateKind, request Evidence
 	if request.TargetVersion != nil && containsVersionToken(text, request.TargetVersion.String()) {
 		add(EvidenceSignalTargetVersion, 25, true)
 	}
-	if documentTopic && !anchored {
-		add(EvidenceSignalDocumentTopic, 20, true)
+	if documentTopic && (!anchored || extractorVersion == EvidenceExtractorV2) {
+		add(EvidenceSignalDocumentTopic, 20, extractorVersion != EvidenceExtractorV2)
 	}
 	if kind == EvidenceCandidateHeading {
 		add(EvidenceSignalHeading, 5, false)
@@ -487,4 +501,4 @@ func cloneEvidenceExtractionResult(result EvidenceExtractionResult) EvidenceExtr
 	return clone
 }
 
-var _ EvidenceExtractor = deterministicEvidenceExtractorV1{}
+var _ EvidenceExtractor = deterministicEvidenceExtractor{}

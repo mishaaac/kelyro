@@ -14,14 +14,25 @@ import (
 )
 
 var explicitVersionQualifierV1 = regexp.MustCompile(`(?i)\b(?:version|versi[oó]n)\s+([[:alnum:]][[:alnum:]._-]{0,63})\b`)
+var topicVersionTokenV2 = regexp.MustCompile(`(?i)\bv?[0-9]+(?:\.[0-9]+)+\b`)
 
-type deterministicClaimExtractorV1 struct{}
-
-func NewDeterministicClaimExtractorV1() ClaimExtractor {
-	return deterministicClaimExtractorV1{}
+type deterministicClaimExtractor struct {
+	version string
 }
 
-func (deterministicClaimExtractorV1) Extract(ctx context.Context, request ClaimExtractionRequest) (ClaimExtractionResult, error) {
+func NewDeterministicClaimExtractorV1() ClaimExtractor {
+	return deterministicClaimExtractor{version: ClaimExtractorV1}
+}
+
+// NewDeterministicClaimExtractorV2 admits literal statements with a
+// proportional natural-topic anchor and recognizes version tokens repeated
+// verbatim from the topic. It remains conservative about ambiguity and claim
+// families and never synthesizes statement text.
+func NewDeterministicClaimExtractorV2() ClaimExtractor {
+	return deterministicClaimExtractor{version: ClaimExtractorV2}
+}
+
+func (extractor deterministicClaimExtractor) Extract(ctx context.Context, request ClaimExtractionRequest) (ClaimExtractionResult, error) {
 	const operation = "extract deterministic claim candidates"
 	if ctx == nil {
 		return ClaimExtractionResult{}, invalid(operation, errors.New("context is nil"))
@@ -33,12 +44,12 @@ func (deterministicClaimExtractorV1) Extract(ctx context.Context, request ClaimE
 		return ClaimExtractionResult{}, invalid(operation, err)
 	}
 
-	result := ClaimExtractionResult{AlgorithmVersion: ClaimExtractorV1}
+	result := ClaimExtractionResult{AlgorithmVersion: extractor.version}
 	for index, statement := range splitClaimSentencesV1(request.Evidence.Excerpt) {
 		if err := ctx.Err(); err != nil {
 			return ClaimExtractionResult{}, Classify(ErrorUnavailable, operation, err)
 		}
-		candidate, admitted := claimCandidateV1(request, statement, index)
+		candidate, admitted := claimCandidate(request, statement, index, extractor.version)
 		if admitted {
 			result.Candidates = append(result.Candidates, candidate)
 		}
@@ -78,17 +89,21 @@ func splitClaimSentencesV1(excerpt string) []string {
 	return result
 }
 
-func claimCandidateV1(request ClaimExtractionRequest, statement string, sentenceIndex int) (ClaimCandidate, bool) {
+func claimCandidate(request ClaimExtractionRequest, statement string, sentenceIndex int, extractorVersion string) (ClaimCandidate, bool) {
+	anchored := claimStatementAnchoredV1(statement, request.Topic)
+	if extractorVersion == ClaimExtractorV2 {
+		anchored = claimStatementAnchoredV2(statement, request.Topic)
+	}
 	if len(statement) > MaximumClaimCandidateStatementBytes || !utf8.ValidString(statement) ||
-		!claimStatementAnchoredV1(statement, request.Topic) || claimStatementAmbiguousV1(statement) {
+		!anchored || claimStatementAmbiguousV1(statement) {
 		return ClaimCandidate{}, false
 	}
-	families := matchedClaimFamiliesV1(statement)
+	families := matchedClaimFamilies(statement, extractorVersion == ClaimExtractorV2, request.Topic)
 	if len(families) != 1 {
 		return ClaimCandidate{}, false
 	}
 	family := families[0].family
-	version, valid := explicitClaimVersionV1(statement, request.TargetVersion, family)
+	version, valid := explicitClaimVersion(statement, request.Topic, request.TargetVersion, family, extractorVersion)
 	if !valid {
 		return ClaimCandidate{}, false
 	}
@@ -105,7 +120,7 @@ func claimCandidateV1(request ClaimExtractionRequest, statement string, sentence
 		EvidenceID: request.Evidence.ID, Family: family, Statement: statement,
 		StatementHash: CanonicalClaimCandidateStatementHashV1(statement), Scope: request.Topic.Subject,
 		VersionScope: version, StatusScope: status, Confidence: confidence,
-		ExplicitMarker: families[0].marker, SentenceIndex: sentenceIndex, ExtractorVersion: ClaimExtractorV1,
+		ExplicitMarker: families[0].marker, SentenceIndex: sentenceIndex, ExtractorVersion: extractorVersion,
 	}
 	return candidate, candidate.Validate() == nil
 }
@@ -116,6 +131,10 @@ type matchedClaimFamilyV1 struct {
 }
 
 func matchedClaimFamiliesV1(statement string) []matchedClaimFamilyV1 {
+	return matchedClaimFamilies(statement, false, research.ResearchTopic{})
+}
+
+func matchedClaimFamilies(statement string, naturalTopic bool, topic research.ResearchTopic) []matchedClaimFamilyV1 {
 	words := evidenceWords(statement)
 	wordSet := evidenceWordSet(words)
 	normalized := strings.Join(words, " ")
@@ -129,10 +148,16 @@ func matchedClaimFamiliesV1(statement string) []matchedClaimFamilyV1 {
 		result = append(result, matchedClaimFamilyV1{family: family, marker: marker})
 	}
 
-	if marker := firstClaimPhraseV1(normalized, []string{" is a ", " is an ", " means ", " refers to ", " es un ", " es una ", " significa ", " se refiere a "}); marker != "" {
+	definitionMarkers := []string{" is a ", " is an ", " means ", " refers to ", " es un ", " es una ", " significa ", " se refiere a "}
+	if naturalTopic {
+		definitionMarkers = append(definitionMarkers, " are named ", " are the ", " defines ", " define ", " provides a way ", " son ", " define ", " definen ")
+	}
+	if marker := firstClaimPhraseV1(normalized, definitionMarkers); marker != "" &&
+		(!naturalTopic || claimDefinitionSubjectPrecedesMarkerV2(normalized, marker, topic)) {
 		add(ClaimFamilyExplicitDefinition, strings.TrimSpace(marker))
 	}
-	if marker := firstClaimWordV1(wordSet, []string{"released", "release", "lanzada", "lanzado", "publicada", "publicado"}); marker != "" && explicitVersionQualifierV1.MatchString(statement) {
+	if marker := firstClaimWordV1(wordSet, []string{"released", "release", "lanzada", "lanzado", "publicada", "publicado"}); marker != "" &&
+		(explicitVersionQualifierV1.MatchString(statement) || naturalTopic && releaseVerbWithTopicVersionV2(normalized, marker, statement, topic)) {
 		add(ClaimFamilyVersionReleaseFact, marker)
 	}
 	if marker := firstClaimWordV1(wordSet, []string{"deprecated", "obsolete", "removed", "deprecado", "deprecada", "obsoleto", "obsoleta", "eliminado", "eliminada"}); marker != "" {
@@ -152,12 +177,71 @@ func matchedClaimFamiliesV1(statement string) []matchedClaimFamilyV1 {
 	return result
 }
 
+func claimDefinitionSubjectPrecedesMarkerV2(normalized, marker string, topic research.ResearchTopic) bool {
+	index := strings.Index(" "+normalized+" ", marker)
+	if index < 0 {
+		return false
+	}
+	prefixWords := evidenceWordSet(evidenceWords((" " + normalized + " ")[:index]))
+	for _, word := range distinctEvidenceWordsV2(evidenceWords(topic.Subject)) {
+		if _, exists := prefixWords[word]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+func releaseVerbWithTopicVersionV2(normalized, marker, statement string, topic research.ResearchTopic) bool {
+	if !topicVersionRepeatedV2(statement, topic) {
+		return false
+	}
+	if marker != "release" {
+		return true
+	}
+	return strings.Contains(" "+normalized+" ", " to release ")
+}
+
 func claimStatementAnchoredV1(statement string, topic research.ResearchTopic) bool {
 	words := evidenceWords(statement)
 	if containsEvidencePhrase(words, evidenceWords(topic.Subject)) {
 		return true
 	}
 	return topic.Technology != "" && containsEvidencePhrase(words, evidenceWords(topic.Technology))
+}
+
+func claimStatementAnchoredV2(statement string, topic research.ResearchTopic) bool {
+	statementWords := evidenceWordSet(evidenceWords(statement))
+	subjectWords := distinctEvidenceWordsV2(evidenceWords(topic.Subject))
+	if len(subjectWords) == 0 {
+		return false
+	}
+	overlap := distinctEvidenceWordOverlap(statementWords, subjectWords)
+	required := (len(subjectWords) + 1) / 2
+	if required > 3 {
+		required = 3
+	}
+	if overlap < required {
+		return false
+	}
+	for _, word := range subjectWords {
+		if _, matched := statementWords[word]; matched && (utf8.RuneCountInString(word) > 2 || strings.IndexFunc(word, unicode.IsDigit) >= 0) {
+			return true
+		}
+	}
+	return false
+}
+
+func distinctEvidenceWordsV2(words []string) []string {
+	result := make([]string, 0, len(words))
+	seen := make(map[string]struct{}, len(words))
+	for _, word := range words {
+		if _, duplicate := seen[word]; duplicate {
+			continue
+		}
+		seen[word] = struct{}{}
+		result = append(result, word)
+	}
+	return result
 }
 
 func claimStatementAmbiguousV1(statement string) bool {
@@ -174,6 +258,10 @@ func claimStatementAmbiguousV1(statement string) bool {
 }
 
 func explicitClaimVersionV1(statement string, target *research.SourceVersion, family ClaimFamily) (*research.SourceVersion, bool) {
+	return explicitClaimVersion(statement, research.ResearchTopic{}, target, family, ClaimExtractorV1)
+}
+
+func explicitClaimVersion(statement string, topic research.ResearchTopic, target *research.SourceVersion, family ClaimFamily, extractorVersion string) (*research.SourceVersion, bool) {
 	matches := explicitVersionQualifierV1.FindAllStringSubmatch(statement, -1)
 	values := make([]string, 0, len(matches)+1)
 	for _, match := range matches {
@@ -181,6 +269,13 @@ func explicitClaimVersionV1(statement string, target *research.SourceVersion, fa
 	}
 	if target != nil && containsVersionToken(statement, target.String()) {
 		values = appendUniqueClaimStringV1(values, target.String())
+	}
+	if extractorVersion == ClaimExtractorV2 {
+		for _, value := range topicVersionTokenV2.FindAllString(topic.Subject, -1) {
+			if containsVersionToken(statement, value) {
+				values = appendUniqueClaimStringV1(values, strings.TrimPrefix(strings.ToLower(value), "v"))
+			}
+		}
 	}
 	if len(values) > 1 {
 		return nil, false
@@ -196,6 +291,15 @@ func explicitClaimVersionV1(statement string, target *research.SourceVersion, fa
 		return nil, false
 	}
 	return &version, true
+}
+
+func topicVersionRepeatedV2(statement string, topic research.ResearchTopic) bool {
+	for _, value := range topicVersionTokenV2.FindAllString(topic.Subject, -1) {
+		if containsVersionToken(statement, value) {
+			return true
+		}
+	}
+	return false
 }
 
 func explicitClaimStatusV1(statement string) (research.ClaimStatusScope, bool) {
@@ -297,4 +401,4 @@ func cloneClaimCandidate(candidate ClaimCandidate) ClaimCandidate {
 	return clone
 }
 
-var _ ClaimExtractor = deterministicClaimExtractorV1{}
+var _ ClaimExtractor = deterministicClaimExtractor{}

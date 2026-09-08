@@ -133,6 +133,12 @@ initial Claim families, qualifier rules, confidence constants, and exact-only
 dedupe boundary are documented in
 [research-claim-extractor-v1.md](research-claim-extractor-v1.md).
 
+The post-dogfooding natural-topic compatibility rules used by the production
+Evidence and Claim composition are documented in
+[research-extractors-v2.md](research-extractors-v2.md). The provider-independent
+classification of successfully normalized live Sources is documented in
+[research-live-source-classifier-v1.md](research-live-source-classifier-v1.md).
+
 The bounded `provenance-graph-v1` DAG, typed relationships, historical and
 multi-source paths, deterministic explain/export behavior, persistence, and
 internal trace command are documented in

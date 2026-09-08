@@ -75,6 +75,7 @@ type LiveResearchArtifacts struct {
 	CacheFailures          []SourceSnapshotFailure
 	NormalizedSources      []NormalizedSource
 	NormalizationFailures  []SourceNormalizationFailure
+	SourceClassifications  []SourceClassification
 	EvidenceCandidates     []EvidenceCandidate
 	Evidence               []research.Evidence
 	ClaimCandidates        []ClaimCandidate
@@ -365,6 +366,7 @@ func cloneLiveResearchArtifacts(artifacts LiveResearchArtifacts) LiveResearchArt
 		result.NormalizedSources[index] = cloneNormalizedSource(normalized)
 	}
 	result.NormalizationFailures = append([]SourceNormalizationFailure(nil), artifacts.NormalizationFailures...)
+	result.SourceClassifications = append([]SourceClassification(nil), artifacts.SourceClassifications...)
 	result.EvidenceCandidates = make([]EvidenceCandidate, len(artifacts.EvidenceCandidates))
 	for index, candidate := range artifacts.EvidenceCandidates {
 		result.EvidenceCandidates[index] = cloneEvidenceCandidate(candidate)

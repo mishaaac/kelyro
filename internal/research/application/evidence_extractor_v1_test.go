@@ -125,6 +125,49 @@ func TestDeterministicEvidenceExtractorV1IsStableBoundedAndKeepsFocus(t *testing
 	}
 }
 
+func TestDeterministicEvidenceExtractorV2AdmitsNaturalCLITopicOverlapWithinMatchingDocument(t *testing.T) {
+	t.Parallel()
+	source := testSource(t, "extractor-v2-natural-topic")
+	snapshot := testSnapshot(t, source, strings.Repeat("e", 64), 11)
+	topic, err := research.NewResearchTopic("Go context cancellation", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := application.EvidenceExtractionRequest{
+		Topic: topic, Purpose: research.PurposeConceptDefinition, Snapshot: snapshot,
+		Source: application.NormalizedSource{
+			SourceID: source.ID, Locator: source.Locator, ContentType: "text/html", Title: "Package context",
+			TextSegments:         []string{"Package context defines the Context type, which carries deadlines and cancellation signals across API boundaries."},
+			NormalizationVersion: "source-normalization-v1",
+		},
+	}
+	result, err := application.NewDeterministicEvidenceExtractorV2().Extract(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Candidates) == 0 || result.AlgorithmVersion != application.EvidenceExtractorV2 {
+		t.Fatalf("v2 extraction = %+v", result)
+	}
+	for _, candidate := range result.Candidates {
+		if candidate.ExtractorVersion != application.EvidenceExtractorV2 {
+			t.Fatalf("candidate version = %q", candidate.ExtractorVersion)
+		}
+	}
+
+	unrelated := request
+	unrelated.Source.TextSegments = []string{"Legacy database mode is deprecated in version 1.0.0."}
+	unrelated.Source.Title = "Go context cancellation"
+	result, err = application.NewDeterministicEvidenceExtractorV2().Extract(context.Background(), unrelated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range result.Candidates {
+		if candidate.Kind == application.EvidenceCandidatePassage {
+			t.Fatalf("unrelated passage admitted: %+v", candidate)
+		}
+	}
+}
+
 func TestLiveEvidenceExtractionPersistsCandidatesIdempotentlyAndPopulatesArtifacts(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

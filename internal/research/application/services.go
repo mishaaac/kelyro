@@ -494,6 +494,20 @@ func (service *sourceService) LatestSnapshot(ctx context.Context, sourceID resea
 	return snapshot, repositoryError(operation, err)
 }
 
+func (service *sourceService) ClassifyKind(ctx context.Context, sourceID research.SourceID, kind research.SourceKind) error {
+	const operation = "classify source kind"
+	if err := sourceID.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := kind.Validate(); err != nil {
+		return invalid(operation, err)
+	}
+	if err := requireDependency(operation, "source repository", service.sources); err != nil {
+		return err
+	}
+	return repositoryError(operation, service.sources.SetKind(ctx, sourceID, kind))
+}
+
 func (service *sourceService) ClassifyTemporalScope(ctx context.Context, sourceID research.SourceID, scope research.SourceTemporalScope) error {
 	const operation = "classify source temporal scope"
 	if err := sourceID.Validate(); err != nil {

@@ -101,6 +101,44 @@ func (repository *researchSourceRepository) List(ctx context.Context) ([]researc
 	return result, nil
 }
 
+func (repository *researchSourceRepository) SetKind(ctx context.Context, id research.SourceID, kind research.SourceKind) error {
+	const operation = "set SQLite source kind"
+	if err := id.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	if err := kind.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	source, err := repository.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	source.Kind = kind
+	storedKind, specializedKind, specializedJSON, videoJSON, err := sourceStorageRepresentation(source)
+	if err != nil {
+		return researchInvalid(operation, err)
+	}
+	if err := source.Validate(); err != nil {
+		return researchInvalid(operation, err)
+	}
+	opCtx, cancel, err := researchOperationContext(ctx, repository.timeout, operation)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	result, err := repository.executor.ExecContext(opCtx, `UPDATE sources SET kind=?,specialized_kind=?,specialized_metadata_json=?,video_metadata_json=? WHERE id=?`,
+		storedKind, specializedKind, specializedJSON, videoJSON, id.String())
+	if err != nil {
+		return researchPersistence(operation, err)
+	}
+	if affected, affectedErr := result.RowsAffected(); affectedErr != nil {
+		return researchPersistence(operation, affectedErr)
+	} else if affected == 0 {
+		return researchNotFound(operation)
+	}
+	return nil
+}
+
 func (repository *researchSourceRepository) SetTemporalScope(ctx context.Context, id research.SourceID, scope research.SourceTemporalScope) error {
 	const operation = "set SQLite source temporal scope"
 	if err := id.Validate(); err != nil {

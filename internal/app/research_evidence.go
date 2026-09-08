@@ -14,13 +14,13 @@ func (service *Service) researchEvidenceForRun(store researchapp.SourceRegistryS
 	}
 	clock := researchSearchClock{now: service.researchClock}
 	evidence, err := researchapp.NewLiveEvidenceExtractionService(
-		researchapp.NewDeterministicEvidenceExtractorV1(), store.Evidence(), clock,
+		researchapp.NewDeterministicEvidenceExtractorV2(), store.Evidence(), clock,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("assemble live research evidence extraction: %w", err)
 	}
 	claims, err := researchapp.NewLiveClaimExtractionService(
-		researchapp.NewDeterministicClaimExtractorV1(), store.Evidence(), store.Claims(), store.Citations(), clock,
+		researchapp.NewDeterministicClaimExtractorV2(), store.Evidence(), store.Claims(), store.Citations(), clock,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("assemble live research claim extraction: %w", err)

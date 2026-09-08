@@ -10,6 +10,7 @@ import (
 
 const (
 	ClaimExtractorV1                    = "claim-extractor-v1"
+	ClaimExtractorV2                    = "claim-extractor-v2"
 	MaximumClaimCandidateStatementBytes = 2 << 10
 	MaximumClaimCandidateMarkerBytes    = 256
 	MaximumClaimCandidatesPerEvidence   = 8
@@ -123,8 +124,8 @@ func (candidate ClaimCandidate) Validate() error {
 	if candidate.SentenceIndex < 0 {
 		return fmt.Errorf("claim candidate sentence index is negative")
 	}
-	if candidate.ExtractorVersion != ClaimExtractorV1 {
-		return fmt.Errorf("claim candidate extractor must be %q", ClaimExtractorV1)
+	if !supportedClaimExtractorVersion(candidate.ExtractorVersion) {
+		return fmt.Errorf("unsupported claim candidate extractor %q", candidate.ExtractorVersion)
 	}
 	return nil
 }
@@ -199,10 +200,14 @@ func (result ClaimExtractionResult) Validate() error {
 		}
 		seen[key] = struct{}{}
 	}
-	if result.AlgorithmVersion != ClaimExtractorV1 {
-		return fmt.Errorf("claim extraction algorithm must be %q", ClaimExtractorV1)
+	if !supportedClaimExtractorVersion(result.AlgorithmVersion) {
+		return fmt.Errorf("unsupported claim extraction algorithm %q", result.AlgorithmVersion)
 	}
 	return nil
+}
+
+func supportedClaimExtractorVersion(version string) bool {
+	return version == ClaimExtractorV1 || version == ClaimExtractorV2
 }
 
 // ClaimExtractor deterministically selects literal, single-family statements

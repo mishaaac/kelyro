@@ -21,6 +21,7 @@ type SourceRepository interface {
 	Get(context.Context, research.SourceID) (research.Source, error)
 	FindByLocator(context.Context, research.SourceLocator) (research.Source, error)
 	List(context.Context) ([]research.Source, error)
+	SetKind(context.Context, research.SourceID, research.SourceKind) error
 	SetTemporalScope(context.Context, research.SourceID, research.SourceTemporalScope) error
 }
 
@@ -1458,6 +1459,7 @@ type SourceService interface {
 	List(context.Context) ([]research.Source, error)
 	RecordSnapshot(context.Context, research.SourceSnapshot) error
 	LatestSnapshot(context.Context, research.SourceID) (research.SourceSnapshot, error)
+	ClassifyKind(context.Context, research.SourceID, research.SourceKind) error
 	ClassifyTemporalScope(context.Context, research.SourceID, research.SourceTemporalScope) error
 }
 

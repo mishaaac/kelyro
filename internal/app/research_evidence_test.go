@@ -67,7 +67,7 @@ func TestServiceAssemblesDeterministicEvidenceStageWithWorkspaceRepository(t *te
 			}},
 		},
 	})
-	if err != nil || len(artifacts.Evidence) == 0 || artifacts.Evidence[0].ExtractorVersion != researchapp.EvidenceExtractorV1 ||
+	if err != nil || len(artifacts.Evidence) == 0 || artifacts.Evidence[0].ExtractorVersion != researchapp.EvidenceExtractorV2 ||
 		len(artifacts.Claims) != 1 || len(artifacts.Citations) != 1 || len(artifacts.TrustDecisions) != 1 ||
 		len(artifacts.FreshnessRecords) != 1 || len(artifacts.TemporalObservations) != 1 {
 		t.Fatalf("evidence stage artifacts=%+v error=%v", artifacts, err)
