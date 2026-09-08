@@ -63,7 +63,7 @@ func TestLiveMultiSourceVerificationReusesPersistedPolicyInClaimOrder(t *testing
 		t.Fatalf("diversity assessments = %+v", artifacts.DiversityAssessments)
 	}
 	for _, result := range artifacts.Verifications {
-		if result.Status != research.VerificationVerified || result.AlgorithmVersion != research.MultiSourceVerificationAlgorithmV1 {
+		if result.Status != research.VerificationVerified || result.AlgorithmVersion != research.MultiSourceVerificationAlgorithmV2 {
 			t.Fatalf("verification = %+v", result)
 		}
 		persisted, getErr := repositories.Verification.LatestByClaim(ctx, result.ClaimID)

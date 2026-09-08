@@ -207,6 +207,12 @@ func (repository *researchVerificationRepository) Append(ctx context.Context, re
 	if err != nil {
 		return researchPersistence(operation, err)
 	}
+	if !exists {
+		exists, err = recordExists(opCtx, repository.executor, "verification_results_v2", "id", result.ID.String())
+		if err != nil {
+			return researchPersistence(operation, err)
+		}
+	}
 	if exists {
 		return researchConflict(operation)
 	}
@@ -239,7 +245,11 @@ func (repository *researchVerificationRepository) Append(ctx context.Context, re
 	if claimSourceCount != len(result.SourceIDs) {
 		return researchInvalid(operation, errors.New("verification sources do not match claim sources"))
 	}
-	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO verification_results
+	verificationTable := "verification_results"
+	if result.AlgorithmVersion == research.MultiSourceVerificationAlgorithmV2 {
+		verificationTable = "verification_results_v2"
+	}
+	_, err = repository.executor.ExecContext(opCtx, `INSERT INTO `+verificationTable+`
 (id,claim_id,status,source_ids_json,confidence,verified_at,requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version)
 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		result.ID.String(), result.ClaimID.String(), string(result.Status), encoded,
@@ -271,7 +281,13 @@ func (repository *researchVerificationRepository) get(ctx context.Context, opera
 
 const verificationSelect = `SELECT id,claim_id,status,source_ids_json,confidence,verified_at,
 requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version
-FROM verification_results`
+FROM (
+SELECT id,claim_id,status,source_ids_json,confidence,verified_at,requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version
+FROM verification_results
+UNION ALL
+SELECT id,claim_id,status,source_ids_json,confidence,verified_at,requirement,source_count,independent_organization_count,authority_distribution_json,scope_consistent,reason_codes_json,algorithm_version
+FROM verification_results_v2
+)`
 
 func scanVerification(row rowScanner, operation string) (research.VerificationResult, error) {
 	var idValue, claimValue, status, sourcesJSON, verified, requirement string

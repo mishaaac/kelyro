@@ -82,7 +82,7 @@ func AssembleV1(input Input) (research.SourceBundle, error) {
 		switch observation.Verification.AlgorithmVersion {
 		case research.VerificationLegacyAlgorithm:
 			issues = appendIssue(issues, research.BundleIssueLegacyVerification)
-		case research.MultiSourceVerificationAlgorithmV1:
+		case research.MultiSourceVerificationAlgorithmV1, research.MultiSourceVerificationAlgorithmV2:
 			switch observation.Verification.Status {
 			case research.VerificationVerified:
 			case research.VerificationVerifiedCaveat:

@@ -119,7 +119,7 @@ func (service *verificationService) Verify(
 	for _, sourceID := range sourceIDs {
 		identity = append(identity, sourceID.String())
 	}
-	result, err := verificationpolicy.Verify(verificationpolicy.Input{
+	result, err := verificationpolicy.VerifyV2(verificationpolicy.Input{
 		ID: stableResearchID("verification", identity...), Claim: claim,
 		Observations: observations, Conflicts: conflicts, VerifiedAt: verifiedAt,
 	})

@@ -77,6 +77,65 @@ func TestCommunityTechniqueRequiresDifferentOrganizations(t *testing.T) {
 	}
 }
 
+func TestV2AllowsOnlyCaveatedAuthoritativePendingSupport(t *testing.T) {
+	claim, observations := verificationFixture(t, research.ClaimDefinition,
+		sourceFixture{"go-context", research.SourceOfficialDocumentation, research.AuthorityTierB, ""})
+	claim.Topic, _ = research.NewResearchTopic("Go context cancellation", "software", "Go")
+	claim.Statement = "Go context defines cancellation behavior."
+	observations[0].TrustDecision.State = research.TrustRequiresVerification
+
+	v1 := verify(t, claim, observations, nil)
+	if v1.Status != research.VerificationInsufficient {
+		t.Fatalf("v1 pending support = %+v", v1)
+	}
+	v2 := verifyV2(t, claim, observations, nil)
+	if v2.Status != research.VerificationVerifiedCaveat ||
+		v2.AlgorithmVersion != research.MultiSourceVerificationAlgorithmV2 ||
+		!hasReason(v2, research.VerificationReasonAuthoritativeCaveat) ||
+		!hasReason(v2, research.VerificationReasonOrganizationUnknown) {
+		t.Fatalf("v2 authoritative pending support = %+v", v2)
+	}
+}
+
+func TestV2DoesNotPromoteUnsafePendingSupport(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*research.Claim, *verificationpolicy.Observation)
+	}{
+		{"community source", func(_ *research.Claim, observation *verificationpolicy.Observation) {
+			observation.Source.Kind = research.SourceCommunityArticle
+		}},
+		{"weak authority", func(_ *research.Claim, observation *verificationpolicy.Observation) {
+			observation.TrustDecision.Tier = research.AuthorityTierD
+		}},
+		{"blocked registry", func(_ *research.Claim, observation *verificationpolicy.Observation) {
+			status := research.RegistryBlocked
+			observation.RegistryOrganization = "Blocked Org"
+			observation.RegistryStatus = &status
+		}},
+		{"security requirement", func(claim *research.Claim, _ *verificationpolicy.Observation) {
+			claim.Type = research.ClaimSecurity
+		}},
+		{"unrelated statement", func(claim *research.Claim, _ *verificationpolicy.Observation) {
+			claim.Statement = "An unrelated runtime defines worker behavior."
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			claim, observations := verificationFixture(t, research.ClaimDefinition,
+				sourceFixture{"guard", research.SourceOfficialDocumentation, research.AuthorityTierB, ""})
+			claim.Topic, _ = research.NewResearchTopic("Go context cancellation", "software", "Go")
+			claim.Statement = "Go context defines cancellation behavior."
+			observations[0].TrustDecision.State = research.TrustRequiresVerification
+			test.mutate(&claim, &observations[0])
+			result := verifyV2(t, claim, observations, nil)
+			if result.Status == research.VerificationVerified || result.Status == research.VerificationVerifiedCaveat {
+				t.Fatalf("unsafe pending support was promoted: %+v", result)
+			}
+		})
+	}
+}
+
 func TestVerificationPreservesUnknownOrganizationsScopeAndConflicts(t *testing.T) {
 	claim, observations := verificationFixture(t, research.ClaimDefinition,
 		sourceFixture{"unknown-org", research.SourceSpecification, research.AuthorityTierA, ""})
@@ -196,6 +255,23 @@ func verify(
 	t.Helper()
 	id, _ := research.NewID("verification.fixture")
 	result, err := verificationpolicy.Verify(verificationpolicy.Input{
+		ID: id, Claim: claim, Observations: observations, Conflicts: conflicts, VerifiedAt: timestamp(t, 20),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func verifyV2(
+	t *testing.T,
+	claim research.Claim,
+	observations []verificationpolicy.Observation,
+	conflicts []research.Conflict,
+) research.VerificationResult {
+	t.Helper()
+	id, _ := research.NewID("verification.fixture.v2")
+	result, err := verificationpolicy.VerifyV2(verificationpolicy.Input{
 		ID: id, Claim: claim, Observations: observations, Conflicts: conflicts, VerifiedAt: timestamp(t, 20),
 	})
 	if err != nil {

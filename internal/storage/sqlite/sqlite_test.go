@@ -131,6 +131,7 @@ func TestOpenCreatesAndMigratesNewDatabase(t *testing.T) {
 		"study_sessions",
 		"trust_registry",
 		"verification_results",
+		"verification_results_v2",
 		"workspace_meta",
 	}
 	rows, err := database.sql.QueryContext(context.Background(), `

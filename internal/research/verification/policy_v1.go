@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/mishaaac/kelyro/internal/research"
 )
@@ -108,6 +110,18 @@ func (input Input) Validate() error {
 }
 
 func Verify(input Input) (research.VerificationResult, error) {
+	return verify(input, research.MultiSourceVerificationAlgorithmV1)
+}
+
+// VerifyV2 closes the trust-to-verification handoff without treating a
+// requires-verification decision as accepted trust. A topically anchored,
+// authoritative Tier A/B source may support only a caveated result; security
+// and community requirements retain the stricter v1 thresholds.
+func VerifyV2(input Input) (research.VerificationResult, error) {
+	return verify(input, research.MultiSourceVerificationAlgorithmV2)
+}
+
+func verify(input Input, algorithmVersion string) (research.VerificationResult, error) {
 	if err := input.Validate(); err != nil {
 		return research.VerificationResult{}, err
 	}
@@ -116,9 +130,12 @@ func Verify(input Input) (research.VerificationResult, error) {
 		return observations[i].Source.ID.String() < observations[j].Source.ID.String()
 	})
 	requirement := requirementFor(input.Claim.Type)
-	metrics, summary := assessSources(input.Claim, observations)
+	metrics, summary := assessSources(input.Claim, observations, algorithmVersion == research.MultiSourceVerificationAlgorithmV2)
 	unresolved, loses := conflictDisposition(input.Claim.ID, input.Conflicts)
 	status, reasons := decide(requirement, metrics, summary, unresolved, loses)
+	if algorithmVersion == research.MultiSourceVerificationAlgorithmV2 {
+		status, reasons = applyAuthoritativeCaveatV2(requirement, metrics, summary, status, reasons)
+	}
 	confidence, err := research.NewClaimConfidence(cappedConfidence(input.Claim.Confidence.Value(), status))
 	if err != nil {
 		return research.VerificationResult{}, err
@@ -131,7 +148,7 @@ func Verify(input Input) (research.VerificationResult, error) {
 		ID: input.ID, ClaimID: input.Claim.ID, Status: status, Requirement: requirement,
 		SourceIDs: sourceIDs, Metrics: metrics, ReasonCodes: reasons,
 		Confidence: confidence, VerifiedAt: input.VerifiedAt,
-		AlgorithmVersion: research.MultiSourceVerificationAlgorithmV1,
+		AlgorithmVersion: algorithmVersion,
 	}
 	if err := result.Validate(); err != nil {
 		return research.VerificationResult{}, err
@@ -140,17 +157,19 @@ func Verify(input Input) (research.VerificationResult, error) {
 }
 
 type sourceSummary struct {
-	acceptedScoped           int
-	strongScoped             int
-	strongOrganizations      int
-	securityAuthorityScoped  int
-	primaryStrongScoped      int
-	explicitlyRejected       int
-	unknownOrganization      bool
-	multipleSameOrganization bool
+	acceptedScoped                 int
+	strongScoped                   int
+	strongOrganizations            int
+	securityAuthorityScoped        int
+	primaryStrongScoped            int
+	provisionalAuthoritativeScoped int
+	provisionalPrimaryScoped       int
+	explicitlyRejected             int
+	unknownOrganization            bool
+	multipleSameOrganization       bool
 }
 
-func assessSources(claim research.Claim, observations []Observation) (research.VerificationMetrics, sourceSummary) {
+func assessSources(claim research.Claim, observations []Observation, allowProvisional bool) (research.VerificationMetrics, sourceSummary) {
 	distribution := research.VerificationAuthorityDistribution{}
 	allScopeConsistent := true
 	organizations := make(map[string]struct{})
@@ -166,6 +185,15 @@ func assessSources(claim research.Claim, observations []Observation) (research.V
 		accepted, strong := supportState(observation)
 		if isExplicitlyRejected(observation) {
 			summary.explicitlyRejected++
+		}
+		if allowProvisional && scopeConsistent && provisionalAuthoritativeSupportV2(claim, observation) {
+			summary.provisionalAuthoritativeScoped++
+			if isPrimaryKind(observation.Source.Kind) {
+				summary.provisionalPrimaryScoped++
+			}
+			if normalizeOrganization(observation.RegistryOrganization) == "" {
+				summary.unknownOrganization = true
+			}
 		}
 		if !accepted || !scopeConsistent {
 			continue
@@ -199,6 +227,35 @@ func assessSources(claim research.Claim, observations []Observation) (research.V
 		AuthorityDistribution: distribution, ScopeConsistent: allScopeConsistent,
 	}
 	return metrics, summary
+}
+
+func applyAuthoritativeCaveatV2(
+	requirement research.ClaimVerificationRequirement,
+	metrics research.VerificationMetrics,
+	summary sourceSummary,
+	status research.VerificationStatus,
+	reasons []research.ClaimVerificationReason,
+) (research.VerificationStatus, []research.ClaimVerificationReason) {
+	if status != research.VerificationInsufficient || !metrics.ScopeConsistent || summary.explicitlyRejected > 0 {
+		return status, reasons
+	}
+	eligible := false
+	switch requirement {
+	case research.VerificationRequirementNormativePrimary:
+		eligible = summary.provisionalPrimaryScoped > 0
+	case research.VerificationRequirementProduction, research.VerificationRequirementGeneral:
+		eligible = summary.provisionalAuthoritativeScoped > 0
+	case research.VerificationRequirementSecurity, research.VerificationRequirementCommunity:
+		return status, reasons
+	}
+	if !eligible {
+		return status, reasons
+	}
+	reasons = []research.ClaimVerificationReason{research.VerificationReasonAuthoritativeCaveat}
+	if summary.unknownOrganization {
+		reasons = append(reasons, research.VerificationReasonOrganizationUnknown)
+	}
+	return research.VerificationVerifiedCaveat, reasons
 }
 
 func decide(
@@ -313,6 +370,97 @@ func supportState(observation Observation) (accepted, strong bool) {
 	strong = decision.State == research.TrustAccepted &&
 		(decision.Tier == research.AuthorityTierA || decision.Tier == research.AuthorityTierB)
 	return accepted, accepted && strong
+}
+
+func provisionalAuthoritativeSupportV2(claim research.Claim, observation Observation) bool {
+	if observation.TrustDecision == nil || registryBlocksSupport(observation.RegistryStatus) {
+		return false
+	}
+	decision := observation.TrustDecision
+	if decision.State != research.TrustRequiresVerification ||
+		(decision.Tier != research.AuthorityTierA && decision.Tier != research.AuthorityTierB) ||
+		!isAuthoritativeKindV2(observation.Source.Kind) {
+		return false
+	}
+	return statementAnchoredToTopicV2(claim.Statement, claim.Topic.Subject)
+}
+
+func isAuthoritativeKindV2(kind research.SourceKind) bool {
+	switch kind {
+	case research.SourceSpecification, research.SourceStandard,
+		research.SourceOfficialDocumentation, research.SourceReleaseNotes,
+		research.SourceOfficialBlog, research.SourcePackageReference,
+		research.SourceOfficialTutorial, research.SourceCode:
+		return true
+	default:
+		return false
+	}
+}
+
+func statementAnchoredToTopicV2(statement, subject string) bool {
+	statementWords := verificationWordSet(verificationWords(statement))
+	subjectWords := distinctVerificationWords(verificationWords(subject))
+	if len(subjectWords) == 0 {
+		return false
+	}
+	overlap := 0
+	meaningful := false
+	for _, word := range subjectWords {
+		if _, matched := statementWords[word]; !matched {
+			continue
+		}
+		overlap++
+		if utf8.RuneCountInString(word) > 2 || strings.IndexFunc(word, unicode.IsDigit) >= 0 {
+			meaningful = true
+		}
+	}
+	required := (len(subjectWords) + 1) / 2
+	if required > 3 {
+		required = 3
+	}
+	return overlap >= required && meaningful
+}
+
+func verificationWords(value string) []string {
+	var result []string
+	var current strings.Builder
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		result = append(result, current.String())
+		current.Reset()
+	}
+	for _, item := range strings.ToLower(value) {
+		if unicode.IsLetter(item) || unicode.IsDigit(item) {
+			current.WriteRune(item)
+		} else {
+			flush()
+		}
+	}
+	flush()
+	return result
+}
+
+func verificationWordSet(words []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(words))
+	for _, word := range words {
+		result[word] = struct{}{}
+	}
+	return result
+}
+
+func distinctVerificationWords(words []string) []string {
+	seen := make(map[string]struct{}, len(words))
+	result := make([]string, 0, len(words))
+	for _, word := range words {
+		if _, exists := seen[word]; exists {
+			continue
+		}
+		seen[word] = struct{}{}
+		result = append(result, word)
+	}
+	return result
 }
 
 func registryBlocksSupport(status *research.RegistryStatus) bool {

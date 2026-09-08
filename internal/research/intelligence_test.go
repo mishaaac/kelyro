@@ -242,6 +242,18 @@ func TestMultiSourceVerificationResultRequiresVersionedMetricsAndReasons(t *test
 	if err := result.Validate(); err != nil {
 		t.Fatalf("VerificationResult.Validate() error = %v", err)
 	}
+	v2 := result
+	v2.AlgorithmVersion = MultiSourceVerificationAlgorithmV2
+	v2.Status = VerificationVerifiedCaveat
+	v2.ReasonCodes = []ClaimVerificationReason{VerificationReasonAuthoritativeCaveat}
+	if err := v2.Validate(); err != nil {
+		t.Fatalf("v2 VerificationResult.Validate() error = %v", err)
+	}
+	v1WithV2Reason := v2
+	v1WithV2Reason.AlgorithmVersion = MultiSourceVerificationAlgorithmV1
+	if err := v1WithV2Reason.Validate(); err == nil {
+		t.Fatal("VerificationResult.Validate() accepted a v2 reason for v1")
+	}
 	invalidDistribution := result
 	invalidDistribution.Metrics.AuthorityDistribution.TierB = 0
 	if err := invalidDistribution.Validate(); err == nil {

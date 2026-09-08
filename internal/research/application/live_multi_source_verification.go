@@ -43,8 +43,8 @@ func (result LiveMultiSourceVerificationResult) Validate() error {
 		if err := verification.Validate(); err != nil {
 			return fmt.Errorf("live verification %d: %w", index, err)
 		}
-		if verification.AlgorithmVersion != research.MultiSourceVerificationAlgorithmV1 {
-			return fmt.Errorf("live verification %d does not use %q", index, research.MultiSourceVerificationAlgorithmV1)
+		if verification.AlgorithmVersion != research.MultiSourceVerificationAlgorithmV2 {
+			return fmt.Errorf("live verification %d does not use %q", index, research.MultiSourceVerificationAlgorithmV2)
 		}
 		if _, duplicate := seen[verification.ClaimID]; duplicate {
 			return fmt.Errorf("live verification repeats Claim %q", verification.ClaimID)

@@ -976,6 +976,21 @@ func TestResearchRunRegistryAndIntelligenceRepositoriesRoundTrip(t *testing.T) {
 	if got, err := repositories.Verification.LatestByClaim(ctx, verification.ClaimID); err != nil || !reflect.DeepEqual(got, verification) {
 		t.Fatalf("verification roundtrip=(%+v,%v)", got, err)
 	}
+	verificationV2 := verification
+	verificationV2.ID = researchTestID(t, "verification.2")
+	verificationV2.Status = research.VerificationVerifiedCaveat
+	verificationV2.ReasonCodes = []research.ClaimVerificationReason{research.VerificationReasonAuthoritativeCaveat}
+	verificationV2.VerifiedAt = researchTestTimestamp(t, fixedTime.Add(time.Minute))
+	verificationV2.AlgorithmVersion = research.MultiSourceVerificationAlgorithmV2
+	if err := repositories.Verification.Append(ctx, verificationV2); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repositories.Verification.Get(ctx, verificationV2.ID); err != nil || !reflect.DeepEqual(got, verificationV2) {
+		t.Fatalf("verification v2 roundtrip=(%+v,%v), want %+v", got, err, verificationV2)
+	}
+	if got, err := repositories.Verification.LatestByClaim(ctx, verificationV2.ClaimID); err != nil || !reflect.DeepEqual(got, verificationV2) {
+		t.Fatalf("latest verification across versions=(%+v,%v), want %+v", got, err, verificationV2)
+	}
 	winnerClaim, winnerSource := claimOne.ID, source.ID
 	conflict := research.Conflict{
 		ID: researchTestID(t, "conflict.1"), Type: research.ConflictAuthorityMismatch,

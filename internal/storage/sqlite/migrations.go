@@ -1771,6 +1771,28 @@ WHEN EXISTS (
 			`CREATE INDEX research_trigger_queue_bundle_idx ON research_trigger_queue (execution_bundle_id) WHERE execution_bundle_id IS NOT NULL`,
 		},
 	},
+	{
+		version: 47,
+		name:    "multi-source verification v2 storage",
+		statements: []string{
+			`CREATE TABLE verification_results_v2 (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    claim_id TEXT NOT NULL CHECK (length(trim(claim_id)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('verified','verified_with_caveat','insufficient_evidence','conflicted','rejected')),
+    source_ids_json TEXT NOT NULL CHECK (json_valid(source_ids_json) AND json_type(source_ids_json) = 'array' AND json_array_length(source_ids_json) > 0),
+    confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z'),
+    requirement TEXT NOT NULL CHECK (requirement IN ('normative_primary','production_recommendation','security_authority','community_corroboration','general_support')),
+    source_count INTEGER NOT NULL CHECK (source_count >= 0 AND source_count = json_array_length(source_ids_json)),
+    independent_organization_count INTEGER NOT NULL CHECK (independent_organization_count BETWEEN 0 AND source_count),
+    authority_distribution_json TEXT NOT NULL CHECK (json_valid(authority_distribution_json) AND json_type(authority_distribution_json) = 'object' AND json_remove(authority_distribution_json,'$.tier_a','$.tier_b','$.tier_c','$.tier_d','$.tier_e','$.unknown') = '{}' AND COALESCE(json_extract(authority_distribution_json,'$.tier_a') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_b') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_c') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_d') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.tier_e') >= 0,0) AND COALESCE(json_extract(authority_distribution_json,'$.unknown') >= 0,0) AND source_count = COALESCE(json_extract(authority_distribution_json,'$.tier_a'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_b'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_c'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_d'),-1) + COALESCE(json_extract(authority_distribution_json,'$.tier_e'),-1) + COALESCE(json_extract(authority_distribution_json,'$.unknown'),-1)),
+    scope_consistent INTEGER NOT NULL CHECK (scope_consistent IN (0,1)),
+    reason_codes_json TEXT NOT NULL CHECK (json_valid(reason_codes_json) AND json_type(reason_codes_json) = 'array' AND json_array_length(reason_codes_json) > 0 AND reason_codes_json <> '["legacy_unclassified"]'),
+    algorithm_version TEXT NOT NULL CHECK (algorithm_version = 'multi-source-verification-v2')
+)`,
+			`CREATE INDEX verification_results_v2_claim_idx ON verification_results_v2 (claim_id, verified_at DESC, id DESC)`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

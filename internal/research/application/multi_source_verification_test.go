@@ -23,7 +23,7 @@ func TestVerificationServiceUsesRegistryOrganizationsAndPersistsPolicyOutput(t *
 		result.Requirement != research.VerificationRequirementProduction ||
 		result.Metrics.SourceCount != 2 || result.Metrics.IndependentOrganizationCount != 2 ||
 		result.Metrics.AuthorityDistribution.TierA != 1 || result.Metrics.AuthorityDistribution.TierB != 1 ||
-		result.AlgorithmVersion != research.MultiSourceVerificationAlgorithmV1 {
+		result.AlgorithmVersion != research.MultiSourceVerificationAlgorithmV2 {
 		t.Fatalf("verification result = %+v", result)
 	}
 	stored, err := service.Get(ctx, result.ID)

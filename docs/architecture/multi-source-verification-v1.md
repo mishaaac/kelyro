@@ -101,3 +101,7 @@ therefore reveal cross-organization mirrors without retroactively changing a
 stored Verification Result. Its unique normative-source rule agrees with this
 policy's normative-primary requirement. The complete contract is documented in
 [source-diversity-v1.md](source-diversity-v1.md).
+
+Production verification now uses the narrowly compatible successor documented
+in [multi-source-verification-v2.md](multi-source-verification-v2.md); this v1
+contract and its persisted rows remain immutable.

@@ -433,6 +433,7 @@ type VerificationStatus string
 
 const (
 	MultiSourceVerificationAlgorithmV1 = "multi-source-verification-v1"
+	MultiSourceVerificationAlgorithmV2 = "multi-source-verification-v2"
 	VerificationLegacyAlgorithm        = "verification-unversioned-legacy"
 )
 
@@ -492,6 +493,7 @@ const (
 	VerificationReasonLosesResolvedConflict   ClaimVerificationReason = "loses_resolved_conflict"
 	VerificationReasonSourcesRejected         ClaimVerificationReason = "sources_rejected"
 	VerificationReasonWeakSupport             ClaimVerificationReason = "weak_support"
+	VerificationReasonAuthoritativeCaveat     ClaimVerificationReason = "authoritative_source_requires_verification"
 	VerificationReasonLegacyUnclassified      ClaimVerificationReason = "legacy_unclassified"
 )
 
@@ -503,7 +505,8 @@ func (reason ClaimVerificationReason) Validate() error {
 		VerificationReasonSameOrganization, VerificationReasonOrganizationUnknown,
 		VerificationReasonScopeInconsistent, VerificationReasonUnresolvedConflict,
 		VerificationReasonLosesResolvedConflict, VerificationReasonSourcesRejected,
-		VerificationReasonWeakSupport, VerificationReasonLegacyUnclassified:
+		VerificationReasonWeakSupport, VerificationReasonAuthoritativeCaveat,
+		VerificationReasonLegacyUnclassified:
 		return nil
 	default:
 		return fmt.Errorf("invalid claim verification reason %q", reason)
@@ -605,12 +608,21 @@ func (result VerificationResult) Validate() error {
 		seenReasons[reason] = struct{}{}
 	}
 	switch result.AlgorithmVersion {
-	case MultiSourceVerificationAlgorithmV1:
+	case MultiSourceVerificationAlgorithmV1, MultiSourceVerificationAlgorithmV2:
 		if result.Requirement == VerificationRequirementLegacy {
-			return fmt.Errorf("multi-source-verification-v1 cannot be legacy unclassified")
+			return fmt.Errorf("versioned multi-source verification cannot be legacy unclassified")
 		}
 		if _, exists := seenReasons[VerificationReasonLegacyUnclassified]; exists {
-			return fmt.Errorf("multi-source-verification-v1 cannot contain a legacy reason")
+			return fmt.Errorf("versioned multi-source verification cannot contain a legacy reason")
+		}
+		if result.AlgorithmVersion == MultiSourceVerificationAlgorithmV1 {
+			if _, exists := seenReasons[VerificationReasonAuthoritativeCaveat]; exists {
+				return fmt.Errorf("multi-source-verification-v1 cannot contain a v2 reason")
+			}
+		}
+		if _, exists := seenReasons[VerificationReasonAuthoritativeCaveat]; exists &&
+			result.Status != VerificationVerifiedCaveat {
+			return fmt.Errorf("authoritative pending support requires a caveated verification status")
 		}
 		return result.Metrics.Validate(len(result.SourceIDs))
 	case VerificationLegacyAlgorithm:

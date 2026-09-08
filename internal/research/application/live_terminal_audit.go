@@ -263,7 +263,7 @@ func terminalAuditAlgorithms(planned []research.ResearchAuditAlgorithm, artifact
 		versions["live_snapshot"] = LiveSourceSnapshotV1
 	}
 	if len(artifacts.Verifications) > 0 {
-		versions["verification"] = research.MultiSourceVerificationAlgorithmV1
+		versions["verification"] = artifacts.Verifications[0].AlgorithmVersion
 	}
 	if artifacts.Bundle != nil {
 		versions["live_bundle"] = LiveSourceBundleV1
