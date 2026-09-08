@@ -45,8 +45,21 @@ func (service *Service) researchFetchForRun(ctx context.Context, command Command
 	if err != nil {
 		return nil, fmt.Errorf("assemble cost-controlled research fetch: %w", err)
 	}
+	metadata, err := store.Costs().Metadata(ctx, runID)
+	if err != nil {
+		return nil, fmt.Errorf("read research fetch allocation: %w", err)
+	}
+	remainingFetches := int(min(
+		metadata.Budget.PerRun.FetchRequests-metadata.Used.FetchRequests,
+		int64(researchapp.MaximumFetchesPerRun),
+	))
+	remainingBytes := metadata.Budget.PerRun.Bytes - metadata.Used.Bytes
 	stage, err := researchapp.NewLiveSourceFetchService(
 		fetch, researchapp.DefaultResearchProcessingLimitsV1(), researchapp.DefaultLiveSourceMaximumBytes,
+		researchapp.LiveSourceFetchAllocation{
+			MaximumFetches: remainingFetches, MaximumBytes: remainingBytes,
+			AlgorithmVersion: researchapp.LiveSourceFetchAllocationV1,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("assemble live research fetch: %w", err)

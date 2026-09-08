@@ -69,6 +69,7 @@ type LiveResearchArtifacts struct {
 	FetchedSources         []FetchedSource
 	FetchFailures          []SourceFetchFailure
 	FetchMaximumBytes      int64
+	FetchAlgorithmVersion  string
 	Snapshots              []research.SourceSnapshot
 	NormalizationInputs    []FetchedSource
 	SnapshotFailures       []SourceSnapshotFailure

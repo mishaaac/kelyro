@@ -11,8 +11,29 @@ import (
 
 const (
 	LiveSourceFetchV1                   = "live-source-fetch-v1"
+	LiveSourceFetchV2                   = "live-source-fetch-v2"
+	LiveSourceFetchAllocationV1         = "live-source-fetch-allocation-v1"
 	DefaultLiveSourceMaximumBytes int64 = 2 << 20
 )
+
+type LiveSourceFetchAllocation struct {
+	MaximumFetches   int
+	MaximumBytes     int64
+	AlgorithmVersion string
+}
+
+func (allocation LiveSourceFetchAllocation) Validate(limits ResearchProcessingLimits) error {
+	if allocation.MaximumFetches < 1 || allocation.MaximumFetches > limits.MaxFetches {
+		return fmt.Errorf("allocated fetches must be between 1 and %d", limits.MaxFetches)
+	}
+	if allocation.MaximumBytes < 1 || allocation.MaximumBytes > limits.MaxFetchedBytes {
+		return fmt.Errorf("allocated fetch bytes must be between 1 and %d", limits.MaxFetchedBytes)
+	}
+	if allocation.AlgorithmVersion != LiveSourceFetchAllocationV1 {
+		return fmt.Errorf("live fetch allocation algorithm must be %q", LiveSourceFetchAllocationV1)
+	}
+	return nil
+}
 
 type SourceFetchFailure struct {
 	SourceID research.SourceID
@@ -86,8 +107,8 @@ func (result LiveSourceFetchResult) Validate() error {
 	if fetchedBytes != result.FetchedBytes {
 		return errors.New("live source fetched byte summary is inconsistent")
 	}
-	if result.AlgorithmVersion != LiveSourceFetchV1 {
-		return fmt.Errorf("live source fetch algorithm must be %q", LiveSourceFetchV1)
+	if result.AlgorithmVersion != LiveSourceFetchV1 && result.AlgorithmVersion != LiveSourceFetchV2 {
+		return fmt.Errorf("invalid live source fetch algorithm %q", result.AlgorithmVersion)
 	}
 	return nil
 }
@@ -96,9 +117,11 @@ type liveSourceFetchService struct {
 	fetch                 FetchService
 	limits                ResearchProcessingLimits
 	maximumBytesPerSource int64
+	allocation            LiveSourceFetchAllocation
+	algorithmVersion      string
 }
 
-func NewLiveSourceFetchService(fetch FetchService, limits ResearchProcessingLimits, maximumBytesPerSource int64) (LiveSourceFetchService, error) {
+func NewLiveSourceFetchService(fetch FetchService, limits ResearchProcessingLimits, maximumBytesPerSource int64, allocations ...LiveSourceFetchAllocation) (LiveSourceFetchService, error) {
 	const operation = "configure live source fetch"
 	if err := requireDependency(operation, "privacy-gated fetch service", fetch); err != nil {
 		return nil, err
@@ -109,7 +132,25 @@ func NewLiveSourceFetchService(fetch FetchService, limits ResearchProcessingLimi
 	if maximumBytesPerSource < 1 || maximumBytesPerSource > limits.MaxFetchedBytes {
 		return nil, invalid(operation, fmt.Errorf("source fetch maximum bytes must be between 1 and %d", limits.MaxFetchedBytes))
 	}
-	return &liveSourceFetchService{fetch: fetch, limits: limits, maximumBytesPerSource: maximumBytesPerSource}, nil
+	if len(allocations) > 1 {
+		return nil, invalid(operation, errors.New("more than one live fetch allocation was provided"))
+	}
+	allocation := LiveSourceFetchAllocation{
+		MaximumFetches: limits.MaxFetches, MaximumBytes: limits.MaxFetchedBytes,
+		AlgorithmVersion: LiveSourceFetchAllocationV1,
+	}
+	algorithmVersion := LiveSourceFetchV1
+	if len(allocations) == 1 {
+		allocation = allocations[0]
+		algorithmVersion = LiveSourceFetchV2
+	}
+	if err := allocation.Validate(limits); err != nil {
+		return nil, invalid(operation, err)
+	}
+	return &liveSourceFetchService{
+		fetch: fetch, limits: limits, maximumBytesPerSource: maximumBytesPerSource,
+		allocation: allocation, algorithmVersion: algorithmVersion,
+	}, nil
 }
 
 func (service *liveSourceFetchService) FetchSources(ctx context.Context, request LiveSourceFetchRequest) (LiveSourceFetchResult, error) {
@@ -136,13 +177,17 @@ func (service *liveSourceFetchService) FetchSources(ctx context.Context, request
 		}
 		seen[source.ID] = struct{}{}
 	}
-	maximumEach := min(service.maximumBytesPerSource, service.limits.MaxFetchedBytes/int64(len(request.Sources)))
-	requests := make([]FetchRequest, len(request.Sources))
-	for index, source := range request.Sources {
+	selectedCount := min(len(request.Sources), service.allocation.MaximumFetches, int(service.allocation.MaximumBytes))
+	maximumEach := min(service.maximumBytesPerSource, service.allocation.MaximumBytes/int64(selectedCount))
+	requests := make([]FetchRequest, selectedCount)
+	for index, source := range request.Sources[:selectedCount] {
 		requests[index] = FetchRequest{SourceID: source.ID, Locator: source.Locator, MaximumBytes: maximumEach}
 	}
 	outputs, failures := service.fetchAll(ctx, request.Mode, requests)
-	result := LiveSourceFetchResult{RequestedCount: len(requests), MaximumBytesEach: maximumEach, AlgorithmVersion: LiveSourceFetchV1}
+	result := LiveSourceFetchResult{
+		RequestedCount: len(request.Sources), MaximumBytesEach: maximumEach,
+		AlgorithmVersion: service.algorithmVersion,
+	}
 	var firstFailure error
 	for index, fetched := range outputs {
 		if failures[index] != nil {
@@ -158,6 +203,14 @@ func (service *liveSourceFetchService) FetchSources(ctx context.Context, request
 		}
 		result.Fetched = append(result.Fetched, cloneFetchedSource(fetched))
 		result.FetchedBytes += int64(len(fetched.Body))
+	}
+	for _, source := range request.Sources[selectedCount:] {
+		result.Failures = append(result.Failures, SourceFetchFailure{
+			SourceID: source.ID, Locator: source.Locator, Kind: ErrorBudgetExceeded,
+		})
+	}
+	if result.FetchedBytes > service.allocation.MaximumBytes {
+		return LiveSourceFetchResult{}, invalid(operation, errors.New("fetched bytes exceed live allocation"))
 	}
 	if err := result.Validate(); err != nil {
 		return LiveSourceFetchResult{}, invalid(operation, err)
@@ -223,6 +276,7 @@ func (service *liveSourceFetchService) Execute(ctx context.Context, input LiveRe
 	}
 	artifacts.FetchFailures = append([]SourceFetchFailure(nil), result.Failures...)
 	artifacts.FetchMaximumBytes = result.MaximumBytesEach
+	artifacts.FetchAlgorithmVersion = result.AlgorithmVersion
 	return artifacts, err
 }
 

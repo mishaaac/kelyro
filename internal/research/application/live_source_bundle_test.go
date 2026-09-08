@@ -20,6 +20,20 @@ func TestLiveSourceBundleAssemblesDurableBundleForRunningResearchRun(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	unsupportedSource := testSource(t, "live-bundle-unsupported")
+	if err := repositories.Sources.Create(ctx, unsupportedSource); err != nil {
+		t.Fatal(err)
+	}
+	unsupportedClaim := verificationClaimFixture(t, "live-bundle-unsupported", claim.Topic, unsupportedSource.ID)
+	unsupportedClaim.Type = research.ClaimExample
+	persistVerificationEvidence(t, ctx, repositories, unsupportedSource, unsupportedClaim.EvidenceIDs[0])
+	if err := repositories.Claims.Append(ctx, unsupportedClaim); err != nil {
+		t.Fatal(err)
+	}
+	unsupportedVerification, err := verificationService.Verify(ctx, unsupportedClaim.ID)
+	if err != nil || unsupportedVerification.Status != research.VerificationInsufficient {
+		t.Fatalf("unsupported verification = (%+v, %v)", unsupportedVerification, err)
+	}
 	freshnessSubjectID, _ := research.NewID(claim.ID.String())
 	if err := repositories.Freshness.Save(ctx, application.FreshnessRecord{
 		SubjectID: freshnessSubjectID, State: research.FreshnessFresh, Score: testFreshnessScore(t, .95),
@@ -49,7 +63,10 @@ func TestLiveSourceBundleAssemblesDurableBundleForRunningResearchRun(t *testing.
 	}
 	input := application.LiveResearchStageInput{
 		Request: request, Run: run,
-		Artifacts: application.LiveResearchArtifacts{Claims: []research.Claim{claim}, Verifications: []research.VerificationResult{verification}},
+		Artifacts: application.LiveResearchArtifacts{
+			Claims:        []research.Claim{unsupportedClaim, claim},
+			Verifications: []research.VerificationResult{unsupportedVerification, verification},
+		},
 	}
 	artifacts, err := stage.Execute(ctx, input)
 	if err != nil {
@@ -59,6 +76,9 @@ func TestLiveSourceBundleAssemblesDurableBundleForRunningResearchRun(t *testing.
 		artifacts.Bundle.AlgorithmVersion != research.SourceBundleAlgorithmV1 || len(artifacts.Bundle.ClaimIDs) != 1 ||
 		artifacts.Bundle.ClaimIDs[0] != claim.ID {
 		t.Fatalf("live bundle = %+v", artifacts.Bundle)
+	}
+	if len(artifacts.Claims) != 2 || len(artifacts.Verifications) != 2 {
+		t.Fatalf("bundle selection discarded auditable candidates: %+v", artifacts)
 	}
 	stored, err := bundles.Get(ctx, artifacts.Bundle.ID)
 	if err != nil || stored.ContentHash != artifacts.Bundle.ContentHash {

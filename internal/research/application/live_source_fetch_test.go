@@ -117,6 +117,47 @@ func TestLiveSourceFetchEnforcesWholeRunAllocationAndInputBounds(t *testing.T) {
 	}
 }
 
+func TestLiveSourceFetchV2SelectsInOrderWithinDurableAllocation(t *testing.T) {
+	t.Parallel()
+	limits := application.DefaultResearchProcessingLimitsV1()
+	limits.MaxConcurrentFetch = 2
+	limits.MaxFetchedBytes = 100
+	fetcher := &selectiveSourceFetcher{at: testTimestamp(t, 12)}
+	service, err := application.NewLiveSourceFetchService(
+		application.NewFetchService(fetcher, nil, application.NetworkResearchAccess{Gate: &recordingNetworkGate{}}),
+		limits, 80, application.LiveSourceFetchAllocation{
+			MaximumFetches: 2, MaximumBytes: 100, AlgorithmVersion: application.LiveSourceFetchAllocationV1,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := testSource(t, "live-fetch-v2-first")
+	second := testSource(t, "live-fetch-v2-second")
+	third := testSource(t, "live-fetch-v2-third")
+	result, err := service.FetchSources(context.Background(), application.LiveSourceFetchRequest{
+		Mode: application.ResearchModeOnline, Sources: []research.Source{first, second, third},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.AlgorithmVersion != application.LiveSourceFetchV2 || result.RequestedCount != 3 ||
+		len(result.Fetched) != 2 || len(result.Failures) != 1 || result.MaximumBytesEach != 50 ||
+		result.Failures[0].SourceID != third.ID || result.Failures[0].Kind != application.ErrorBudgetExceeded {
+		t.Fatalf("allocated v2 fetch result = %+v", result)
+	}
+	requests := fetcher.requestsCopy()
+	if len(requests) != 2 || requests[0].SourceID != first.ID && requests[1].SourceID != first.ID ||
+		requests[0].SourceID != second.ID && requests[1].SourceID != second.ID {
+		t.Fatalf("allocated v2 requests = %+v", requests)
+	}
+	for _, request := range requests {
+		if request.MaximumBytes != 50 {
+			t.Fatalf("allocated v2 request = %+v", request)
+		}
+	}
+}
+
 type selectiveSourceFetcher struct {
 	mu       sync.Mutex
 	failures map[research.SourceID]error

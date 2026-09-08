@@ -257,13 +257,17 @@ func terminalAuditAlgorithms(planned []research.ResearchAuditAlgorithm, artifact
 	versions["live_terminal_audit"] = LiveResearchTerminalAuditV1
 	versions["orchestrator"] = LiveResearchOrchestratorV1
 	if len(artifacts.FetchedSources)+len(artifacts.FetchFailures) > 0 {
-		versions["live_fetch"] = LiveSourceFetchV1
+		versions["live_fetch"] = artifacts.FetchAlgorithmVersion
+		if versions["live_fetch"] == "" {
+			versions["live_fetch"] = LiveSourceFetchV1
+		}
 	}
 	if len(artifacts.Snapshots) > 0 {
 		versions["live_snapshot"] = LiveSourceSnapshotV1
 	}
 	if len(artifacts.Verifications) > 0 {
 		versions["verification"] = artifacts.Verifications[0].AlgorithmVersion
+		versions["bundle_claim_selection"] = LiveBundleClaimSelectionV1
 	}
 	if artifacts.Bundle != nil {
 		versions["live_bundle"] = LiveSourceBundleV1

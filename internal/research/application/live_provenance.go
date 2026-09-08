@@ -83,7 +83,19 @@ func (service *liveResearchProvenanceService) Preserve(ctx context.Context, requ
 	if err := recordedAt.Validate(); err != nil {
 		return LiveResearchProvenanceResult{}, invalid(operation, fmt.Errorf("provenance clock: %w", err))
 	}
-	claims := append([]research.Claim(nil), request.Claims...)
+	claimsByID := make(map[research.ClaimID]research.Claim, len(request.Claims))
+	for _, claim := range request.Claims {
+		claimsByID[claim.ID] = claim
+	}
+	claims := make([]research.Claim, 0, len(request.Bundle.ClaimIDs))
+	for _, claimID := range request.Bundle.ClaimIDs {
+		claim, exists := claimsByID[claimID]
+		if !exists {
+			return LiveResearchProvenanceResult{}, invalid(operation,
+				fmt.Errorf("bundle Claim %q is missing from live artifacts", claimID))
+		}
+		claims = append(claims, claim)
+	}
 	sort.Slice(claims, func(i, j int) bool { return claims[i].ID.String() < claims[j].ID.String() })
 	result := LiveResearchProvenanceResult{AlgorithmVersion: LiveResearchProvenanceV1}
 	for _, claim := range claims {

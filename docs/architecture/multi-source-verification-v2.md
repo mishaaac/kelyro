@@ -36,6 +36,11 @@ organizations.
 The pure `Verify` entry point remains v1 for historical callers and fixtures;
 the production application service invokes `VerifyV2`. Bundle assembly accepts
 both immutable verification versions and applies the same status handling.
+The live adapter's versioned `live-bundle-claim-selection-v1` boundary selects
+verified, caveated, or conflicted Claims for the bundle. Insufficient or
+rejected extracted Claims remain durably auditable but cannot make supported
+Claims unusable; conflicted Claims remain selected so a conflict cannot be
+silently hidden. Provenance is emitted for the selected bundle Claims.
 
 Forward-only SQLite migration v47 adds `verification_results_v2` instead of
 rewriting the published v34 table or its checks. The adapter writes v2 rows to
@@ -45,3 +50,14 @@ v1 rows remain unchanged and readable.
 The policy performs no network access, does not seed the Source Registry, does
 not convert the underlying Trust Decision to accepted, and does not alter
 Student Core or curriculum state.
+
+## Live fetch allocation correction
+
+The same dogfooding pass exposed a race between the 64 MiB structural fetch
+ceiling and the smaller durable per-run cost budget. Production now supplies
+`live-source-fetch-v2` with `live-source-fetch-allocation-v1`: it selects the
+ordered candidate prefix allowed by the remaining run fetch count and divides
+the remaining byte budget across that prefix before concurrent HTTP work.
+Unselected candidates receive explicit `budget_exceeded` failures. This keeps
+the existing 8 MiB default run budget while preventing goroutine scheduling
+from choosing which candidates consume it.

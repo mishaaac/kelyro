@@ -9,7 +9,10 @@ import (
 	"github.com/mishaaac/kelyro/internal/research"
 )
 
-const LiveSourceBundleV1 = "live-source-bundle-v1"
+const (
+	LiveSourceBundleV1         = "live-source-bundle-v1"
+	LiveBundleClaimSelectionV1 = "live-bundle-claim-selection-v1"
+)
 
 type LiveSourceBundleRequest struct {
 	RunID  research.ID
@@ -89,13 +92,43 @@ func (service *liveSourceBundleService) Assemble(ctx context.Context, request Li
 }
 
 func (service *liveSourceBundleService) Execute(ctx context.Context, input LiveResearchStageInput) (LiveResearchArtifacts, error) {
-	result, err := service.Assemble(ctx, LiveSourceBundleRequest{RunID: input.Run.ID, Claims: input.Artifacts.Claims})
+	claims, selectionErr := selectLiveBundleClaims(input.Artifacts.Claims, input.Artifacts.Verifications)
+	if selectionErr != nil {
+		return cloneLiveResearchArtifacts(input.Artifacts), invalid("select verified live bundle Claims", selectionErr)
+	}
+	result, err := service.Assemble(ctx, LiveSourceBundleRequest{RunID: input.Run.ID, Claims: claims})
 	artifacts := cloneLiveResearchArtifacts(input.Artifacts)
 	if result.Bundle.ID.Validate() == nil {
 		bundle := cloneSourceBundleArtifact(result.Bundle)
 		artifacts.Bundle = &bundle
 	}
 	return artifacts, err
+}
+
+func selectLiveBundleClaims(claims []research.Claim, verifications []research.VerificationResult) ([]research.Claim, error) {
+	byClaim := make(map[research.ClaimID]research.VerificationResult, len(verifications))
+	for _, verification := range verifications {
+		if err := verification.Validate(); err != nil {
+			return nil, err
+		}
+		if _, duplicate := byClaim[verification.ClaimID]; duplicate {
+			return nil, fmt.Errorf("duplicate verification for Claim %q", verification.ClaimID)
+		}
+		byClaim[verification.ClaimID] = verification
+	}
+	selected := make([]research.Claim, 0, len(claims))
+	for _, claim := range claims {
+		verification, exists := byClaim[claim.ID]
+		if !exists {
+			return nil, fmt.Errorf("Claim %q has no verification", claim.ID)
+		}
+		switch verification.Status {
+		case research.VerificationVerified, research.VerificationVerifiedCaveat, research.VerificationConflicted:
+			selected = append(selected, claim)
+		case research.VerificationInsufficient, research.VerificationRejected:
+		}
+	}
+	return selected, nil
 }
 
 func sameLiveBundleClaimIDs(left, right []research.ClaimID) bool {

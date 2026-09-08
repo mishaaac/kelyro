@@ -13,6 +13,10 @@ func TestLiveResearchProvenancePreservesQueryToVerifiedBundleChain(t *testing.T)
 	t.Parallel()
 	ctx := context.Background()
 	fixture := liveProvenanceFixture(t)
+	unsupported := fixture.Artifacts.Claims[0]
+	unsupported.ID = testClaimID(t, "live-provenance-unsupported")
+	unsupported.Statement = "An unsupported extracted candidate remains auditable."
+	fixture.Artifacts.Claims = append(fixture.Artifacts.Claims, unsupported)
 	store := memory.New()
 	provenance := application.NewProvenanceService(store.Repositories().Provenance)
 	stage, err := application.NewLiveResearchProvenanceService(provenance, fixedClock{now: testTimestamp(t, 17)})
