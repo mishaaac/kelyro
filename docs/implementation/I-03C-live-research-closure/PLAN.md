@@ -1662,7 +1662,7 @@ docs(research): record I-03C dogfooding results
 
 ## Paso 49 — Corregir estado administrativo de I-03
 
-- [ ] Paso 49 completado
+- [x] Paso 49 completado
 
 Añadir al PROGRESS original:
 
@@ -1856,7 +1856,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [ ] Paso 46 — Offline regression
 - [ ] Paso 47 — Full regression
 - [x] Paso 48 — Dogfooding
-- [ ] Paso 49 — I-03 progress correction
+- [x] Paso 49 — I-03 progress correction
 - [ ] Paso 50 — Architecture docs
 - [ ] Paso 51 — Closure audit
 - [ ] Paso 52 — Formal closure

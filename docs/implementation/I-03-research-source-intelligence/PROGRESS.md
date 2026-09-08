@@ -3718,3 +3718,12 @@ Published: 2026-08-30T18:52:22Z
   migration was claimed or introduced.
 - I-04 remains unstarted and requires a separate specification and explicit
   authorization.
+
+Post-closure corrective implementation:
+I-03C Live Research Closure
+
+Reason:
+Production SearchProvider and query-to-bundle wiring were missing.
+
+Resolved in:
+`c89c60b`, `faa339f`, `e76638b`, and dogfooding record `d356713`.

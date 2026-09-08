@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 49
-Last completed step: 48
+Current step: 50
+Last completed step: 49
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -11,7 +11,8 @@ I-03 status before correction: PARTIAL
 
 - live dogfooding completed with ready-with-caveats public bundles
 - corrective implementation complete through `e76638b`
-- administrative closure and later closure reviews pending
+- original I-03 progress linked to the corrective implementation
+- architecture refresh and later closure reviews pending
 
 ## Registro
 
@@ -2857,3 +2858,39 @@ Release: unreleased
 - El Paso 49 debe añadir el enlace administrativo requerido al PROGRESS
   original de I-03 sin reescribir su cierre histórico.
 - Los Pasos 50+ siguen pendientes y no fueron iniciados.
+
+## Step 49 — Corregir estado administrativo de I-03
+
+Status: completed
+Date: 2026-09-08
+Release: unreleased
+
+### Delivered
+
+- Se añadió al final del PROGRESS original de I-03 el bloque post-closure
+  exigido por el plan.
+- El bloque identifica I-03C, conserva literalmente la razón administrativa y
+  enlaza commits reales del provider, wiring, correcciones finales y
+  dogfooding.
+- El cierre histórico, release publicado, limitaciones de aquel momento y
+  contenido previo de I-03 permanecen sin reescritura.
+
+### Decisions
+
+- Usar commits funcionales concretos en vez de anticipar un release que todavía
+  no existe: `c89c60b`, `faa339f`, `e76638b` y `d356713`.
+- Tratar el bloque como addendum post-closure; no cambiar el estado ni la fecha
+  del prerelease histórico `v0.2.0-alpha.1`.
+- No iniciar la actualización de architecture docs del Paso 50.
+
+### Verification
+
+- Revisión del tail de
+  `docs/implementation/I-03-research-source-intelligence/PROGRESS.md`.
+- Checkboxes principal y resumido de los Pasos 48–49 marcados en PLAN.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 50 es el siguiente paso pendiente y requiere su propia ejecución.
+- I-04 continúa fuera de alcance y no fue iniciado.
