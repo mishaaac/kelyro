@@ -4,6 +4,7 @@ package secretstore
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -27,7 +28,7 @@ func (backend linuxSecretService) Get(name string) (string, error) {
 	command := exec.Command(backend.path, "lookup", "service", serviceName, "account", name)
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return "", commandError("read", output, err)
+		return "", linuxCommandError("read", output, err)
 	}
 	value := trimLineEnding(string(output))
 	if value == "" {
@@ -50,9 +51,17 @@ func (backend linuxSecretService) Delete(name string) error {
 	command := exec.Command(backend.path, "clear", "service", serviceName, "account", name)
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return commandError("delete", output, err)
+		return linuxCommandError("delete", output, err)
 	}
 	return nil
+}
+
+func linuxCommandError(operation string, output []byte, err error) error {
+	var exitErr *exec.ExitError
+	if strings.TrimSpace(string(output)) == "" && errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return storage.ErrSecretNotFound
+	}
+	return commandError(operation, output, err)
 }
 
 func commandError(operation string, output []byte, err error) error {
