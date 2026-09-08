@@ -1,6 +1,6 @@
 # I-03C Live Research Dogfooding
 
-Date: 2026-09-08  
+Date: 2026-09-08
 Branch: `feat/i03c-live-research-closure`  
 Tested baseline: `a9afbc2`  
 Provider: `brave` / `brave-web-search-v1`
@@ -215,3 +215,63 @@ Every final run retained the same cost and audit bounds as the first attempt:
 four searches, four fetch reservations, 8 MiB reserved, four provider API calls,
 zero model calls, and two sealed audit checkpoints. Step 48 therefore remains
 blocked and Step 49 remains pending.
+
+## Final corrective pass
+
+Date: 2026-09-08
+Tested commit: `e76638b` (including verification correction `5b15c95`)
+
+The final pass added a caveat-only authoritative handoff in
+`multi-source-verification-v2`, selected only supported/conflicted Claims for a
+live bundle, and aligned fetch allocation with the durable run budget before
+concurrency. The public-network matrix from five fresh workspaces was:
+
+| Scenario | Topic | Run | Sources | Snapshots | Evidence | Claims | Verified | Insufficient | Bundle |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Official documentation | `Go context package` | completed | 22 | 12 | 62 | 4 | 2 | 2 | `ready_with_caveats` |
+| Release/version | `Go 1.27 release notes` | completed | 14 | 12 | 175 | 11 | 3 | 8 | `ready_with_caveats` |
+| Deprecation | `Go io/ioutil deprecated` | completed | 18 | 10 | 61 | 9 | 7 | 2 | `ready_with_caveats` |
+| Multi-source | `Go context cancellation` | completed | 17 | 11 | 70 | 5 | 1 | 4 | `ready_with_caveats` |
+| Noisy/irrelevant | `Go channels` | failed safely | 27 | 12 | 39 | 1 | 0 | 1 | none |
+
+Fetched Source kinds showed the classifier operating independently of provider
+rank. The successful cases included package references, source code, release
+notes, an official blog, and official documentation alongside community and
+unclassified material. Trust was evaluated only for Sources supporting an
+extracted Claim. Official selected Sources remained Tier A/B
+`requires_verification`; community support remained Tier D and insufficient.
+
+Every selected official Claim was stored as `verified_with_caveat` with
+`authoritative_source_requires_verification`; unknown reviewed ownership stayed
+visible as `organization_unknown`. The v2 handoff did not produce a fully
+`verified` result, mutate Trust Decisions, seed Registry entries, admit Tier D
+support, or relax security/community rules.
+
+The live bundle selector retained verified, caveated, and conflicted Claims and
+excluded only insufficient/rejected candidates. Those excluded Claims and their
+Evidence remained in SQLite for audit. Provenance graphs were generated for
+the exact selected bundle Claim set. The noisy case had only one community
+Claim with insufficient evidence, so selection was empty and the run stopped
+before bundle creation instead of reporting false success.
+
+All runs preserved the default budget:
+
+```text
+search requests:       4
+fetch reservations:    12
+reserved fetch bytes:  8,388,600
+provider API calls:    4
+model calls:            0
+audit checkpoints:      2
+```
+
+`live-source-fetch-v2` selected the ordered prefix allowed by the durable
+12-fetch/8-MiB run budget and assigned 699,050 bytes per request before
+concurrent network work. Transport/normalization failures still reduced the
+successful snapshot count without changing which candidates were budgeted.
+Final audits recorded `live-source-fetch-v2`,
+`multi-source-verification-v2`, and `live-bundle-claim-selection-v1` with no
+credential or raw body content.
+
+Step 48 is complete: four representative public topics reached durable
+`ready_with_caveats` bundles, and noisy results failed conservatively.

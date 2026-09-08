@@ -2,16 +2,16 @@
 
 ## Estado general
 
-Current step: 48
-Last completed step: 47
+Current step: 49
+Last completed step: 48
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- live dogfooding extraction and Source-kind gaps corrected in `b3ba758`
-- reviewed registry/trust handoff still prevents a ready live bundle
-- administrative closure and closure reviews pending
+- live dogfooding completed with ready-with-caveats public bundles
+- corrective implementation complete through `e76638b`
+- administrative closure and later closure reviews pending
 
 ## Registro
 
@@ -2781,3 +2781,79 @@ Release: unreleased
   registry/trust/verification revelada por el segundo dogfooding.
 - Repetir los cinco escenarios después de esa corrección; sólo entonces evaluar
   cierre del Paso 48 y ejecutar Paso 49.
+
+## Step 48 — Dogfooding live research (final corrective pass)
+
+Status: completed
+Date: 2026-09-08
+Release: unreleased
+
+### Delivered
+
+- `multi-source-verification-v2` cerró la circularidad entre
+  `requires_verification` y verification sin convertirla en trust aceptado:
+  Sources oficiales Tier A/B, ancladas al tópico, no bloqueadas y consistentes
+  sólo pueden alcanzar `verified_with_caveat`.
+- Security/community, Tier D, registry blocked/deprecated, scope inconsistente,
+  statements no anclados y conflictos conservan los límites estrictos.
+- Migración forward-only v47 persiste v2 en una tabla nueva y conserva sin
+  reescritura todo el historial legacy/v1 publicado por v34.
+- `live-bundle-claim-selection-v1` incluye Claims verificadas, caveatadas o
+  conflictuadas; Claims insuficientes/rechazadas siguen persistidas y auditables
+  pero no vuelven incompleto un bundle que sí contiene soporte válido.
+- `live-source-fetch-v2` distribuye antes de la concurrencia el presupuesto
+  durable restante. Con el default seleccionó las primeras 12 Sources y asignó
+  699,050 bytes a cada una (8,388,600 bytes reservados en total), eliminando la
+  selección aleatoria de cuatro fetches sin subir el presupuesto.
+- Cinco escenarios públicos finales se ejecutaron con el binario productivo de
+  `e76638b` en workspaces nuevos y se inspeccionaron directamente en SQLite.
+
+### Findings
+
+- Official (`Go context package`): 22 Sources, 12 snapshots, 62 Evidence, 4
+  Claims, 2 verificadas y bundle `ready_with_caveats`.
+- Release (`Go 1.27 release notes`): 14 Sources, 12 snapshots, 175 Evidence, 11
+  Claims, 3 verificadas y bundle `ready_with_caveats`.
+- Deprecation (`Go io/ioutil deprecated`): 18 Sources, 10 snapshots, 61
+  Evidence, 9 Claims, 7 verificadas y bundle `ready_with_caveats`.
+- Multi-source (`Go context cancellation`): 17 Sources, 11 snapshots, 70
+  Evidence, 5 Claims, 1 verificada y bundle `ready_with_caveats`.
+- Noisy (`Go channels`): 27 Sources, 12 snapshots, 39 Evidence y una Claim
+  comunitaria insuficiente; no creó bundle y finalizó como failed/invalid_state
+  en vez de presentar soporte falso.
+- Los cuatro bundles exitosos contienen sólo Claims seleccionadas y Sources de
+  soporte con provenance completo. Cero escenarios produjeron conflictos.
+- Todas las rutas oficiales seleccionadas conservaron
+  `authoritative_source_requires_verification` y `organization_unknown`; no se
+  sembró registry ni se inventó ownership.
+- Cada Run conservó 4 searches, 12 fetch reservations, 8,388,600 bytes, 4
+  provider API calls, 0 model calls y 2 checkpoints de audit. El audit final
+  registra `live-source-fetch-v2`, `multi-source-verification-v2` y
+  `live-bundle-claim-selection-v1`.
+
+### Decisions
+
+- Completar el Paso 48: la red pública produjo cuatro Source Bundles durables
+  `ready_with_caveats` y el escenario ruidoso falló de forma conservadora.
+- Mantener las caveats como resultado correcto para workspaces sin Registry
+  revisado; no convertir una clasificación de host/path en aceptación de trust.
+- Conservar Evidence y Claims no seleccionadas como artifacts auditables; la
+  selección del bundle no borra ni reescribe datos.
+- No aumentar límites, almacenar bodies web en SQLite, introducir AI, tocar
+  Student Core ni iniciar I-04.
+
+### Verification
+
+- `go test ./...`.
+- `go vet ./...`.
+- `go test -tags=e2e ./tests/e2e`.
+- Cinco invocaciones reales de `kelyro research topic` con Brave y red pública.
+- Inspección SQLite read-only de queries, Sources/kinds, snapshots, Evidence,
+  Claims, trust, verification v2, conflicts, bundles, cost y audit.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 49 debe añadir el enlace administrativo requerido al PROGRESS
+  original de I-03 sin reescribir su cierre histórico.
+- Los Pasos 50+ siguen pendientes y no fueron iniciados.

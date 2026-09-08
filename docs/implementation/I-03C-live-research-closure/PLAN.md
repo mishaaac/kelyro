@@ -1625,7 +1625,7 @@ test(research): verify I-03C regression safety
 
 ## Paso 48 — Dogfooding live research
 
-- [ ] Paso 48 completado
+- [x] Paso 48 completado
 
 Probar:
 
@@ -1855,7 +1855,7 @@ docs(roadmap): mark I-03C live research closure complete
 - [ ] Paso 45 — Performance
 - [ ] Paso 46 — Offline regression
 - [ ] Paso 47 — Full regression
-- [ ] Paso 48 — Dogfooding
+- [x] Paso 48 — Dogfooding
 - [ ] Paso 49 — I-03 progress correction
 - [ ] Paso 50 — Architecture docs
 - [ ] Paso 51 — Closure audit
