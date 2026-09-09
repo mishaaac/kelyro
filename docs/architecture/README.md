@@ -6,10 +6,10 @@ AI providers, and operating-system details.
 
 I-02 Student & Learning Core and I-03 Research & Source Intelligence are
 complete. I-03 closed after hosted Linux/macOS/Windows CI with Linux race
-coverage. The records below are stable v1 contracts and adapter boundaries for
-later implementations; they do not imply that a production Curriculum
-Compiler, Learning Packs, generated exercises, automatic learner migration, or
-AI runtime already exist.
+coverage. I-04 Curriculum Compiler & Learning Packs is now in progress. The
+records below are stable contracts and adapter boundaries; they do not imply
+that later compiler passes, production Learning Packs, generated exercises,
+automatic learner migration, or an AI runtime already exist.
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
@@ -20,6 +20,10 @@ The Student & Learning Core domain vocabulary and invariants are documented in
 The Research & Source Intelligence domain vocabulary, traceability graph,
 value objects, invariants, and deferred adapter/policy boundaries are documented
 in [research-domain.md](research-domain.md).
+
+The Curriculum Compiler domain vocabulary, Source Bundle reference boundary,
+Learning Pack shapes, closed status types, and structural invariants are
+documented in [curriculum-domain.md](curriculum-domain.md).
 
 Research repository ports, external adapter contracts, application services,
 error taxonomy, and deterministic memory fakes are documented in

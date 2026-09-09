@@ -309,7 +309,7 @@ docs(roadmap): open I-04 Curriculum Compiler
 
 ## Paso 1 — Diseñar el modelo de dominio curricular
 
-- [ ] Paso 1 completado
+- [x] Paso 1 completado
 
 ### Objetivo
 
@@ -2977,7 +2977,7 @@ No asumir número.
 ## Ejecución
 
 - [x] Paso 0 — Apertura formal
-- [ ] Paso 1 — Curriculum domain
+- [x] Paso 1 — Curriculum domain
 - [ ] Paso 2 — Service boundaries
 - [ ] Paso 3 — Persistence
 - [ ] Paso 4 — Learning Pack v1
