@@ -8,7 +8,7 @@ independent from databases, HTTP, search providers, parsers, clocks, and UI.
 ## Dependency direction
 
 ```text
-future CLI / TUI / compiler consumers
+   CLI / TUI / compiler consumers
                  |
                  v
        application service interfaces
@@ -99,16 +99,21 @@ from entering domain or services:
 - `MetadataExtractor` derives `SourceMetadata` from normalized data.
 - `Clock` supplies a validated research timestamp to time-dependent use cases.
 
-Step 07 protects every live call with Foundation's privacy gate. Steps 08–09
-implement the hardened HTTP transport and `SourceFetcher`, Step 10 implements
-the deterministic `SourceNormalizer`, and Step 11 completes the vendor-neutral
-search contract with a static network-free provider. Step 12 adds the pure
-`query-planner-v1` producer for query text, desired kind, authority threshold,
-and execution priority; callers add request ID, result limit, and target-version
-options when mapping a plan item into these discovery contracts. Step 20 adds
-JSON and Atom release-feed adapters without a vendor dependency. A production
-search adapter, cache encoding, and separate metadata extraction remain
-unimplemented.
+Every live search and fetch call is protected by Foundation's privacy gate.
+The production composition root selects the Brave Web Search adapter through
+the provider-neutral `LiveSearchProviderFactory`, resolves its credential from
+Foundation Secrets, and wraps it with cost control and the workspace search
+cache. The hardened source-fetch adapter, deterministic source normalizer, and
+filesystem cache implement the remaining external boundaries. The static
+network-free provider remains available for deterministic tests.
+
+`query-planner-v1` produces query text, desired kind, authority threshold, and
+execution priority. The production search stage adds the durable request ID,
+bounded result limit, and target-version options before calling
+`DiscoveryService`. JSON and Atom release-feed adapters remain separate from
+general web discovery. The optional `MetadataExtractor` port is not part of the
+live query-to-bundle path; normalization, evidence extraction, and post-fetch
+source classification use their own explicit services.
 `MaximumBytes` is enforced by the fetch adapter as a request-specific limit
 below the transport's configured global ceiling. A safe redirect may change
 the returned locator without changing `SourceID`.
@@ -125,16 +130,19 @@ The initial services are deliberately thin:
   canonical locators as unclassified `other` Sources, and appends immutable
   request/query/provider discovery observations without assigning trust;
 - `FetchService` applies the same boundary to live/cached source retrieval;
-- `live-source-fetch-v1` maps registered Sources to bounded `FetchRequest`
-  values, preserves per-Source failures for partial success, and delegates all
-  privacy and transport behavior to `FetchService` and the hardened adapter;
+- `live-source-fetch-v2` selects the ordered Source prefix allowed by the
+  durable remaining fetch/byte budget, allocates bytes before concurrent work,
+  preserves per-Source failures for partial success, and delegates privacy and
+  transport behavior to `FetchService` and the hardened adapter;
 - `live-source-snapshot-v1` persists successful fetched observations with
   `SnapshotCaptureService`, writes bounded disposable bodies through the
   existing filesystem cache, resolves cache/304 normalization inputs without
   duplicating history, and preserves partial snapshot/cache failures;
 - `live-source-normalization-v1` verifies each transient input against its
   durable snapshot, delegates HTML/Markdown/JSON/text parsing to the existing
-  `SourceNormalizer`, and preserves bounded document-level partial failures;
+  `SourceNormalizer`, preserves bounded document-level partial failures, and
+  is followed by `source-classifier-v1`, which classifies only successfully
+  normalized content without trusting search rank, title, or snippet;
 - `ResearchProcessingService` executes prepared discovery and fetch work in
   separate bounded pools, preserves input-index result ordering, and enforces
   the versioned whole-run candidate, fetch, Claim, and byte budget;
@@ -150,8 +158,8 @@ The initial services are deliberately thin:
 - `CitationService` loads a source/snapshot/evidence chain, generates one
   deterministic stable citation, and exposes offline citation reads;
 - `VerificationService` loads a Claim's complete stored source/trust/registry/
-  conflict context, applies `multi-source-verification-v1`, appends the
-  immutable result, and exposes offline result reads;
+  conflict context, applies `multi-source-verification-v2` for live work,
+  appends the immutable result, and exposes offline result reads;
 - `FreshnessService` stores already-computed, versioned freshness outputs;
   the pure `internal/research/freshness` model produces `freshness-v1`
   assessments with an injected clock and no adapter dependency, while
@@ -182,35 +190,47 @@ The initial services are deliberately thin:
   affected identities and explicit future references, and separately
   records/reads reviewed impact reports.
 
-They validate input, enforce immediate identity relationships, require their
-dependencies, delegate bounded operations, and translate errors. Snapshot
-capture is the first orchestration that reads prior immutable metadata before
-one append; it does not update history or persist raw bodies. They do not
-implement Trust Policy, authority matching, candidate selection,
-conflict candidate discovery, or Claim extraction. They do not invoke
-curriculum compilation or mutate Student Core.
+These services validate input, enforce immediate identity relationships,
+delegate bounded work, and translate errors. Snapshot capture reads prior
+immutable metadata before appending a new observation; raw bodies stay in the
+disposable filesystem cache rather than SQLite. The live extraction stage
+composes `evidence-extractor-v2`, `claim-extractor-v2`, trust evaluation, and
+temporal/freshness evaluation. It persists only literal bounded Evidence and
+Evidence-backed Claims, reuses stable identities on retry, and keeps selection
+scores transient. Conflict discovery is not inferred from search ranking or
+missing content. No live stage invokes curriculum compilation or mutates
+Student Core.
 
-I-03C adds `LiveEvidenceExtractionService` as the bounded extraction stage. It
-applies the pure `evidence-extractor-v1` policy to exact normalized
-Source/snapshot pairs, persists admitted candidates through the existing
-append-only `EvidenceRepository`, and reuses byte-identical stable IDs on
-retry. Its score is transient selection metadata; only literal bounded
-Evidence crosses into later Claim/verification stages.
+`LiveResearchOrchestrator` fixes the production query-to-bundle stage order:
 
-`LiveResearchOrchestrator` fixes the query-to-bundle stage order over these
-application boundaries. `ResearchService.TransitionRun` applies the single
-`research-run-lifecycle-v1` policy: the orchestrator enters `running` before
-stage work, persists `failed`/`cancelled` on an unsuccessful return, and marks
-`completed` only after the bundle stage has returned a durable matching bundle.
-It does not claim or acknowledge queue items. `ResearchQueueConsumer` owns
-that outer boundary through the versioned
-[`research-queue-worker-v1`](research-queue-worker-v1.md) contract and invokes
-the orchestrator at most once for each acquired claim.
+```text
+search
+→ candidate deduplication/registration
+→ bounded fetch
+→ snapshot/cache
+→ normalization/classification
+→ Evidence/Claim/trust/freshness extraction
+→ multi-source verification/diversity
+→ supported-Claim Source Bundle
+→ provenance
+→ durable-bundle validation
+```
 
-Step 45 adds only bounded execution over already prepared discovery and fetch
-inputs. It does not make a discovery candidate Evidence or decide which
-candidates should be fetched. The complete concurrency and budget contract is
-in [research-performance-limits-v1.md](research-performance-limits-v1.md).
+`ResearchService.TransitionRun` applies `research-run-lifecycle-v1`: the
+orchestrator enters `running` before stage work. It does not claim queue items
+or persist terminal run state. `ResearchQueueConsumer` owns that outer boundary
+through [`research-queue-worker-v1`](research-queue-worker-v1.md), invokes the
+orchestrator at most once for each acquired execution claim, and atomically
+persists the terminal run, queue execution, queue acknowledgement, final audit,
+and cost metadata. `completed` is possible only after a durable matching bundle
+has survived the finalization stage; failure and cancellation preserve the
+artifacts already written and produce terminal audit state.
+
+Search, fetch, evidence, Claim, and byte limits apply to the whole run before
+or around bounded concurrent work. A discovery result remains a candidate
+until registration, fetch, snapshot, normalization, and literal extraction
+have succeeded. The complete concurrency and budget contract is in
+[research-performance-limits-v1.md](research-performance-limits-v1.md).
 
 Step 19 keeps these ports stable through the `ReleaseRecord` alias while adding
 the explicit `TechnologyRelease` entity and deterministic
@@ -341,12 +361,17 @@ mutex-protected maps. It provides:
 - support for multiple runs belonging to one immutable request.
 
 The fake is a test adapter, not a persistence format, cache implementation, or
-transaction substitute. SQLite schema and production repositories begin only
-in Step 03.
+transaction substitute. Production uses the SQLite repositories and the
+workspace filesystem cache through the same application ports.
 
-## Deferred boundaries
+## Current boundaries
 
-The current boundary does not add a live search provider, credentials,
-background work, general evidence extraction, public research commands,
-curriculum compilation, or student-state mutations. The Student Core remains
-offline and unchanged.
+The shipped binary has a production live search provider and a public
+`research topic` query-to-bundle workflow. It deliberately has no background
+daemon, recursive crawler, browser renderer, arbitrary prose/LLM extractor, or
+hidden retry loop. Provider configuration does not authorize network access:
+every live operation still requires `privacy.allow_network`, while durable
+sources, snapshots, Evidence, Claims, bundles, audit, and usable cache remain
+readable offline. Curriculum compilation and student-state mutation remain
+outside Research; the offline Foundation and Student Core behavior is
+unchanged.

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 50
-Last completed step: 49
+Current step: 51
+Last completed step: 50
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -2894,3 +2894,51 @@ Release: unreleased
 
 - El Paso 50 es el siguiente paso pendiente y requiere su propia ejecución.
 - I-04 continúa fuera de alcance y no fue iniciado.
+
+## Step 50 — Actualizar architecture docs
+
+Status: completed
+Date: 2026-09-08
+Release: unreleased
+
+### Delivered
+
+- `research-application.md` actualizado para describir el adapter Brave de
+  producción, Secrets, privacy, cost/cache, fetch v2, classification,
+  extractors v2, verification v2 y la frontera transaccional real.
+- El orden productivo search → registration → fetch → snapshot →
+  normalization/classification → extraction/trust/freshness → verification →
+  bundle → provenance → finalization quedó documentado desde las fronteras
+  de application.
+- `research-cli-v1.md` actualizado con el composition root del binario, el
+  consumo síncrono de la queue, outcomes terminales y requisitos independientes
+  de provider, credencial y permiso de red.
+- Se eliminaron las limitaciones obsoletas que afirmaban que el production
+  SearchProvider, la ejecución query-to-bundle y los comandos públicos seguían
+  sin implementar.
+
+### Decisions
+
+- Documentar el flujo observable actual sin cambiar contratos, código,
+  configuración, schema ni comportamiento.
+- Mantener explícita la separación candidate/Evidence y el hecho de que el
+  ranking del provider no determina clasificación, authority ni trust.
+- Conservar como límites vigentes la ausencia de daemon, crawler, browser, AI,
+  Curriculum Compiler y mutación de Student Core.
+
+### Verification
+
+- Contraste directo con `cmd/kelyro/main.go`, el composition root de
+  `internal/app/research_topic_execution.go`, `LiveResearchOrchestrator` y
+  `ResearchQueueConsumer`.
+- Revisión de los stages productivos de search, fetch, snapshot,
+  normalization/classification, extraction, verification, bundle, provenance,
+  terminal audit y finalization.
+- Búsqueda de las limitaciones obsoletas en los dos documentos actualizados.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 51 debe ejecutar y registrar la auditoría formal de las trece
+  capacidades de cierre.
+- El Paso 52 y sus gates finales permanecen pendientes y no fueron iniciados.
