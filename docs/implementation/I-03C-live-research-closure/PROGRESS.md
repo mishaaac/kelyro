@@ -2,18 +2,15 @@
 
 ## Estado general
 
-Current step: 52
-Last completed step: 51
+Current step: complete
+Last completed step: 52
+Current release: v0.2.0-alpha.2 (release candidate)
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
 ## Gaps
 
-- live dogfooding completed with ready-with-caveats public bundles
-- corrective implementation complete through `e76638b`
-- original I-03 progress linked to the corrective implementation
-- architecture refresh and formal closure audit complete
-- Step 52 gates and formal I-03C closure pending
+- none; all I-03C closure gaps are resolved
 
 ## Registro
 
@@ -2993,3 +2990,78 @@ Release: unreleased
   gates, incluido race y el live opt-in indicado por el plan.
 - No marcar I-03C formalmente cerrado ni Ready for I-04 antes de completar ese
   paso y registrar su commit/release real.
+
+## Step 52 — Cierre formal I-03C
+
+Status: completed
+Date: 2026-09-08
+Release: v0.2.0-alpha.2
+
+### I-03C Live Research Closure
+
+Status: completed
+Baseline: `acbfc63`
+Completion: `v0.2.0-alpha.2`
+
+Closed gaps:
+
+- production SearchProvider
+- public URL discovery
+- queue consumption
+- research orchestration
+- deterministic evidence extraction
+- conservative claim extraction
+- query-to-Source-Bundle wiring
+- live query search test
+
+I-03 status after correction: COMPLETE
+
+Ready for: I-04 Curriculum Compiler & Learning Packs
+
+### Delivered
+
+- Los cinco gates formales pasaron sobre el cierre I-03C completo: suite Go,
+  vet, race, E2E y smoke live opt-in.
+- El gate live confirmó con Brave real tanto query → URL como query → fetch →
+  snapshot → normalization → Evidence → Claim → verification → bundle.
+- El smoke live obsoleto revelado por el primer intento se alineó con
+  `evidence-extractor-v2` y `claim-extractor-v2`, los mismos algoritmos del
+  composition root productivo; el locator dinámico queda visible para futuras
+  investigaciones sin exponer credenciales.
+- El checklist resumido de los Pasos 0–52 y la Definition of Done quedaron
+  completos después de verificar cada criterio.
+- Release candidate `v0.2.0-alpha.2` preparada como corrección compatible de
+  `v0.2.0-alpha.1`; no incluye I-04.
+
+### Decisions
+
+- No aceptar el primer resultado del gate live: query → URL pasó, pero el
+  smoke query-to-bundle usaba extractors v1 mientras producción usa v2. La
+  corrección `ef04be5` actualiza sólo el test live y conserva sus invariantes.
+- Publicar una nueva prerelease `v0.2.0-alpha.2` en vez de modificar la release
+  inmutable `v0.2.0-alpha.1`.
+- Mantener Brave como único provider de referencia explícito, Secrets y privacy
+  como gates independientes, y los smokes de Internet fuera de CI ordinario.
+- Declarar I-03 completo después de la corrección; I-04 queda autorizado como
+  siguiente implementación posible, pero no fue iniciado.
+
+### Verification
+
+- `go test ./...`.
+- `go vet ./...`.
+- `go test -race ./...`; `internal/storage/sqlite` completó en 528.662 s sin
+  race report.
+- `go test -tags=e2e ./tests/e2e`.
+- `KELYRO_LIVE_RESEARCH_SEARCH_TESTS=1 go test ./tests/live -count=1 -v`:
+  `TestLiveResearchSearchProvider` y `TestLiveResearchQueryToBundle` pasaron;
+  `TestLiveResearchSourceAdapters` conservó su opt-in separado y se omitió antes
+  de red.
+- `git diff --check`.
+
+### Release handoff
+
+- La publicación debe apuntar al commit limpio de cierre mediante tag anotado
+  `v0.2.0-alpha.2`, alcanzable desde `origin/main`.
+- El workflow de release debe pasar en Linux, macOS y Windows, generar seis
+  archives más `SHA256SUMS`, y crear un draft revisable antes de publicarlo como
+  prerelease.

@@ -1753,7 +1753,7 @@ docs(research): complete I-03C closure audit
 
 ## Paso 52 — Cierre formal I-03C
 
-- [ ] Paso 52 completado
+- [x] Paso 52 completado
 
 Gates:
 
@@ -1807,21 +1807,21 @@ docs(roadmap): mark I-03C live research closure complete
 
 # Checklist resumido
 
-- [ ] Paso 0 — Apertura
-- [ ] Paso 1 — Baseline
-- [ ] Paso 2 — Acceptance contract
-- [ ] Paso 3 — SearchProvider contract
-- [ ] Paso 4 — Search config
-- [ ] Paso 5 — Provider selection
-- [ ] Paso 6 — Production SearchProvider
-- [ ] Paso 7 — Transport hardening
-- [ ] Paso 8 — Secrets
-- [ ] Paso 9 — Privacy
-- [ ] Paso 10 — Cost control
-- [ ] Paso 11 — Wiring
-- [ ] Paso 12 — Doctor
-- [ ] Paso 13 — Orchestrator
-- [ ] Paso 14 — Run lifecycle
+- [x] Paso 0 — Apertura
+- [x] Paso 1 — Baseline
+- [x] Paso 2 — Acceptance contract
+- [x] Paso 3 — SearchProvider contract
+- [x] Paso 4 — Search config
+- [x] Paso 5 — Provider selection
+- [x] Paso 6 — Production SearchProvider
+- [x] Paso 7 — Transport hardening
+- [x] Paso 8 — Secrets
+- [x] Paso 9 — Privacy
+- [x] Paso 10 — Cost control
+- [x] Paso 11 — Wiring
+- [x] Paso 12 — Doctor
+- [x] Paso 13 — Orchestrator
+- [x] Paso 14 — Run lifecycle
 - [x] Paso 15 — Queue consumer
 - [x] Paso 16 — Execution path
 - [x] Paso 17 — Search candidates
@@ -1839,76 +1839,76 @@ docs(roadmap): mark I-03C live research closure complete
 - [x] Paso 29 — Verification
 - [x] Paso 30 — Source Bundle
 - [x] Paso 31 — Finalize run
-- [ ] Paso 32 — Provenance
-- [ ] Paso 33 — Audit/cost
-- [ ] Paso 34 — CLI topic
-- [ ] Paso 35 — CLI status/show
-- [ ] Paso 36 — Provider unit tests
-- [ ] Paso 37 — Contract tests
-- [ ] Paso 38 — E2E query-to-bundle
-- [ ] Paso 39 — E2E privacy
-- [ ] Paso 40 — E2E partial failure
-- [ ] Paso 41 — E2E idempotency
-- [ ] Paso 42 — Live search
-- [ ] Paso 43 — Live query-to-bundle
-- [ ] Paso 44 — Security
-- [ ] Paso 45 — Performance
-- [ ] Paso 46 — Offline regression
-- [ ] Paso 47 — Full regression
+- [x] Paso 32 — Provenance
+- [x] Paso 33 — Audit/cost
+- [x] Paso 34 — CLI topic
+- [x] Paso 35 — CLI status/show
+- [x] Paso 36 — Provider unit tests
+- [x] Paso 37 — Contract tests
+- [x] Paso 38 — E2E query-to-bundle
+- [x] Paso 39 — E2E privacy
+- [x] Paso 40 — E2E partial failure
+- [x] Paso 41 — E2E idempotency
+- [x] Paso 42 — Live search
+- [x] Paso 43 — Live query-to-bundle
+- [x] Paso 44 — Security
+- [x] Paso 45 — Performance
+- [x] Paso 46 — Offline regression
+- [x] Paso 47 — Full regression
 - [x] Paso 48 — Dogfooding
 - [x] Paso 49 — I-03 progress correction
 - [x] Paso 50 — Architecture docs
 - [x] Paso 51 — Closure audit
-- [ ] Paso 52 — Formal closure
+- [x] Paso 52 — Formal closure
 
 ---
 
 # Definition of Done
 
-- [ ] Existing I-03 architecture preserved
-- [ ] Existing QueryPlannerV1 preserved
-- [ ] Existing SearchProvider reused
-- [ ] Production SearchProvider exists
-- [ ] Search credentials use Foundation Secrets
-- [ ] No credential in TOML/SQLite/logs
-- [ ] Network policy blocks search
-- [ ] Cost control limits search calls
-- [ ] Search results are candidates, not trusted evidence
-- [ ] URL schemes validated
-- [ ] Existing SSRF protection reused
-- [ ] Existing Source Registry reused
-- [ ] Existing Fetcher reused
-- [ ] Existing Snapshot/Cache reused
-- [ ] Existing Normalizers reused
-- [ ] Evidence extraction deterministic
-- [ ] Claims evidence-backed
-- [ ] No AI required
-- [ ] Search rank does not determine authority
-- [ ] Existing Trust/Verification reused
-- [ ] Existing SourceBundle reused
-- [ ] Existing queue reused
-- [ ] Queue has consumer
-- [ ] ResearchRun reaches completed
-- [ ] DiscoveryPending clears
-- [ ] Provenance query→bundle complete
-- [ ] Audit/cost complete
-- [ ] `kelyro research topic` performs real discovery when configured
-- [ ] E2E query-to-bundle passes offline
-- [ ] Live search proves query→URL
-- [ ] Live test proves query→bundle
-- [ ] Offline behavior preserved
-- [ ] I-01/I-02/I-03 regressions pass
-- [ ] No I-04 implementation
-- [ ] No I-07 dependency
-- [ ] Security review complete
-- [ ] Dogfooding complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
-- [ ] race tests applicable pass
-- [ ] working tree clean
-- [ ] Final audit Internet Search = YES
-- [ ] I-03 can be marked COMPLETE
-- [ ] Ready for I-04
+- [x] Existing I-03 architecture preserved
+- [x] Existing QueryPlannerV1 preserved
+- [x] Existing SearchProvider reused
+- [x] Production SearchProvider exists
+- [x] Search credentials use Foundation Secrets
+- [x] No credential in TOML/SQLite/logs
+- [x] Network policy blocks search
+- [x] Cost control limits search calls
+- [x] Search results are candidates, not trusted evidence
+- [x] URL schemes validated
+- [x] Existing SSRF protection reused
+- [x] Existing Source Registry reused
+- [x] Existing Fetcher reused
+- [x] Existing Snapshot/Cache reused
+- [x] Existing Normalizers reused
+- [x] Evidence extraction deterministic
+- [x] Claims evidence-backed
+- [x] No AI required
+- [x] Search rank does not determine authority
+- [x] Existing Trust/Verification reused
+- [x] Existing SourceBundle reused
+- [x] Existing queue reused
+- [x] Queue has consumer
+- [x] ResearchRun reaches completed
+- [x] DiscoveryPending clears
+- [x] Provenance query→bundle complete
+- [x] Audit/cost complete
+- [x] `kelyro research topic` performs real discovery when configured
+- [x] E2E query-to-bundle passes offline
+- [x] Live search proves query→URL
+- [x] Live test proves query→bundle
+- [x] Offline behavior preserved
+- [x] I-01/I-02/I-03 regressions pass
+- [x] No I-04 implementation
+- [x] No I-07 dependency
+- [x] Security review complete
+- [x] Dogfooding complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
+- [x] race tests applicable pass
+- [x] working tree clean
+- [x] Final audit Internet Search = YES
+- [x] I-03 can be marked COMPLETE
+- [x] Ready for I-04
 
 ---
 

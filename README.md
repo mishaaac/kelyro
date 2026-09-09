@@ -7,23 +7,26 @@ persistence needed to build the product incrementally.
 
 ## Status
 
-I-03 Research & Source Intelligence is formally complete after controlled E2E,
-opt-in live checks, real-source dogfooding, and hosted Linux/macOS/Windows CI
-with Linux race coverage. The latest published prerelease is
-`v0.2.0-alpha.1`; it delivers the completed and manually accepted I-03 layer on
-top of I-01 Foundation and I-02 Student & Learning Core. See the
-[`v0.2.0-alpha.1` release notes](docs/releases/v0.2.0-alpha.1.md).
+I-03 Research & Source Intelligence and its I-03C Live Research Closure are
+formally complete after deterministic E2E, opt-in public checks, production
+binary dogfooding, and Linux race coverage. The `v0.2.0-alpha.2` release
+candidate completes the public query-to-Source-Bundle path on top of I-01
+Foundation, I-02 Student & Learning Core, and the I-03 layer published in
+`v0.2.0-alpha.1`. See the
+[`v0.2.0-alpha.2` release notes](docs/releases/v0.2.0-alpha.2.md).
 
-The Research layer now provides transport-neutral requests and runs,
+The Research layer now provides transport-neutral requests and runs, a
+production Brave SearchProvider, synchronous public query-to-bundle execution,
 topic-aware authority and trust, privacy-gated discovery/fetch/release ports,
 bounded snapshots and evidence, provenance and citations, freshness,
 verification and explicit conflicts, release/deprecation intelligence, source
 bundles, offline cache, update/drift/impact reports, audit metadata, and
-Research/Sources CLI and TUI transparency. It intentionally has no configured
-public search provider, production Curriculum Compiler, production Learning
-Pack, AI Research Reviewer, or automatic curriculum/student-state migration.
-See the [I-03 progress record](docs/implementation/I-03-research-source-intelligence/PROGRESS.md)
-and [dogfooding report](docs/implementation/I-03-research-source-intelligence/DOGFOOD.md).
+Research/Sources CLI and TUI transparency. It intentionally enables no provider
+or network access by default and has no production Curriculum Compiler,
+production Learning Pack, AI Research Reviewer, or automatic
+curriculum/student-state migration. See the
+[I-03C progress record](docs/implementation/I-03C-live-research-closure/PROGRESS.md)
+and [live dogfooding report](docs/implementation/I-03C-live-research-closure/DOGFOODING.md).
 
 The executable also provides workspace
 initialization, global/project configuration, secret management, safe opening

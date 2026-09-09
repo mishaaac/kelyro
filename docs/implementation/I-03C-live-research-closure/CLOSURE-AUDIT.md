@@ -83,6 +83,7 @@ Secrets, and `privacy.allow_network` must permit the live operation. Otherwise
 a new production discovery attempt fails closed without making a network
 request; previously stored Research artifacts remain available offline.
 
-Step 51 passes. I-03C is not formally closed by this document alone; Step 52
-must still execute its complete test/race/E2E/live gates and record the final
-completion commit or release.
+At the time of this audit, Step 51 passed but did not formally close I-03C by
+itself. Step 52 subsequently executed the complete test/race/E2E/live gates,
+closed every checklist item, and selected `v0.2.0-alpha.2` as the completion
+release.
