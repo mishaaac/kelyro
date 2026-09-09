@@ -398,15 +398,22 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.onboardingCursor = 0
 		model.diagnosticAnswers = make(map[int]bool)
 		model.prepareOnboardingQuestion()
-		if message.view.Setup.Status == learning.SetupCompleted {
+		setupCompleted := message.view.Setup.Status == learning.SetupCompleted
+		if setupCompleted {
 			model.snapshot.LearningPath = true
 			model.dashboardLoading = true
 		}
 		if model.session.LastView != session.ViewOnboarding {
 			model.session.LastView = session.ViewOnboarding
+			if setupCompleted {
+				if model.sessionReady && !model.quitting {
+					model.checkpointPending = true
+				}
+				return model, loadDashboardCmd(model.ctx, model.service, model.command)
+			}
 			return model.queueCheckpoint()
 		}
-		if message.view.Setup.Status == learning.SetupCompleted {
+		if setupCompleted {
 			return model, loadDashboardCmd(model.ctx, model.service, model.command)
 		}
 		return model, nil

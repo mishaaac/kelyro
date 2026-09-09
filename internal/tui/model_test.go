@@ -484,6 +484,40 @@ func TestCompletedOnboardingLoadsDashboardBeforeReturningHome(t *testing.T) {
 	}
 }
 
+func TestReenteringCompletedSetupLoadsDashboardAndCanQuit(t *testing.T) {
+	t.Parallel()
+	dashboard := tuiDashboard()
+	setup := learningapp.LearnerSetupView{Setup: learning.LearnerSetup{Status: learning.SetupCompleted}}
+	service := &fakeService{result: app.Result{Setup: &setup, Dashboard: &dashboard}}
+	model := readyModel(service)
+	model.sessionReady = true
+	model.session.LastView = session.ViewHome
+
+	opening, setupCommand := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if setupCommand == nil || opening.(Model).screen != screenOnboarding {
+		t.Fatal("completed setup screen did not open")
+	}
+	completed, dashboardCommand := opening.(Model).Update(setupCommand())
+	loadedSetup := completed.(Model)
+	if dashboardCommand == nil || !loadedSetup.dashboardLoading || !loadedSetup.checkpointPending {
+		t.Fatalf("completed setup reentry did not start dashboard load: %+v", loadedSetup)
+	}
+
+	home, checkpointCommand := loadedSetup.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if checkpointCommand != nil || home.(Model).screen != screenHome {
+		t.Fatalf("completed setup did not return home while dashboard loaded: %+v", home)
+	}
+	loaded, checkpointCommand := home.(Model).Update(dashboardCommand())
+	if checkpointCommand == nil || loaded.(Model).dashboardLoading {
+		t.Fatalf("dashboard load did not release deferred checkpoint: %+v", loaded)
+	}
+	checkpointed, _ := loaded.(Model).Update(checkpointCommand())
+	quitting, completeCommand := checkpointed.(Model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if completeCommand == nil || !quitting.(Model).quitting {
+		t.Fatalf("quit remained blocked after completed setup reentry: %+v", quitting)
+	}
+}
+
 func TestCompletedOnboardingDefersSessionWriteUntilDashboardLoadFinishes(t *testing.T) {
 	t.Parallel()
 	dashboard := tuiDashboard()

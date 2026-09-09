@@ -100,6 +100,23 @@ func TestFoundationWorkspaceLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("completed setup can be reopened and exited cleanly", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("piped stdin is not a Windows console handle; setup reentry is covered by model tests")
+		}
+		test := newScenario(t, binary)
+		test.mustRun("init")
+		completeLearnerSetup(t, test)
+
+		output := test.runInteractive(
+			interaction{waitFor: "Study this week: 0m", send: "s"},
+			interaction{waitFor: "Setup complete.", send: "\rq"},
+		)
+		if !strings.Contains(normalizeOutput(output), "Setup complete.") {
+			t.Fatalf("completed setup did not reopen:\n%s", output)
+		}
+	})
+
 	t.Run("doctor is coherent and preserves managed state", func(t *testing.T) {
 		test := newScenario(t, binary)
 		test.mustRun("init")

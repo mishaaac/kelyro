@@ -1650,3 +1650,47 @@ Release: v0.2.0-alpha.1
 - The complete tagged E2E package passed five consecutive runs.
 - The full local quality gate passed: unit/integration tests, tagged E2E,
   `go vet`, Linux race suite, build, version smoke, and help smoke.
+
+## Post-closure regression — Re-entering completed setup leaves dashboard load pending
+
+Status: completed
+Date: 2026-09-09
+Release: unreleased
+
+### Reproduction
+
+- A manual end-to-end pass created a new workspace, completed onboarding and
+  the optional diagnostic in the production TUI, returned to the already
+  completed Setup screen with `s`, and then returned Home.
+- Home remained on `Refreshing learning progress...`; navigating elsewhere and
+  pressing `q` did not terminate because graceful quit waited for
+  `dashboardLoading`, but no dashboard command had been scheduled.
+- The failure was deterministic when the stored session view was not
+  `onboarding`: the completed-setup handler deferred its checkpoint behind the
+  dashboard flag and returned before starting the dashboard load.
+
+### Fix
+
+- Re-entering an already completed Setup now always starts the dashboard load.
+- When the session view also changes to Setup, its checkpoint remains deferred
+  until that load settles, preserving the serialization introduced by the
+  previous post-closure regression fix.
+- The change is confined to TUI coordination. It does not alter persistence,
+  educational algorithms, Research, migrations, dependencies, or I-04 scope.
+
+### Verification
+
+- A model regression covers Home -> completed Setup -> Home -> dashboard
+  completion -> checkpoint -> graceful quit and fails if the dashboard command
+  is omitted.
+- The tagged Foundation E2E repeats the completed-setup re-entry through the
+  real CLI/TUI process and requires a clean exit within its timeout.
+- The production binary repeated the originally failing flow in the same
+  manually initialized workspace and exited immediately with status 0.
+- `go run ./tools/quality all` passed, including unit/integration tests, tagged
+  Foundation/Student/Research E2E, `go vet`, race, build, version smoke, and
+  help smoke.
+- All three opt-in live Research smokes passed against the public adapters,
+  Brave Search, and live query-to-bundle path.
+- CGO-disabled builds succeeded for Linux, macOS, and Windows on amd64 and
+  arm64.
