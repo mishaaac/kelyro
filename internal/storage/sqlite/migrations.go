@@ -1793,6 +1793,194 @@ WHEN EXISTS (
 			`CREATE INDEX verification_results_v2_claim_idx ON verification_results_v2 (claim_id, verified_at DESC, id DESC)`,
 		},
 	},
+	{
+		version: 48,
+		name:    "curriculum compiler and learning packs",
+		statements: []string{
+			`CREATE TABLE curriculum_definitions (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    title TEXT NOT NULL CHECK (length(trim(title)) > 0),
+    description TEXT NOT NULL CHECK (length(trim(description)) > 0),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z')
+)`,
+			`CREATE TABLE curriculum_versions (
+    curriculum_id TEXT NOT NULL REFERENCES curriculum_definitions(id),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    source_policy TEXT NOT NULL CHECK (source_policy IN ('required','optional_for_fixture')),
+    definition_json TEXT NOT NULL CHECK (json_valid(definition_json) AND json_type(definition_json)='object' AND length(CAST(definition_json AS BLOB)) <= 67108864),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    PRIMARY KEY (curriculum_id,version),
+    FOREIGN KEY (curriculum_id,version) REFERENCES curriculum_instances(id,version)
+)`,
+			`CREATE INDEX curriculum_versions_created_idx ON curriculum_versions (created_at,curriculum_id,version)`,
+			`CREATE TRIGGER curriculum_versions_immutable_update BEFORE UPDATE ON curriculum_versions BEGIN SELECT RAISE(ABORT, 'curriculum version is immutable'); END`,
+			`CREATE TRIGGER curriculum_versions_immutable_delete BEFORE DELETE ON curriculum_versions BEGIN SELECT RAISE(ABORT, 'curriculum version is immutable'); END`,
+			`CREATE TABLE curriculum_sources (
+    curriculum_id TEXT NOT NULL,
+    curriculum_version TEXT NOT NULL,
+    bundle_id TEXT NOT NULL REFERENCES source_bundles(id),
+    content_hash TEXT NOT NULL CHECK (content_hash GLOB 'sha256:*' AND length(content_hash)=71),
+    algorithm_version TEXT NOT NULL CHECK (length(trim(algorithm_version)) > 0),
+    verified_at TEXT NOT NULL CHECK (verified_at GLOB '*Z'),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (curriculum_id,curriculum_version,bundle_id),
+    UNIQUE (curriculum_id,curriculum_version,position),
+    FOREIGN KEY (curriculum_id,curriculum_version) REFERENCES curriculum_versions(curriculum_id,version)
+)`,
+			`CREATE INDEX curriculum_sources_bundle_idx ON curriculum_sources (bundle_id,curriculum_id,curriculum_version)`,
+			`CREATE TRIGGER curriculum_sources_bundle_identity_guard BEFORE INSERT ON curriculum_sources
+WHEN NOT EXISTS (
+    SELECT 1 FROM source_bundles
+    WHERE id=NEW.bundle_id AND content_hash=NEW.content_hash
+      AND algorithm_version=NEW.algorithm_version AND verified_at=NEW.verified_at
+) BEGIN SELECT RAISE(ABORT, 'curriculum source bundle identity mismatch'); END`,
+			`CREATE TABLE competencies (
+    curriculum_id TEXT NOT NULL,
+    curriculum_version TEXT NOT NULL,
+    id TEXT NOT NULL CHECK (length(trim(id)) > 0),
+    outcome_id TEXT NOT NULL CHECK (length(trim(outcome_id)) > 0),
+    area TEXT NOT NULL CHECK (length(trim(area)) > 0),
+    expected_level TEXT NOT NULL CHECK (expected_level IN ('awareness','understand','apply','analyze','design','operate','teach_explain')),
+    evidence_json TEXT NOT NULL CHECK (json_valid(evidence_json) AND json_type(evidence_json)='array'),
+    PRIMARY KEY (curriculum_id,curriculum_version,id),
+    FOREIGN KEY (curriculum_id,curriculum_version) REFERENCES curriculum_versions(curriculum_id,version)
+)`,
+			`CREATE INDEX competencies_outcome_idx ON competencies (curriculum_id,curriculum_version,outcome_id)`,
+			`CREATE TABLE competency_concepts (
+    curriculum_id TEXT NOT NULL,
+    curriculum_version TEXT NOT NULL,
+    competency_id TEXT NOT NULL,
+    concept_id TEXT NOT NULL,
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (curriculum_id,curriculum_version,competency_id,concept_id),
+    UNIQUE (curriculum_id,curriculum_version,competency_id,position),
+    FOREIGN KEY (curriculum_id,curriculum_version,competency_id) REFERENCES competencies(curriculum_id,curriculum_version,id),
+    FOREIGN KEY (curriculum_id,curriculum_version,concept_id) REFERENCES curriculum_nodes(curriculum_id,curriculum_version,node_id)
+)`,
+			`CREATE INDEX competency_concepts_concept_idx ON competency_concepts (curriculum_id,curriculum_version,concept_id)`,
+			`CREATE TABLE learning_packs (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    description TEXT NOT NULL CHECK (length(trim(description)) > 0),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z')
+)`,
+			`CREATE TABLE learning_pack_versions (
+    pack_id TEXT NOT NULL REFERENCES learning_packs(id),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    schema_version TEXT NOT NULL CHECK (length(trim(schema_version)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('current','experimental','preview','legacy','historical','deprecated')),
+    curriculum_id TEXT NOT NULL,
+    curriculum_version TEXT NOT NULL,
+    manifest_json TEXT NOT NULL CHECK (json_valid(manifest_json) AND json_type(manifest_json)='object' AND length(CAST(manifest_json AS BLOB)) <= 1048576),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    PRIMARY KEY (pack_id,version),
+    FOREIGN KEY (curriculum_id,curriculum_version) REFERENCES curriculum_versions(curriculum_id,version)
+)`,
+			`CREATE INDEX learning_pack_versions_curriculum_idx ON learning_pack_versions (curriculum_id,curriculum_version)`,
+			`CREATE TRIGGER learning_pack_versions_immutable_update BEFORE UPDATE ON learning_pack_versions BEGIN SELECT RAISE(ABORT, 'learning pack version is immutable'); END`,
+			`CREATE TRIGGER learning_pack_versions_immutable_delete BEFORE DELETE ON learning_pack_versions BEGIN SELECT RAISE(ABORT, 'learning pack version is immutable'); END`,
+			`CREATE TABLE pack_dependencies (
+    pack_id TEXT NOT NULL,
+    pack_version TEXT NOT NULL,
+    dependency_pack_id TEXT NOT NULL CHECK (dependency_pack_id <> pack_id),
+    version_constraint TEXT NOT NULL CHECK (length(trim(version_constraint)) > 0),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (pack_id,pack_version,dependency_pack_id),
+    UNIQUE (pack_id,pack_version,position),
+    FOREIGN KEY (pack_id,pack_version) REFERENCES learning_pack_versions(pack_id,version)
+)`,
+			`CREATE INDEX pack_dependencies_target_idx ON pack_dependencies (dependency_pack_id,pack_id,pack_version)`,
+			`CREATE TABLE pack_installations (
+    pack_id TEXT NOT NULL,
+    pack_version TEXT NOT NULL,
+    content_hash TEXT NOT NULL CHECK (content_hash GLOB 'sha256:*' AND length(content_hash)=71),
+    installed_at TEXT NOT NULL CHECK (installed_at GLOB '*Z'),
+    active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1)),
+    activated_at TEXT CHECK ((active=0 AND activated_at IS NULL) OR (active=1 AND activated_at GLOB '*Z' AND activated_at>=installed_at)),
+    PRIMARY KEY (pack_id,pack_version),
+    FOREIGN KEY (pack_id,pack_version) REFERENCES learning_pack_versions(pack_id,version)
+)`,
+			`CREATE UNIQUE INDEX pack_installations_one_active_idx ON pack_installations (active) WHERE active=1`,
+			`CREATE INDEX pack_installations_time_idx ON pack_installations (installed_at,pack_id,pack_version)`,
+			`CREATE TABLE curriculum_compilations (
+    id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
+    curriculum_id TEXT NOT NULL,
+    curriculum_version TEXT NOT NULL,
+    input_json TEXT NOT NULL CHECK (json_valid(input_json) AND json_type(input_json)='object' AND length(CAST(input_json AS BLOB)) <= 8388608),
+    config_json TEXT NOT NULL CHECK (json_valid(config_json) AND json_type(config_json)='object' AND length(CAST(config_json AS BLOB)) <= 1048576),
+    result_json TEXT NOT NULL CHECK (json_valid(result_json) AND json_type(result_json)='object' AND length(CAST(result_json AS BLOB)) <= 67108864),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    FOREIGN KEY (curriculum_id,curriculum_version) REFERENCES curriculum_versions(curriculum_id,version)
+)`,
+			`CREATE INDEX curriculum_compilations_curriculum_idx ON curriculum_compilations (curriculum_id,curriculum_version,created_at,id)`,
+			`CREATE TRIGGER curriculum_compilations_immutable_update BEFORE UPDATE ON curriculum_compilations BEGIN SELECT RAISE(ABORT, 'curriculum compilation is immutable'); END`,
+			`CREATE TRIGGER curriculum_compilations_immutable_delete BEFORE DELETE ON curriculum_compilations BEGIN SELECT RAISE(ABORT, 'curriculum compilation is immutable'); END`,
+			`CREATE TABLE compilation_passes (
+    compilation_id TEXT NOT NULL REFERENCES curriculum_compilations(id),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    input_hash TEXT NOT NULL CHECK (length(trim(input_hash)) > 0),
+    output_hash TEXT NOT NULL CHECK (length(trim(output_hash)) > 0),
+    warnings_json TEXT NOT NULL CHECK (json_valid(warnings_json) AND json_type(warnings_json)='array'),
+    errors_json TEXT NOT NULL CHECK (json_valid(errors_json) AND json_type(errors_json)='array'),
+    duration_ns INTEGER NOT NULL CHECK (duration_ns >= 0),
+    PRIMARY KEY (compilation_id,position)
+)`,
+			`CREATE TABLE coverage_results (
+    compilation_id TEXT NOT NULL REFERENCES curriculum_compilations(id),
+    requirement_id TEXT NOT NULL CHECK (length(trim(requirement_id)) > 0),
+    status TEXT NOT NULL CHECK (status IN ('missing','partial','covered')),
+    reasons_json TEXT NOT NULL CHECK (json_valid(reasons_json) AND json_type(reasons_json)='array'),
+    PRIMARY KEY (compilation_id,requirement_id)
+)`,
+			`CREATE INDEX coverage_results_status_idx ON coverage_results (status,compilation_id)`,
+			`CREATE TABLE curriculum_gaps (
+    compilation_id TEXT NOT NULL REFERENCES curriculum_compilations(id),
+    id TEXT NOT NULL CHECK (length(trim(id)) > 0),
+    kind TEXT NOT NULL CHECK (length(trim(kind)) > 0),
+    severity TEXT NOT NULL CHECK (severity IN ('blocking','important','recommended','informational')),
+    target_id TEXT NOT NULL CHECK (length(trim(target_id)) > 0),
+    reason TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    evidence_json TEXT NOT NULL CHECK (json_valid(evidence_json) AND json_type(evidence_json)='array'),
+    PRIMARY KEY (compilation_id,id)
+)`,
+			`CREATE INDEX curriculum_gaps_severity_idx ON curriculum_gaps (severity,compilation_id,id)`,
+			`CREATE TABLE curriculum_audit_results (
+    compilation_id TEXT NOT NULL REFERENCES curriculum_compilations(id),
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    passed INTEGER NOT NULL CHECK (passed IN (0,1)),
+    reasons_json TEXT NOT NULL CHECK (json_valid(reasons_json) AND json_type(reasons_json)='array'),
+    PRIMARY KEY (compilation_id,name,version)
+)`,
+			`CREATE INDEX curriculum_audit_results_passed_idx ON curriculum_audit_results (passed,compilation_id)`,
+			`CREATE TABLE environment_packs (
+    id TEXT NOT NULL CHECK (length(trim(id)) > 0),
+    version TEXT NOT NULL CHECK (length(trim(version)) > 0),
+    environment_json TEXT NOT NULL CHECK (json_valid(environment_json) AND json_type(environment_json)='object' AND length(CAST(environment_json AS BLOB)) <= 8388608),
+    created_at TEXT NOT NULL CHECK (created_at GLOB '*Z'),
+    PRIMARY KEY (id,version)
+)`,
+			`CREATE TRIGGER environment_packs_immutable_update BEFORE UPDATE ON environment_packs BEGIN SELECT RAISE(ABORT, 'environment pack version is immutable'); END`,
+			`CREATE TRIGGER environment_packs_immutable_delete BEFORE DELETE ON environment_packs BEGIN SELECT RAISE(ABORT, 'environment pack version is immutable'); END`,
+			`CREATE TABLE environment_tool_requirements (
+    environment_id TEXT NOT NULL,
+    environment_version TEXT NOT NULL,
+    tool_id TEXT NOT NULL CHECK (length(trim(tool_id)) > 0),
+    purpose TEXT NOT NULL CHECK (length(trim(purpose)) > 0),
+    requirement_level TEXT NOT NULL CHECK (requirement_level IN ('required','recommended','optional')),
+    introduced_concept_id TEXT,
+    platforms_json TEXT NOT NULL CHECK (json_valid(platforms_json) AND json_type(platforms_json)='array'),
+    evidence_json TEXT NOT NULL CHECK (json_valid(evidence_json) AND json_type(evidence_json)='array'),
+    position INTEGER NOT NULL CHECK (position >= 0),
+    PRIMARY KEY (environment_id,environment_version,tool_id),
+    UNIQUE (environment_id,environment_version,position),
+    FOREIGN KEY (environment_id,environment_version) REFERENCES environment_packs(id,version)
+)`,
+			`CREATE INDEX environment_tools_concept_idx ON environment_tool_requirements (introduced_concept_id) WHERE introduced_concept_id IS NOT NULL`,
+		},
+	},
 }
 
 // LatestSchemaVersion returns the newest migration version embedded in this

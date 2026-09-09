@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 3
-Last completed step: 2
+Current step: 4
+Last completed step: 3
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -176,7 +176,74 @@ Release: unreleased
 
 ### Notes for next session
 
-- El Paso 3 es el siguiente paso pendiente: migration forward-only y adapter
+- El Paso 3 es el siguiente paso pendiente: migration forward-only y schema
   SQLite para packs, compilations y curriculums instalados.
 - No definir Learning Pack v1, loader, ingestion, compiler algorithms, CLI/TUI
   ni pasos posteriores durante el Paso 3.
+
+## Step 03 — Persistence schema y migration I-04
+
+Status: completed
+Date: 2026-09-09
+Release: unreleased
+
+### Delivered
+
+- Migration SQLite forward-only v48 sobre el cierre I-03 v47, sin modificar
+  ninguna de las 47 migrations publicadas anteriores.
+- Schema para definitions/versions y Source Bundle refs, competencies/mapping,
+  packs/versions/dependencies/installations, compilations/passes, coverage,
+  gaps/audits y environment packs/tool requirements.
+- Reutilización explícita de `curriculum_instances`, `curriculum_nodes`,
+  `curriculum_edges` y `concept_registry` del contrato I-02, evitando tablas
+  duplicadas o una segunda verdad para el hand-off curricular.
+- Versiones de curriculum, Learning Pack, compilations y Environment Pack
+  protegidas por identidad compuesta y triggers de inmutabilidad.
+- Estado available separado de installation/activation; content hash se fija
+  en la instalación y un índice parcial permite un solo pack activo por
+  workspace database.
+- Foreign keys desde curriculum evidence hacia Source Bundles I-03 y entre
+  definitions, versions, competencies, nodes, packs y environment metadata.
+- Índices para lookup por curriculum, source bundle, competency/concept,
+  installation, compilation, coverage, gap severity y tool introduction.
+- JSON metadata validada y acotada entre 1 MiB y 64 MiB según artifact; no se
+  añadieron campos para raw web bodies, scripts, credentials o secrets.
+- Test de migración real desde schema 47 que conserva estado/Source Bundles,
+  valida schema 48, FK de evidencia e inmutabilidad de versiones.
+- Contrato documentado en `docs/architecture/curriculum-persistence.md` y
+  enlazado desde el índice de arquitectura.
+
+### Decisions
+
+- Tratar las tablas `curriculum_*` I-02 existentes como la proyección durable
+  del consumption contract, no como Student State; los learner instances viven
+  en tablas separadas y no se modifican en este paso.
+- Conservar el agregado completo en JSON bounded de version/compilation y
+  projections normalizadas queryables, sin definir todavía el formato portable
+  Learning Pack v1.
+- No agregar FK de `pack_dependencies.dependency_pack_id` a una versión local:
+  una dependencia puede estar declarada aunque aún no esté disponible o
+  instalada; el resolver futuro decidirá ese estado.
+- Mantener installation mutable como lifecycle de workspace, pero hacer las
+  versions y compilation history inmutables.
+- Los workflows que proyectan los repositories del Paso 2 a estas tablas se
+  implementarán junto con compilation/install lifecycle; este paso congela el
+  schema durable y sus constraints sin adelantar esos comportamientos.
+- No se duplicó Student Concept State ni se añadieron format loaders, compiler
+  algorithms, CLI/TUI, network, AI o I-05.
+
+### Verification
+
+- `go test ./internal/storage/sqlite -run 'TestResearchSchemaMigratesToCurriculumPersistence|TestOpenCreatesAndMigratesNewDatabase' -count=1`.
+- `go test ./internal/storage/sqlite -count=1`.
+- `go vet ./internal/storage/sqlite`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 4 es el siguiente paso pendiente: especificar Learning Pack Format
+  v1 y su manifest parser/validator sin implementar todavía el loader seguro.
+- No implementar filesystem/archive loading, I-03 ingestion, compiler passes,
+  installation, CLI/TUI ni pasos posteriores durante el Paso 4.

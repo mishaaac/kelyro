@@ -482,7 +482,7 @@ refactor(curriculum): define compiler service boundaries
 
 ## Paso 3 — Añadir persistence schema y migrations de I-04
 
-- [ ] Paso 3 completado
+- [x] Paso 3 completado
 
 ### Objetivo
 
@@ -2979,7 +2979,7 @@ No asumir número.
 - [x] Paso 0 — Apertura formal
 - [x] Paso 1 — Curriculum domain
 - [x] Paso 2 — Service boundaries
-- [ ] Paso 3 — Persistence
+- [x] Paso 3 — Persistence
 - [ ] Paso 4 — Learning Pack v1
 - [ ] Paso 5 — Pack Loader/Validator
 - [ ] Paso 6 — I-03 Source Bundle ingestion

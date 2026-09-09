@@ -29,6 +29,11 @@ Curriculum repository ports, service contracts, external adapter boundaries,
 error taxonomy, and deterministic in-memory fakes are documented in
 [curriculum-application.md](curriculum-application.md).
 
+The additive I-04 SQLite schema, reuse of the published I-02 curriculum tables,
+immutable version/install separation, Source Bundle foreign keys, indexes, and
+bounded metadata retention are documented in
+[curriculum-persistence.md](curriculum-persistence.md).
+
 Research repository ports, external adapter contracts, application services,
 error taxonomy, and deterministic memory fakes are documented in
 [research-application.md](research-application.md).
