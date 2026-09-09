@@ -15,9 +15,10 @@ Foundation, I-02 Student & Learning Core, and the I-03 layer published in
 `v0.2.0-alpha.1`. See the
 [`v0.2.0-alpha.2` release notes](docs/releases/v0.2.0-alpha.2.md).
 
-The `v0.2.0-alpha.3` compatibility release candidate fixes a TUI session
-coordination regression when reopening an already completed learner Setup.
-See the [`v0.2.0-alpha.3` release notes](docs/releases/v0.2.0-alpha.3.md).
+The published `v0.2.0-alpha.3` compatibility prerelease fixes a TUI session
+coordination regression when reopening an already completed learner Setup,
+without changing schema or product scope. See the
+[`v0.2.0-alpha.3` release notes](docs/releases/v0.2.0-alpha.3.md).
 
 The Research layer now provides transport-neutral requests and runs, a
 production Brave SearchProvider, synchronous public query-to-bundle execution,

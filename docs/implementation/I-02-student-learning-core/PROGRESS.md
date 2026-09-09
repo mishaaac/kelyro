@@ -1655,7 +1655,7 @@ Release: v0.2.0-alpha.1
 
 Status: completed
 Date: 2026-09-09
-Release: v0.2.0-alpha.3 (release candidate)
+Release: v0.2.0-alpha.3 (published prerelease)
 
 ### Reproduction
 
@@ -1694,3 +1694,17 @@ Release: v0.2.0-alpha.3 (release candidate)
   Brave Search, and live query-to-bundle path.
 - CGO-disabled builds succeeded for Linux, macOS, and Windows on amd64 and
   arm64.
+
+### Publication verification
+
+- The fix was fast-forwarded to `main`, and the release commit
+  `e5db92ef04408c2b4143d234d3f968627b6e4ee7` was tagged with annotated tag
+  `v0.2.0-alpha.3`.
+- Hosted push CI and the protected release workflow passed on Ubuntu, macOS,
+  and Windows, including Linux race coverage and the packaged Linux smoke.
+- The release workflow produced six platform archives plus `SHA256SUMS`; all
+  downloaded archive hashes matched the manifest.
+- The accepted Linux `amd64` archive has SHA-256
+  `c977d396e0917baf39d3466d48ed39cca8a34010104d00035ea7a677e0d379a0`.
+- GitHub publication completed at `2026-09-09T18:23:40Z` with
+  `draft=false`, `prerelease=true`, and seven uploaded assets.
