@@ -6,7 +6,7 @@ and reproducible build date. `SHA256SUMS` detects accidental corruption; it is
 not a cryptographic signature or proof of publisher identity.
 
 Release-specific scope and limitations are recorded under [`docs/releases/`](releases/).
-The current release candidate is
+The latest published prerelease is
 [`v0.2.0-alpha.2`](releases/v0.2.0-alpha.2.md), which closes the production live
 query-to-Source-Bundle path left out of `v0.2.0-alpha.1` while preserving I-01,
 I-02, and the existing I-03 architecture.

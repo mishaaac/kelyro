@@ -4,7 +4,7 @@
 
 Current step: complete
 Last completed step: 49
-Current release: v0.2.0-alpha.1 (published prerelease)
+Current release: v0.2.0-alpha.2 (published prerelease)
 Student Core baseline: v0.1.0-alpha.3 (751f6b9); I-03 branch base 498b9fb
 
 ## Registro
@@ -3727,3 +3727,36 @@ Production SearchProvider and query-to-bundle wiring were missing.
 
 Resolved in:
 `c89c60b`, `faa339f`, `e76638b`, and dogfooding record `d356713`.
+
+## Published corrective prerelease v0.2.0-alpha.2
+
+Status: published; I-03C closure accepted
+Date: 2026-09-08
+Release: v0.2.0-alpha.2
+Published: 2026-09-09T03:24:56Z
+
+### Delivered
+
+- I-03C closed the production SearchProvider, public URL discovery, queue
+  consumption, live orchestration, conservative extraction, and complete
+  query-to-Source-Bundle gaps without introducing I-04.
+- Annotated tag `v0.2.0-alpha.2` targets closure commit
+  `743cafecd383eff64ed325be674ba983f289bfa3` on `main`.
+- The reviewed draft was published explicitly as a prerelease with six
+  Linux/macOS/Windows archives and `SHA256SUMS`.
+
+### Verification
+
+- The tagged [release workflow 34305751118](https://github.com/mishaaac/kelyro/actions/runs/34305751118)
+  passed the Ubuntu, macOS, and Windows matrix, including Linux race coverage,
+  source/tag validation, packaging, and packaged Linux smoke.
+- All six downloaded archives matched `SHA256SUMS`; the accepted Linux
+  `amd64` archive has SHA-256
+  `d3884858c61626f632e9ef9a840023902caf348f026d72580ab5e3fd4896ac65`.
+- GitHub reported `draft=false`, `prerelease=true`, seven uploaded assets, and
+  publication timestamp `2026-09-09T03:24:56Z`.
+
+### Boundaries retained
+
+- I-04 remains unstarted and requires a separate specification and explicit
+  authorization.

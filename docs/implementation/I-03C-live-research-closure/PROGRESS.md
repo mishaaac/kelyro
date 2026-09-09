@@ -4,7 +4,7 @@
 
 Current step: complete
 Last completed step: 52
-Current release: v0.2.0-alpha.2 (release candidate)
+Current release: v0.2.0-alpha.2 (published prerelease)
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -3030,7 +3030,7 @@ Ready for: I-04 Curriculum Compiler & Learning Packs
   investigaciones sin exponer credenciales.
 - El checklist resumido de los Pasos 0–52 y la Definition of Done quedaron
   completos después de verificar cada criterio.
-- Release candidate `v0.2.0-alpha.2` preparada como corrección compatible de
+- Prerelease `v0.2.0-alpha.2` publicada como corrección compatible de
   `v0.2.0-alpha.1`; no incluye I-04.
 
 ### Decisions
@@ -3058,10 +3058,19 @@ Ready for: I-04 Curriculum Compiler & Learning Packs
   de red.
 - `git diff --check`.
 
-### Release handoff
+### Published prerelease v0.2.0-alpha.2
 
-- La publicación debe apuntar al commit limpio de cierre mediante tag anotado
-  `v0.2.0-alpha.2`, alcanzable desde `origin/main`.
-- El workflow de release debe pasar en Linux, macOS y Windows, generar seis
-  archives más `SHA256SUMS`, y crear un draft revisable antes de publicarlo como
-  prerelease.
+- Publicada explícitamente a las `2026-09-09T03:24:56Z` después de revisar el
+  draft; GitHub confirma `draft=false`, `prerelease=true` y siete assets.
+- El tag anotado apunta al commit limpio
+  `743cafecd383eff64ed325be674ba983f289bfa3`, alcanzable desde `origin/main`.
+- El [workflow de release 34305751118](https://github.com/mishaaac/kelyro/actions/runs/34305751118)
+  pasó en Ubuntu, macOS y Windows, incluida la carrera Linux, y construyó seis
+  archives más `SHA256SUMS` con packaged Linux smoke.
+- Los seis archives oficiales descargados pasaron `sha256sum --check`; el
+  Linux `amd64` aceptado tiene SHA-256
+  `d3884858c61626f632e9ef9a840023902caf348f026d72580ab5e3fd4896ac65`.
+- El binario Linux `amd64` reportó la versión, commit y build date exactos:
+  `kelyro v0.2.0-alpha.2`,
+  `743cafecd383eff64ed325be674ba983f289bfa3` y
+  `2026-09-09T03:04:29Z`.

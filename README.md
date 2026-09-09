@@ -9,8 +9,8 @@ persistence needed to build the product incrementally.
 
 I-03 Research & Source Intelligence and its I-03C Live Research Closure are
 formally complete after deterministic E2E, opt-in public checks, production
-binary dogfooding, and Linux race coverage. The `v0.2.0-alpha.2` release
-candidate completes the public query-to-Source-Bundle path on top of I-01
+binary dogfooding, and Linux race coverage. The published `v0.2.0-alpha.2`
+prerelease completes the public query-to-Source-Bundle path on top of I-01
 Foundation, I-02 Student & Learning Core, and the I-03 layer published in
 `v0.2.0-alpha.1`. See the
 [`v0.2.0-alpha.2` release notes](docs/releases/v0.2.0-alpha.2.md).
