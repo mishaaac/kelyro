@@ -10,10 +10,11 @@
 ## Before changing code
 
 1. Identify the implementation or maintenance scope explicitly authorized by the user.
-2. For I-03 work, read `docs/implementation/I-03-research-source-intelligence/PLAN.md` and `PROGRESS.md`.
-3. For I-02 regression work, read `docs/implementation/I-02-student-learning-core/PLAN.md` and `PROGRESS.md`.
-4. Review `git status` and the latest relevant commits.
-5. Inspect only the files required for the requested scope.
+2. For I-04 work, read `docs/implementation/I-04-curriculum-compiler-learning-packs/PLAN.md` and `PROGRESS.md`.
+3. For I-03 work, read `docs/implementation/I-03-research-source-intelligence/PLAN.md` and `PROGRESS.md`.
+4. For I-02 regression work, read `docs/implementation/I-02-student-learning-core/PLAN.md` and `PROGRESS.md`.
+5. Review `git status` and the latest relevant commits.
+6. Inspect only the files required for the requested scope.
 
 ## Implementation status
 
@@ -23,8 +24,24 @@
 - I-03 Research & Source Intelligence is formally closed after implementation,
   dogfooding, and a hosted Linux/macOS/Windows CI pass with Linux race coverage.
 - Reopen I-03 only for a reproducible regression or an explicitly scoped
-  compatibility change. Do not begin I-04 or any later implementation without
-  its own specification and explicit authorization.
+  compatibility change.
+- I-04 Curriculum Compiler & Learning Packs is open under its own specification.
+  Do not begin I-05 or any later implementation without its own specification
+  and explicit authorization.
+
+## I-04 compatibility boundaries
+
+- The compiler must not perform live web research. It consumes only verified
+  I-03 Source Bundles and Claims.
+- Do not implement I-05 lesson, practice, assessment, or project runtimes.
+- The compiler must not modify student mastery. Curriculum migrations preserve
+  I-02 state through application services rather than direct mutation.
+- Do not impose artificial curriculum, module, lesson, or concept limits.
+- Every compiler pass must be deterministic, versioned, and testable.
+- Every pack change must be classified and versioned before migration.
+- Never modify a published pack version in place.
+- Keep curriculum rules in the domain and application layers, not TUI or CLI
+  handlers.
 
 ## I-03 compatibility boundaries
 
