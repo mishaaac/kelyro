@@ -25,6 +25,10 @@ The Curriculum Compiler domain vocabulary, Source Bundle reference boundary,
 Learning Pack shapes, closed status types, and structural invariants are
 documented in [curriculum-domain.md](curriculum-domain.md).
 
+Curriculum repository ports, service contracts, external adapter boundaries,
+error taxonomy, and deterministic in-memory fakes are documented in
+[curriculum-application.md](curriculum-application.md).
+
 Research repository ports, external adapter contracts, application services,
 error taxonomy, and deterministic memory fakes are documented in
 [research-application.md](research-application.md).

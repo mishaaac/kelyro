@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 2
-Last completed step: 1
+Current step: 3
+Last completed step: 2
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -117,3 +117,66 @@ Release: unreleased
   application services y fakes in-memory sobre este vocabulario.
 - No implementar persistence, schema de Learning Pack, loaders, compiler
   algorithms, CLI/TUI ni pasos posteriores durante el Paso 2.
+
+## Step 02 — Repositories y application service boundaries
+
+Status: completed
+Date: 2026-09-09
+Release: unreleased
+
+### Delivered
+
+- Paquete `internal/curriculum/application` con puertos separados para
+  curriculums, packs/activation, catalog metadata, environment packs y
+  compilation records.
+- Contratos transport-neutral para `CurriculumCompilerService`, `PackService`,
+  validation, install, upgrade, coverage y curriculum audits, sin implementar
+  todavía sus algoritmos o side effects futuros.
+- `ResearchBundleProvider` de solo lectura sobre Source Bundles/Claims durables
+  I-03, explícitamente sin discovery, fetch, refresh ni network.
+- Puertos `Clock`, `Filesystem`, `PackArchiveReader` y el hook opcional futuro
+  `SignatureVerifier`, sin acoplar dominio a OS, archive format o signing.
+- Taxonomía causal de errores `not_found`, `conflict`, `invalid_state`,
+  `unavailable`, `persistence_failure` y `external_failure`, preservando causas
+  y mapeando cancellation/deadline a unavailable.
+- Fake `internal/curriculum/application/memory` para los cinco repositories,
+  con mutex, validación de writes, versiones inmutables, orden estable, context
+  cancellation y copias defensivas profundas.
+- Tests de error mapping, roundtrip de todos los repository families,
+  activation, catalog, compilation records, conflictos, ownership de slices y
+  orden determinista.
+- Límites y semántica documentados en
+  `docs/architecture/curriculum-application.md` y enlazados desde el índice.
+
+### Decisions
+
+- Usar `Add`/`Append`, sin update de definitions o pack versions publicados,
+  para representar inmutabilidad desde la frontera de persistence.
+- Separar catalog metadata de pack installation y activation: aparecer en el
+  catálogo nunca equivale a trust ni autorización para instalar.
+- Permitir que application importe el dominio `internal/research` únicamente
+  en el read port; `internal/curriculum` sigue sin depender de Research.
+- Definir interfaces de los siete services ahora, pero reservar compiler,
+  validation, install, upgrade, coverage y audit behavior para sus pasos.
+- Exponer wrappers repository estrechos sobre un store fake compartido porque
+  Go no permite sobrecargar `Add/Get/List` para agregados distintos.
+- No se añadieron SQLite, persistence productiva, migrations, filesystem/archive
+  implementations, YAML/JSON, network, CLI/TUI, AI ni Student Core writes.
+
+### Verification
+
+- `go test ./internal/curriculum/application/... -count=1`.
+- `go vet ./internal/curriculum/application/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- Auditoría de imports: application usa stdlib, Curriculum y el read-only
+  Research boundary; memory usa stdlib, Curriculum y application únicamente.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 3 es el siguiente paso pendiente: migration forward-only y adapter
+  SQLite para packs, compilations y curriculums instalados.
+- No definir Learning Pack v1, loader, ingestion, compiler algorithms, CLI/TUI
+  ni pasos posteriores durante el Paso 3.
