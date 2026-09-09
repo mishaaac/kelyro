@@ -84,6 +84,7 @@ func TestLiveResearchQueryToBundle(t *testing.T) {
 	if !found {
 		t.Fatalf("live search returned no HTTPS go.dev documentation result among %d candidates", len(results))
 	}
+	t.Logf("selected live documentation candidate: %s", selected.Locator)
 
 	clock := liveClock{}
 	now := clock.Now()
@@ -184,7 +185,7 @@ func TestLiveResearchQueryToBundle(t *testing.T) {
 	}
 	input := application.LiveResearchStageInput{Request: researchRequest, Run: run, Artifacts: artifacts}
 	evidenceStage, err := application.NewLiveEvidenceExtractionService(
-		application.NewDeterministicEvidenceExtractorV1(), repositories.Evidence, clock,
+		application.NewDeterministicEvidenceExtractorV2(), repositories.Evidence, clock,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -195,7 +196,7 @@ func TestLiveResearchQueryToBundle(t *testing.T) {
 	}
 	input.Artifacts = artifacts
 	claimStage, err := application.NewLiveClaimExtractionService(
-		application.NewDeterministicClaimExtractorV1(), repositories.Evidence, repositories.Claims,
+		application.NewDeterministicClaimExtractorV2(), repositories.Evidence, repositories.Claims,
 		repositories.Citations, clock,
 	)
 	if err != nil {
