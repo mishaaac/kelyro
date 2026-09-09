@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 51
-Last completed step: 50
+Current step: 52
+Last completed step: 51
 Baseline commit: acbfc63
 I-03 status before correction: PARTIAL
 
@@ -12,7 +12,8 @@ I-03 status before correction: PARTIAL
 - live dogfooding completed with ready-with-caveats public bundles
 - corrective implementation complete through `e76638b`
 - original I-03 progress linked to the corrective implementation
-- architecture refresh and later closure reviews pending
+- architecture refresh and formal closure audit complete
+- Step 52 gates and formal I-03C closure pending
 
 ## Registro
 
@@ -2904,7 +2905,7 @@ Release: unreleased
 ### Delivered
 
 - `research-application.md` actualizado para describir el adapter Brave de
-  producción, Secrets, privacy, cost/cache, fetch v2, classification,
+  producción, Secrets, privacy, cost, fetch/cache v2, classification,
   extractors v2, verification v2 y la frontera transaccional real.
 - El orden productivo search → registration → fetch → snapshot →
   normalization/classification → extraction/trust/freshness → verification →
@@ -2942,3 +2943,53 @@ Release: unreleased
 - El Paso 51 debe ejecutar y registrar la auditoría formal de las trece
   capacidades de cierre.
 - El Paso 52 y sus gates finales permanecen pendientes y no fueron iniciados.
+
+## Step 51 — Formal closure audit
+
+Status: completed
+Date: 2026-09-08
+Release: unreleased
+
+### Delivered
+
+- `CLOSURE-AUDIT.md` creado con una matriz de las trece capacidades exigidas
+  por el plan y veredicto `YES` sustentado para cada una.
+- La auditoría reconcilió composition root, adapters/services productivos,
+  tests deterministas/E2E y el dogfooding público final del binario.
+- La pregunta final quedó respondida literalmente: Kelyro puede buscar en
+  Internet público desde una request de usuario/research cuando el provider
+  está configurado y la red está permitida.
+- Condiciones y caveats visibles: Foundation Secrets, privacy independiente,
+  cache offline, cost bounds, outcomes seguros y ausencia de garantía de
+  bundle para contenido insuficiente o ruidoso.
+
+### Decisions
+
+- Considerar el dogfooding final del Paso 48 como evidencia live más fuerte que
+  repetir red pública durante una auditoría documental: usó el binario real,
+  cinco workspaces aislados y artifacts SQLite inspeccionados.
+- No confundir el skip seguro de `tests/live` en la suite ordinaria con una
+  ejecución pública; el acta identifica explícitamente ambas evidencias.
+- Aprobar el Paso 51 sin declarar I-03C formalmente cerrado. Race, live opt-in y
+  completion record siguen reservados al Paso 52.
+- No cambiar código, schema, algoritmos, dependencias, I-04 ni Student Core.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -tags=e2e ./tests/e2e`.
+- `go test ./tests/live -count=1 -v` con los tres skips pre-network esperados
+  al no habilitar sus opt-ins.
+- Inventario dirigido de tests de provider, discovery, fetch, normalization,
+  Evidence, Claims, trust/verification, bundle, CLI, offline, privacy y cost.
+- Revisión de `DOGFOODING.md` y de los artifacts/resultados finales registrados
+  para `e76638b`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 52 es el siguiente y único paso pendiente; debe ejecutar todos sus
+  gates, incluido race y el live opt-in indicado por el plan.
+- No marcar I-03C formalmente cerrado ni Ready for I-04 antes de completar ese
+  paso y registrar su commit/release real.

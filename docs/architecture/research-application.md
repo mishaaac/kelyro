@@ -102,10 +102,12 @@ from entering domain or services:
 Every live search and fetch call is protected by Foundation's privacy gate.
 The production composition root selects the Brave Web Search adapter through
 the provider-neutral `LiveSearchProviderFactory`, resolves its credential from
-Foundation Secrets, and wraps it with cost control and the workspace search
-cache. The hardened source-fetch adapter, deterministic source normalizer, and
-filesystem cache implement the remaining external boundaries. The static
-network-free provider remains available for deterministic tests.
+Foundation Secrets, and wraps it with privacy and cost control. The hardened
+source-fetch adapter, deterministic source normalizer, and filesystem fetch
+cache implement the remaining external boundaries. The static network-free
+provider remains available for deterministic tests, and the application-level
+`SearchCache` port remains available to alternate explicitly assembled
+discovery services.
 
 `query-planner-v1` produces query text, desired kind, authority threshold, and
 execution priority. The production search stage adds the durable request ID,

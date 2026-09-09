@@ -42,7 +42,7 @@ The same operation evaluates `research-trigger-v1` with an explicit manual
 signal and no recorded evidence, then passes the durable queue item and run to
 `research-queue-worker-v1` in the same call stack with a fixed two-minute
 deadline. The production binary assembles the provider factory, Secrets,
-privacy gate, search/fetch caches, hardened HTTP fetcher, normalizer, SQLite
+privacy gate, filesystem fetch cache, hardened HTTP fetcher, normalizer, SQLite
 services, live orchestrator, terminal audit, and transactional finalizer. The
 internal `ResearchTopicExecutor` seam remains replaceable for deterministic
 tests and alternate embedding, but it is no longer a missing production stage.
@@ -52,7 +52,7 @@ The synchronous production flow is:
 ```text
 topic / plan / initial audit
 → queue claim
-→ Brave discovery through privacy + cost + cache
+→ Brave discovery through privacy + cost
 → candidate deduplication and durable Source registration
 → bounded HTTP fetch and immutable snapshots
 → normalization and post-fetch Source classification
@@ -63,11 +63,11 @@ topic / plan / initial audit
 ```
 
 Success returns a durable `ready` or `ready_with_caveats` bundle and a
-`completed` run. Provider absence, blocked network without sufficient cache,
-no usable results, insufficient verification, cancellation, or another stage
-failure returns a terminal, auditable non-success instead of leaving the run
-`planned` or presenting a false bundle. Individual fetch/normalization failures
-may remain warnings when other Sources provide enough support.
+`completed` run. Provider absence, blocked network, no usable results,
+insufficient verification, cancellation, or another stage failure returns a
+terminal, auditable non-success instead of leaving the run `planned` or
+presenting a false bundle. Individual fetch/normalization failures may remain
+warnings when other Sources provide enough support.
 
 Provider configuration and network permission are independent. Brave is used
 only when `research.search.provider="brave"`, its secret is available through
