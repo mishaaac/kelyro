@@ -9,7 +9,9 @@ Release-specific scope and limitations are recorded under [`docs/releases/`](rel
 The latest published prerelease is
 [`v0.2.0-alpha.2`](releases/v0.2.0-alpha.2.md), which closes the production live
 query-to-Source-Bundle path left out of `v0.2.0-alpha.1` while preserving I-01,
-I-02, and the existing I-03 architecture.
+I-02, and the existing I-03 architecture. The current compatibility release
+candidate is [`v0.2.0-alpha.3`](releases/v0.2.0-alpha.3.md); it fixes completed
+Setup re-entry and graceful TUI exit without changing schema or product scope.
 
 ## Manual installation
 

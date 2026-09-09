@@ -1655,7 +1655,7 @@ Release: v0.2.0-alpha.1
 
 Status: completed
 Date: 2026-09-09
-Release: unreleased
+Release: v0.2.0-alpha.3 (release candidate)
 
 ### Reproduction
 
