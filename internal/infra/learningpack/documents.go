@@ -1,6 +1,7 @@
 package learningpack
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -456,6 +457,9 @@ func parseTimestamp(value string) (curriculum.Timestamp, error) {
 }
 
 func decodeEvidenceReport(encoded []byte) (evidenceReportDocument, error) {
+	if err := rejectDuplicateJSONKeys(encoded); err != nil {
+		return evidenceReportDocument{}, fmt.Errorf("decode evidence report: %w", err)
+	}
 	decoder := json.NewDecoder(strings.NewReader(string(encoded)))
 	decoder.DisallowUnknownFields()
 	var report evidenceReportDocument
@@ -469,6 +473,55 @@ func decodeEvidenceReport(encoded []byte) (evidenceReportDocument, error) {
 		return report, fmt.Errorf("unsupported evidence report schema %q", report.SchemaVersion)
 	}
 	return report, nil
+}
+
+func rejectDuplicateJSONKeys(encoded []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	var walk func() error
+	walk = func() error {
+		token, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		delimiter, structured := token.(json.Delim)
+		if !structured {
+			return nil
+		}
+		switch delimiter {
+		case '{':
+			seen := make(map[string]struct{})
+			for decoder.More() {
+				keyToken, err := decoder.Token()
+				if err != nil {
+					return err
+				}
+				key, ok := keyToken.(string)
+				if !ok {
+					return fmt.Errorf("object key is not a string")
+				}
+				if _, exists := seen[key]; exists {
+					return fmt.Errorf("duplicate JSON key %q", key)
+				}
+				seen[key] = struct{}{}
+				if err := walk(); err != nil {
+					return err
+				}
+			}
+			_, err = decoder.Token()
+			return err
+		case '[':
+			for decoder.More() {
+				if err := walk(); err != nil {
+					return err
+				}
+			}
+			_, err = decoder.Token()
+			return err
+		default:
+			return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+		}
+	}
+	return walk()
 }
 
 func ensureJSONEOF(decoder *json.Decoder) error {

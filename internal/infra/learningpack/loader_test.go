@@ -145,6 +145,10 @@ func TestValidatorRejectsChecksumUTF8AndEvidenceFailures(t *testing.T) {
 			entries["sources/evidence-report.json"] = []byte(strings.Replace(validEvidenceReport, "claim.go-packages", "claim.other", 1))
 			updateChecksums(entries)
 		}, "missing from evidence report"},
+		{"duplicate JSON key", func(entries map[string][]byte) {
+			entries["sources/evidence-report.json"] = []byte(strings.Replace(validEvidenceReport, `"schema_version": "curriculum-evidence/v1",`, `"schema_version": "curriculum-evidence/v1", "schema_version": "curriculum-evidence/v1",`, 1))
+			updateChecksums(entries)
+		}, "duplicate JSON key"},
 		{"unknown curriculum field", func(entries map[string][]byte) {
 			entries["curriculum/curriculum.yaml"] = append(entries["curriculum/curriculum.yaml"], []byte("unknown: true\n")...)
 			updateChecksums(entries)
