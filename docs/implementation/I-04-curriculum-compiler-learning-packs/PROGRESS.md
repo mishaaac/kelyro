@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 6
-Last completed step: 5
+Current step: 7
+Last completed step: 6
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -281,6 +281,61 @@ Release: unreleased
 - El Paso 6 es el siguiente paso: consumir bundles/claims I-03 durables y
   producir `CurriculumEvidenceSet` con eligibility determinista y sin red.
 - No implementar Goal Decomposition ni pasos posteriores durante el Paso 6.
+
+## Step 06 — Source Bundle ingestion from I-03
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- Modelo learner-neutral `CurriculumEvidenceSet` con Claim statements/scopes,
+  version scopes, source authority roles, freshness, conflicts, temporal flags,
+  exact Source Bundle ref, caveats, eligibility y algorithm version.
+- `SourceBundleIngestionService` y `SourceBundleIngester` sobre el port I-03
+  read-only ampliado a bundles, claims y conflicts durables.
+- Adapter `infra/curriculumresearch` que compone los tres readers I-03 ya
+  existentes sin exponer discovery, fetch ni operaciones de red.
+- Mapping conservador `ready -> ready_for_compile`, caveats preservadas como
+  `ready_with_caveats`, e incomplete/conflicted como `not_ready` no aceptado.
+- Gate explícito para Claim IDs críticos: stale/unknown freshness y conflictos
+  unresolved producen `not_ready` con razones estables.
+- Validación de hashes canónicos, identidad/topic de Claims, conflicts dentro
+  del bundle, source refs, version/status flags y algoritmos soportados.
+- Orden determinista de Claims/Conflicts desde el bundle y de source IDs,
+  version scopes y razones derivadas.
+- Tests de ready, caveat, stale normal/crítico, incomplete, conflicted critical,
+  missing bundle, historical/version flags y repetibilidad.
+- Contrato documentado en
+  `docs/architecture/curriculum-evidence-ingestion-v1.md`.
+
+### Decisions
+
+- La autoridad consumida es el role/temporal scope ya congelado en el Source
+  Bundle; el ingestor no consulta ni reinterpreta trust mutable actual.
+- Los rechazos de policy retornan `Accepted=false` con evidencia `not_ready` y
+  razones; missing/corrupt/inconsistent durable data permanece error causal.
+- `ready_with_caveats` es input aceptable para la siguiente etapa, pero no
+  equivale a aceptación silenciosa para compilar; el futuro compiler deberá
+  registrar su decisión.
+- Historical Claim type y preview/experimental/legacy status scope se preservan
+  en el vocabulario temporal curricular, nunca como recomendación current.
+- No se añadieron discovery, fetch, refresh, queueing, red, Goal Decomposition,
+  compiler passes, pack installation, I-05 ni Student Core writes.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/... ./internal/infra/curriculumresearch -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 7 es el siguiente paso pendiente: Goal Decomposition v1 sobre un
+  goal/evidence set aceptado, sin hardcodear dominios en core.
+- No implementar todavía Professional Outcome Model ni pasos posteriores.
 
 ## Step 03 — Persistence schema y migration I-04
 

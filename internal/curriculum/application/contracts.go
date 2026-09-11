@@ -97,6 +97,7 @@ type CompilationRepository interface {
 type ResearchBundleProvider interface {
 	GetBundle(context.Context, research.ID) (research.SourceBundle, error)
 	GetClaim(context.Context, research.ClaimID) (research.Claim, error)
+	GetConflict(context.Context, research.ID) (research.Conflict, error)
 }
 
 type Clock interface {

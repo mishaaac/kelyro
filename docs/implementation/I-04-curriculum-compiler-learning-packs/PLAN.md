@@ -678,7 +678,7 @@ feat(pack): add secure pack loading and validation
 
 ## Paso 6 — Implementar Source Bundle ingestion desde I-03
 
-- [ ] Paso 6 completado
+- [x] Paso 6 completado
 
 ### Objetivo
 

@@ -54,9 +54,11 @@ No service contract contains learner mastery or a direct Student Core write.
 
 ## External adapter contracts
 
-`ResearchBundleProvider` reads exact durable `SourceBundle` and `Claim` records
-from I-03. Implementations must not discover, fetch, refresh, or otherwise use
-the network. Step 6 will own verified-bundle ingestion and eligibility mapping.
+`ResearchBundleProvider` reads exact durable `SourceBundle`, `Claim`, and
+`Conflict` records from I-03. Implementations must not discover, fetch,
+refresh, or otherwise use the network. `SourceBundleIngestionService` owns the
+versioned eligibility mapping and evidence conversion described by
+`curriculum-evidence-ingestion-v1`.
 
 `Clock` returns a domain UTC timestamp. `Filesystem` exposes readers and
 metadata without importing OS APIs into the domain. `PackArchiveReader` exposes

@@ -4,10 +4,26 @@ import (
 	"context"
 
 	"github.com/mishaaac/kelyro/internal/curriculum"
+	"github.com/mishaaac/kelyro/internal/research"
 )
 
 type CurriculumCompilerService interface {
 	Compile(context.Context, curriculum.CompilationInput, curriculum.CompilationConfig) (curriculum.CompilationResult, error)
+}
+
+type EvidenceIngestionRequest struct {
+	BundleID         research.ID
+	CriticalClaimIDs []research.ClaimID
+}
+
+type EvidenceIngestionResult struct {
+	Evidence curriculum.CurriculumEvidenceSet
+	Accepted bool
+	Reasons  []string
+}
+
+type SourceBundleIngestionService interface {
+	Ingest(context.Context, EvidenceIngestionRequest) (EvidenceIngestionResult, error)
 }
 
 type PackService interface {

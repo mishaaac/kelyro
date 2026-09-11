@@ -15,6 +15,8 @@ The portable container contract is documented in
 [Learning Pack format v1](../specs/learning-pack-v1.md).
 Its bounded directory/ZIP adapter and CLI behavior are documented in
 [Secure Learning Pack loader v1](learning-pack-loader-v1.md).
+The read-only I-03 hand-off is documented in
+[Curriculum evidence ingestion v1](curriculum-evidence-ingestion-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
