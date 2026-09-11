@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 9
-Last completed step: 8
+Current step: 10
+Last completed step: 9
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -433,6 +433,61 @@ Release: unreleased
 - El Paso 9 es el siguiente: construir `competency-matrix-v1` desde una
   descomposición, specs del pack y evidencia aceptada.
 - No implementar Claim-to-Concept extraction ni pasos posteriores.
+
+## Step 09 — Competency Matrix v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `Competency` ampliada con stable area ID, dimensiones de profundidad
+  opcionales y parent ID opcional, además del area label, outcome, nivel,
+  evidence refs y futuros concept refs.
+- `CompetencyMatrixBuilderService` y builder determinista
+  `competency-matrix-v1` sobre Goal Decomposition, declarations y evidence.
+- Cobertura obligatoria de todos los goal outcomes y todas las áreas
+  seleccionadas por la descomposición.
+- Rechazo de competencias sin evidencia, IDs duplicados, area/outcome no
+  soportados, area label inconsistente y evidence refs ausentes.
+- Jerarquía opcional validada: parent existente, misma área, no self-parent y
+  cycle detection determinista.
+- Profundidad multidimensional con IDs declarativos del pack y niveles cerrados
+  independientes del nivel principal.
+- Decoder Learning Pack v1 actualizado para `area_id`, `dimensions` y
+  `parent_id`.
+- Tests de completeness, duplicate, unsupported competency, missing evidence,
+  dimensiones, ownership/repetibilidad y jerarquía válida/cíclica.
+- Contrato documentado en `docs/architecture/competency-matrix-v1.md`.
+
+### Decisions
+
+- Core no hardcodea dimensiones de competencia; cada pack declara IDs estables
+  como theory, communication u otros apropiados a su dominio.
+- Una competencia v1 se vincula a un outcome; múltiples competencias pueden
+  cubrir el mismo outcome y cada outcome debe tener al menos una.
+- `concept_refs` permanece opcional porque el Paso 10 aún no extrajo conceptos;
+  `CurriculumDefinition` seguirá validando su existencia al finalizar.
+- La excepción `optional_for_fixture` se conserva en el modelo base, pero el
+  builder productivo v1 nunca emite una competencia sin evidencia.
+- No se implementaron Claim-to-Concept extraction, atomization, compiler
+  orchestration, I-05, red ni Student Core writes.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go vet ./internal/curriculum/... ./internal/infra/learningpack`.
+- `go test -race ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 10 es el siguiente paso pendiente: derivar concept candidates desde
+  Claims estructurados sin asumir que cada Claim equivale a un concepto.
+- No implementar todavía atomization ni pasos posteriores.
 
 ## Step 03 — Persistence schema y migration I-04
 

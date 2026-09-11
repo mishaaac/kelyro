@@ -101,3 +101,9 @@ Each serialized goal outcome includes required `id`, `statement`, `category`
 and `evidence_refs`, plus optional `capability`. Categories and capabilities
 use the closed vocabulary in `professional-outcomes-v1`; a professional goal
 must declare all five required capabilities.
+
+Each serialized competency includes required `id`, `area_id`, `area`,
+`outcome_id`, `expected_level` and `evidence_refs`. Optional `dimensions` hold
+`id`/`expected_level` pairs; `parent_id` declares same-area hierarchy and
+`concept_refs` may remain empty until concept extraction. Matrices produced by
+I-04 use `version: competency-matrix-v1`.

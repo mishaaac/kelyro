@@ -78,11 +78,19 @@ type competencyMatrixDocument struct {
 
 type competencyDocument struct {
 	ID            string                `yaml:"id"`
+	AreaID        string                `yaml:"area_id"`
 	Area          string                `yaml:"area"`
 	OutcomeID     string                `yaml:"outcome_id"`
 	ExpectedLevel string                `yaml:"expected_level"`
+	Dimensions    []dimensionDocument   `yaml:"dimensions,omitempty"`
 	EvidenceRefs  []evidenceRefDocument `yaml:"evidence_refs,omitempty"`
 	ConceptRefs   []string              `yaml:"concept_refs,omitempty"`
+	ParentID      string                `yaml:"parent_id,omitempty"`
+}
+
+type dimensionDocument struct {
+	ID            string `yaml:"id"`
+	ExpectedLevel string `yaml:"expected_level"`
 }
 
 type conceptDocument struct {
@@ -354,7 +362,27 @@ func decodeMatrix(raw competencyMatrixDocument) (curriculum.CompetencyMatrix, er
 		if err != nil {
 			return curriculum.CompetencyMatrix{}, err
 		}
-		result.Competencies = append(result.Competencies, curriculum.Competency{ID: id, Area: item.Area, OutcomeID: outcome, ExpectedLevel: curriculum.CompetencyLevel(item.ExpectedLevel), EvidenceRefs: refs, ConceptRefs: concepts})
+		areaID, err := curriculum.NewID(item.AreaID)
+		if err != nil {
+			return curriculum.CompetencyMatrix{}, err
+		}
+		dimensions := make([]curriculum.CompetencyDimension, 0, len(item.Dimensions))
+		for _, rawDimension := range item.Dimensions {
+			dimensionID, err := curriculum.NewID(rawDimension.ID)
+			if err != nil {
+				return curriculum.CompetencyMatrix{}, err
+			}
+			dimensions = append(dimensions, curriculum.CompetencyDimension{ID: dimensionID, ExpectedLevel: curriculum.CompetencyLevel(rawDimension.ExpectedLevel)})
+		}
+		competency := curriculum.Competency{ID: id, AreaID: areaID, Area: item.Area, OutcomeID: outcome, ExpectedLevel: curriculum.CompetencyLevel(item.ExpectedLevel), Dimensions: dimensions, EvidenceRefs: refs, ConceptRefs: concepts}
+		if item.ParentID != "" {
+			parentID, err := curriculum.NewID(item.ParentID)
+			if err != nil {
+				return curriculum.CompetencyMatrix{}, err
+			}
+			competency.ParentID = &parentID
+		}
+		result.Competencies = append(result.Competencies, competency)
 	}
 	return result, nil
 }

@@ -113,6 +113,11 @@ Difficulty uses the general 1–5 introductory-to-expert scale. Competency level
 are `awareness`, `understand`, `apply`, `analyze`, `design`, `operate`, and
 `teach_explain`.
 
+Competencies bind a stable area ID, one outcome and an expected level. Optional
+pack-defined dimensions carry their own expected level, and optional parent IDs
+form an acyclic hierarchy within one area. The production builder and coverage
+rules are defined in [competency-matrix-v1.md](competency-matrix-v1.md).
+
 Outcome categories are `knowledge`, `application`, `debugging`, `design`,
 `tool_usage`, `production`, `security`, `communication_documentation`, and
 `maintenance`. Professional capabilities are `explain`, `build`, `debug`,

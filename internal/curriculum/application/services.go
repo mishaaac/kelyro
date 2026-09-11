@@ -36,6 +36,16 @@ type GoalDecomposerService interface {
 	Decompose(context.Context, GoalDecompositionRequest) (curriculum.GoalDecomposition, error)
 }
 
+type CompetencyMatrixRequest struct {
+	Decomposition curriculum.GoalDecomposition
+	Competencies  []curriculum.Competency
+	EvidenceSets  []curriculum.CurriculumEvidenceSet
+}
+
+type CompetencyMatrixBuilderService interface {
+	Build(context.Context, CompetencyMatrixRequest) (curriculum.CompetencyMatrix, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)

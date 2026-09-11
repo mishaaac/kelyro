@@ -854,7 +854,7 @@ feat(curriculum): model professional learning outcomes
 
 ## Paso 9 — Implementar Competency Matrix v1
 
-- [ ] Paso 9 completado
+- [x] Paso 9 completado
 
 ### Objetivo
 

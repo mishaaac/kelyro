@@ -127,7 +127,7 @@ func fixtureDefinition(t *testing.T, curriculumID, versionValue string) curricul
 	return curriculum.CurriculumDefinition{
 		ID: curriculumIDValue(t, curriculumID), Version: version, Title: "Curriculum", Description: "Fixture curriculum.",
 		Goal:         curriculum.LearningGoalSpec{ID: goalID, Title: "Goal", Description: "Fixture goal.", Domain: "general", Outcomes: []curriculum.GoalOutcome{{ID: outcomeID, Statement: "Explain the concept.", Category: curriculum.OutcomeKnowledge, Capability: curriculum.OutcomeCapabilityExplain}}},
-		Competencies: curriculum.CompetencyMatrix{Version: "matrix-v1", GoalID: goalID, Competencies: []curriculum.Competency{{ID: competencyID, Area: "general", OutcomeID: outcomeID, ExpectedLevel: curriculum.CompetencyUnderstand, ConceptRefs: []curriculum.ConceptID{conceptID}}}},
+		Competencies: curriculum.CompetencyMatrix{Version: curriculum.CompetencyMatrixVersionV1, GoalID: goalID, Competencies: []curriculum.Competency{{ID: competencyID, AreaID: id(t, "area.general"), Area: "general", OutcomeID: outcomeID, ExpectedLevel: curriculum.CompetencyUnderstand, ConceptRefs: []curriculum.ConceptID{conceptID}}}},
 		Concepts:     []curriculum.Concept{{ID: conceptID, Title: "Concept", Definition: "A fixture concept.", Version: "1", Atomicity: curriculum.AtomicityAtomic, Difficulty: curriculum.DifficultyIntroductory, Status: curriculum.ConceptCurrent, Foundational: true}},
 		Phases:       []curriculum.Phase{{ID: id(t, "phase.one"), Title: "Phase", Description: "Fixture phase.", Order: 0}},
 		Modules:      []curriculum.Module{{ID: id(t, "module.one"), PhaseID: id(t, "phase.one"), Title: "Module", Description: "Fixture module.", Order: 0}},

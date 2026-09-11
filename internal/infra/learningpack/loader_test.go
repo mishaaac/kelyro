@@ -37,6 +37,7 @@ competency_matrix:
   goal_id: goal.go-backend
   competencies:
     - id: competency.packages
+      area_id: area.go-language
       area: go-language
       outcome_id: outcome.explain
       expected_level: understand

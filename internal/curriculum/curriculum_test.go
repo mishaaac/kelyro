@@ -178,7 +178,7 @@ func validCurriculumDefinition(t *testing.T) CurriculumDefinition {
 		Competencies: CompetencyMatrix{
 			Version: "competency-matrix-v1", GoalID: goalID,
 			Competencies: []Competency{{
-				ID: mustID(t, "competency.apply"), Area: "application", OutcomeID: outcomeID,
+				ID: mustID(t, "competency.apply"), AreaID: mustID(t, "area.application"), Area: "application", OutcomeID: outcomeID,
 				ExpectedLevel: CompetencyApply, EvidenceRefs: []EvidenceRef{evidence}, ConceptRefs: []ConceptID{useConcept},
 			}},
 		},
