@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 7
-Last completed step: 6
+Current step: 8
+Last completed step: 7
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -336,6 +336,54 @@ Release: unreleased
 - El Paso 7 es el siguiente paso pendiente: Goal Decomposition v1 sobre un
   goal/evidence set aceptado, sin hardcodear dominios en core.
 - No implementar todavía Professional Outcome Model ni pasos posteriores.
+
+## Step 07 — Goal Decomposition v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- Modelo `DomainProfile` con domain/scope vocabulary y áreas de competencia
+  versionadas, evidenciadas y declaradas por el pack.
+- Output `GoalDecomposition` con outcomes, áreas, scope/exclusions, profile ref
+  y `goal-decomposer-v1`.
+- `GoalDecomposerService` y algoritmo determinista que selecciona áreas por
+  scope y por marker profesional explícito, preservando el orden del profile.
+- Validación de dominio, scopes soportados, evidence eligibility, exact
+  bundle/Claim refs, outcome mapping y cobertura completa del goal.
+- Tests de goal estrecho, role profesional, ausencia de evidencia, scope no
+  soportado y repetibilidad.
+- Contrato documentado en `docs/architecture/goal-decomposition-v1.md`.
+
+### Decisions
+
+- Core no contiene taxonomías por profesión o tecnología; `DomainProfile` es
+  la especificación declarativa que un pack aporta y evidencia.
+- Los outcomes ya declarados por el `LearningGoalSpec` se preservan; este paso
+  estructura su cobertura y no inventa nuevos resultados desde texto libre.
+- Áreas generales aplican sin selector; áreas profesionales requieren role;
+  las demás se seleccionan por intersección exacta de scopes.
+- Evidence `ready_with_caveats` puede alimentar la descomposición sin perder
+  sus caveats; `not_ready` bloquea.
+- No se implementaron Professional Outcome Model, Competency Matrix, concept
+  extraction, compiler orchestration, red, I-05 ni Student Core writes.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/... -count=1`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 8 es el siguiente: categorizar outcomes y exigir explain/build/debug/
+  operate/maintain para goals profesionales.
+- No implementar Competency Matrix v1 ni pasos posteriores durante el Paso 8.
 
 ## Step 03 — Persistence schema y migration I-04
 

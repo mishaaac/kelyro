@@ -26,6 +26,16 @@ type SourceBundleIngestionService interface {
 	Ingest(context.Context, EvidenceIngestionRequest) (EvidenceIngestionResult, error)
 }
 
+type GoalDecompositionRequest struct {
+	Goal         curriculum.LearningGoalSpec
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+	Profile      curriculum.DomainProfile
+}
+
+type GoalDecomposerService interface {
+	Decompose(context.Context, GoalDecompositionRequest) (curriculum.GoalDecomposition, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)

@@ -734,7 +734,7 @@ feat(curriculum): ingest verified research bundles
 
 ## Paso 7 — Implementar Goal Decomposition v1
 
-- [ ] Paso 7 completado
+- [x] Paso 7 completado
 
 ### Objetivo
 
