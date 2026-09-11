@@ -919,7 +919,7 @@ feat(curriculum): add competency matrix v1
 
 ## Paso 10 — Implementar Claim-to-Concept candidate extraction
 
-- [ ] Paso 10 completado
+- [x] Paso 10 completado
 
 ### Objetivo
 

@@ -4,6 +4,36 @@ import "fmt"
 
 const EvidenceIngestionAlgorithmV1 = "source-bundle-ingestion-v1"
 
+// EvidenceClaimKind preserves the structured I-03 Claim family without
+// importing Research into the curriculum domain.
+type EvidenceClaimKind string
+
+const (
+	EvidenceClaimDefinition     EvidenceClaimKind = "definition"
+	EvidenceClaimRequirement    EvidenceClaimKind = "requirement"
+	EvidenceClaimBehavior       EvidenceClaimKind = "behavior"
+	EvidenceClaimVersionChange  EvidenceClaimKind = "version_change"
+	EvidenceClaimDeprecation    EvidenceClaimKind = "deprecation"
+	EvidenceClaimRecommendation EvidenceClaimKind = "recommendation"
+	EvidenceClaimWarning        EvidenceClaimKind = "warning"
+	EvidenceClaimExample        EvidenceClaimKind = "example"
+	EvidenceClaimCompatibility  EvidenceClaimKind = "compatibility"
+	EvidenceClaimSecurity       EvidenceClaimKind = "security"
+	EvidenceClaimHistorical     EvidenceClaimKind = "historical"
+)
+
+func (kind EvidenceClaimKind) Validate() error {
+	switch kind {
+	case EvidenceClaimDefinition, EvidenceClaimRequirement, EvidenceClaimBehavior,
+		EvidenceClaimVersionChange, EvidenceClaimDeprecation, EvidenceClaimRecommendation,
+		EvidenceClaimWarning, EvidenceClaimExample, EvidenceClaimCompatibility,
+		EvidenceClaimSecurity, EvidenceClaimHistorical:
+		return nil
+	default:
+		return fmt.Errorf("invalid curriculum evidence claim kind %q", kind)
+	}
+}
+
 type EvidenceEligibility string
 
 const (
@@ -77,6 +107,7 @@ func (authority EvidenceSourceAuthority) Validate() error {
 type CurriculumEvidenceClaim struct {
 	ID           ID
 	Statement    string
+	Kind         EvidenceClaimKind
 	Scope        string
 	VersionScope string
 	Status       ConceptStatus
@@ -89,6 +120,9 @@ func (claim CurriculumEvidenceClaim) Validate() error {
 		return fmt.Errorf("curriculum evidence claim: %w", err)
 	}
 	if err := requireText("curriculum evidence statement", claim.Statement); err != nil {
+		return err
+	}
+	if err := claim.Kind.Validate(); err != nil {
 		return err
 	}
 	if err := requireText("curriculum evidence scope", claim.Scope); err != nil {

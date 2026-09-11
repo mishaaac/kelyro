@@ -46,6 +46,14 @@ type CompetencyMatrixBuilderService interface {
 	Build(context.Context, CompetencyMatrixRequest) (curriculum.CompetencyMatrix, error)
 }
 
+type ConceptCandidateExtractionRequest struct {
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+}
+
+type ConceptCandidateExtractorService interface {
+	Extract(context.Context, ConceptCandidateExtractionRequest) (curriculum.ConceptCandidateSet, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)

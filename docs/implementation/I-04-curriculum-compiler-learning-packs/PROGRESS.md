@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 10
-Last completed step: 9
+Current step: 11
+Last completed step: 10
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -488,6 +488,49 @@ Release: unreleased
 - El Paso 10 es el siguiente paso pendiente: derivar concept candidates desde
   Claims estructurados sin asumir que cada Claim equivale a un concepto.
 - No implementar todavía atomization ni pasos posteriores.
+
+## Step 10 — Claim-to-Concept candidate extraction
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- Familia cerrada `EvidenceClaimKind` que preserva el tipo estructurado del
+  Claim I-03 sin acoplar el dominio curricular al paquete Research.
+- `ConceptCandidate`, `ConceptCandidateSet` y servicio de extracción
+  `claim-to-concept-candidates-v1` sobre evidence sets aceptados.
+- Agrupación por scope semántico normalizado, manteniendo separados version
+  scope y status temporal y conservando todos los Claim refs exactos.
+- IDs SHA-256 estables, orden determinista y selección de spelling independiente
+  del orden de entrada.
+- Tests de claims duplicados, definition + behavior, historical,
+  version-specific y repetibilidad con Claims reordenados.
+- Contrato documentado en
+  `docs/architecture/claim-to-concept-candidates-v1.md`.
+
+### Decisions
+
+- Usar el `scope` estructurado de I-03 como semantic subject v1; no aplicar NLP,
+  taxonomías hardcodeadas ni inferencias desde prose no estructurada.
+- Agrupar familias de Claim distintas cuando respaldan el mismo subject, pero
+  nunca mezclar estados temporales ni version scopes distintos.
+- Mantener candidatos separados de `Concept`: la atomicidad y cualquier split
+  pertenecen a los Pasos 11 y 12.
+- No se implementaron atomization, granularity guard, prerequisites, red, I-05
+  ni mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 11 es el siguiente: formalizar Atomic Concept Criteria v1 y sus
+  resultados cerrados antes de dividir candidatos.
+- No implementar Atomizer v1 ni pasos posteriores durante el Paso 11.
 
 ## Step 03 — Persistence schema y migration I-04
 

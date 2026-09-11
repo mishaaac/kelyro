@@ -35,6 +35,9 @@ func TestSourceBundleIngesterAcceptsReadyAndCaveatedEvidence(t *testing.T) {
 			if result.Evidence.Bundle.ContentHash != bundle.ContentHash || result.Evidence.AlgorithmVersion != curriculum.EvidenceIngestionAlgorithmV1 || len(result.Evidence.SourceAuthority) != 1 {
 				t.Fatalf("evidence = %+v", result.Evidence)
 			}
+			if result.Evidence.Claims[0].Kind != curriculum.EvidenceClaimDefinition {
+				t.Fatalf("claim kind = %q", result.Evidence.Claims[0].Kind)
+			}
 			repeated, err := NewSourceBundleIngester(provider).Ingest(context.Background(), EvidenceIngestionRequest{BundleID: bundle.ID})
 			if err != nil || !reflect.DeepEqual(result, repeated) {
 				t.Fatalf("repeated ingestion differs: first=%+v second=%+v error=%v", result, repeated, err)

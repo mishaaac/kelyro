@@ -88,7 +88,7 @@ func decompositionEvidence(t *testing.T) (curriculum.CurriculumEvidenceSet, curr
 	set := curriculum.CurriculumEvidenceSet{
 		Bundle:           curriculum.SourceBundleRef{ID: bundleID, ContentHash: "sha256:" + strings.Repeat("a", 64), AlgorithmVersion: "source-bundle-v1", VerifiedAt: verifiedAt},
 		Eligibility:      curriculum.EvidenceReadyForCompile,
-		Claims:           []curriculum.CurriculumEvidenceClaim{{ID: claimID, Statement: "The target requires HTTP knowledge.", Scope: "http", Status: curriculum.ConceptCurrent, Confidence: .95, SourceIDs: []curriculum.ID{sourceID}}},
+		Claims:           []curriculum.CurriculumEvidenceClaim{{ID: claimID, Statement: "The target requires HTTP knowledge.", Kind: curriculum.EvidenceClaimRequirement, Scope: "http", Status: curriculum.ConceptCurrent, Confidence: .95, SourceIDs: []curriculum.ID{sourceID}}},
 		SourceAuthority:  []curriculum.EvidenceSourceAuthority{{SourceID: sourceID, Role: "primary", TemporalScope: "current"}},
 		Freshness:        curriculum.EvidenceFreshness{State: "fresh", Score: 1, LastVerifiedAt: &verifiedAt, Algorithm: "source-bundle-freshness-v1"},
 		AlgorithmVersion: curriculum.EvidenceIngestionAlgorithmV1,

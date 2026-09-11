@@ -189,7 +189,7 @@ func convertClaim(claim research.Claim) (curriculum.CurriculumEvidenceClaim, err
 	case research.ClaimStatusLegacy:
 		status = curriculum.ConceptLegacy
 	}
-	return curriculum.CurriculumEvidenceClaim{ID: id, Statement: claim.Statement, Scope: claim.Scope, VersionScope: versionScope, Status: status, Confidence: claim.Confidence.Value(), SourceIDs: sources}, nil
+	return curriculum.CurriculumEvidenceClaim{ID: id, Statement: claim.Statement, Kind: curriculum.EvidenceClaimKind(claim.Type), Scope: claim.Scope, VersionScope: versionScope, Status: status, Confidence: claim.Confidence.Value(), SourceIDs: sources}, nil
 }
 
 func convertConflict(conflict research.Conflict, bundleClaims map[research.ClaimID]struct{}) (curriculum.CurriculumEvidenceConflict, error) {
