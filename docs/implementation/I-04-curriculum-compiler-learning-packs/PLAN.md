@@ -540,7 +540,7 @@ feat(storage): add curriculum and pack persistence schema
 
 ## Paso 4 — Diseñar Learning Pack Format v1
 
-- [ ] Paso 4 completado
+- [x] Paso 4 completado
 
 ### Objetivo
 

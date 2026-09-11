@@ -29,8 +29,11 @@ func TestPackEnvironmentCompilationAndChangeShapesValidate(t *testing.T) {
 	pack := LearningPack{
 		Manifest: PackManifest{
 			ID: mustID(t, "pack.backend"), Name: "Backend", Description: "Backend learning pack.",
-			Version: packVersion, SchemaVersion: "learning-pack/v1", Status: ConceptPreview,
-			CurriculumID: definition.ID, CreatedAt: createdAt,
+			Version: packVersion, SchemaVersion: "learning-pack/v1", Domain: "software-engineering",
+			Target: "Backend engineer", Authors: []string{"Kelyro"}, Maintainers: []string{"Kelyro"},
+			License: "CC-BY-4.0", CreatedAt: createdAt, MinimumKelyroVersion: packVersion,
+			CurriculumEntry: "curriculum/curriculum.yaml", SourceEvidenceEntry: "sources/evidence-report.json",
+			Status: ConceptPreview, CurriculumID: definition.ID,
 		},
 		Curriculum: definition, Environment: &environment,
 	}

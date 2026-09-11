@@ -15,15 +15,24 @@ func (dependency PackDependency) Validate() error {
 }
 
 type PackManifest struct {
-	ID            ID
-	Name          string
-	Description   string
-	Version       PackVersion
-	SchemaVersion string
-	Status        PackStatus
-	CurriculumID  CurriculumID
-	CreatedAt     Timestamp
-	Dependencies  []PackDependency
+	ID                   ID
+	Name                 string
+	Description          string
+	Version              PackVersion
+	SchemaVersion        string
+	Domain               string
+	Target               string
+	Authors              []string
+	Maintainers          []string
+	License              string
+	CreatedAt            Timestamp
+	MinimumKelyroVersion PackVersion
+	Dependencies         []PackDependency
+	EnvironmentEntry     string
+	CurriculumEntry      string
+	SourceEvidenceEntry  string
+	Status               PackStatus
+	CurriculumID         CurriculumID
 }
 
 func (manifest PackManifest) Validate() error {
@@ -41,6 +50,32 @@ func (manifest PackManifest) Validate() error {
 	}
 	if err := requireText("pack schema version", manifest.SchemaVersion); err != nil {
 		return err
+	}
+	for _, field := range []struct{ name, value string }{
+		{name: "pack domain", value: manifest.Domain},
+		{name: "pack target", value: manifest.Target},
+		{name: "pack license", value: manifest.License},
+		{name: "pack curriculum entry", value: manifest.CurriculumEntry},
+		{name: "pack source evidence entry", value: manifest.SourceEvidenceEntry},
+	} {
+		if err := requireText(field.name, field.value); err != nil {
+			return err
+		}
+	}
+	if err := validateTexts("pack authors", manifest.Authors); err != nil {
+		return err
+	}
+	if len(manifest.Authors) == 0 {
+		return fmt.Errorf("pack authors are empty")
+	}
+	if err := validateTexts("pack maintainers", manifest.Maintainers); err != nil {
+		return err
+	}
+	if len(manifest.Maintainers) == 0 {
+		return fmt.Errorf("pack maintainers are empty")
+	}
+	if err := manifest.MinimumKelyroVersion.Validate(); err != nil {
+		return fmt.Errorf("minimum Kelyro version: %w", err)
 	}
 	if err := manifest.Status.Validate(); err != nil {
 		return err

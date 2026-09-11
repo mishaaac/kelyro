@@ -145,7 +145,11 @@ func fixturePack(t *testing.T, definition curriculum.CurriculumDefinition, packI
 	}
 	return curriculum.LearningPack{Manifest: curriculum.PackManifest{
 		ID: id(t, packID), Name: "Pack", Description: "Fixture pack.", Version: version,
-		SchemaVersion: "pack/v1", Status: curriculum.ConceptPreview, CurriculumID: definition.ID, CreatedAt: timestamp(t, 19),
+		SchemaVersion: "learning-pack/v1", Domain: "general", Target: "Fixture target",
+		Authors: []string{"Kelyro"}, Maintainers: []string{"Kelyro"}, License: "CC-BY-4.0",
+		CreatedAt: timestamp(t, 19), MinimumKelyroVersion: version,
+		CurriculumEntry: "curriculum/curriculum.yaml", SourceEvidenceEntry: "sources/evidence-report.json",
+		Status: curriculum.ConceptPreview, CurriculumID: definition.ID,
 	}, Curriculum: definition}
 }
 

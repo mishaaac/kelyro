@@ -11,6 +11,9 @@ records below are stable contracts and adapter boundaries; they do not imply
 that later compiler passes, production Learning Packs, generated exercises,
 automatic learner migration, or an AI runtime already exist.
 
+The portable container contract is documented in
+[Learning Pack format v1](../specs/learning-pack-v1.md).
+
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
 

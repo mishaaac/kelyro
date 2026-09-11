@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 4
-Last completed step: 3
+Current step: 5
+Last completed step: 4
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -180,6 +180,52 @@ Release: unreleased
   SQLite para packs, compilations y curriculums instalados.
 - No definir Learning Pack v1, loader, ingestion, compiler algorithms, CLI/TUI
   ni pasos posteriores durante el Paso 3.
+
+## Step 04 — Learning Pack Format v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- Contrato portable `learning-pack/v1` documentado para directorios y ZIP,
+  con layout, checksums, límites, seguridad y fronteras explícitas.
+- `PackManifest` ampliado con domain, target, authors/maintainers, license,
+  minimum Kelyro version y entries de curriculum, evidencia y environment.
+- Parser YAML estricto, bounded y UTF-8 para un único `pack.yaml`, con rechazo
+  de campos desconocidos, schema no soportado y timestamps que no sean UTC Z.
+- Validación de IDs portables estables, SemVer 2.0, constraints AND simples,
+  dependencias duplicadas/autorreferentes y rutas relativas canónicas.
+- Tests positivos y negativos del manifest parser, incluidos traversal,
+  rutas absolutas/Windows, schema, constraints, documentos múltiples y tamaño.
+
+### Decisions
+
+- V1 usa un único curriculum YAML agregado y un evidence report JSON; dividir
+  esos documentos internamente queda permitido para una versión futura del
+  schema, no como interpretación implícita de v1.
+- ZIP es el único archive format de v1; un directorio conserva el mismo root
+  lógico y el mismo archivo de checksums.
+- `curriculum_id` es requerido además de los mínimos del plan para comprobar
+  identidad cruzada antes de construir un `LearningPack` de dominio.
+- Los constraints soportan conjunción de comparadores SemVer sin OR, rangos
+  abreviados ni tags flotantes; resolverlos pertenece a pasos posteriores.
+- No se implementaron todavía filesystem/archive loading, CLI, instalación,
+  ingestion I-03, compiler passes, red, scripts ni Student Core writes.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go vet ./internal/curriculum/... ./internal/infra/learningpack`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 5 es el siguiente paso: loader seguro de directory/ZIP, validación
+  integral y `kelyro packs validate <path>`.
+- No implementar instalación, dependency resolution, ingestion I-03 ni
+  compiler algorithms durante el Paso 5.
 
 ## Step 03 — Persistence schema y migration I-04
 
