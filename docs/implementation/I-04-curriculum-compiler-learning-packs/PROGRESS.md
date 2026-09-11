@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 11
-Last completed step: 10
+Current step: 12
+Last completed step: 11
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -531,6 +531,52 @@ Release: unreleased
 - El Paso 11 es el siguiente: formalizar Atomic Concept Criteria v1 y sus
   resultados cerrados antes de dividir candidatos.
 - No implementar Atomizer v1 ni pasos posteriores durante el Paso 11.
+
+## Step 11 — Atomic Concept Criteria v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- Política pura `atomic-concept-criteria-v1` con señales explícitas para name,
+  definition, prerequisite boundary, explanation, practice, assessment,
+  evidence y valor standalone.
+- Estados tri-state `satisfied`, `unsatisfied` y `unknown` para impedir que
+  metadata ausente se interprete como aprobación.
+- Resultados cerrados `atomic`, `needs_split`, `too_fragmented` y `unknown`
+  con razones machine-stable y precedencia determinista.
+- Detección declarativa de múltiples partes independientemente evaluables sin
+  nombres de dominio hardcodeados.
+- Tests de los cuatro resultados, anti-patterns amplios, estados inválidos y
+  partes duplicadas.
+- Contrato documentado en
+  `docs/architecture/atomic-concept-criteria-v1.md`.
+
+### Decisions
+
+- La policy clasifica señales aportadas explícitamente; no intenta extraer
+  semántica desde títulos o prose mediante heurísticas frágiles.
+- Una frontera de prerequisitos explícitamente foundational satisface el mismo
+  criterio; los prerequisitos concretos pertenecen a los Pasos 14 y 15.
+- `needs_split` tiene precedencia cuando hay varias partes evaluables;
+  `too_fragmented` representa ausencia explícita de valor autónomo o de
+  explain/practice/assess independiente; lo incompleto queda `unknown`.
+- No se implementaron splits, concepts, granularity guard, prerequisites, I-05
+  ni mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 12 es el siguiente: Atomizer v1 debe consumir candidatos, Claims,
+  esta policy y domain hints para emitir concepts atómicos con claim mapping.
+- No implementar Granularity Guard ni prerequisites durante el Paso 12.
 
 ## Step 03 — Persistence schema y migration I-04
 

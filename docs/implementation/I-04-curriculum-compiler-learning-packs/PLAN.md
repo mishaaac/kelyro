@@ -966,7 +966,7 @@ feat(curriculum): derive concept candidates from evidence
 
 ## Paso 11 — Definir Atomic Concept Criteria
 
-- [ ] Paso 11 completado
+- [x] Paso 11 completado
 
 ### Objetivo
 
