@@ -85,6 +85,10 @@ func NewAtomicConceptPolicyV1() AtomicConceptPolicyV1 {
 	return AtomicConceptPolicyV1{}
 }
 
+func (AtomicConceptPolicyV1) Version() string {
+	return AtomicConceptCriteriaVersionV1
+}
+
 func (AtomicConceptPolicyV1) Assess(criteria AtomicConceptCriteria) (AtomicityAssessment, error) {
 	if err := criteria.Validate(); err != nil {
 		return AtomicityAssessment{}, err

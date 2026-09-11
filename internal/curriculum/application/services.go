@@ -54,6 +54,22 @@ type ConceptCandidateExtractorService interface {
 	Extract(context.Context, ConceptCandidateExtractionRequest) (curriculum.ConceptCandidateSet, error)
 }
 
+type AtomicityPolicy interface {
+	Version() string
+	Assess(curriculum.AtomicConceptCriteria) (curriculum.AtomicityAssessment, error)
+}
+
+type ConceptAtomizationRequest struct {
+	Candidate         curriculum.ConceptCandidate
+	EvidenceSets      []curriculum.CurriculumEvidenceSet
+	CandidateCriteria curriculum.AtomicConceptCriteria
+	DomainHints       []curriculum.ConceptAtomizationHint
+}
+
+type ConceptAtomizerService interface {
+	Atomize(context.Context, ConceptAtomizationRequest) (curriculum.AtomicConceptSet, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)

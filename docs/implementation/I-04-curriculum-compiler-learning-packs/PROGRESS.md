@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 12
-Last completed step: 11
+Current step: 13
+Last completed step: 12
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -577,6 +577,54 @@ Release: unreleased
 - El Paso 12 es el siguiente: Atomizer v1 debe consumir candidatos, Claims,
   esta policy y domain hints para emitir concepts atómicos con claim mapping.
 - No implementar Granularity Guard ni prerequisites durante el Paso 12.
+
+## Step 12 — Atomizer v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `ConceptAtomizerService` y `atomizer-v1` con Atomicity Policy inyectada,
+  candidatos validados, evidence sets aceptados y domain hints declarativos.
+- Modelo `ConceptAtomizationHint`, `AtomicConceptSet` y mapping one-to-many de
+  Claims a Concepts con invariantes bidireccionales.
+- Preservación de candidatos ya atómicos mediante un único hint y split de
+  candidatos amplios únicamente con dos o más hijos evidenciados y atómicos.
+- Rechazo conservador de candidatos unknown/too_fragmented, hijos no atómicos,
+  Claims externos o sin mapear y ausencia de evidencia suficiente para split.
+- Soporte explícito de evidence overlap: un Claim puede respaldar más de un
+  Concept sin fusionar sus identidades.
+- Orden estable por Concept ID y bundle/Claim ID, copias defensivas, status
+  heredado y version scope comprobado.
+- Tests de already atomic, broad concept, overlapping split, no evidence to
+  split, child no atómico, Claim sin mapear y repetibilidad con hints reordenados.
+- Contrato documentado en `docs/architecture/concept-atomizer-v1.md`.
+
+### Decisions
+
+- Los domain hints aportan semántica de split y stable Concept IDs; el core
+  valida evidencia y atomicidad pero nunca hardcodea el ejemplo Variables ni
+  otra taxonomía de dominio.
+- Un split sin hints evidenciados es un error explícito, no una oportunidad de
+  inventar conceptos desde prose.
+- Permitir mapping Claim-to-Concept one-to-many porque una misma afirmación
+  puede evidenciar varias unidades evaluables; la relación siempre es explícita.
+- No se implementaron Granularity Guard, prerequisite extraction/expansion,
+  graph compiler, I-05 ni mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 13 es el siguiente: Granularity Guard debe impedir límites o merges
+  estéticos sin borrar stable Concept IDs.
+- No implementar prerequisite extraction ni pasos posteriores durante el Paso 13.
 
 ## Step 03 — Persistence schema y migration I-04
 

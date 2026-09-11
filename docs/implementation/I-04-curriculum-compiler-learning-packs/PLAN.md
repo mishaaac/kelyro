@@ -1023,7 +1023,7 @@ feat(curriculum): define atomic concept criteria v1
 
 ## Paso 12 — Implementar Atomizer v1
 
-- [ ] Paso 12 completado
+- [x] Paso 12 completado
 
 ### Objetivo
 
@@ -2986,9 +2986,9 @@ No asumir número.
 - [ ] Paso 7 — Goal Decomposition
 - [ ] Paso 8 — Professional Outcomes
 - [ ] Paso 9 — Competency Matrix
-- [ ] Paso 10 — Concept candidates
-- [ ] Paso 11 — Atomic Concept Criteria
-- [ ] Paso 12 — Atomizer
+- [x] Paso 10 — Concept candidates
+- [x] Paso 11 — Atomic Concept Criteria
+- [x] Paso 12 — Atomizer
 - [ ] Paso 13 — Granularity Guard
 - [ ] Paso 14 — Prerequisite extraction
 - [ ] Paso 15 — Prerequisite expansion
