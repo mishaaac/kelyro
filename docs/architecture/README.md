@@ -13,6 +13,8 @@ automatic learner migration, or an AI runtime already exist.
 
 The portable container contract is documented in
 [Learning Pack format v1](../specs/learning-pack-v1.md).
+Its bounded directory/ZIP adapter and CLI behavior are documented in
+[Secure Learning Pack loader v1](learning-pack-loader-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

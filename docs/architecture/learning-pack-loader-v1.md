@@ -1,0 +1,56 @@
+# Secure Learning Pack loader v1
+
+## Boundary
+
+`internal/infra/learningpack.Validator` is the read-only adapter behind
+`curriculum/application.PackValidationService`. It accepts a directory or ZIP
+path and returns a `PackValidationResult`. Invalid untrusted content is reported
+as structured validation issues; cancellation remains an operational error.
+
+The validator never installs or activates a pack, resolves dependencies,
+performs research, follows links, executes content, or mutates learner state.
+
+## Validation pipeline
+
+The v1 pipeline is deterministic:
+
+1. classify the root with `Lstat` and reject root links/special files;
+2. enumerate a directory without following links, or enumerate one ZIP;
+3. validate canonical portable names and reject links, special files,
+   executable modes and script-like extensions;
+4. enforce 1,024 entries, 4 MiB per file, 32 MiB total uncompressed and a
+   100:1 per-entry ZIP compression-ratio ceiling;
+5. require valid UTF-8, `pack.yaml`, and `checksums.txt`;
+6. verify a complete, sorted, duplicate-free SHA-256 inventory;
+7. strictly decode the manifest, curriculum, evidence report and optional
+   environment document;
+8. validate domain aggregates and all cross-document identities/references.
+
+The directory adapter resolves each discovered file and confirms it remains
+inside the pack root. The ZIP adapter rejects traversal names and duplicate
+entries before opening content. Resource bounds are checked from metadata and
+again while reading.
+
+## Cross-document invariants
+
+- manifest `curriculum_id` equals the curriculum entry ID;
+- manifest entry paths exist and are distinct;
+- evidence report bundle refs equal the curriculum's ordered, immutable bundle
+  refs, including hash, algorithm and verification time;
+- every Claim ref used by goals, competencies, concepts, prerequisites,
+  coverage requirements or environment tools appears in the evidence report;
+- environment concept and bundle refs resolve in the curriculum;
+- the complete `LearningPack` passes domain validation.
+
+Dependency constraints are syntactically validated here. Availability,
+version selection and cycle resolution belong to later install/resolution
+steps. Non-current pack status is a warning rather than a format error because
+preview, experimental, legacy, historical and deprecated are explicit valid
+v1 states.
+
+## CLI
+
+`kelyro packs validate <path>` invokes only this read-only service. A valid
+pack exits zero and prints stable pack/curriculum identities. Validation issues
+exit non-zero with code, path and reason. `--quiet` suppresses successful output
+but never suppresses errors.

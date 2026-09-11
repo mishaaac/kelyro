@@ -19,6 +19,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/doctorsqlite"
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/learningdb"
+	"github.com/mishaaac/kelyro/internal/infra/learningpack"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
 	"github.com/mishaaac/kelyro/internal/infra/platformos"
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
@@ -104,6 +105,7 @@ func main() {
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).
-		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New()))
+		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New())).
+		WithPackValidator(learningpack.NewValidator())
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

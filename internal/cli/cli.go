@@ -14,6 +14,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/config"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
@@ -67,6 +68,7 @@ Commands:
   streak   Show study consistency without affecting progress
   sources  Inspect sources, conflicts, provenance, and stale evidence
   research Plan and inspect Research runs, costs, and the offline cache
+  packs    Validate portable Learning Packs
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -193,6 +195,9 @@ Research commands:
   kelyro research cache status
   kelyro research cache clear
 
+Learning Pack commands:
+  kelyro packs validate <path>
+
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
 `
@@ -231,12 +236,13 @@ var actions = map[string]app.Action{
 // Runner owns CLI parsing and rendering while delegating operations to an
 // application service.
 type Runner struct {
-	service     app.FoundationService
-	stdout      io.Writer
-	stderr      io.Writer
-	secrets     SecretReader
-	interactive InteractiveRunner
-	confirmer   Confirmer
+	service       app.FoundationService
+	stdout        io.Writer
+	stderr        io.Writer
+	secrets       SecretReader
+	interactive   InteractiveRunner
+	confirmer     Confirmer
+	packValidator curriculumapp.PackValidationService
 }
 
 // Confirmer obtains explicit consent before destructive operations.
@@ -275,6 +281,12 @@ func (r Runner) WithConfirmer(confirmer Confirmer) Runner {
 	return r
 }
 
+// WithPackValidator attaches the read-only portable pack validator.
+func (r Runner) WithPackValidator(validator curriculumapp.PackValidationService) Runner {
+	r.packValidator = validator
+	return r
+}
+
 // Run parses args, renders immediate CLI output, or dispatches one application
 // action. It returns a process exit code and does not construct native process
 // commands itself.
@@ -291,6 +303,9 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	if invocation.version {
 		fmt.Fprintf(r.stdout, "kelyro %s\n", version.Current())
 		return ExitOK
+	}
+	if invocation.command == "packs" {
+		return r.runPackValidation(ctx, invocation)
 	}
 
 	action := app.ActionTUI
@@ -504,6 +519,40 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		return ExitFailure
 	}
 
+	return ExitOK
+}
+
+func (r Runner) runPackValidation(ctx context.Context, invocation invocation) int {
+	if r.packValidator == nil {
+		fmt.Fprintln(r.stderr, "kelyro packs: pack validator is unavailable")
+		return ExitFailure
+	}
+	result, err := r.packValidator.Validate(ctx, curriculumapp.PackSource{Path: invocation.packPath})
+	if err != nil {
+		fmt.Fprintf(r.stderr, "kelyro packs: %v\n", err)
+		return ExitFailure
+	}
+	if len(result.Errors) > 0 {
+		fmt.Fprintln(r.stderr, "Learning Pack validation\nStatus: invalid")
+		for _, issue := range result.Errors {
+			fmt.Fprintf(r.stderr, "- [%s] %s: %s\n", issue.Code, issue.Path, issue.Message)
+		}
+		return ExitFailure
+	}
+	if invocation.quiet {
+		return ExitOK
+	}
+	lines := []string{"Learning Pack validation", "Status: valid"}
+	if result.Pack != nil {
+		lines = append(lines,
+			"Pack: "+result.Pack.Manifest.ID.String()+"@"+result.Pack.Manifest.Version.String(),
+			"Curriculum: "+result.Pack.Curriculum.ID.String()+"@"+result.Pack.Curriculum.Version.String(),
+		)
+	}
+	for _, warning := range result.Warnings {
+		lines = append(lines, fmt.Sprintf("Warning [%s] %s: %s", warning.Code, warning.Path, warning.Message))
+	}
+	fmt.Fprintln(r.stdout, strings.Join(lines, "\n"))
 	return ExitOK
 }
 
@@ -1183,6 +1232,7 @@ type invocation struct {
 	sourceID                research.SourceID
 	sourceRegistryID        research.ID
 	provenanceClaimID       research.ClaimID
+	packPath                string
 }
 
 func parse(args []string) (invocation, error) {
@@ -1547,6 +1597,11 @@ func parse(args []string) (invocation, error) {
 		if err := parseResearchArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "packs":
+		if len(result.arguments) != 2 || result.arguments[0] != "validate" || strings.TrimSpace(result.arguments[1]) == "" {
+			return invocation{}, fmt.Errorf("packs requires validate <path>")
+		}
+		result.packPath = result.arguments[1]
 	case "maintenance":
 		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
 			return invocation{}, fmt.Errorf("maintenance requires recalculate")

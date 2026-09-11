@@ -12,6 +12,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
@@ -83,6 +84,32 @@ func TestRunnerDispatchesFoundationCommands(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr.String())
 			}
 		})
+	}
+}
+
+func TestRunnerValidatesLearningPackWithoutDispatchingFoundation(t *testing.T) {
+	t.Parallel()
+	validator := &fakePackValidator{}
+	service := &fakeService{}
+	var stdout, stderr bytes.Buffer
+	code := NewRunner(service, &stdout, &stderr).WithPackValidator(validator).Run(context.Background(), []string{"packs", "validate", "pack.zip"})
+	if code != ExitOK || stderr.Len() != 0 || len(service.commands) != 0 || validator.path != "pack.zip" {
+		t.Fatalf("exit=%d stdout=%q stderr=%q service=%+v validator=%+v", code, stdout.String(), stderr.String(), service.commands, validator)
+	}
+	if !strings.Contains(stdout.String(), "Status: valid") {
+		t.Fatalf("stdout=%q", stdout.String())
+	}
+
+	validator.result.Errors = []curriculumapp.PackValidationIssue{{Code: "invalid_pack", Path: "pack", Message: "checksum mismatch"}}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).WithPackValidator(validator).Run(context.Background(), []string{"packs", "validate", "bad.zip"}); code != ExitFailure || !strings.Contains(stderr.String(), "checksum mismatch") {
+		t.Fatalf("invalid exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	stderr.Reset()
+	if code := NewRunner(service, &stdout, &stderr).WithPackValidator(validator).Run(context.Background(), []string{"packs", "bad"}); code != ExitUsage || !strings.Contains(stderr.String(), "packs requires validate <path>") {
+		t.Fatalf("usage exit=%d stderr=%q", code, stderr.String())
 	}
 }
 
@@ -1713,6 +1740,17 @@ type fakeSecretReader struct {
 type fakeInteractiveRunner struct {
 	commands []app.Command
 	err      error
+}
+
+type fakePackValidator struct {
+	path   string
+	result curriculumapp.PackValidationResult
+	err    error
+}
+
+func (validator *fakePackValidator) Validate(_ context.Context, source curriculumapp.PackSource) (curriculumapp.PackValidationResult, error) {
+	validator.path = source.Path
+	return validator.result, validator.err
 }
 
 func (runner *fakeInteractiveRunner) Run(_ context.Context, command app.Command) error {

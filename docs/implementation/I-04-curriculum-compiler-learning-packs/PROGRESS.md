@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 5
-Last completed step: 4
+Current step: 6
+Last completed step: 5
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -226,6 +226,61 @@ Release: unreleased
   integral y `kelyro packs validate <path>`.
 - No implementar instalación, dependency resolution, ingestion I-03 ni
   compiler algorithms durante el Paso 5.
+
+## Step 05 — Secure Pack Loader and Validator
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `PackValidationService` productivo read-only para directorios y ZIP v1, con
+  `ValidatedPack` representado por `PackValidationResult.Pack`, warnings y
+  errores estructurados.
+- Enumeración bounded con rechazo de root/file symlinks, escapes, paths no
+  portables, entries duplicadas, special files, executable bits y extensiones
+  de script/binario.
+- Límites de 1,024 entries, 4 MiB por archivo, 32 MiB totales y ratio ZIP
+  100:1, comprobados antes y durante lectura.
+- Inventario SHA-256 completo, ordenado e inmutable mediante `checksums.txt`,
+  más UTF-8 obligatorio para el contenido textual v1.
+- Decoders estrictos para curriculum YAML, evidence report JSON y environment
+  YAML, con validación de agregados y referencias entre documentos.
+- CLI `kelyro packs validate <path>` cableada en composition root, con salida
+  quiet segura, exit code no-cero y razones para packs inválidos.
+- Tests de good directory/ZIP y bad checksum, UTF-8, evidence, schema, symlink,
+  traversal, duplicate archive entry, executable mode y cancellation.
+- Contrato operativo documentado en
+  `docs/architecture/learning-pack-loader-v1.md`.
+
+### Decisions
+
+- El único archive soportado en v1 es ZIP; un archivo regular no-ZIP falla sin
+  intentar inferir tar u otros formatos.
+- Todos los archivos v1 son textuales y UTF-8. Esto mantiene fuera binarios,
+  assets y contenido ejecutable hasta que un schema futuro defina su política.
+- El loader valida constraints pero no resuelve disponibilidad de dependencies;
+  install/resolution sigue reservado para pasos posteriores.
+- Un status no-current válido produce warning; no se reetiqueta ni se trata
+  como current.
+- La CLI usa directamente el application boundary de validación y no abre un
+  workspace, base de datos ni servicio de Research.
+- No se implementaron instalación/activación, ingestion I-03, compiler passes,
+  red, plugin runtime, I-05 ni Student Core writes.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/infra/learningpack ./internal/cli -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 6 es el siguiente paso: consumir bundles/claims I-03 durables y
+  producir `CurriculumEvidenceSet` con eligibility determinista y sin red.
+- No implementar Goal Decomposition ni pasos posteriores durante el Paso 6.
 
 ## Step 03 — Persistence schema y migration I-04
 

@@ -621,7 +621,7 @@ feat(pack): define Learning Pack format v1
 
 ## Paso 5 — Implementar Pack Loader y Validator
 
-- [ ] Paso 5 completado
+- [x] Paso 5 completado
 
 ### Objetivo
 
