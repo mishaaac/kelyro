@@ -27,6 +27,8 @@ goal:
   outcomes:
     - id: outcome.explain
       statement: Explain Go package structure.
+      category: knowledge
+      capability: explain
       evidence_refs: &evidence
         - bundle_id: bundle.go-packages
           claim_id: claim.go-packages

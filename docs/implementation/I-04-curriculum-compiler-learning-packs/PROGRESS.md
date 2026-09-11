@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 8
-Last completed step: 7
+Current step: 9
+Last completed step: 8
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -384,6 +384,55 @@ Release: unreleased
 - El Paso 8 es el siguiente: categorizar outcomes y exigir explain/build/debug/
   operate/maintain para goals profesionales.
 - No implementar Competency Matrix v1 ni pasos posteriores durante el Paso 8.
+
+## Step 08 — Professional Outcome Model
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- Taxonomía cerrada de outcome categories: knowledge, application, debugging,
+  design, tool usage, production, security, communication/documentation y
+  maintenance.
+- Taxonomía cerrada de capabilities: explain, build, debug, operate y maintain.
+- `GoalOutcome` ampliado con category obligatoria y capability explícita,
+  opcional únicamente para goals no profesionales.
+- Invariante de `LearningGoalSpec`: un goal con `ProfessionalRole` debe cubrir
+  las cinco capabilities, sin inferirlas desde title/statement.
+- Learning Pack curriculum decoder actualizado para rechazar categories o
+  capabilities ausentes/desconocidas según el contrato.
+- Tests de cobertura profesional completa/incompleta, enums desconocidos y
+  compatibilidad de goals estrechos no profesionales.
+- Contrato documentado en
+  `docs/architecture/professional-outcomes-v1.md`.
+
+### Decisions
+
+- Category describe dimensión de cobertura; capability describe lo que el
+  learner podrá hacer. No se fuerza una relación rígida entre ambas.
+- Cada outcome declara una category y como máximo una capability; múltiples
+  outcomes pueden cubrir la misma capability.
+- La presencia de `ProfessionalRole`, no palabras del texto, activa la regla
+  exhaustiva explain/build/debug/operate/maintain.
+- No se generó outcome prose ni se implementaron Competency Matrix, practice,
+  assessment, projects, I-05 o mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go vet ./internal/curriculum/... ./internal/infra/learningpack`.
+- `go test -race ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 9 es el siguiente: construir `competency-matrix-v1` desde una
+  descomposición, specs del pack y evidencia aceptada.
+- No implementar Claim-to-Concept extraction ni pasos posteriores.
 
 ## Step 03 — Persistence schema y migration I-04
 

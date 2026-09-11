@@ -19,6 +19,8 @@ The read-only I-03 hand-off is documented in
 [Curriculum evidence ingestion v1](curriculum-evidence-ingestion-v1.md).
 Evidence-backed, pack-declared goal expansion is documented in
 [Goal decomposition v1](goal-decomposition-v1.md).
+Professional outcome categories and completeness are documented in
+[Professional outcome model v1](professional-outcomes-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

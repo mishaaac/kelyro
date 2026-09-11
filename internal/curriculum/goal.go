@@ -2,6 +2,51 @@ package curriculum
 
 import "fmt"
 
+type OutcomeCategory string
+
+const (
+	OutcomeKnowledge                  OutcomeCategory = "knowledge"
+	OutcomeApplication                OutcomeCategory = "application"
+	OutcomeDebugging                  OutcomeCategory = "debugging"
+	OutcomeDesign                     OutcomeCategory = "design"
+	OutcomeToolUsage                  OutcomeCategory = "tool_usage"
+	OutcomeProduction                 OutcomeCategory = "production"
+	OutcomeSecurity                   OutcomeCategory = "security"
+	OutcomeCommunicationDocumentation OutcomeCategory = "communication_documentation"
+	OutcomeMaintenance                OutcomeCategory = "maintenance"
+)
+
+func (category OutcomeCategory) Validate() error {
+	switch category {
+	case OutcomeKnowledge, OutcomeApplication, OutcomeDebugging, OutcomeDesign,
+		OutcomeToolUsage, OutcomeProduction, OutcomeSecurity,
+		OutcomeCommunicationDocumentation, OutcomeMaintenance:
+		return nil
+	default:
+		return fmt.Errorf("invalid outcome category %q", category)
+	}
+}
+
+type OutcomeCapability string
+
+const (
+	OutcomeCapabilityExplain  OutcomeCapability = "explain"
+	OutcomeCapabilityBuild    OutcomeCapability = "build"
+	OutcomeCapabilityDebug    OutcomeCapability = "debug"
+	OutcomeCapabilityOperate  OutcomeCapability = "operate"
+	OutcomeCapabilityMaintain OutcomeCapability = "maintain"
+)
+
+func (capability OutcomeCapability) Validate() error {
+	switch capability {
+	case OutcomeCapabilityExplain, OutcomeCapabilityBuild, OutcomeCapabilityDebug,
+		OutcomeCapabilityOperate, OutcomeCapabilityMaintain:
+		return nil
+	default:
+		return fmt.Errorf("invalid outcome capability %q", capability)
+	}
+}
+
 type ProfessionalRole struct {
 	ID          ID
 	Name        string
@@ -21,6 +66,8 @@ func (role ProfessionalRole) Validate() error {
 type GoalOutcome struct {
 	ID           ID
 	Statement    string
+	Category     OutcomeCategory
+	Capability   OutcomeCapability
 	EvidenceRefs []EvidenceRef
 }
 
@@ -30,6 +77,14 @@ func (outcome GoalOutcome) Validate() error {
 	}
 	if err := requireText("goal outcome statement", outcome.Statement); err != nil {
 		return err
+	}
+	if err := outcome.Category.Validate(); err != nil {
+		return err
+	}
+	if outcome.Capability != "" {
+		if err := outcome.Capability.Validate(); err != nil {
+			return err
+		}
 	}
 	return validateEvidenceRefs("goal outcome evidence", outcome.EvidenceRefs)
 }
@@ -77,6 +132,22 @@ func (goal LearningGoalSpec) Validate() error {
 			return fmt.Errorf("learning goal contains duplicate outcome %q", outcome.ID)
 		}
 		seen[outcome.ID] = struct{}{}
+	}
+	if goal.Role != nil {
+		capabilities := make(map[OutcomeCapability]struct{}, len(goal.Outcomes))
+		for _, outcome := range goal.Outcomes {
+			if outcome.Capability != "" {
+				capabilities[outcome.Capability] = struct{}{}
+			}
+		}
+		for _, required := range []OutcomeCapability{
+			OutcomeCapabilityExplain, OutcomeCapabilityBuild, OutcomeCapabilityDebug,
+			OutcomeCapabilityOperate, OutcomeCapabilityMaintain,
+		} {
+			if _, exists := capabilities[required]; !exists {
+				return fmt.Errorf("professional learning goal is missing %q outcome capability", required)
+			}
+		}
 	}
 	if err := validateTexts("learning goal scope", goal.Scope); err != nil {
 		return err

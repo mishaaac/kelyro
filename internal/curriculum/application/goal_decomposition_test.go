@@ -40,12 +40,15 @@ func TestGoalDecomposerV1IncludesPackDeclaredProfessionalArea(t *testing.T) {
 	t.Parallel()
 	evidence, reference := decompositionEvidence(t)
 	goal := decompositionGoal(t, reference, true)
-	operateID := curriculumID(t, "outcome.operate")
-	goal.Outcomes = append(goal.Outcomes, curriculum.GoalOutcome{ID: operateID, Statement: "Operate the service.", EvidenceRefs: []curriculum.EvidenceRef{reference}})
+	goal.Outcomes = professionalOutcomes(t, reference)
 	profile := decompositionProfile(t, reference, goal.Outcomes)
+	professionalOutcomeIDs := make([]curriculum.ID, 0, len(goal.Outcomes)-1)
+	for _, outcome := range goal.Outcomes[1:] {
+		professionalOutcomeIDs = append(professionalOutcomeIDs, outcome.ID)
+	}
 	profile.Areas = append(profile.Areas, curriculum.CompetencyAreaSpec{
 		ID: curriculumID(t, "area.operations"), Name: "Operations", Description: "Operate the target system.",
-		Scopes: []string{"operations"}, OutcomeIDs: []curriculum.ID{operateID}, RequiredForProfessional: true,
+		Scopes: []string{"operations"}, OutcomeIDs: professionalOutcomeIDs, RequiredForProfessional: true,
 		EvidenceRefs: []curriculum.EvidenceRef{reference},
 	})
 
@@ -100,13 +103,24 @@ func decompositionGoal(t *testing.T, evidence curriculum.EvidenceRef, profession
 	t.Helper()
 	goal := curriculum.LearningGoalSpec{
 		ID: curriculumID(t, "goal.http"), Title: "HTTP service", Description: "Understand an HTTP service.", Domain: "custom-domain",
-		Outcomes: []curriculum.GoalOutcome{{ID: curriculumID(t, "outcome.explain"), Statement: "Explain the HTTP service.", EvidenceRefs: []curriculum.EvidenceRef{evidence}}},
+		Outcomes: []curriculum.GoalOutcome{{ID: curriculumID(t, "outcome.explain"), Statement: "Explain the HTTP service.", Category: curriculum.OutcomeKnowledge, Capability: curriculum.OutcomeCapabilityExplain, EvidenceRefs: []curriculum.EvidenceRef{evidence}}},
 		Scope:    []string{"http"}, Exclusions: []string{"browser UI"},
 	}
 	if professional {
 		goal.Role = &curriculum.ProfessionalRole{ID: curriculumID(t, "role.operator"), Name: "Service operator", Description: "Operates the service professionally."}
 	}
 	return goal
+}
+
+func professionalOutcomes(t *testing.T, evidence curriculum.EvidenceRef) []curriculum.GoalOutcome {
+	t.Helper()
+	return []curriculum.GoalOutcome{
+		{ID: curriculumID(t, "outcome.explain"), Statement: "Explain the service.", Category: curriculum.OutcomeKnowledge, Capability: curriculum.OutcomeCapabilityExplain, EvidenceRefs: []curriculum.EvidenceRef{evidence}},
+		{ID: curriculumID(t, "outcome.build"), Statement: "Build the service.", Category: curriculum.OutcomeApplication, Capability: curriculum.OutcomeCapabilityBuild, EvidenceRefs: []curriculum.EvidenceRef{evidence}},
+		{ID: curriculumID(t, "outcome.debug"), Statement: "Debug the service.", Category: curriculum.OutcomeDebugging, Capability: curriculum.OutcomeCapabilityDebug, EvidenceRefs: []curriculum.EvidenceRef{evidence}},
+		{ID: curriculumID(t, "outcome.operate"), Statement: "Operate the service.", Category: curriculum.OutcomeProduction, Capability: curriculum.OutcomeCapabilityOperate, EvidenceRefs: []curriculum.EvidenceRef{evidence}},
+		{ID: curriculumID(t, "outcome.maintain"), Statement: "Maintain the service.", Category: curriculum.OutcomeMaintenance, Capability: curriculum.OutcomeCapabilityMaintain, EvidenceRefs: []curriculum.EvidenceRef{evidence}},
+	}
 }
 
 func decompositionProfile(t *testing.T, evidence curriculum.EvidenceRef, outcomes []curriculum.GoalOutcome) curriculum.DomainProfile {

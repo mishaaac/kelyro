@@ -172,7 +172,7 @@ func validCurriculumDefinition(t *testing.T) CurriculumDefinition {
 		ID: curriculumID, Version: version, Title: "Backend", Description: "A source-backed curriculum.",
 		Goal: LearningGoalSpec{
 			ID: goalID, Title: "Backend role", Description: "Prepare for backend work.", Domain: "software",
-			Outcomes: []GoalOutcome{{ID: outcomeID, Statement: "Explain and apply foundations.", EvidenceRefs: []EvidenceRef{evidence}}},
+			Outcomes: []GoalOutcome{{ID: outcomeID, Statement: "Explain and apply foundations.", Category: OutcomeKnowledge, Capability: OutcomeCapabilityExplain, EvidenceRefs: []EvidenceRef{evidence}}},
 			Scope:    []string{"foundations", "application"}, Exclusions: []string{"exercise runtime"},
 		},
 		Competencies: CompetencyMatrix{

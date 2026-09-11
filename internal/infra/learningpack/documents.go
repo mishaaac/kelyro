@@ -65,6 +65,8 @@ type roleDocument struct {
 type outcomeDocument struct {
 	ID           string                `yaml:"id"`
 	Statement    string                `yaml:"statement"`
+	Category     string                `yaml:"category"`
+	Capability   string                `yaml:"capability,omitempty"`
 	EvidenceRefs []evidenceRefDocument `yaml:"evidence_refs,omitempty"`
 }
 
@@ -321,7 +323,10 @@ func decodeGoal(raw goalDocument) (curriculum.LearningGoalSpec, error) {
 		if err != nil {
 			return curriculum.LearningGoalSpec{}, err
 		}
-		result.Outcomes = append(result.Outcomes, curriculum.GoalOutcome{ID: outcomeID, Statement: item.Statement, EvidenceRefs: refs})
+		result.Outcomes = append(result.Outcomes, curriculum.GoalOutcome{
+			ID: outcomeID, Statement: item.Statement, Category: curriculum.OutcomeCategory(item.Category),
+			Capability: curriculum.OutcomeCapability(item.Capability), EvidenceRefs: refs,
+		})
 	}
 	return result, nil
 }

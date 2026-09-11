@@ -95,6 +95,10 @@ LearningPack
 `LearningGoalSpec` is learner-neutral compiler input and must not be confused
 with I-02's learner-owned `LearningGoal` lifecycle. Similarly, a
 `CurriculumDefinition` is not a personalized path or a `CurriculumInstance`.
+Every `GoalOutcome` declares one professional coverage category. Goals with a
+`ProfessionalRole` additionally cover the five explicit capabilities explain,
+build, debug, operate and maintain; see
+[professional-outcomes-v1.md](professional-outcomes-v1.md).
 
 ## Closed vocabularies
 
@@ -108,6 +112,11 @@ Atomicity is `atomic`, `needs_split`, `too_fragmented`, or `unknown`.
 Difficulty uses the general 1–5 introductory-to-expert scale. Competency levels
 are `awareness`, `understand`, `apply`, `analyze`, `design`, `operate`, and
 `teach_explain`.
+
+Outcome categories are `knowledge`, `application`, `debugging`, `design`,
+`tool_usage`, `production`, `security`, `communication_documentation`, and
+`maintenance`. Professional capabilities are `explain`, `build`, `debug`,
+`operate`, and `maintain`.
 
 Prerequisite kinds are `hard`, `recommended`, `exposure_only`,
 `tool_dependency`, and `vocabulary`. These describe graph edges; visual order
@@ -146,9 +155,8 @@ their versioned behavior belongs to later I-04 steps.
 ## Pack and change boundaries
 
 `LearningPack`, `PackManifest`, `PackDependency`, `EnvironmentPack`, and
-`ToolRequirement` are domain shapes, not the portable v1 file format. Step 4
-will define serialization, paths, checksums, licenses, and safe loading.
-Dependency constraint interpretation belongs to Step 36.
+`ToolRequirement` are domain shapes represented by the portable v1 format.
+Dependency resolution belongs to Step 36.
 
 An environment pack contains declarative tool requirements only. The base
 model has no scripts, installers, or secrets, and tool evidence/introduction

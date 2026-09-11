@@ -96,3 +96,8 @@ The curriculum entry is the complete learner-neutral I-04 definition. The
 evidence report contains exact immutable Source Bundle identities and Claim
 references. The optional environment entry contains declarative tool
 requirements only and never credentials or commands.
+
+Each serialized goal outcome includes required `id`, `statement`, `category`
+and `evidence_refs`, plus optional `capability`. Categories and capabilities
+use the closed vocabulary in `professional-outcomes-v1`; a professional goal
+must declare all five required capabilities.

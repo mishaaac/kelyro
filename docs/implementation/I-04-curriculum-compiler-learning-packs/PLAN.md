@@ -808,7 +808,7 @@ feat(curriculum): add goal decomposition v1
 
 ## Paso 8 — Implementar Professional Outcome Model
 
-- [ ] Paso 8 completado
+- [x] Paso 8 completado
 
 ### Objetivo
 
