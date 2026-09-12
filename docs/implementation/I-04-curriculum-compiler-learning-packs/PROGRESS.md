@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 20
-Last completed step: 19
+Current step: 21
+Last completed step: 20
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -952,6 +952,60 @@ Release: unreleased
 - El Paso 20 es el siguiente: convertir cada resultado incompleto y findings
   prerequisite/current-guidance explícitos en gaps estables y accionables.
 - No implementar Zero-Assumption Audit ni pasos posteriores durante el Paso 20.
+
+## Step 20 — Curriculum Gap Scanner v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `gap-scanner-v1` y service boundary sobre Coverage Report, requirements,
+  prerequisite expansion gaps y current-guidance findings explícitos.
+- Mapping completo de las ocho coverage dimensions a missing competency,
+  concept, evidence, theory, practice, production, security y toolchain.
+- Conversión adicional a missing prerequisite y missing current guidance, sin
+  ejecutar todavía clasificación temporal de los Pasos 28–29.
+- Gap goal-targeted para cada dimensión sin requirements, evitando que una
+  omisión declarativa desaparezca del reporte.
+- Política explícita blocking/important/recommended para missing y partial;
+  informational queda reservado para policies advisory posteriores.
+- IDs SHA-256 deterministas, deduplicación exacta, evidence refs canónicas y
+  orden por severidad, kind, target e ID.
+- Validación de correspondencia exacta entre Coverage Report y requirements.
+- Fixtures que cubren los diez Gap kinds, severidades, partial coverage,
+  mismatch inválido y repetibilidad con inputs reordenados.
+- Contrato documentado en `docs/architecture/curriculum-gap-scanner-v1.md`.
+
+### Decisions
+
+- Tratar una dimensión no declarada como gap accionable en el goal, no como un
+  estado neutro o implícitamente cubierto.
+- Mantener los gaps atómicos por requirement; el scanner no produce un score ni
+  permite que una dimensión compense otra.
+- Recibir current-guidance findings por boundary explícita para no adelantar la
+  inteligencia temporal y best-practice de los Pasos 28–29.
+- Derivar identidad desde el payload causal completo para que findings distintos
+  sobre el mismo target no se sobrescriban según input order.
+- No se implementaron Zero-Assumption Audit, specialized coverage, I-05 ni
+  mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 21 es el siguiente: Zero-Assumption Audit v1 debe usar un baseline y
+  Domain Profile declarados, nunca una lista universal hardcodeada.
+- No implementar First-Principles Expansion ni pasos posteriores durante el
+  Paso 21.
 
 ## Step 03 — Persistence schema y migration I-04
 

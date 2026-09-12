@@ -1381,7 +1381,7 @@ feat(coverage): add multidimensional curriculum coverage v1
 
 ## Paso 20 — Implementar Gap Scanner
 
-- [ ] Paso 20 completado
+- [x] Paso 20 completado
 
 ### Objetivo
 
@@ -2996,7 +2996,7 @@ No asumir número.
 - [x] Paso 17 — Vocabulary Graph
 - [x] Paso 18 — Definition-before-use
 - [x] Paso 19 — Coverage Engine
-- [ ] Paso 20 — Gap Scanner
+- [x] Paso 20 — Gap Scanner
 - [ ] Paso 21 — Zero-Assumption Audit
 - [ ] Paso 22 — First-Principles Expansion
 - [ ] Paso 23 — Theory Coverage

@@ -199,6 +199,18 @@ type CoverageService interface {
 	Analyze(context.Context, CoverageAnalysisRequest) (curriculum.CoverageReport, error)
 }
 
+type GapScanRequest struct {
+	GoalID                  curriculum.ID
+	Coverage                curriculum.CoverageReport
+	Requirements            []curriculum.CoverageRequirement
+	PrerequisiteGaps        []curriculum.PrerequisiteExpansionGap
+	CurrentGuidanceFindings []curriculum.CurrentGuidanceFinding
+}
+
+type GapScannerService interface {
+	Scan(context.Context, GapScanRequest) (curriculum.GapScanReport, error)
+}
+
 type CurriculumAuditResult struct {
 	Name    string
 	Version string

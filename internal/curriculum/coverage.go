@@ -327,3 +327,45 @@ func (gap Gap) Validate() error {
 	}
 	return validateEvidenceRefs("gap evidence", gap.EvidenceRefs)
 }
+
+const GapScannerVersionV1 = "gap-scanner-v1"
+
+// CurrentGuidanceFinding is emitted by temporal review and consumed by the
+// generic scanner. Step 20 does not classify guidance itself.
+type CurrentGuidanceFinding struct {
+	TargetID     ID
+	Reason       string
+	EvidenceRefs []EvidenceRef
+}
+
+func (finding CurrentGuidanceFinding) Validate() error {
+	if err := finding.TargetID.Validate(); err != nil {
+		return fmt.Errorf("current-guidance finding target: %w", err)
+	}
+	if err := requireText("current-guidance finding reason", finding.Reason); err != nil {
+		return err
+	}
+	return validateEvidenceRefs("current-guidance finding evidence", finding.EvidenceRefs)
+}
+
+type GapScanReport struct {
+	Gaps             []Gap
+	AlgorithmVersion string
+}
+
+func (report GapScanReport) Validate() error {
+	if report.AlgorithmVersion != GapScannerVersionV1 {
+		return fmt.Errorf("unsupported gap scanner version %q", report.AlgorithmVersion)
+	}
+	seen := make(map[ID]struct{}, len(report.Gaps))
+	for _, gap := range report.Gaps {
+		if err := gap.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seen[gap.ID]; exists {
+			return fmt.Errorf("gap scan contains duplicate gap %q", gap.ID)
+		}
+		seen[gap.ID] = struct{}{}
+	}
+	return nil
+}

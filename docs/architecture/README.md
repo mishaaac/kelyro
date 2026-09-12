@@ -46,6 +46,9 @@ is documented in
 Independent competency, concept, evidence, theory, practice, production,
 security and toolchain measurement is documented in
 [Curriculum Coverage Engine v1](curriculum-coverage-v1.md).
+Deterministic conversion of incomplete coverage and prerequisite/temporal
+findings into prioritized gaps is documented in
+[Curriculum Gap Scanner v1](curriculum-gap-scanner-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
