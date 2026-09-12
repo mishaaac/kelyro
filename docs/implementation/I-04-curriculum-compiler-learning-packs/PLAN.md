@@ -1096,7 +1096,7 @@ feat(curriculum): add concept atomizer v1
 
 ## Paso 13 — Implementar Granularity Guard
 
-- [ ] Paso 13 completado
+- [x] Paso 13 completado
 
 ### Objetivo
 
@@ -2989,7 +2989,7 @@ No asumir número.
 - [x] Paso 10 — Concept candidates
 - [x] Paso 11 — Atomic Concept Criteria
 - [x] Paso 12 — Atomizer
-- [ ] Paso 13 — Granularity Guard
+- [x] Paso 13 — Granularity Guard
 - [ ] Paso 14 — Prerequisite extraction
 - [ ] Paso 15 — Prerequisite expansion
 - [ ] Paso 16 — Knowledge Graph Compiler

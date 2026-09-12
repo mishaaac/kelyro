@@ -29,6 +29,8 @@ The domain-neutral atomicity signals, result taxonomy and deterministic policy
 are documented in [Atomic concept criteria v1](atomic-concept-criteria-v1.md).
 Evidence-constrained candidate splitting and Claim-to-Concept mapping are
 documented in [Concept Atomizer v1](concept-atomizer-v1.md).
+Unbounded concept preservation, merge review and safe visual grouping are
+documented in [Granularity Guard v1](granularity-guard-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

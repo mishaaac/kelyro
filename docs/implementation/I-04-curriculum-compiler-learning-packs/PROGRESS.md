@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 13
-Last completed step: 12
+Current step: 14
+Last completed step: 13
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -625,6 +625,48 @@ Release: unreleased
 - El Paso 13 es el siguiente: Granularity Guard debe impedir límites o merges
   estéticos sin borrar stable Concept IDs.
 - No implementar prerequisite extraction ni pasos posteriores durante el Paso 13.
+
+## Step 13 — Granularity Guard v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `granularity-guard-v1` sobre Concepts, merge proposals y visual groups, con
+  Atomicity Policy v1 inyectada.
+- Forced splits para concepts `needs_split` y warnings estructurados para
+  unidades amplias, demasiado fragmentadas o con atomicity desconocida.
+- Merge decisions explícitas: solo se permite un merge cuya unidad resultante
+  conserve atomicidad, explicación, práctica y evaluación independientes.
+- Agrupación visual segura por LessonSpec ID que conserva todos los stable
+  Concept IDs y rechaza referencias inexistentes o asignación visual múltiple.
+- Fixture de 5.000 Concepts que prueba la ausencia de límites artificiales,
+  además de tests de merge seguro/inseguro, forced split y determinismo.
+- Contrato documentado en `docs/architecture/granularity-guard-v1.md`.
+
+### Decisions
+
+- El guard reporta decisiones y warnings pero no modifica ni fusiona Concepts.
+- La compactación visual es metadata separada de la identidad y de la
+  granularidad semántica.
+- No existe configuración de máximos para Concepts, lessons o modules; el
+  tamaño lo determina el objetivo y la evidencia.
+- No se implementaron prerequisite extraction/expansion, graph compiler, I-05
+  ni mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 14 es el siguiente: derivar prerequisites directos desde evidencia y
+  semántica declarada, sin usar orden de phases/modules/lessons/topics.
+- No implementar prerequisite expansion ni Knowledge Graph Compiler todavía.
 
 ## Step 03 — Persistence schema y migration I-04
 

@@ -70,6 +70,16 @@ type ConceptAtomizerService interface {
 	Atomize(context.Context, ConceptAtomizationRequest) (curriculum.AtomicConceptSet, error)
 }
 
+type GranularityReviewRequest struct {
+	Concepts       []curriculum.Concept
+	MergeProposals []curriculum.ConceptMergeProposal
+	VisualGroups   []curriculum.VisualConceptGroup
+}
+
+type GranularityGuardService interface {
+	Review(context.Context, GranularityReviewRequest) (curriculum.GranularityResult, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)
