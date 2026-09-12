@@ -1133,7 +1133,7 @@ feat(curriculum): enforce curriculum granularity guard
 
 ## Paso 14 — Implementar Prerequisite Extraction
 
-- [ ] Paso 14 completado
+- [x] Paso 14 completado
 
 ### Objetivo
 
@@ -2990,7 +2990,7 @@ No asumir número.
 - [x] Paso 11 — Atomic Concept Criteria
 - [x] Paso 12 — Atomizer
 - [x] Paso 13 — Granularity Guard
-- [ ] Paso 14 — Prerequisite extraction
+- [x] Paso 14 — Prerequisite extraction
 - [ ] Paso 15 — Prerequisite expansion
 - [ ] Paso 16 — Knowledge Graph Compiler
 - [ ] Paso 17 — Vocabulary Graph

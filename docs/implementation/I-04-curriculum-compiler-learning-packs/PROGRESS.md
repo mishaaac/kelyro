@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 14
-Last completed step: 13
+Current step: 15
+Last completed step: 14
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -667,6 +667,52 @@ Release: unreleased
 - El Paso 14 es el siguiente: derivar prerequisites directos desde evidencia y
   semántica declarada, sin usar orden de phases/modules/lessons/topics.
 - No implementar prerequisite expansion ni Knowledge Graph Compiler todavía.
+
+## Step 14 — Prerequisite Extraction v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `prerequisite-extractor-v1` y service boundary para derivar aristas directas
+  entre Concepts atómicos.
+- `ConceptPrerequisiteSemantic` evidenciado con dependent/required IDs, kind,
+  Claim refs exactos y razón explícita.
+- Soporte de `hard`, `recommended`, `exposure_only`, `tool_dependency` y
+  `vocabulary` mediante la taxonomía cerrada existente.
+- `PrerequisiteExtraction` con derivaciones ordenadas y proyección defensiva a
+  las aristas `Prerequisite` del dominio.
+- Validación de Concepts, self-reference, evidencia disponible y duplicados,
+  sin recibir ni consultar orden visual alguno.
+- Tests deterministas de chains, diamonds, los cinco tipos, Concept ausente y
+  Claim ref no disponible.
+- Contrato documentado en
+  `docs/architecture/prerequisite-extraction-v1.md`.
+
+### Decisions
+
+- La semántica viene declarada por el dominio/pack y respaldada por Claims; no
+  se infiere desde títulos, prose ni posición en la jerarquía.
+- Este pass acepta solo aristas cuyos dos Concepts ya existen. Los fundamentos
+  ausentes pertenecen al Paso 15.
+- Permitir múltiples kinds entre el mismo par si cada arista exacta es única,
+  siguiendo la identidad relacional del dominio existente.
+- No se implementaron prerequisite expansion, cycle/topological graph compile,
+  I-05 ni mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 15 es el siguiente: expandir fundamentos disponibles recursivamente,
+  reportar gaps no resueltos y prevenir ciclos.
+- No implementar el Knowledge Graph Compiler del Paso 16.
 
 ## Step 03 — Persistence schema y migration I-04
 

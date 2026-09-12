@@ -80,6 +80,16 @@ type GranularityGuardService interface {
 	Review(context.Context, GranularityReviewRequest) (curriculum.GranularityResult, error)
 }
 
+type PrerequisiteExtractionRequest struct {
+	Concepts     []curriculum.Concept
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+	Semantics    []curriculum.ConceptPrerequisiteSemantic
+}
+
+type PrerequisiteExtractorService interface {
+	Extract(context.Context, PrerequisiteExtractionRequest) (curriculum.PrerequisiteExtraction, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)
