@@ -90,6 +90,18 @@ type PrerequisiteExtractorService interface {
 	Extract(context.Context, PrerequisiteExtractionRequest) (curriculum.PrerequisiteExtraction, error)
 }
 
+type PrerequisiteExpansionRequest struct {
+	Concepts          []curriculum.Concept
+	Prerequisites     []curriculum.Prerequisite
+	Semantics         []curriculum.ConceptPrerequisiteSemantic
+	AvailableConcepts []curriculum.Concept
+	EvidenceSets      []curriculum.CurriculumEvidenceSet
+}
+
+type PrerequisiteExpansionService interface {
+	Expand(context.Context, PrerequisiteExpansionRequest) (curriculum.PrerequisiteExpansionResult, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)

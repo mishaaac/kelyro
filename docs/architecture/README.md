@@ -33,6 +33,8 @@ Unbounded concept preservation, merge review and safe visual grouping are
 documented in [Granularity Guard v1](granularity-guard-v1.md).
 Evidence-backed direct semantic dependencies are documented in
 [Prerequisite extraction v1](prerequisite-extraction-v1.md).
+Recursive insertion of available foundations and unresolved prerequisite gaps
+is documented in [Prerequisite expansion v1](prerequisite-expansion-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

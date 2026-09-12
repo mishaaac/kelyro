@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 15
-Last completed step: 14
+Current step: 16
+Last completed step: 15
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -713,6 +713,52 @@ Release: unreleased
 - El Paso 15 es el siguiente: expandir fundamentos disponibles recursivamente,
   reportar gaps no resueltos y prevenir ciclos.
 - No implementar el Knowledge Graph Compiler del Paso 16.
+
+## Step 15 — Prerequisite Expansion v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `prerequisite-expansion-v1` y service boundary sobre Concepts actuales,
+  direct prerequisites, semántica declarada, catálogo evidenciado y evidence sets.
+- Inserción recursiva de Concepts prerequisite disponibles, conservando stable
+  IDs, metadata, Claim refs y las aristas directas ya existentes.
+- Gaps estructurados para missing root boundary, prerequisite Concept no
+  disponible y arista descartada por cycle prevention.
+- Rechazo de ciclos de entrada, prevención incremental de nuevos ciclos y
+  validación acíclica del resultado sin adelantar el graph compiler completo.
+- Orden determinista de added Concepts, expanded prerequisites, gaps y reasons,
+  con copias defensivas y sin inferencias desde jerarquía visual.
+- Tests de missing root, recursive expansion, unavailable prerequisite, cycle
+  prevention y repetibilidad con catálogos/semántica reordenados.
+- Contrato documentado en
+  `docs/architecture/prerequisite-expansion-v1.md`.
+
+### Decisions
+
+- Solo se inserta un Concept ausente cuando el catálogo lo aporta atómico y con
+  evidencia verificada; un ID mencionado no basta para inventarlo.
+- Un Concept no foundational sin boundary declarada produce un gap, mientras
+  que un prerequisite requerido pero ausente del catálogo usa un código distinto.
+- Una arista que cerraría un ciclo se omite y queda explicada como gap; topology,
+  reachability, components y critical path pertenecen al Paso 16.
+- No se implementaron Knowledge Graph Compiler, Vocabulary Graph, I-05 ni
+  mutaciones de Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 16 es el siguiente: compilar el grafo validado con cycle detection,
+  topological order, roots, components, unreachable nodes y critical path.
+- No implementar Vocabulary Graph ni pasos posteriores durante el Paso 16.
 
 ## Step 03 — Persistence schema y migration I-04
 
