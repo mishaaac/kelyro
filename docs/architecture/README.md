@@ -35,6 +35,9 @@ Evidence-backed direct semantic dependencies are documented in
 [Prerequisite extraction v1](prerequisite-extraction-v1.md).
 Recursive insertion of available foundations and unresolved prerequisite gaps
 is documented in [Prerequisite expansion v1](prerequisite-expansion-v1.md).
+Validated DAG compilation, reachability, components, critical paths and the
+I-02 prerequisite projection are documented in
+[Knowledge Graph Compiler v1](knowledge-graph-compiler-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

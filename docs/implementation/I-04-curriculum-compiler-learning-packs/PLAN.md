@@ -1220,7 +1220,7 @@ feat(curriculum): add prerequisite expansion pass v1
 
 ## Paso 16 — Implementar Knowledge Graph Compiler
 
-- [ ] Paso 16 completado
+- [x] Paso 16 completado
 
 ### Objetivo
 
@@ -2992,7 +2992,7 @@ No asumir número.
 - [x] Paso 13 — Granularity Guard
 - [x] Paso 14 — Prerequisite extraction
 - [x] Paso 15 — Prerequisite expansion
-- [ ] Paso 16 — Knowledge Graph Compiler
+- [x] Paso 16 — Knowledge Graph Compiler
 - [ ] Paso 17 — Vocabulary Graph
 - [ ] Paso 18 — Definition-before-use
 - [ ] Paso 19 — Coverage Engine

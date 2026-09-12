@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 16
-Last completed step: 15
+Current step: 17
+Last completed step: 16
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -759,6 +759,53 @@ Release: unreleased
 - El Paso 16 es el siguiente: compilar el grafo validado con cycle detection,
   topological order, roots, components, unreachable nodes y critical path.
 - No implementar Vocabulary Graph ni pasos posteriores durante el Paso 16.
+
+## Step 16 — Knowledge Graph Compiler v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `knowledge-graph-compiler-v1` y service boundary sobre Concepts atómicos y
+  prerequisites tipados, sin dependencia de hierarchy, persistence o red.
+- Rechazo de Concepts ausentes/no atómicos, edges duplicadas y ciclos, con
+  orden topológico estable mediante priority queue lexicográfica.
+- Roots, componentes débilmente conectados y Concepts no alcanzables desde un
+  root marcado explícitamente como foundational.
+- Critical path global y por componente, con desempate determinista por stable
+  Concept ID y metadata de cantidad de edges.
+- Proyección declarada `curriculum-consumption/v1`: hard requiere mastery;
+  exposure/tool/vocabulary requieren introduction; recommended no bloquea.
+- Fixture de cadena de 5.000 Concepts y tests de componentes, unreachable,
+  cycles, proyección I-02 y repetibilidad con inputs reordenados.
+- Contrato documentado en
+  `docs/architecture/knowledge-graph-compiler-v1.md`.
+
+### Decisions
+
+- Distinguir root estructural de foundational root: un componente sin
+  fundamento explícito se conserva pero sus Concepts quedan en unreachable.
+- Mantener todos los prerequisite kinds en el DAG; la proyección I-02 omite
+  recommended porque el contrato Student Core solo representa gates.
+- Resolver múltiples edge kinds del mismo par con `mastered` por encima de
+  `introduced`, sin perder las edges tipadas del artifact curricular.
+- Este paso no construye todavía hierarchy ni el `learning.Curriculum`
+  completo, y no crea instancias ni modifica mastery.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 17 es el siguiente: construir Vocabulary Graph con resolución
+  explícita de aliases/acrónimos y domain baseline declarado.
+- No implementar Definition-before-use Audit ni pasos posteriores durante el
+  Paso 17.
 
 ## Step 03 — Persistence schema y migration I-04
 

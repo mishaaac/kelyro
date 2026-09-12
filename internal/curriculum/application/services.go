@@ -102,6 +102,15 @@ type PrerequisiteExpansionService interface {
 	Expand(context.Context, PrerequisiteExpansionRequest) (curriculum.PrerequisiteExpansionResult, error)
 }
 
+type KnowledgeGraphCompilationRequest struct {
+	Concepts      []curriculum.Concept
+	Prerequisites []curriculum.Prerequisite
+}
+
+type KnowledgeGraphCompilerService interface {
+	Compile(context.Context, KnowledgeGraphCompilationRequest) (curriculum.KnowledgeGraphCompilation, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)
