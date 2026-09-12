@@ -1253,7 +1253,7 @@ feat(curriculum): compile validated prerequisite graph
 
 ## Paso 17 — Implementar Vocabulary Graph
 
-- [ ] Paso 17 completado
+- [x] Paso 17 completado
 
 ### Objetivo
 
@@ -2993,7 +2993,7 @@ No asumir número.
 - [x] Paso 14 — Prerequisite extraction
 - [x] Paso 15 — Prerequisite expansion
 - [x] Paso 16 — Knowledge Graph Compiler
-- [ ] Paso 17 — Vocabulary Graph
+- [x] Paso 17 — Vocabulary Graph
 - [ ] Paso 18 — Definition-before-use
 - [ ] Paso 19 — Coverage Engine
 - [ ] Paso 20 — Gap Scanner

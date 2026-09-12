@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 17
-Last completed step: 16
+Current step: 18
+Last completed step: 17
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -806,6 +806,53 @@ Release: unreleased
   explícita de aliases/acrónimos y domain baseline declarado.
 - No implementar Definition-before-use Audit ni pasos posteriores durante el
   Paso 17.
+
+## Step 17 — Vocabulary Graph v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `vocabulary-graph-v1` y service boundary sobre Concepts, definiciones de
+  términos, uses observados y domain baseline explícito.
+- `VocabularyDefinition` con term, canonical Concept, introduced-by, aliases y
+  scope; `VocabularyUse` conserva el término observado y su Concept.
+- Resolución case-insensitive de términos, aliases y acrónimos declarados, con
+  namespace único y rechazo de mappings ambiguos.
+- `VocabularyGraph` canónico con `UsedBy` estable y
+  `ResolvedVocabularyUse` que conserva spelling observado/canónico.
+- `DomainVocabularyBaselineTerm` con scope y reason obligatorios; no existe una
+  lista global mágica de vocabulario supuesto.
+- Rechazo de uses sin declaración/baseline, referencias a Concepts ausentes y
+  colisiones entre términos, aliases o baseline.
+- Tests de acronym, alias, first use, baseline explícito, término no declarado,
+  colisión ambigua y repetibilidad con input reordenado.
+- Contrato documentado en `docs/architecture/vocabulary-graph-v1.md`.
+
+### Decisions
+
+- Tratar acronym expansion como alias resolution explícita; el builder nunca
+  adivina expansiones desde las letras o el contexto.
+- Conservar baseline y uses resueltos en el artifact para que el audit siguiente
+  pueda explicar excepciones y el spelling realmente usado.
+- Coalescer uses del mismo canonical term en el mismo Concept, conservando un
+  output set-like estable y evitando violations duplicadas.
+- La precedencia pedagógica de introduced-by frente a used-at pertenece al Paso
+  18; este paso valida identidad y resolución, no aprueba el orden.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go vet ./internal/curriculum/... ./internal/infra/learningpack`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 18 es el siguiente: auditar definition-before-use con prerequisite
+  reachability, aliases resueltos, baseline explícito y same-lesson order.
+- No implementar Coverage Engine ni pasos posteriores durante el Paso 18.
 
 ## Step 03 — Persistence schema y migration I-04
 

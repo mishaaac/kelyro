@@ -38,6 +38,8 @@ is documented in [Prerequisite expansion v1](prerequisite-expansion-v1.md).
 Validated DAG compilation, reachability, components, critical paths and the
 I-02 prerequisite projection are documented in
 [Knowledge Graph Compiler v1](knowledge-graph-compiler-v1.md).
+Canonical term, alias/acronym, observed-use and explicit domain-baseline
+resolution are documented in [Vocabulary Graph v1](vocabulary-graph-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

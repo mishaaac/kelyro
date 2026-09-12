@@ -111,6 +111,17 @@ type KnowledgeGraphCompilerService interface {
 	Compile(context.Context, KnowledgeGraphCompilationRequest) (curriculum.KnowledgeGraphCompilation, error)
 }
 
+type VocabularyGraphRequest struct {
+	Concepts       []curriculum.Concept
+	Definitions    []curriculum.VocabularyDefinition
+	Uses           []curriculum.VocabularyUse
+	DomainBaseline []curriculum.DomainVocabularyBaselineTerm
+}
+
+type VocabularyGraphBuilderService interface {
+	Build(context.Context, VocabularyGraphRequest) (curriculum.VocabularyGraphCompilation, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)

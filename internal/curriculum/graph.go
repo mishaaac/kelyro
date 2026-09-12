@@ -76,16 +76,27 @@ type VocabularyGraph struct {
 }
 
 func (graph VocabularyGraph) Validate() error {
-	seen := make(map[string]struct{}, len(graph.Terms))
+	seen := make(map[string]string, len(graph.Terms))
 	for _, term := range graph.Terms {
 		if err := term.Validate(); err != nil {
 			return err
 		}
-		normalized := strings.ToLower(term.Term)
+		normalized := normalizeVocabularyToken(term.Term)
 		if _, exists := seen[normalized]; exists {
 			return fmt.Errorf("vocabulary graph contains duplicate term %q", term.Term)
 		}
-		seen[normalized] = struct{}{}
+		seen[normalized] = term.Term
+		for _, alias := range term.Aliases {
+			normalizedAlias := normalizeVocabularyToken(alias)
+			if previous, exists := seen[normalizedAlias]; exists {
+				return fmt.Errorf("vocabulary alias %q conflicts with %q", alias, previous)
+			}
+			seen[normalizedAlias] = term.Term
+		}
 	}
 	return nil
+}
+
+func normalizeVocabularyToken(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(value), " "))
 }
