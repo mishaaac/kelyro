@@ -1292,7 +1292,7 @@ feat(curriculum): add vocabulary dependency graph
 
 ## Paso 18 — Implementar Definition-before-use Audit
 
-- [ ] Paso 18 completado
+- [x] Paso 18 completado
 
 ### Objetivo
 
@@ -2994,7 +2994,7 @@ No asumir número.
 - [x] Paso 15 — Prerequisite expansion
 - [x] Paso 16 — Knowledge Graph Compiler
 - [x] Paso 17 — Vocabulary Graph
-- [ ] Paso 18 — Definition-before-use
+- [x] Paso 18 — Definition-before-use
 - [ ] Paso 19 — Coverage Engine
 - [ ] Paso 20 — Gap Scanner
 - [ ] Paso 21 — Zero-Assumption Audit

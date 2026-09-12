@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 18
-Last completed step: 17
+Current step: 19
+Last completed step: 18
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -853,6 +853,56 @@ Release: unreleased
 - El Paso 18 es el siguiente: auditar definition-before-use con prerequisite
   reachability, aliases resueltos, baseline explícito y same-lesson order.
 - No implementar Coverage Engine ni pasos posteriores durante el Paso 18.
+
+## Step 18 — Definition-before-use Audit v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `definition-before-use-v1` y service boundary sobre Knowledge Graph y
+  Vocabulary Graph compilados, con Topic positions opcionales para orden local.
+- Aceptación de introducción en el mismo Concept, como prerequisite transitivo
+  o en una posición anterior de la misma lesson.
+- Violations estructuradas con code, canonical/observed term, used-at, expected
+  introduction, safe suggested prerequisite, severity y reason.
+- Distinción entre missing vocabulary prerequisite, introduction posterior en
+  el DAG y same-lesson order incompatible.
+- Aliases/acrónimos auditados por su canonical term sin perder el spelling
+  observado que explica la violation.
+- Exención únicamente para uses resueltos contra el domain baseline explícito,
+  con conteos separados y sin lista global de términos comunes.
+- Tests de curriculum válido, inválido, alias, same-lesson order en ambos
+  sentidos y baseline explícito.
+- Contrato documentado en
+  `docs/architecture/definition-before-use-v1.md`.
+
+### Decisions
+
+- Dar precedencia al prerequisite DAG: si el use Concept es prerequisite del
+  introducer, el orden visual no puede declarar válida la secuencia.
+- Permitir introducción anterior dentro de una lesson sin exigir una edge solo
+  para expresar orden intralección; fuera de ella sí se requiere reachability.
+- Sugerir una vocabulary prerequisite únicamente si falta y es segura; no
+  sugerir una edge ya existente o que cerraría un ciclo.
+- Todo hallazgo es error y hace fallar este audit v1; severity queda explícita
+  para composición futura con el reviewer.
+- No se modifican graph/hierarchy, no se implementa Coverage, I-05 ni mastery.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 19 es el siguiente: Coverage Engine v1 debe medir las dimensiones
+  independientes definidas por el plan sobre el curriculum compilado.
+- No implementar Gap Scanner ni pasos posteriores durante el Paso 19.
 
 ## Step 03 — Persistence schema y migration I-04
 

@@ -122,6 +122,16 @@ type VocabularyGraphBuilderService interface {
 	Build(context.Context, VocabularyGraphRequest) (curriculum.VocabularyGraphCompilation, error)
 }
 
+type DefinitionBeforeUseAuditRequest struct {
+	Graph      curriculum.KnowledgeGraphCompilation
+	Vocabulary curriculum.VocabularyGraphCompilation
+	Topics     []curriculum.TopicSpec
+}
+
+type DefinitionBeforeUseAuditService interface {
+	Audit(context.Context, DefinitionBeforeUseAuditRequest) (curriculum.DefinitionBeforeUseAuditResult, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)
