@@ -2,6 +2,8 @@ package curriculum
 
 import "fmt"
 
+const CoverageEngineVersionV1 = "coverage-v1"
+
 type CoverageDimension string
 
 const (
@@ -92,6 +94,155 @@ type CoverageResult struct {
 	RequirementID ID
 	Status        CoverageStatus
 	Reasons       []string
+}
+
+type CoverageSupport struct {
+	ID            ID
+	RequirementID ID
+	ConceptIDs    []ConceptID
+	EvidenceRefs  []EvidenceRef
+	ArtifactRefs  []ID
+	Reason        string
+}
+
+func (support CoverageSupport) Validate() error {
+	if err := support.ID.Validate(); err != nil {
+		return fmt.Errorf("coverage support: %w", err)
+	}
+	if err := support.RequirementID.Validate(); err != nil {
+		return fmt.Errorf("coverage support requirement: %w", err)
+	}
+	if err := validateConceptIDs("coverage support concepts", support.ConceptIDs); err != nil {
+		return err
+	}
+	if err := validateEvidenceRefs("coverage support evidence", support.EvidenceRefs); err != nil {
+		return err
+	}
+	if err := validateIDs("coverage support artifacts", support.ArtifactRefs); err != nil {
+		return err
+	}
+	if len(support.ConceptIDs) == 0 && len(support.EvidenceRefs) == 0 && len(support.ArtifactRefs) == 0 {
+		return fmt.Errorf("coverage support %q has no supporting references", support.ID)
+	}
+	return requireText("coverage support reason", support.Reason)
+}
+
+type CoverageDimensionReport struct {
+	Dimension             CoverageDimension
+	Status                CoverageStatus
+	Requirements          []CoverageResult
+	MissingRequirementIDs []ID
+	PartialRequirementIDs []ID
+	CoveredRequirementIDs []ID
+	Reasons               []string
+}
+
+func (report CoverageDimensionReport) Validate() error {
+	if err := report.Dimension.Validate(); err != nil {
+		return err
+	}
+	if err := report.Status.Validate(); err != nil {
+		return err
+	}
+	if err := validateIDs("missing coverage requirements", report.MissingRequirementIDs); err != nil {
+		return err
+	}
+	if err := validateIDs("partial coverage requirements", report.PartialRequirementIDs); err != nil {
+		return err
+	}
+	if err := validateIDs("covered coverage requirements", report.CoveredRequirementIDs); err != nil {
+		return err
+	}
+	if err := validateTexts("coverage dimension reasons", report.Reasons); err != nil {
+		return err
+	}
+	if len(report.Reasons) == 0 {
+		return fmt.Errorf("coverage dimension %q has no reasons", report.Dimension)
+	}
+	seen := make(map[ID]CoverageStatus, len(report.Requirements))
+	for _, result := range report.Requirements {
+		if err := result.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seen[result.RequirementID]; exists {
+			return fmt.Errorf("coverage dimension %q contains duplicate requirement %q", report.Dimension, result.RequirementID)
+		}
+		seen[result.RequirementID] = result.Status
+	}
+	for status, ids := range map[CoverageStatus][]ID{
+		CoverageMissing: report.MissingRequirementIDs,
+		CoveragePartial: report.PartialRequirementIDs,
+		CoverageCovered: report.CoveredRequirementIDs,
+	} {
+		for _, id := range ids {
+			if actual, exists := seen[id]; !exists || actual != status {
+				return fmt.Errorf("coverage dimension %q %s partition does not match requirement %q", report.Dimension, status, id)
+			}
+		}
+	}
+	if len(report.MissingRequirementIDs)+len(report.PartialRequirementIDs)+len(report.CoveredRequirementIDs) != len(report.Requirements) {
+		return fmt.Errorf("coverage dimension %q partitions do not cover every requirement", report.Dimension)
+	}
+	expected := aggregateCoverageStatus(report.Requirements)
+	if report.Status != expected {
+		return fmt.Errorf("coverage dimension %q status %q does not match aggregate %q", report.Dimension, report.Status, expected)
+	}
+	return nil
+}
+
+type CoverageReport struct {
+	Dimensions       []CoverageDimensionReport
+	AlgorithmVersion string
+}
+
+func (report CoverageReport) Validate() error {
+	if report.AlgorithmVersion != CoverageEngineVersionV1 {
+		return fmt.Errorf("unsupported coverage engine version %q", report.AlgorithmVersion)
+	}
+	if len(report.Dimensions) != len(AllCoverageDimensions()) {
+		return fmt.Errorf("coverage report must contain all dimensions")
+	}
+	seen := make(map[CoverageDimension]struct{}, len(report.Dimensions))
+	for _, dimension := range report.Dimensions {
+		if err := dimension.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seen[dimension.Dimension]; exists {
+			return fmt.Errorf("coverage report contains duplicate dimension %q", dimension.Dimension)
+		}
+		seen[dimension.Dimension] = struct{}{}
+	}
+	return nil
+}
+
+func AllCoverageDimensions() []CoverageDimension {
+	return []CoverageDimension{
+		CoverageCompetency, CoverageConcept, CoverageEvidence, CoverageTheory,
+		CoveragePractice, CoverageProduction, CoverageSecurity, CoverageToolchain,
+	}
+}
+
+func aggregateCoverageStatus(results []CoverageResult) CoverageStatus {
+	if len(results) == 0 {
+		return CoverageMissing
+	}
+	covered := 0
+	missing := 0
+	for _, result := range results {
+		switch result.Status {
+		case CoverageCovered:
+			covered++
+		case CoverageMissing:
+			missing++
+		}
+	}
+	if covered == len(results) {
+		return CoverageCovered
+	}
+	if missing == len(results) {
+		return CoverageMissing
+	}
+	return CoveragePartial
 }
 
 func (result CoverageResult) Validate() error {

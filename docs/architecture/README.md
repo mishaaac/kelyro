@@ -43,6 +43,9 @@ resolution are documented in [Vocabulary Graph v1](vocabulary-graph-v1.md).
 Vocabulary introduction ordering across prerequisite paths and within a lesson
 is documented in
 [Definition-before-use Audit v1](definition-before-use-v1.md).
+Independent competency, concept, evidence, theory, practice, production,
+security and toolchain measurement is documented in
+[Curriculum Coverage Engine v1](curriculum-coverage-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

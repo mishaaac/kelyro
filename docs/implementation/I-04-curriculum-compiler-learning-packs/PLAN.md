@@ -1332,7 +1332,7 @@ feat(audit): enforce definition-before-use
 
 ## Paso 19 — Implementar Coverage Engine v1
 
-- [ ] Paso 19 completado
+- [x] Paso 19 completado
 
 ### Objetivo
 
@@ -2995,7 +2995,7 @@ No asumir número.
 - [x] Paso 16 — Knowledge Graph Compiler
 - [x] Paso 17 — Vocabulary Graph
 - [x] Paso 18 — Definition-before-use
-- [ ] Paso 19 — Coverage Engine
+- [x] Paso 19 — Coverage Engine
 - [ ] Paso 20 — Gap Scanner
 - [ ] Paso 21 — Zero-Assumption Audit
 - [ ] Paso 22 — First-Principles Expansion

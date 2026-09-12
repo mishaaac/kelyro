@@ -185,8 +185,18 @@ type PackUpgradeService interface {
 	Upgrade(context.Context, PackUpgradeRequest) (PackUpgradeResult, error)
 }
 
+type CoverageAnalysisRequest struct {
+	CurriculumID curriculum.CurriculumID
+	Goal         curriculum.LearningGoalSpec
+	Competencies curriculum.CompetencyMatrix
+	Concepts     []curriculum.Concept
+	Requirements []curriculum.CoverageRequirement
+	Supports     []curriculum.CoverageSupport
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+}
+
 type CoverageService interface {
-	Analyze(context.Context, curriculum.CurriculumDefinition) ([]curriculum.CoverageResult, []curriculum.Gap, error)
+	Analyze(context.Context, CoverageAnalysisRequest) (curriculum.CoverageReport, error)
 }
 
 type CurriculumAuditResult struct {

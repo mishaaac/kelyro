@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 19
-Last completed step: 18
+Current step: 20
+Last completed step: 19
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -903,6 +903,55 @@ Release: unreleased
 - El Paso 19 es el siguiente: Coverage Engine v1 debe medir las dimensiones
   independientes definidas por el plan sobre el curriculum compilado.
 - No implementar Gap Scanner ni pasos posteriores durante el Paso 19.
+
+## Step 19 — Coverage Engine v1
+
+Status: completed
+Date: 2026-09-11
+Release: unreleased
+
+### Delivered
+
+- `coverage-v1` y `CoverageService` sobre Curriculum ID, goal, competency
+  matrix, Concepts, requirements, supports y evidence sets verificadas.
+- `CoverageReport` con las ocho dimensiones independientes del plan, cada una
+  con status missing/partial/covered, resultados y particiones por requirement.
+- Medición estructural de goal-outcome-to-competency,
+  competency-to-Concept y evidence refs disponibles en Claims aceptadas.
+- `CoverageSupport` trazable para los contracts especializados posteriores,
+  con Concept, Claim y artifact refs explícitas y reason obligatorio.
+- Dimensiones sin requirements reportadas como missing; no se calcula ni se
+  expone un porcentaje o score global.
+- Rechazo de target curriculum/goal incompatible, evidence no disponible,
+  support huérfano y referencias de soporte a Concepts ausentes.
+- Tests de las ocho dimensiones, covered/partial/missing, soporte explícito,
+  ausencia de requirements, evidence inválida y determinismo por input order.
+- Contrato documentado en `docs/architecture/curriculum-coverage-v1.md`.
+
+### Decisions
+
+- Tratar CoverageRequirement como unidad atómica; partial surge de una unidad
+  estructural incompleta o de una dimensión con resultados mixtos.
+- Medir directamente competency/concept/evidence y reservar las reglas
+  especializadas de theory/practice/production/security/toolchain para los
+  Pasos 23–27, sin adelantarlas.
+- Exigir soportes declarados para esas cinco dimensiones en lugar de inferir
+  cobertura desde nombres, descripciones o prose.
+- Mantener las ocho dimensiones visibles aunque una no tenga requirements, de
+  modo que una omisión no quede escondida.
+- No se implementaron Gap Scanner, reglas de los Pasos 23–27, I-05 ni mastery.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go vet ./internal/curriculum/... ./internal/infra/learningpack`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 20 es el siguiente: convertir cada resultado incompleto y findings
+  prerequisite/current-guidance explícitos en gaps estables y accionables.
+- No implementar Zero-Assumption Audit ni pasos posteriores durante el Paso 20.
 
 ## Step 03 — Persistence schema y migration I-04
 
