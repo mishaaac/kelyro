@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 24
-Last completed step: 23
+Current step: 25
+Last completed step: 24
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1216,3 +1216,51 @@ Release: unreleased
 - El Paso 24 es el siguiente: definir el Practice Coverage Contract que I-05
   podrá consumir sin implementar todavía su runtime.
 - No adelantar Production Reality, Security o Toolchain Coverage.
+
+## Step 24 — Practice Coverage Contract v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `practice-coverage-v1` y `practice-compatibility-v1` con expectations
+  `recall`, `recognize`, `apply`, `debug`, `design`, `build`, `compare` y
+  `explain`.
+- Concepts importantes declarados explícitamente y requirement único que los
+  liga a una competencia que realmente contiene el Concept.
+- Matriz versionada de compatibilidad contra `ExpectedLevel`; una actividad de
+  menor demanda no satisface por accidente una capacidad superior.
+- Resultados con expectations compatibles e incompatibles separados y estado
+  missing/covered por Concept importante.
+- Bridge al Coverage Engine mediante requirements `practice_contract` y
+  supports únicamente para expectations compatibles.
+- Contratos y expectations respaldados por Claims aceptadas, IDs estables y
+  resultados deterministas ante input reordenado.
+- Tests de expectativa compatible, expectativa insuficiente, mapping inválido
+  y repetibilidad.
+- Contrato documentado en `docs/architecture/practice-coverage-v1.md`.
+
+### Decisions
+
+- Separar la declaración de importancia del requirement para poder verificar
+  que ningún Concept importante queda omitido silenciosamente.
+- Tratar PracticeExpectation como hand-off estructurado para I-05, no como
+  ejercicio, assessment, solución, score o runtime.
+- Mantener la compatibilidad como política explícita/versionada en lugar de
+  comparar strings o asumir una jerarquía universal de actividades.
+- Conservar expectations incompatibles en el diagnóstico aunque no cuenten
+  como coverage.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 25 es el siguiente: medir categorías de Production Reality declaradas
+  por el dominio y exigir Source Bundles adecuados.
+- No implementar Toolchain ni Security Coverage durante el Paso 25.
