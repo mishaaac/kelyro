@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const CurriculumCompilerVersionV1 = "curriculum-compiler-v1"
+
 type CompilationInput struct {
 	Goal          LearningGoalSpec
 	SourceBundles []SourceBundleRef
@@ -71,11 +73,47 @@ func (pass CompilationPass) Validate() error {
 }
 
 type CompilationResult struct {
-	Curriculum CurriculumDefinition
-	Passes     []CompilationPass
-	Coverage   []CoverageResult
-	Gaps       []Gap
-	Warnings   []string
+	Curriculum  CurriculumDefinition
+	Passes      []CompilationPass
+	Coverage    []CoverageResult
+	Gaps        []Gap
+	Warnings    []string
+	Diagnostics *CompilationDiagnostics
+}
+
+type CompilationDiagnostics struct {
+	Decomposition       GoalDecomposition
+	Granularity         GranularityResult
+	Graph               KnowledgeGraphCompilation
+	Vocabulary          VocabularyGraphCompilation
+	Hierarchy           CurriculumHierarchy
+	Coverage            CoverageReport
+	GapScan             GapScanReport
+	DefinitionBeforeUse DefinitionBeforeUseAuditResult
+	ZeroAssumption      ZeroAssumptionAuditResult
+	Temporal            TemporalClassificationResult
+	Guidance            GuidanceClassificationResult
+}
+
+func (diagnostics CompilationDiagnostics) Validate(concepts []Concept) error {
+	for _, validation := range []func() error{
+		diagnostics.Decomposition.Validate,
+		diagnostics.Granularity.Validate,
+		diagnostics.Graph.Validate,
+		diagnostics.Vocabulary.Validate,
+		func() error { return diagnostics.Hierarchy.Validate(concepts) },
+		diagnostics.Coverage.Validate,
+		diagnostics.GapScan.Validate,
+		diagnostics.DefinitionBeforeUse.Validate,
+		diagnostics.ZeroAssumption.Validate,
+		diagnostics.Temporal.Validate,
+		diagnostics.Guidance.Validate,
+	} {
+		if err := validation(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (result CompilationResult) Validate() error {
@@ -97,6 +135,11 @@ func (result CompilationResult) Validate() error {
 	}
 	for _, gap := range result.Gaps {
 		if err := gap.Validate(); err != nil {
+			return err
+		}
+	}
+	if result.Diagnostics != nil {
+		if err := result.Diagnostics.Validate(result.Curriculum.Concepts); err != nil {
 			return err
 		}
 	}

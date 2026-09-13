@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 31
-Last completed step: 30
+Current step: 32
+Last completed step: 31
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1549,3 +1549,53 @@ Release: unreleased
 - El Paso 31 es el siguiente: orquestar los passes existentes y registrar
   hashes, versiones, diagnósticos y duración sin volverlos dependientes de UI.
 - No implementar todavía la decisión de publicación del reviewer del Paso 32.
+
+## Step 31 — Curriculum Compiler Pipeline v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `curriculum-compiler-v1` como orquestador application-layer de 19 trazas
+  desde validación de input hasta el artifact compilado.
+- Ejecución de los servicios reales para goal decomposition, competency
+  matrix, candidates, atomization, granularity, prerequisites, vocabulary,
+  graph, hierarchy, coverage, audits, temporal guidance y gaps.
+- `CurriculumCompileRequest` explícito para identidad de output, evidence
+  congelada y todos los inputs domain/pack-authored necesarios por los passes.
+- Comprobación uno-a-uno entre Source Bundle refs y evidence sets, sin ningún
+  puerto de discovery, fetch o refresh.
+- `CompilationPass` con nombre, versión, hashes SHA-256, warnings, errors y
+  duración; los fallos retornan la traza parcial con causa preservada.
+- `CompilationDiagnostics` tipado con artifacts intermedios para revisión y
+  copia defensiva completa en el repository in-memory.
+- Tests de orden completo de passes, hashes repetibles, artifact estable y
+  registro del pass fallido.
+- Contrato documentado en
+  `docs/architecture/curriculum-compiler-v1.md`.
+
+### Decisions
+
+- Ejecutar gap scanning después de temporal/guidance classification porque el
+  scanner consume `CurrentGuidanceFindings`; la dependencia queda explícita.
+- Mantener la duración como observación fuera del hash de contenido para que
+  no rompa reproducibilidad.
+- Hacer que el `final-review` de este paso sea la validación estructural del
+  aggregate; la decisión de publicación corresponde al reviewer del Paso 32.
+- Permitir que coverage y audits produzcan diagnósticos sin abortar la
+  compilación: el reviewer es quien decide approved/warnings/rejected.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 32 es el siguiente: evaluar todos los diagnósticos de publicación con
+  severidades y una decisión determinista.
+- El advisor futuro debe ser opcional y no puede cambiar la decisión core.

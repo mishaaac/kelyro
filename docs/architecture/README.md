@@ -80,6 +80,9 @@ documented in
 The deterministic UX projection from the prerequisite DAG into phases,
 modules, lessons, and topics is documented in
 [Curriculum Hierarchy Builder v1](curriculum-hierarchy-builder-v1.md).
+The end-to-end deterministic pass orchestration, trace hashes, failure records,
+and compiled diagnostics are documented in
+[Curriculum Compiler Pipeline v1](curriculum-compiler-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

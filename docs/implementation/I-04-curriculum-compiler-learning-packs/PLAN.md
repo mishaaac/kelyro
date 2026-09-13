@@ -1810,7 +1810,7 @@ feat(curriculum): build deterministic learning hierarchy
 
 ## Paso 31 — Implementar Curriculum Compiler Pipeline v1
 
-- [ ] Paso 31 completado
+- [x] Paso 31 completado
 
 ### Objetivo
 
@@ -3007,7 +3007,7 @@ No asumir número.
 - [ ] Paso 28 — Current/Experimental/Legacy
 - [ ] Paso 29 — Best Practice vs Historical
 - [x] Paso 30 — Hierarchy Builder
-- [ ] Paso 31 — Compiler Pipeline
+- [x] Paso 31 — Compiler Pipeline
 - [ ] Paso 32 — Curriculum Reviewer
 - [ ] Paso 33 — Beginner Simulation
 - [ ] Paso 34 — Expert Coverage

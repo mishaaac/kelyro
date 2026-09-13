@@ -126,5 +126,112 @@ func cloneCompilation(value application.CompilationRecord) application.Compilati
 		cloned.Result.Gaps[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), gap.EvidenceRefs...)
 	}
 	cloned.Result.Warnings = append([]string(nil), value.Result.Warnings...)
+	if value.Result.Diagnostics != nil {
+		diagnostics := cloneCompilationDiagnostics(*value.Result.Diagnostics)
+		cloned.Result.Diagnostics = &diagnostics
+	}
+	return cloned
+}
+
+func cloneCompilationDiagnostics(value curriculum.CompilationDiagnostics) curriculum.CompilationDiagnostics {
+	cloned := value
+	cloned.Decomposition.Outcomes = append([]curriculum.GoalOutcome(nil), value.Decomposition.Outcomes...)
+	for index := range cloned.Decomposition.Outcomes {
+		cloned.Decomposition.Outcomes[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Decomposition.Outcomes[index].EvidenceRefs...)
+	}
+	cloned.Decomposition.CompetencyAreas = append([]curriculum.CompetencyArea(nil), value.Decomposition.CompetencyAreas...)
+	for index := range cloned.Decomposition.CompetencyAreas {
+		cloned.Decomposition.CompetencyAreas[index].OutcomeIDs = append([]curriculum.ID(nil), value.Decomposition.CompetencyAreas[index].OutcomeIDs...)
+		cloned.Decomposition.CompetencyAreas[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Decomposition.CompetencyAreas[index].EvidenceRefs...)
+	}
+	cloned.Decomposition.Scope = append([]string(nil), value.Decomposition.Scope...)
+	cloned.Decomposition.Exclusions = append([]string(nil), value.Decomposition.Exclusions...)
+	cloned.Granularity.Warnings = append([]curriculum.GranularityWarning(nil), value.Granularity.Warnings...)
+	for index := range cloned.Granularity.Warnings {
+		cloned.Granularity.Warnings[index].ConceptIDs = append([]curriculum.ConceptID(nil), value.Granularity.Warnings[index].ConceptIDs...)
+	}
+	cloned.Granularity.ForcedSplit = append([]curriculum.ConceptID(nil), value.Granularity.ForcedSplit...)
+	cloned.Granularity.SafeVisualGrouping = append([]curriculum.VisualConceptGroup(nil), value.Granularity.SafeVisualGrouping...)
+	for index := range cloned.Granularity.SafeVisualGrouping {
+		cloned.Granularity.SafeVisualGrouping[index].ConceptIDs = append([]curriculum.ConceptID(nil), value.Granularity.SafeVisualGrouping[index].ConceptIDs...)
+	}
+	cloned.Granularity.MergeDecisions = append([]curriculum.ConceptMergeDecision(nil), value.Granularity.MergeDecisions...)
+	for index := range cloned.Granularity.MergeDecisions {
+		cloned.Granularity.MergeDecisions[index].Reasons = append([]string(nil), value.Granularity.MergeDecisions[index].Reasons...)
+	}
+	cloned.Graph.ConceptIDs = append([]curriculum.ConceptID(nil), value.Graph.ConceptIDs...)
+	cloned.Graph.Prerequisites = append([]curriculum.Prerequisite(nil), value.Graph.Prerequisites...)
+	for index := range cloned.Graph.Prerequisites {
+		cloned.Graph.Prerequisites[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Graph.Prerequisites[index].EvidenceRefs...)
+	}
+	cloned.Graph.TopologicalOrder = append([]curriculum.ConceptID(nil), value.Graph.TopologicalOrder...)
+	cloned.Graph.RootConceptIDs = append([]curriculum.ConceptID(nil), value.Graph.RootConceptIDs...)
+	cloned.Graph.UnreachableConceptIDs = append([]curriculum.ConceptID(nil), value.Graph.UnreachableConceptIDs...)
+	cloned.Graph.Components = append([]curriculum.KnowledgeGraphComponent(nil), value.Graph.Components...)
+	for index := range cloned.Graph.Components {
+		cloned.Graph.Components[index].ConceptIDs = append([]curriculum.ConceptID(nil), value.Graph.Components[index].ConceptIDs...)
+		cloned.Graph.Components[index].RootConceptIDs = append([]curriculum.ConceptID(nil), value.Graph.Components[index].RootConceptIDs...)
+		cloned.Graph.Components[index].FoundationalRootIDs = append([]curriculum.ConceptID(nil), value.Graph.Components[index].FoundationalRootIDs...)
+		cloned.Graph.Components[index].CriticalPath.ConceptIDs = append([]curriculum.ConceptID(nil), value.Graph.Components[index].CriticalPath.ConceptIDs...)
+	}
+	cloned.Graph.CriticalPath.ConceptIDs = append([]curriculum.ConceptID(nil), value.Graph.CriticalPath.ConceptIDs...)
+	cloned.Graph.ConsumptionPrerequisites = append([]curriculum.ConsumptionPrerequisite(nil), value.Graph.ConsumptionPrerequisites...)
+	cloned.Vocabulary.Graph.Terms = append([]curriculum.VocabularyTerm(nil), value.Vocabulary.Graph.Terms...)
+	for index := range cloned.Vocabulary.Graph.Terms {
+		cloned.Vocabulary.Graph.Terms[index].UsedBy = append([]curriculum.ConceptID(nil), value.Vocabulary.Graph.Terms[index].UsedBy...)
+		cloned.Vocabulary.Graph.Terms[index].Aliases = append([]string(nil), value.Vocabulary.Graph.Terms[index].Aliases...)
+	}
+	cloned.Vocabulary.BaselineTerms = append([]curriculum.DomainVocabularyBaselineTerm(nil), value.Vocabulary.BaselineTerms...)
+	for index := range cloned.Vocabulary.BaselineTerms {
+		cloned.Vocabulary.BaselineTerms[index].Aliases = append([]string(nil), value.Vocabulary.BaselineTerms[index].Aliases...)
+	}
+	cloned.Vocabulary.ResolvedUses = append([]curriculum.ResolvedVocabularyUse(nil), value.Vocabulary.ResolvedUses...)
+	cloned.Hierarchy.Phases = append([]curriculum.Phase(nil), value.Hierarchy.Phases...)
+	cloned.Hierarchy.Modules = append([]curriculum.Module(nil), value.Hierarchy.Modules...)
+	cloned.Hierarchy.Lessons = append([]curriculum.LessonSpec(nil), value.Hierarchy.Lessons...)
+	cloned.Hierarchy.Topics = append([]curriculum.TopicSpec(nil), value.Hierarchy.Topics...)
+	for index := range cloned.Hierarchy.Topics {
+		cloned.Hierarchy.Topics[index].ConceptIDs = append([]curriculum.ConceptID(nil), value.Hierarchy.Topics[index].ConceptIDs...)
+	}
+	cloned.Coverage.Dimensions = append([]curriculum.CoverageDimensionReport(nil), value.Coverage.Dimensions...)
+	for index := range cloned.Coverage.Dimensions {
+		dimension := &cloned.Coverage.Dimensions[index]
+		dimension.Requirements = append([]curriculum.CoverageResult(nil), value.Coverage.Dimensions[index].Requirements...)
+		for resultIndex := range dimension.Requirements {
+			dimension.Requirements[resultIndex].Reasons = append([]string(nil), value.Coverage.Dimensions[index].Requirements[resultIndex].Reasons...)
+		}
+		dimension.MissingRequirementIDs = append([]curriculum.ID(nil), value.Coverage.Dimensions[index].MissingRequirementIDs...)
+		dimension.PartialRequirementIDs = append([]curriculum.ID(nil), value.Coverage.Dimensions[index].PartialRequirementIDs...)
+		dimension.CoveredRequirementIDs = append([]curriculum.ID(nil), value.Coverage.Dimensions[index].CoveredRequirementIDs...)
+		dimension.Reasons = append([]string(nil), value.Coverage.Dimensions[index].Reasons...)
+	}
+	cloned.GapScan.Gaps = append([]curriculum.Gap(nil), value.GapScan.Gaps...)
+	for index := range cloned.GapScan.Gaps {
+		cloned.GapScan.Gaps[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.GapScan.Gaps[index].EvidenceRefs...)
+	}
+	cloned.DefinitionBeforeUse.Violations = append([]curriculum.DefinitionBeforeUseViolation(nil), value.DefinitionBeforeUse.Violations...)
+	for index := range cloned.DefinitionBeforeUse.Violations {
+		if value.DefinitionBeforeUse.Violations[index].SuggestedPrerequisite != nil {
+			id := *value.DefinitionBeforeUse.Violations[index].SuggestedPrerequisite
+			cloned.DefinitionBeforeUse.Violations[index].SuggestedPrerequisite = &id
+		}
+	}
+	cloned.ZeroAssumption.Violations = append([]curriculum.ZeroAssumptionViolation(nil), value.ZeroAssumption.Violations...)
+	for index := range cloned.ZeroAssumption.Violations {
+		cloned.ZeroAssumption.Violations[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.ZeroAssumption.Violations[index].EvidenceRefs...)
+	}
+	cloned.Temporal.Classifications = append([]curriculum.TemporalClassification(nil), value.Temporal.Classifications...)
+	for index := range cloned.Temporal.Classifications {
+		cloned.Temporal.Classifications[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Temporal.Classifications[index].EvidenceRefs...)
+		cloned.Temporal.Classifications[index].Reasons = append([]string(nil), value.Temporal.Classifications[index].Reasons...)
+	}
+	cloned.Guidance.Classifications = append([]curriculum.GuidanceClassification(nil), value.Guidance.Classifications...)
+	for index := range cloned.Guidance.Classifications {
+		cloned.Guidance.Classifications[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Guidance.Classifications[index].EvidenceRefs...)
+	}
+	cloned.Guidance.CurrentGuidanceFindings = append([]curriculum.CurrentGuidanceFinding(nil), value.Guidance.CurrentGuidanceFindings...)
+	for index := range cloned.Guidance.CurrentGuidanceFindings {
+		cloned.Guidance.CurrentGuidanceFindings[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Guidance.CurrentGuidanceFindings[index].EvidenceRefs...)
+	}
 	return cloned
 }

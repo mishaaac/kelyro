@@ -8,7 +8,44 @@ import (
 )
 
 type CurriculumCompilerService interface {
-	Compile(context.Context, curriculum.CompilationInput, curriculum.CompilationConfig) (curriculum.CompilationResult, error)
+	Compile(context.Context, CurriculumCompileRequest) (curriculum.CompilationResult, error)
+}
+
+type CurriculumBuildMetadata struct {
+	ID          curriculum.CurriculumID
+	Version     curriculum.CurriculumVersion
+	Title       string
+	Description string
+	CreatedAt   curriculum.Timestamp
+}
+
+type AtomizationPlan struct {
+	CandidateID curriculum.ID
+	Criteria    curriculum.AtomicConceptCriteria
+	Hints       []curriculum.ConceptAtomizationHint
+}
+
+// CurriculumCompileRequest contains only frozen evidence and pack-authored
+// policy inputs. The compiler has no discovery/fetch port and performs no live
+// research.
+type CurriculumCompileRequest struct {
+	Input                 curriculum.CompilationInput
+	Config                curriculum.CompilationConfig
+	Metadata              CurriculumBuildMetadata
+	EvidenceSets          []curriculum.CurriculumEvidenceSet
+	DomainProfile         curriculum.DomainProfile
+	Competencies          []curriculum.Competency
+	AtomizationPlans      []AtomizationPlan
+	PrerequisiteSemantics []curriculum.ConceptPrerequisiteSemantic
+	AvailableConcepts     []curriculum.Concept
+	VocabularyDefinitions []curriculum.VocabularyDefinition
+	VocabularyUses        []curriculum.VocabularyUse
+	VocabularyBaseline    []curriculum.DomainVocabularyBaselineTerm
+	CoverageRequirements  []curriculum.CoverageRequirement
+	CoverageSupports      []curriculum.CoverageSupport
+	AssumptionBaseline    curriculum.AssumptionBaseline
+	PracticeContext       []curriculum.PracticeContextAssignment
+	ContextualConceptIDs  []curriculum.ConceptID
 }
 
 type EvidenceIngestionRequest struct {
