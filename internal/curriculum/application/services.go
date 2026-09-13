@@ -224,6 +224,19 @@ type CoverageService interface {
 	Analyze(context.Context, CoverageAnalysisRequest) (curriculum.CoverageReport, error)
 }
 
+type TheoryCoverageRequest struct {
+	Competencies           curriculum.CompetencyMatrix
+	Concepts               []curriculum.Concept
+	ImportantCompetencyIDs []curriculum.ID
+	Contracts              []curriculum.TheoryContract
+	Supports               []curriculum.TheoryFacetSupport
+	EvidenceSets           []curriculum.CurriculumEvidenceSet
+}
+
+type TheoryCoverageService interface {
+	Analyze(context.Context, TheoryCoverageRequest) (curriculum.TheoryCoverageReport, error)
+}
+
 type GapScanRequest struct {
 	GoalID                  curriculum.ID
 	Coverage                curriculum.CoverageReport

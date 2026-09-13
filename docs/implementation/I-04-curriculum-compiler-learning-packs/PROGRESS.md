@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 23
-Last completed step: 22
+Current step: 24
+Last completed step: 23
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1167,3 +1167,52 @@ Release: unreleased
 - El Paso 23 es el siguiente: declarar y medir definition, mental model,
   mechanism, tradeoffs y failure modes por competencia importante.
 - No implementar expectations de práctica ni demás coberturas especializadas.
+
+## Step 23 — Theory Coverage v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `theory-coverage-v1` con facets independientes `definition`, `mental_model`,
+  `mechanism`, `tradeoffs` y `failure_modes`.
+- Importancia declarada mediante IDs de competencias; no se infiere desde
+  nombres, prose ni un nivel de competencia hardcodeado.
+- `TheoryContract` evidence-backed por competencia y `TheoryFacetSupport`
+  trazable a Concepts de esa misma competencia y Claims aceptadas.
+- Estados missing/covered por facet y missing/partial/covered agregados por
+  competencia, con ausencia de contrato tratada como hallazgo explícito.
+- Bridge al Coverage Engine mediante un requirement atómico por facet y support
+  correspondiente; un facet cubierto no oculta definition o mental model.
+- IDs deterministas, orden canónico de facets y output estable ante input
+  reordenado.
+- Tests de definition/mental model ausentes, contrato completo, contrato
+  ausente, soporte cross-competency inválido y repetibilidad.
+- Contrato documentado en `docs/architecture/theory-coverage-v1.md`.
+
+### Decisions
+
+- Hacer que cada contrato seleccione sus facets requeridos según evidencia; los
+  cinco tipos existen en v1 pero no se fuerzan universalmente.
+- Exigir soporte explícito y evidence-backed; no considerar que el campo
+  `Concept.Definition` cubra automáticamente todo el contrato conceptual.
+- Emitir requirements separados por facet para conservar la independencia y
+  permitir que Coverage/Gap Scanner reporten faltantes accionables.
+- Mantener el output como contrato estructurado de I-04; I-05 será quien genere
+  o muestre contenido y prácticas.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 24 es el siguiente: definir el Practice Coverage Contract que I-05
+  podrá consumir sin implementar todavía su runtime.
+- No adelantar Production Reality, Security o Toolchain Coverage.

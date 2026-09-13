@@ -55,6 +55,9 @@ foundations are documented in
 Evidence-gated insertion of foundational roots and explicit research-required
 outcomes are documented in
 [First-Principles Expansion v1](first-principles-expansion-v1.md).
+Evidence-backed definition, mental-model, mechanism, tradeoff, and failure-mode
+contracts for important competencies are documented in
+[Theory Coverage v1](theory-coverage-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

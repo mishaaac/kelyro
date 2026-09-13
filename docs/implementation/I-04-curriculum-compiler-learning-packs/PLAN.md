@@ -1517,7 +1517,7 @@ feat(curriculum): expand first-principles foundations
 
 ## Paso 23 — Implementar Theory Coverage
 
-- [ ] Paso 23 completado
+- [x] Paso 23 completado
 
 ### Objetivo
 
