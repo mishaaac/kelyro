@@ -67,6 +67,9 @@ production guidance from tutorial-only material are documented in
 Exact Environment Pack resolution, tool-level strength, introduction points,
 platform notes, and evidence completeness are documented in
 [Toolchain Coverage v1](toolchain-coverage-v1.md).
+Domain-specific security categories and the stricter I-03-derived verification
+policy for security-sensitive Claims are documented in
+[Security Coverage v1](security-coverage-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

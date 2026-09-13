@@ -276,6 +276,20 @@ type ToolchainCoverageService interface {
 	Analyze(context.Context, ToolchainCoverageRequest) (curriculum.ToolchainCoverageReport, error)
 }
 
+type SecurityCoverageRequest struct {
+	CurriculumID curriculum.CurriculumID
+	Goal         curriculum.LearningGoalSpec
+	Competencies curriculum.CompetencyMatrix
+	Concepts     []curriculum.Concept
+	Requirements []curriculum.SecurityRequirement
+	Supports     []curriculum.SecuritySupport
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+}
+
+type SecurityCoverageService interface {
+	Analyze(context.Context, SecurityCoverageRequest) (curriculum.SecurityCoverageReport, error)
+}
+
 type GapScanRequest struct {
 	GoalID                  curriculum.ID
 	Coverage                curriculum.CoverageReport

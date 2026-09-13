@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 27
-Last completed step: 26
+Current step: 28
+Last completed step: 27
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1362,3 +1362,49 @@ Release: unreleased
 - El Paso 27 es el siguiente: Security Coverage debe cubrir categorías de
   seguridad explícitas y relevantes al dominio.
 - No adelantar clasificación experimental/legacy ni compiler orchestration.
+
+## Step 27 — Security Coverage v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `security-coverage-v1` con categorías explícitas para input validation,
+  authentication, authorization, secrets, dependencies, data protection,
+  secure defaults, threat awareness y supply chain.
+- Requirements seleccionados por el dominio y supports limitados a Concepts
+  compatibles con el target curricular.
+- `security-evidence-v1` con exigencia de bundle ready sin caveats, freshness,
+  Claim security/current, confidence mínima, ausencia de conflictos y respaldo
+  multi-source con al menos una fuente primary.
+- Evidence conocida pero insuficientemente verificada queda como support
+  rechazado y nunca satisface la dimensión blocking de security.
+- Bridge al Coverage Engine únicamente para supports que pasan la policy.
+- Tests de categorías domain-specific, multi-source verificado, single-source,
+  bundle caveated, integración con Coverage y repetibilidad.
+- Contrato documentado en `docs/architecture/security-coverage-v1.md`.
+
+### Decisions
+
+- Mantener las categorías domain-driven; security es obligatorio cuando es
+  relevante, no una checklist universal aplicada sin contexto.
+- Dar a security una policy más estricta que production: fresh, sin caveats,
+  current, confidence >= 0.8 y corroboración por dos fuentes.
+- Consumir exclusivamente verification metadata congelada por I-03, sin
+  ejecutar discovery, fetch o verificación live desde el compiler.
+- Preservar evidence rechazada en el diagnóstico en vez de descartarla o
+  convertirla en coverage.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 28 es el siguiente: transferir status temporal de Claims a metadata
+  separada para Concepts y lessons.
+- No implementar GuidanceType ni hierarchy building durante el Paso 28.
