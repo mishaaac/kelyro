@@ -1586,7 +1586,7 @@ feat(curriculum): define practice expectations for I-05
 
 ## Paso 25 — Implementar Production Reality Coverage
 
-- [ ] Paso 25 completado
+- [x] Paso 25 completado
 
 ### Objetivo
 

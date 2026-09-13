@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 25
-Last completed step: 24
+Current step: 26
+Last completed step: 25
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1264,3 +1264,51 @@ Release: unreleased
 - El Paso 25 es el siguiente: medir categorías de Production Reality declaradas
   por el dominio y exigir Source Bundles adecuados.
 - No implementar Toolchain ni Security Coverage durante el Paso 25.
+
+## Step 25 — Production Reality Coverage v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `production-coverage-v1` con diez categorías cerradas de realidad productiva,
+  seleccionadas explícitamente por el dominio y no impuestas universalmente.
+- Requirements atómicos sobre curriculum, goal, competency o Concept, y
+  supports trazables a Concepts y Claims exactas.
+- `production-evidence-v1` para distinguir Claims operativas adecuadas de
+  definiciones/tutoriales y fuentes históricas.
+- Exigencia de autoridad primary/supporting current/version-bound y tipos de
+  Claim operativos; evidence conocida pero inadecuada queda visible y no cuenta.
+- Resultados missing/covered por requirement con supports adecuados y
+  rechazados separados.
+- Bridge directo a la dimensión `production` del Coverage Engine, que recibe
+  solo supports que pasaron la policy.
+- Tests de categorías declaradas, evidencia adecuada, definition-only,
+  autoridad histórica, integración con Coverage y repetibilidad.
+- Contrato documentado en
+  `docs/architecture/production-reality-coverage-v1.md`.
+
+### Decisions
+
+- No exigir las diez categorías a todo dominio: la ausencia relevante debe ser
+  declarada por el Domain Profile y no adivinada por core.
+- Evaluar evidence inadecuada como coverage missing, reservando invalid input
+  para referencias inexistentes o estructuras corruptas.
+- Excluir definition/example-only y autoridad histórica para evitar que un
+  tutorial o material archivado demuestre preparación productiva actual.
+- Mantener el análisis learner-neutral y sin ejecutar despliegues, herramientas
+  ni observabilidad real.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 26 es el siguiente: comprobar tools declaradas contra Environment
+  Packs, punto de introducción, nivel, plataformas y evidencia.
+- No implementar Security Coverage ni Environment Pack installation.

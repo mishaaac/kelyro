@@ -250,6 +250,20 @@ type PracticeCoverageService interface {
 	Analyze(context.Context, PracticeCoverageRequest) (curriculum.PracticeCoverageReport, error)
 }
 
+type ProductionCoverageRequest struct {
+	CurriculumID curriculum.CurriculumID
+	Goal         curriculum.LearningGoalSpec
+	Competencies curriculum.CompetencyMatrix
+	Concepts     []curriculum.Concept
+	Requirements []curriculum.ProductionRequirement
+	Supports     []curriculum.ProductionSupport
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+}
+
+type ProductionCoverageService interface {
+	Analyze(context.Context, ProductionCoverageRequest) (curriculum.ProductionCoverageReport, error)
+}
+
 type GapScanRequest struct {
 	GoalID                  curriculum.ID
 	Coverage                curriculum.CoverageReport

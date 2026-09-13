@@ -61,6 +61,9 @@ contracts for important competencies are documented in
 Versioned practice-to-competency compatibility and the structured I-05 hand-off
 are documented in
 [Practice Coverage Contract v1](practice-coverage-v1.md).
+Domain-specific operational categories and the evidence policy that separates
+production guidance from tutorial-only material are documented in
+[Production Reality Coverage v1](production-reality-coverage-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
