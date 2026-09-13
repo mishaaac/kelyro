@@ -49,6 +49,9 @@ security and toolchain measurement is documented in
 Deterministic conversion of incomplete coverage and prerequisite/temporal
 findings into prioritized gaps is documented in
 [Curriculum Gap Scanner v1](curriculum-gap-scanner-v1.md).
+Declared learner/domain baselines and evidence-backed checks for missing
+foundations are documented in
+[Zero-Assumption Audit v1](zero-assumption-audit-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

@@ -1425,7 +1425,7 @@ feat(coverage): add curriculum gap scanner
 
 ## Paso 21 — Implementar Zero-Assumption Audit v1
 
-- [ ] Paso 21 completado
+- [x] Paso 21 completado
 
 ### Objetivo
 

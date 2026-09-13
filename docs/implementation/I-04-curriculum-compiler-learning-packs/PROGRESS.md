@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 21
-Last completed step: 20
+Current step: 22
+Last completed step: 21
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1073,3 +1073,51 @@ Release: unreleased
   v1 y su manifest parser/validator sin implementar todavía el loader seguro.
 - No implementar filesystem/archive loading, I-03 ingestion, compiler passes,
   installation, CLI/TUI ni pasos posteriores durante el Paso 4.
+
+## Step 21 — Zero-Assumption Audit v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `zero-assumption-v1` con perfiles `zero`, `some_experience` y
+  `domain_experienced`, separados del estado mutable del estudiante.
+- `AssumptionBaseline` ligado a una versión exacta de Domain Profile, con
+  fundamentos relevantes declarados por competencia y respaldados por Claims.
+- Prohibición de assumptions explícitos para `zero`; los perfiles con
+  experiencia pueden declarar Concept IDs asumidos sin una lista global oculta.
+- Auditoría de existencia, clasificación foundational y reachability como
+  prerequisite de cada Concept objetivo de la competencia.
+- Findings estructurados para foundation ausente, foundation no-root y edge de
+  prerequisite ausente, con target, evidencia, severidad y razón.
+- Validación cruzada de profile, baseline, matrix, Concepts, Knowledge Graph y
+  evidencia I-03 aceptada, con output estable ante input reordenado.
+- Contrato documentado en
+  `docs/architecture/zero-assumption-audit-v1.md`.
+
+### Decisions
+
+- Hacer que el baseline enumere únicamente fundamentos relevantes al goal; el
+  audit no hardcodea terminal, filesystem, process, editor, VCS o network como
+  universales.
+- Auditar contra el DAG compilado y exigir una ruta pedagógica real desde el
+  foundation hasta cada Concept de la competencia, no solo presencia nominal.
+- Mantener el learner profile como input curricular declarado, no inferirlo del
+  Student Core ni mutar mastery.
+- Reservar la inserción de roots y edges para el Paso 22; este paso solo emite
+  diagnósticos deterministas.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 22 es el siguiente: expandir foundations detectados únicamente cuando
+  exista un candidato atómico con evidencia verificada.
+- La expansión debe producir research needs explícitos cuando falte evidencia y
+  no debe adelantar Theory Coverage ni Practice Coverage.

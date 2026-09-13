@@ -132,6 +132,19 @@ type DefinitionBeforeUseAuditService interface {
 	Audit(context.Context, DefinitionBeforeUseAuditRequest) (curriculum.DefinitionBeforeUseAuditResult, error)
 }
 
+type ZeroAssumptionAuditRequest struct {
+	DomainProfile curriculum.DomainProfile
+	Baseline      curriculum.AssumptionBaseline
+	Competencies  curriculum.CompetencyMatrix
+	Concepts      []curriculum.Concept
+	Graph         curriculum.KnowledgeGraphCompilation
+	EvidenceSets  []curriculum.CurriculumEvidenceSet
+}
+
+type ZeroAssumptionAuditService interface {
+	Audit(context.Context, ZeroAssumptionAuditRequest) (curriculum.ZeroAssumptionAuditResult, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)
