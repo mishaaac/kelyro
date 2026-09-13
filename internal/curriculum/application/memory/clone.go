@@ -233,5 +233,14 @@ func cloneCompilationDiagnostics(value curriculum.CompilationDiagnostics) curric
 	for index := range cloned.Guidance.CurrentGuidanceFindings {
 		cloned.Guidance.CurrentGuidanceFindings[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Guidance.CurrentGuidanceFindings[index].EvidenceRefs...)
 	}
+	if value.Review != nil {
+		review := *value.Review
+		review.Dimensions = append([]curriculum.CurriculumReviewDimensionResult(nil), value.Review.Dimensions...)
+		for index := range review.Dimensions {
+			review.Dimensions[index].Findings = append([]curriculum.CurriculumReviewFinding(nil), value.Review.Dimensions[index].Findings...)
+		}
+		review.AdvisorNotes = append([]string(nil), value.Review.AdvisorNotes...)
+		cloned.Review = &review
+	}
 	return cloned
 }

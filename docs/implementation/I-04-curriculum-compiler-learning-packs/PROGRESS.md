@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 32
-Last completed step: 31
+Current step: 33
+Last completed step: 32
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1569,6 +1569,8 @@ Release: unreleased
   puerto de discovery, fetch o refresh.
 - `CompilationPass` con nombre, versión, hashes SHA-256, warnings, errors y
   duración; los fallos retornan la traza parcial con causa preservada.
+- Serialización textual validada de IDs, versiones y timestamps para hashes
+  canónicos JSON que preservan identidad en lugar de campos opacos vacíos.
 - `CompilationDiagnostics` tipado con artifacts intermedios para revisión y
   copia defensiva completa en el repository in-memory.
 - Tests de orden completo de passes, hashes repetibles, artifact estable y
@@ -1582,8 +1584,8 @@ Release: unreleased
   scanner consume `CurrentGuidanceFindings`; la dependencia queda explícita.
 - Mantener la duración como observación fuera del hash de contenido para que
   no rompa reproducibilidad.
-- Hacer que el `final-review` de este paso sea la validación estructural del
-  aggregate; la decisión de publicación corresponde al reviewer del Paso 32.
+- Reservar inicialmente `final-review` como integración tipada; el Paso 32 lo
+  conectó al reviewer real y retiene su decisión dentro de los diagnósticos.
 - Permitir que coverage y audits produzcan diagnósticos sin abortar la
   compilación: el reviewer es quien decide approved/warnings/rejected.
 
@@ -1599,3 +1601,56 @@ Release: unreleased
 - El Paso 32 es el siguiente: evaluar todos los diagnósticos de publicación con
   severidades y una decisión determinista.
 - El advisor futuro debe ser opcional y no puede cambiar la decisión core.
+
+## Step 32 — Curriculum Reviewer v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `curriculum-reviewer-v1` como gate determinista previo a publicación con
+  resultados `approved`, `approved_with_warnings` y `rejected`.
+- Las once dimensiones obligatorias: coverage, granularity, prerequisites,
+  definition-before-use, zero-assumption, source readiness, freshness,
+  security, production, toolchain y temporal status.
+- Findings estructurados con severity, code, target y reason, ordenados de
+  forma canónica y agregados por dimensión.
+- Rechazo para coverage missing/partial, Concepts no atómicos o inalcanzables,
+  prerequisitos faltantes, audits bloqueantes, sources no ready/conflicted,
+  freshness stale/unknown y guidance temporal insegura.
+- Warnings para diagnósticos de granularidad, Sources ready con caveats o
+  aging, y contenido preview/experimental correctamente separado.
+- Puerto opcional `CurriculumReviewAdvisor` que solo adjunta notas y no puede
+  cambiar findings ni la decisión core; ausencia o fallo no bloquea review.
+- Integración del reviewer core sin advisor en el pass `final-review` del
+  compiler, conservando decisiones rejected como artifacts inspeccionables.
+- Tests de aprobación completa, warnings, rechazo, repetibilidad y aislamiento
+  de autoridad del advisor.
+- Contrato documentado en
+  `docs/architecture/curriculum-reviewer-v1.md`.
+
+### Decisions
+
+- Evaluar coverage general separada de las dimensiones dedicadas production,
+  security y toolchain para que cada contrato tenga visibilidad propia.
+- Tratar partial coverage como bloqueante para publicación, no como un promedio
+  aceptable entre dimensiones.
+- Confiar en los artifacts versionados del compiler y metadata congelada de
+  I-03 sin reejecutar trust/freshness ni hacer network.
+- Mantener advisor notes fuera del cálculo de decisión para preservar
+  determinismo y evitar una dependencia de IA.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 33 es el siguiente: implementar Beginner Simulation sobre el graph y
+  la hierarchy compilados.
+- No implementar Expert Review ni Source Review Contract durante el Paso 33.

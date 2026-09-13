@@ -1877,7 +1877,7 @@ feat(compiler): add curriculum compiler pipeline v1
 
 ## Paso 32 — Implementar Curriculum Reviewer v1
 
-- [ ] Paso 32 completado
+- [x] Paso 32 completado
 
 ### Objetivo
 
@@ -3008,7 +3008,7 @@ No asumir número.
 - [ ] Paso 29 — Best Practice vs Historical
 - [x] Paso 30 — Hierarchy Builder
 - [x] Paso 31 — Compiler Pipeline
-- [ ] Paso 32 — Curriculum Reviewer
+- [x] Paso 32 — Curriculum Reviewer
 - [ ] Paso 33 — Beginner Simulation
 - [ ] Paso 34 — Expert Coverage
 - [ ] Paso 35 — Pack Versioning

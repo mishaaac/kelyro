@@ -38,6 +38,9 @@ func TestCurriculumCompilerV1RunsDeterministicPipeline(t *testing.T) {
 	if result.Curriculum.ID != request.Metadata.ID || len(result.Curriculum.Concepts) != 1 || len(result.Curriculum.Topics) != 1 {
 		t.Fatalf("compiled curriculum = %+v", result.Curriculum)
 	}
+	if result.Diagnostics.Review == nil || result.Diagnostics.Review.Decision != curriculum.ReviewRejected {
+		t.Fatalf("pipeline final review = %+v", result.Diagnostics.Review)
+	}
 
 	repeated, err := compiler.Compile(context.Background(), request)
 	if err != nil {

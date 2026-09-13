@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -247,20 +248,6 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 	appendPass(pass)
 
 	draft := curriculum.CurriculumDefinition{ID: request.Metadata.ID, Version: request.Metadata.Version, Title: request.Metadata.Title, Description: request.Metadata.Description, Goal: request.Input.Goal, Competencies: matrix, Concepts: concepts, Prerequisites: graph.Prerequisites, Vocabulary: vocabulary.Graph, Phases: hierarchy.Phases, Modules: hierarchy.Modules, Lessons: hierarchy.Lessons, Topics: hierarchy.Topics, CoverageRequirements: request.CoverageRequirements, SourcePolicy: request.Config.SourcePolicy, SourceBundles: request.Input.SourceBundles, CreatedAt: request.Metadata.CreatedAt}
-	_, pass, err = runCompilerPass(ctx, "final-review", curriculum.CurriculumCompilerVersionV1, struct {
-		Curriculum curriculum.CurriculumDefinition
-		Coverage   curriculum.CoverageReport
-		Gaps       curriculum.GapScanReport
-		Definition curriculum.DefinitionBeforeUseAuditResult
-		Zero       curriculum.ZeroAssumptionAuditResult
-	}{draft, coverage, gapScan, definitionAudit, zeroAudit}, func(context.Context) (bool, error) {
-		return true, draft.Validate()
-	})
-	if err != nil {
-		return fail(pass, Invalid(operation, err))
-	}
-	appendPass(pass)
-
 	diagnostics := &curriculum.CompilationDiagnostics{Decomposition: decomposition, Granularity: granularity, Graph: graph, Vocabulary: vocabulary, Hierarchy: hierarchy, Coverage: coverage, GapScan: gapScan, DefinitionBeforeUse: definitionAudit, ZeroAssumption: zeroAudit, Temporal: temporal, Guidance: guidance}
 	result.Curriculum = draft
 	result.Diagnostics = diagnostics
@@ -269,6 +256,21 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 	}
 	result.Gaps = append([]curriculum.Gap(nil), gapScan.Gaps...)
 	result.Warnings = compilerWarnings(granularity, expansion, coverage, gapScan, definitionAudit, zeroAudit)
+	reviewInput := struct {
+		Curriculum  curriculum.CurriculumDefinition
+		Diagnostics curriculum.CompilationDiagnostics
+		Coverage    []curriculum.CoverageResult
+		Gaps        []curriculum.Gap
+		Warnings    []string
+	}{result.Curriculum, *diagnostics, result.Coverage, result.Gaps, result.Warnings}
+	review, pass, err := runCompilerPass(ctx, "final-review", curriculum.CurriculumReviewerVersionV1, reviewInput, func(ctx context.Context) (curriculum.CurriculumReviewResult, error) {
+		return NewCurriculumReviewerV1(nil).Review(ctx, CurriculumReviewRequest{Compilation: result, EvidenceSets: request.EvidenceSets})
+	})
+	if err != nil {
+		return fail(pass, err)
+	}
+	appendPass(pass)
+	diagnostics.Review = &review
 	_, pass, err = runCompilerPass(ctx, "compiled-artifact", curriculum.CurriculumCompilerVersionV1, diagnostics, func(context.Context) (string, error) {
 		return compilerHash(struct {
 			Curriculum  curriculum.CurriculumDefinition
@@ -338,7 +340,11 @@ func compilerPassWarnings(output any) []string {
 }
 
 func compilerHash(value any) string {
-	digest := sha256.Sum256([]byte(fmt.Sprintf("%#v", value)))
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		encoded = []byte(fmt.Sprintf("%T:%s", value, err))
+	}
+	digest := sha256.Sum256(encoded)
 	return fmt.Sprintf("sha256:%x", digest)
 }
 

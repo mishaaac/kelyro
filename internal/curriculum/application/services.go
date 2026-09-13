@@ -380,3 +380,18 @@ type CurriculumAuditResult struct {
 type CurriculumAuditService interface {
 	Audit(context.Context, curriculum.CurriculumDefinition) ([]CurriculumAuditResult, error)
 }
+
+type CurriculumReviewRequest struct {
+	Compilation  curriculum.CompilationResult
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+}
+
+type CurriculumReviewerService interface {
+	Review(context.Context, CurriculumReviewRequest) (curriculum.CurriculumReviewResult, error)
+}
+
+// CurriculumReviewAdvisor is an optional, non-authoritative hook for future AI
+// or human-assistance adapters. Its notes cannot change the core decision.
+type CurriculumReviewAdvisor interface {
+	Advise(context.Context, CurriculumReviewRequest, curriculum.CurriculumReviewResult) ([]string, error)
+}

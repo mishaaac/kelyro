@@ -83,6 +83,9 @@ modules, lessons, and topics is documented in
 The end-to-end deterministic pass orchestration, trace hashes, failure records,
 and compiled diagnostics are documented in
 [Curriculum Compiler Pipeline v1](curriculum-compiler-v1.md).
+The deterministic eleven-dimension publication gate and its non-authoritative
+optional advisor boundary are documented in
+[Curriculum Reviewer v1](curriculum-reviewer-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

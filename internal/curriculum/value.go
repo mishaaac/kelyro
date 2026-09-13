@@ -30,6 +30,12 @@ func NewID(value string) (ID, error) {
 
 func (id ID) String() string  { return id.value }
 func (id ID) Validate() error { return validateIdentifier("id", id.value) }
+func (id ID) MarshalText() ([]byte, error) {
+	if err := id.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(id.value), nil
+}
 
 // CurriculumID remains stable across immutable CurriculumVersion values.
 type CurriculumID struct{ value string }
@@ -43,6 +49,12 @@ func NewCurriculumID(value string) (CurriculumID, error) {
 
 func (id CurriculumID) String() string  { return id.value }
 func (id CurriculumID) Validate() error { return validateIdentifier("curriculum id", id.value) }
+func (id CurriculumID) MarshalText() ([]byte, error) {
+	if err := id.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(id.value), nil
+}
 
 // ConceptID identifies one independently trackable knowledge unit. Display
 // names, hierarchy placement, and wording changes never define this identity.
@@ -57,6 +69,12 @@ func NewConceptID(value string) (ConceptID, error) {
 
 func (id ConceptID) String() string  { return id.value }
 func (id ConceptID) Validate() error { return validateIdentifier("concept id", id.value) }
+func (id ConceptID) MarshalText() ([]byte, error) {
+	if err := id.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(id.value), nil
+}
 
 func validateIdentifier(name, value string) error {
 	if strings.TrimSpace(value) == "" {
@@ -82,6 +100,12 @@ func NewTimestamp(value time.Time) (Timestamp, error) {
 }
 
 func (timestamp Timestamp) Time() time.Time { return timestamp.value }
+func (timestamp Timestamp) MarshalText() ([]byte, error) {
+	if err := timestamp.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(timestamp.value.Format(time.RFC3339Nano)), nil
+}
 
 func (timestamp Timestamp) Validate() error {
 	if timestamp.value.IsZero() {
@@ -108,6 +132,12 @@ func NewCurriculumVersion(value string) (CurriculumVersion, error) {
 }
 
 func (version CurriculumVersion) String() string { return version.value }
+func (version CurriculumVersion) MarshalText() ([]byte, error) {
+	if err := version.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(version.value), nil
+}
 func (version CurriculumVersion) Validate() error {
 	_, err := NewCurriculumVersion(version.value)
 	return err
@@ -126,6 +156,12 @@ func NewPackVersion(value string) (PackVersion, error) {
 }
 
 func (version PackVersion) String() string { return version.value }
+func (version PackVersion) MarshalText() ([]byte, error) {
+	if err := version.Validate(); err != nil {
+		return nil, err
+	}
+	return []byte(version.value), nil
+}
 func (version PackVersion) Validate() error {
 	_, err := NewPackVersion(version.value)
 	return err

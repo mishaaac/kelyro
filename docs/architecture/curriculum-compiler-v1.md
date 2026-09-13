@@ -43,12 +43,15 @@ The v1 pipeline records these passes:
 
 Gap scanning runs after temporal classification because the existing scanner
 consumes current-guidance findings. This is a data dependency, not a change in
-the gap policy. The final structural review validates the complete domain
-aggregate; the publication decision belongs to Curriculum Reviewer v1.
+the gap policy. The final-review pass invokes Curriculum Reviewer v1 without an
+advisor and retains its publication decision in `CompilationDiagnostics`.
+A rejected review remains a successfully compiled, inspectable artifact; it is
+the later publication lifecycle that must enforce the decision.
 
 ## Trace and determinism
 
-Every pass emits its name, algorithm version, SHA-256 input/output hashes,
+Every pass emits its name, algorithm version, SHA-256 hashes over canonical
+JSON input/output values,
 structured warning/error strings, and elapsed duration. A failed pass is
 included in the partial result before the causal application error is returned.
 Durations are observational and excluded from content hashes.
