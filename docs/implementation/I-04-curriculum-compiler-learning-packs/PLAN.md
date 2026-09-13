@@ -1768,7 +1768,7 @@ feat(curriculum): distinguish current and historical guidance
 
 ## Paso 30 — Implementar Curriculum Hierarchy Builder
 
-- [ ] Paso 30 completado
+- [x] Paso 30 completado
 
 ### Objetivo
 
@@ -3006,7 +3006,7 @@ No asumir número.
 - [ ] Paso 27 — Security Coverage
 - [ ] Paso 28 — Current/Experimental/Legacy
 - [ ] Paso 29 — Best Practice vs Historical
-- [ ] Paso 30 — Hierarchy Builder
+- [x] Paso 30 — Hierarchy Builder
 - [ ] Paso 31 — Compiler Pipeline
 - [ ] Paso 32 — Curriculum Reviewer
 - [ ] Paso 33 — Beginner Simulation

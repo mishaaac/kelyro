@@ -77,6 +77,9 @@ Evidence-backed distinctions between recommended current, acceptable current,
 legacy maintenance, historical context, avoid, and experimental guidance are
 documented in
 [Current vs Historical Guidance v1](current-vs-historical-guidance-v1.md).
+The deterministic UX projection from the prerequisite DAG into phases,
+modules, lessons, and topics is documented in
+[Curriculum Hierarchy Builder v1](curriculum-hierarchy-builder-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

@@ -153,10 +153,14 @@ func validateVocabulary(graph VocabularyGraph, concepts map[ConceptID]struct{}) 
 }
 
 func validateHierarchy(definition CurriculumDefinition, concepts map[ConceptID]struct{}) error {
-	if len(definition.Phases) == 0 || len(definition.Modules) == 0 || len(definition.Lessons) == 0 || len(definition.Topics) == 0 {
+	return validateHierarchyParts(definition.Phases, definition.Modules, definition.Lessons, definition.Topics, concepts)
+}
+
+func validateHierarchyParts(phasesValue []Phase, modulesValue []Module, lessonsValue []LessonSpec, topicsValue []TopicSpec, concepts map[ConceptID]struct{}) error {
+	if len(phasesValue) == 0 || len(modulesValue) == 0 || len(lessonsValue) == 0 || len(topicsValue) == 0 {
 		return fmt.Errorf("curriculum hierarchy requires phase, module, lesson, and topic nodes")
 	}
-	allNodeIDs := make(map[string]string, len(definition.Phases)+len(definition.Modules)+len(definition.Lessons)+len(definition.Topics)+len(concepts))
+	allNodeIDs := make(map[string]string, len(phasesValue)+len(modulesValue)+len(lessonsValue)+len(topicsValue)+len(concepts))
 	register := func(kind, value string) error {
 		if previous, exists := allNodeIDs[value]; exists {
 			return fmt.Errorf("duplicate curriculum node id %q used by %s and %s", value, previous, kind)
@@ -170,8 +174,8 @@ func validateHierarchy(definition CurriculumDefinition, concepts map[ConceptID]s
 		}
 	}
 
-	phases := make(map[ID]struct{}, len(definition.Phases))
-	for _, phase := range definition.Phases {
+	phases := make(map[ID]struct{}, len(phasesValue))
+	for _, phase := range phasesValue {
 		if err := phase.Validate(); err != nil {
 			return err
 		}
@@ -180,12 +184,12 @@ func validateHierarchy(definition CurriculumDefinition, concepts map[ConceptID]s
 		}
 		phases[phase.ID] = struct{}{}
 	}
-	modules := make(map[ID]struct{}, len(definition.Modules))
+	modules := make(map[ID]struct{}, len(modulesValue))
 	moduleOrder := make(map[struct {
 		parent ID
 		order  int
-	}]ID, len(definition.Modules))
-	for _, module := range definition.Modules {
+	}]ID, len(modulesValue))
+	for _, module := range modulesValue {
 		if err := module.Validate(); err != nil {
 			return err
 		}
@@ -205,12 +209,12 @@ func validateHierarchy(definition CurriculumDefinition, concepts map[ConceptID]s
 		moduleOrder[key] = module.ID
 		modules[module.ID] = struct{}{}
 	}
-	lessons := make(map[ID]struct{}, len(definition.Lessons))
+	lessons := make(map[ID]struct{}, len(lessonsValue))
 	lessonOrder := make(map[struct {
 		parent ID
 		order  int
-	}]ID, len(definition.Lessons))
-	for _, lesson := range definition.Lessons {
+	}]ID, len(lessonsValue))
+	for _, lesson := range lessonsValue {
 		if err := lesson.Validate(); err != nil {
 			return err
 		}
@@ -233,9 +237,9 @@ func validateHierarchy(definition CurriculumDefinition, concepts map[ConceptID]s
 	topicOrder := make(map[struct {
 		parent ID
 		order  int
-	}]ID, len(definition.Topics))
+	}]ID, len(topicsValue))
 	assignedConcepts := make(map[ConceptID]ID, len(concepts))
-	for _, topic := range definition.Topics {
+	for _, topic := range topicsValue {
 		if err := topic.Validate(); err != nil {
 			return err
 		}
@@ -268,7 +272,7 @@ func validateHierarchy(definition CurriculumDefinition, concepts map[ConceptID]s
 			return fmt.Errorf("concept %q is missing from curriculum hierarchy", conceptID)
 		}
 	}
-	return validateRootOrders(definition.Phases)
+	return validateRootOrders(phasesValue)
 }
 
 func validateRootOrders(phases []Phase) error {

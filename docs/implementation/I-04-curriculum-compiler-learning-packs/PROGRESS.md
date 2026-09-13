@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 30
-Last completed step: 29
+Current step: 31
+Last completed step: 30
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1504,3 +1504,48 @@ Release: unreleased
 - El Paso 30 es el siguiente: construir la hierarchy visible de forma
   determinista sin convertirla en la verdad pedagógica.
 - No adelantar compiler orchestration ni reviewer.
+
+## Step 30 — Curriculum Hierarchy Builder v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `curriculum-hierarchy-builder-v1` como proyección UX determinista desde el
+  DAG atómico hacia `Phase -> Module -> Lesson -> Topic`.
+- Agrupación por dificultad, área de competencia, competencia primaria y
+  contexto de práctica opcional, con orden topológico estable de Concepts.
+- IDs de nodos derivados de las claves semánticas completas mediante SHA-256,
+  independientes del orden de entrada y de los títulos visibles.
+- Preservación explícita de Concepts sin competencia bajo un grupo de soporte,
+  sin eliminar ni duplicar unidades granulares.
+- Separación contractual entre hierarchy y prerequisite graph; los edges
+  pueden cruzar cualquier límite visible sin ser copiados ni reinterpretados.
+- Tests de determinismo ante inputs reordenados, edges cross-module y una
+  fixture de 2.000 Concepts sin límites artificiales.
+- Contrato documentado en
+  `docs/architecture/curriculum-hierarchy-builder-v1.md`.
+
+### Decisions
+
+- Usar dificultad solo para la fase visible y mantener el orden pedagógico de
+  cada Topic según la posición topológica del grafo.
+- Elegir de forma estable la primera pareja área/competencia cuando un Concept
+  pertenece a varias competencias; la decisión es únicamente de presentación.
+- Tratar el contexto de práctica como hint inerte del pack, sin generar prose,
+  ejercicios, assessments ni runtime I-05.
+- No imponer máximos de nodos ni tamaño de Topic.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 31 es el siguiente: orquestar los passes existentes y registrar
+  hashes, versiones, diagnósticos y duración sin volverlos dependientes de UI.
+- No implementar todavía la decisión de publicación del reviewer del Paso 32.

@@ -122,6 +122,17 @@ type VocabularyGraphBuilderService interface {
 	Build(context.Context, VocabularyGraphRequest) (curriculum.VocabularyGraphCompilation, error)
 }
 
+type CurriculumHierarchyBuildRequest struct {
+	Competencies    curriculum.CompetencyMatrix
+	Concepts        []curriculum.Concept
+	Graph           curriculum.KnowledgeGraphCompilation
+	PracticeContext []curriculum.PracticeContextAssignment
+}
+
+type CurriculumHierarchyBuilderService interface {
+	Build(context.Context, CurriculumHierarchyBuildRequest) (curriculum.CurriculumHierarchy, error)
+}
+
 type DefinitionBeforeUseAuditRequest struct {
 	Graph      curriculum.KnowledgeGraphCompilation
 	Vocabulary curriculum.VocabularyGraphCompilation
