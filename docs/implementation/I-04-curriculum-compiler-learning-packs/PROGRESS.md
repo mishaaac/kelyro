@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 22
-Last completed step: 21
+Current step: 23
+Last completed step: 22
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1121,3 +1121,49 @@ Release: unreleased
   exista un candidato atómico con evidencia verificada.
 - La expansión debe producir research needs explícitos cuando falte evidencia y
   no debe adelantar Theory Coverage ni Practice Coverage.
+
+## Step 22 — First-Principles Expansion v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `first-principles-expansion-v1` sobre findings validados de
+  `zero-assumption-v1` para el perfil `zero`.
+- Candidates pack-authored con Concept atómico/foundational, tipo de edge,
+  evidencia separada para Concept y relación, y razón explícita.
+- Inserción determinista de roots ausentes y prerequisite edges hacia todos los
+  Concepts afectados, conservando inputs y publicadas como inmutables.
+- Research needs estructurados para candidate ausente, evidencia insuficiente,
+  conflicto con Concept existente y prevención de ciclos.
+- Rechazo de cualquier candidate cuya identidad no coincida con el foundation
+  detectado, más validación de Concepts, edges y evidencia disponible.
+- Tests de expansión válida, ausencia de candidate, falta de evidencia,
+  conflicto inmutable y repetibilidad.
+- Contrato documentado en
+  `docs/architecture/first-principles-expansion-v1.md`.
+
+### Decisions
+
+- Exigir evidencia verificada tanto para el root como para la relación; una
+  definición respaldada no demuestra por sí sola el prerequisite pedagógico.
+- Emitir solo additions en el artifact para que el pipeline futuro recompile el
+  DAG explícitamente, sin mutar el graph de entrada in-place.
+- Convertir evidencia ausente/unavailable en `research required`, nunca en una
+  inferencia automática ni una llamada live a I-03.
+- No reescribir Concepts existentes que no sean foundational; se reporta el
+  conflicto para una nueva versión curricular.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 23 es el siguiente: declarar y medir definition, mental model,
+  mechanism, tradeoffs y failure modes por competencia importante.
+- No implementar expectations de práctica ni demás coberturas especializadas.

@@ -145,6 +145,18 @@ type ZeroAssumptionAuditService interface {
 	Audit(context.Context, ZeroAssumptionAuditRequest) (curriculum.ZeroAssumptionAuditResult, error)
 }
 
+type FirstPrinciplesExpansionRequest struct {
+	AuditResult   curriculum.ZeroAssumptionAuditResult
+	Concepts      []curriculum.Concept
+	Prerequisites []curriculum.Prerequisite
+	Candidates    []curriculum.FirstPrinciplesCandidate
+	EvidenceSets  []curriculum.CurriculumEvidenceSet
+}
+
+type FirstPrinciplesExpansionService interface {
+	Expand(context.Context, FirstPrinciplesExpansionRequest) (curriculum.FirstPrinciplesExpansionResult, error)
+}
+
 type PackService interface {
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.LearningPack, error)
 	List(context.Context) ([]curriculum.LearningPack, error)

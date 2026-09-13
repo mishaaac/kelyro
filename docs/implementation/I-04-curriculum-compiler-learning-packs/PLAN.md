@@ -1482,7 +1482,7 @@ feat(audit): add zero-assumption curriculum audit
 
 ## Paso 22 — Implementar First-Principles Expansion
 
-- [ ] Paso 22 completado
+- [x] Paso 22 completado
 
 ### Objetivo
 

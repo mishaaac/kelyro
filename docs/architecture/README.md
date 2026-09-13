@@ -52,6 +52,9 @@ findings into prioritized gaps is documented in
 Declared learner/domain baselines and evidence-backed checks for missing
 foundations are documented in
 [Zero-Assumption Audit v1](zero-assumption-audit-v1.md).
+Evidence-gated insertion of foundational roots and explicit research-required
+outcomes are documented in
+[First-Principles Expansion v1](first-principles-expansion-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
