@@ -264,6 +264,18 @@ type ProductionCoverageService interface {
 	Analyze(context.Context, ProductionCoverageRequest) (curriculum.ProductionCoverageReport, error)
 }
 
+type ToolchainCoverageRequest struct {
+	GoalID           curriculum.ID
+	Concepts         []curriculum.Concept
+	Requirements     []curriculum.ToolchainCoverageRequirement
+	EnvironmentPacks []curriculum.EnvironmentPack
+	EvidenceSets     []curriculum.CurriculumEvidenceSet
+}
+
+type ToolchainCoverageService interface {
+	Analyze(context.Context, ToolchainCoverageRequest) (curriculum.ToolchainCoverageReport, error)
+}
+
 type GapScanRequest struct {
 	GoalID                  curriculum.ID
 	Coverage                curriculum.CoverageReport

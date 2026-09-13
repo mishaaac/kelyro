@@ -64,6 +64,9 @@ are documented in
 Domain-specific operational categories and the evidence policy that separates
 production guidance from tutorial-only material are documented in
 [Production Reality Coverage v1](production-reality-coverage-v1.md).
+Exact Environment Pack resolution, tool-level strength, introduction points,
+platform notes, and evidence completeness are documented in
+[Toolchain Coverage v1](toolchain-coverage-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).

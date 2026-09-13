@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 26
-Last completed step: 25
+Current step: 27
+Last completed step: 26
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1312,3 +1312,53 @@ Release: unreleased
 - El Paso 26 es el siguiente: comprobar tools declaradas contra Environment
   Packs, punto de introducción, nivel, plataformas y evidencia.
 - No implementar Security Coverage ni Environment Pack installation.
+
+## Step 26 — Toolchain Coverage v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `toolchain-coverage-v1` sobre `ToolRequirement` y `EnvironmentPack`
+  existentes, sin duplicar el modelo portable del pack.
+- Requirements goal-scoped con tool ID, Environment Pack ID/version exactos,
+  minimum level, propósito indirecto, razón y evidencia.
+- Resolución exacta de pack/version y tool, sin sustitución implícita entre
+  versiones disponibles.
+- Verificación de nivel required/recommended/optional, Concept de introducción,
+  notas por plataforma y evidencia aceptada.
+- Estados missing para pack/tool ausente, partial con missing fields estables y
+  covered únicamente para metadata completa.
+- Bridge a la dimensión `toolchain` del Coverage Engine solo para tools
+  completamente resueltas.
+- Tests con tools arbitrarias no hardcodeadas, metadata incompleta, nivel débil,
+  pack/tool ausente y repetibilidad ante inputs reordenados.
+- Contrato documentado en `docs/architecture/toolchain-coverage-v1.md`.
+
+### Decisions
+
+- Reutilizar `ToolRequirement` como dueño de purpose, level, introduction,
+  platforms y evidence; el nuevo requirement declara la necesidad y su pack.
+- Considerar required más fuerte que recommended y recommended más fuerte que
+  optional mediante una policy cerrada y testeada.
+- Interpretar `Platforms` como notas portables por plataforma sin imponer una
+  lista universal de sistemas operativos.
+- No inspeccionar ni modificar el host, instalar tools/packs, ejecutar comandos
+  o guardar secretos durante coverage.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 27 es el siguiente: Security Coverage debe cubrir categorías de
+  seguridad explícitas y relevantes al dominio.
+- No adelantar clasificación experimental/legacy ni compiler orchestration.
