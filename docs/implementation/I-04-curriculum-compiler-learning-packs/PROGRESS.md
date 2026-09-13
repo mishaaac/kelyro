@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 29
-Last completed step: 28
+Current step: 30
+Last completed step: 29
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1454,3 +1454,53 @@ Release: unreleased
 - El Paso 29 es el siguiente: mapear status y Claims a GuidanceType con evidence
   refs en cada clasificación.
 - No implementar hierarchy building ni compiler pipeline.
+
+## Step 29 — Best Practice vs Historical Guidance v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `guidance-classifier-v1` con GuidanceType `recommended_current`,
+  `acceptable_current`, `legacy_maintenance`, `historical_context`, `avoid` y
+  `experimental`.
+- Mapping cerrado desde el artifact temporal del Paso 28, sin inferencias por
+  keywords ni relectura de contenido externo.
+- Distinción entre current respaldado por Claim recommendation y behavior
+  current meramente aceptable.
+- Evidence refs obligatorias y preservadas en cada clasificación para Concepts
+  y lessons.
+- CurrentGuidanceFindings para deprecated y para legacy/historical que carecen
+  de declaración contextual, compatibles con Gap Scanner.
+- Tests de los seis GuidanceType, material contextual, ausencia de alternativa
+  actual, evidence mapping y determinismo por orden de input.
+- Contrato documentado en
+  `docs/architecture/current-vs-historical-guidance-v1.md`.
+
+### Decisions
+
+- Exigir un Claim `recommendation` explícito para `recommended_current`; status
+  current por sí solo produce `acceptable_current`.
+- Mapear preview y experimental al mismo GuidanceType separado conservando su
+  status temporal original en la clasificación.
+- No emitir missing-current para historia/mantenimiento declarados
+  intencionalmente como contextuales; sí hacerlo para deprecated siempre.
+- Entregar CurrentGuidanceFindings al scanner existente sin ejecutar todavía
+  el compiler pipeline del Paso 31.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 30 es el siguiente: construir la hierarchy visible de forma
+  determinista sin convertirla en la verdad pedagógica.
+- No adelantar compiler orchestration ni reviewer.

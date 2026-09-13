@@ -301,6 +301,15 @@ type TemporalClassificationService interface {
 	Classify(context.Context, TemporalClassificationRequest) (curriculum.TemporalClassificationResult, error)
 }
 
+type GuidanceClassificationRequest struct {
+	TemporalResult curriculum.TemporalClassificationResult
+	EvidenceSets   []curriculum.CurriculumEvidenceSet
+}
+
+type GuidanceClassificationService interface {
+	Classify(context.Context, GuidanceClassificationRequest) (curriculum.GuidanceClassificationResult, error)
+}
+
 type GapScanRequest struct {
 	GoalID                  curriculum.ID
 	Coverage                curriculum.CoverageReport

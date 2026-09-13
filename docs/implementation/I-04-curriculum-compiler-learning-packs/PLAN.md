@@ -1737,7 +1737,7 @@ feat(curriculum): classify current experimental and legacy guidance
 
 ## Paso 29 — Implementar Best Practice vs Historical Guidance
 
-- [ ] Paso 29 completado
+- [x] Paso 29 completado
 
 ### Objetivo
 

@@ -73,6 +73,10 @@ policy for security-sensitive Claims are documented in
 Claim/source temporal precedence and UI-ready Concept/lesson status metadata are
 documented in
 [Temporal Classification v1](temporal-classification-v1.md).
+Evidence-backed distinctions between recommended current, acceptable current,
+legacy maintenance, historical context, avoid, and experimental guidance are
+documented in
+[Current vs Historical Guidance v1](current-vs-historical-guidance-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
