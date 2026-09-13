@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 28
-Last completed step: 27
+Current step: 29
+Last completed step: 28
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1408,3 +1408,49 @@ Release: unreleased
 - El Paso 28 es el siguiente: transferir status temporal de Claims a metadata
   separada para Concepts y lessons.
 - No implementar GuidanceType ni hierarchy building durante el Paso 28.
+
+## Step 28 — Current / Experimental / Legacy Classification v1
+
+Status: completed
+Date: 2026-09-12
+Release: unreleased
+
+### Delivered
+
+- `temporal-classification-v1` con status current, preview, experimental,
+  legacy, historical y deprecated derivados de Claims y autoridad temporal.
+- Precedencia conservadora para evidence mixta y override explícito cuando el
+  status declarado contradice la evidencia verificada.
+- Metadata UI-ready para primary recommendation, separación experimental y
+  uso exclusivamente contextual, sin acoplar UI al algoritmo.
+- Clasificación de Concepts por evidence propia y de lessons mediante Concepts
+  incluidos más evidence directa opcional.
+- Reconocimiento de deprecation Claims y de evidence sostenida únicamente por
+  fuentes historical/archived, aunque el status declarado fuera current.
+- Declaración contextual explícita para material legacy/historical y warning
+  estructurado cuando falta.
+- Tests de los seis status, lesson mixta, no promoción silenciosa de historical
+  y determinismo ante input reordenado.
+- Contrato documentado en `docs/architecture/temporal-classification-v1.md`.
+
+### Decisions
+
+- Emitir un artifact separado en vez de mutar Concepts o añadir prematuramente
+  status durable a LessonSpec antes del hierarchy builder.
+- Usar precedencia `deprecated > historical > legacy > experimental > preview
+  > current` para que evidence riesgosa nunca se presente como default.
+- Tratar current como primary recommendation, experimental/preview como
+  separado y legacy/historical como context-only.
+- Reservar GuidanceType y la distinción recommended/acceptable para el Paso 29.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 29 es el siguiente: mapear status y Claims a GuidanceType con evidence
+  refs en cada clasificación.
+- No implementar hierarchy building ni compiler pipeline.

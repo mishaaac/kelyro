@@ -1701,7 +1701,7 @@ feat(coverage): add curriculum security coverage
 
 ## Paso 28 — Implementar Current / Experimental / Legacy classification
 
-- [ ] Paso 28 completado
+- [x] Paso 28 completado
 
 ### Objetivo
 

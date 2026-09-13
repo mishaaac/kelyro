@@ -290,6 +290,17 @@ type SecurityCoverageService interface {
 	Analyze(context.Context, SecurityCoverageRequest) (curriculum.SecurityCoverageReport, error)
 }
 
+type TemporalClassificationRequest struct {
+	Concepts             []curriculum.Concept
+	ContextualConceptIDs []curriculum.ConceptID
+	Lessons              []curriculum.LessonTemporalInput
+	EvidenceSets         []curriculum.CurriculumEvidenceSet
+}
+
+type TemporalClassificationService interface {
+	Classify(context.Context, TemporalClassificationRequest) (curriculum.TemporalClassificationResult, error)
+}
+
 type GapScanRequest struct {
 	GoalID                  curriculum.ID
 	Coverage                curriculum.CoverageReport

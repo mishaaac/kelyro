@@ -70,6 +70,9 @@ platform notes, and evidence completeness are documented in
 Domain-specific security categories and the stricter I-03-derived verification
 policy for security-sensitive Claims are documented in
 [Security Coverage v1](security-coverage-v1.md).
+Claim/source temporal precedence and UI-ready Concept/lesson status metadata are
+documented in
+[Temporal Classification v1](temporal-classification-v1.md).
 
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
