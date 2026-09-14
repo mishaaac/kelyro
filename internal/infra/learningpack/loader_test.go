@@ -160,6 +160,28 @@ func TestValidatorLoadsDirectoryAndZIP(t *testing.T) {
 	}
 }
 
+func TestValidatorProducesDeterministicPortableSnapshot(t *testing.T) {
+	t.Parallel()
+	entries := validPackEntries()
+	directory, archive := writeDirectory(t, entries), writeZIP(t, entries, nil)
+	fromDirectory, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: directory})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromArchive, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: archive})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromDirectory.ContentHash == "" || fromDirectory.ContentHash != fromArchive.ContentHash || !bytes.Equal(fromDirectory.PortableArchive, fromArchive.PortableArchive) {
+		t.Fatalf("snapshots differ: directory=%s/%d archive=%s/%d", fromDirectory.ContentHash, len(fromDirectory.PortableArchive), fromArchive.ContentHash, len(fromArchive.PortableArchive))
+	}
+	reloaded := writeZIPBytes(t, fromDirectory.PortableArchive)
+	result, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: reloaded})
+	if err != nil || result.ContentHash != fromDirectory.ContentHash {
+		t.Fatalf("reloaded snapshot = %+v, %v", result, err)
+	}
+}
+
 func TestValidatorRejectsChecksumUTF8AndEvidenceFailures(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -342,6 +364,15 @@ func writeZIP(t *testing.T, entries map[string][]byte, extra *zip.FileHeader) st
 		t.Fatal(err)
 	}
 	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return target
+}
+
+func writeZIPBytes(t *testing.T, encoded []byte) string {
+	t.Helper()
+	target := filepath.Join(t.TempDir(), "snapshot.zip")
+	if err := os.WriteFile(target, encoded, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return target

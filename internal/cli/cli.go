@@ -14,6 +14,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/curriculum"
 	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/learning"
@@ -23,6 +24,7 @@ import (
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/update"
 	"github.com/mishaaac/kelyro/internal/version"
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 // Process exit codes used by Kelyro.
@@ -68,7 +70,7 @@ Commands:
   streak   Show study consistency without affecting progress
   sources  Inspect sources, conflicts, provenance, and stale evidence
   research Plan and inspect Research runs, costs, and the offline cache
-  packs    Validate portable Learning Packs
+  packs    Validate, install, inspect, and activate Learning Packs
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -197,6 +199,10 @@ Research commands:
 
 Learning Pack commands:
   kelyro packs validate <path>
+  kelyro packs install <path>
+  kelyro packs list
+  kelyro packs show <id>
+  kelyro packs activate <id>@<version>
 
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
@@ -236,13 +242,16 @@ var actions = map[string]app.Action{
 // Runner owns CLI parsing and rendering while delegating operations to an
 // application service.
 type Runner struct {
-	service       app.FoundationService
-	stdout        io.Writer
-	stderr        io.Writer
-	secrets       SecretReader
-	interactive   InteractiveRunner
-	confirmer     Confirmer
-	packValidator curriculumapp.PackValidationService
+	service          app.FoundationService
+	stdout           io.Writer
+	stderr           io.Writer
+	secrets          SecretReader
+	interactive      InteractiveRunner
+	confirmer        Confirmer
+	packValidator    curriculumapp.PackValidationService
+	packManager      curriculumapp.PackInstallService
+	packWorkspaces   workspace.Service
+	currentDirectory func() (string, error)
 }
 
 // Confirmer obtains explicit consent before destructive operations.
@@ -287,6 +296,15 @@ func (r Runner) WithPackValidator(validator curriculumapp.PackValidationService)
 	return r
 }
 
+// WithPackManager attaches immutable global installation and workspace-scoped
+// activation. Workspace discovery remains a presentation concern.
+func (r Runner) WithPackManager(manager curriculumapp.PackInstallService, workspaces workspace.Service, currentDirectory func() (string, error)) Runner {
+	r.packManager = manager
+	r.packWorkspaces = workspaces
+	r.currentDirectory = currentDirectory
+	return r
+}
+
 // Run parses args, renders immediate CLI output, or dispatches one application
 // action. It returns a process exit code and does not construct native process
 // commands itself.
@@ -305,7 +323,7 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 		return ExitOK
 	}
 	if invocation.command == "packs" {
-		return r.runPackValidation(ctx, invocation)
+		return r.runPacks(ctx, invocation)
 	}
 
 	action := app.ActionTUI
@@ -522,7 +540,66 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	return ExitOK
 }
 
-func (r Runner) runPackValidation(ctx context.Context, invocation invocation) int {
+func (r Runner) runPacks(ctx context.Context, invocation invocation) int {
+	switch invocation.packOperation {
+	case "install", "list", "show", "activate":
+		if r.packManager == nil {
+			fmt.Fprintln(r.stderr, "kelyro packs: pack manager is unavailable")
+			return ExitFailure
+		}
+	}
+	switch invocation.packOperation {
+	case "install":
+		result, err := r.packManager.Install(ctx, curriculumapp.PackInstallRequest{Source: curriculumapp.PackSource{Path: invocation.packPath}})
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs install: %v\n", err)
+			return ExitFailure
+		}
+		if !invocation.quiet {
+			state := "already installed"
+			if result.Installed {
+				state = "installed"
+			}
+			fmt.Fprintf(r.stdout, "Learning Pack %s\nPack: %s@%s\nChecksum: %s\n", state, result.Pack.Manifest.ID, result.Pack.Manifest.Version.String(), result.ContentHash)
+		}
+		return ExitOK
+	case "list":
+		packs, err := r.packManager.List(ctx)
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs list: %v\n", err)
+			return ExitFailure
+		}
+		if !invocation.quiet {
+			fmt.Fprintln(r.stdout, formatInstalledPacks("Installed Learning Packs", packs))
+		}
+		return ExitOK
+	case "show":
+		packs, err := r.packManager.Find(ctx, invocation.packID)
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs show: %v\n", err)
+			return ExitFailure
+		}
+		if !invocation.quiet {
+			fmt.Fprintln(r.stdout, formatInstalledPacks("Learning Pack "+invocation.packID.String(), packs))
+		}
+		return ExitOK
+	case "activate":
+		root, err := r.resolvePackWorkspace(invocation.workspace)
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs activate: %v\n", err)
+			return ExitFailure
+		}
+		activation, err := r.packManager.Activate(ctx, curriculumapp.PackActivateRequest{WorkspaceRoot: root, PackID: invocation.packID, Version: invocation.packVersion})
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs activate: %v\n", err)
+			return ExitFailure
+		}
+		if !invocation.quiet {
+			fmt.Fprintf(r.stdout, "Learning Pack activated\nPack: %s@%s\nWorkspace: %s\n", activation.PackID, activation.Version.String(), root)
+		}
+		return ExitOK
+	}
+
 	if r.packValidator == nil {
 		fmt.Fprintln(r.stderr, "kelyro packs: pack validator is unavailable")
 		return ExitFailure
@@ -554,6 +631,45 @@ func (r Runner) runPackValidation(ctx context.Context, invocation invocation) in
 	}
 	fmt.Fprintln(r.stdout, strings.Join(lines, "\n"))
 	return ExitOK
+}
+
+func (r Runner) resolvePackWorkspace(override string) (string, error) {
+	if r.packWorkspaces == nil {
+		return "", fmt.Errorf("workspace discovery is unavailable")
+	}
+	start := override
+	if start == "" {
+		if r.currentDirectory == nil {
+			return "", fmt.Errorf("current directory is unavailable")
+		}
+		var err error
+		start, err = r.currentDirectory()
+		if err != nil {
+			return "", err
+		}
+	}
+	found, err := r.packWorkspaces.Discover(start)
+	if err != nil {
+		return "", err
+	}
+	return found.Root, nil
+}
+
+func formatInstalledPacks(title string, packs []curriculumapp.InstalledPack) string {
+	lines := []string{title}
+	if len(packs) == 0 {
+		return strings.Join(append(lines, "No packs installed."), "\n")
+	}
+	for _, installed := range packs {
+		manifest := installed.Pack.Manifest
+		lines = append(lines,
+			fmt.Sprintf("- %s@%s — %s", manifest.ID, manifest.Version.String(), manifest.Name),
+			"  Status: "+string(manifest.Status),
+			"  Curriculum: "+manifest.CurriculumID.String()+"@"+installed.Pack.Curriculum.Version.String(),
+			"  Checksum: "+installed.ContentHash,
+		)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatLearnerSetup(view learningapp.LearnerSetupView) string {
@@ -1244,6 +1360,9 @@ type invocation struct {
 	sourceRegistryID        research.ID
 	provenanceClaimID       research.ClaimID
 	packPath                string
+	packOperation           string
+	packID                  curriculum.ID
+	packVersion             curriculum.PackVersion
 }
 
 func parse(args []string) (invocation, error) {
@@ -1609,10 +1728,9 @@ func parse(args []string) (invocation, error) {
 			return invocation{}, err
 		}
 	case "packs":
-		if len(result.arguments) != 2 || result.arguments[0] != "validate" || strings.TrimSpace(result.arguments[1]) == "" {
-			return invocation{}, fmt.Errorf("packs requires validate <path>")
+		if err := parsePackArguments(&result); err != nil {
+			return invocation{}, err
 		}
-		result.packPath = result.arguments[1]
 	case "maintenance":
 		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
 			return invocation{}, fmt.Errorf("maintenance requires recalculate")
@@ -1743,6 +1861,56 @@ func parseResearchArguments(result *invocation) error {
 		return nil
 	}
 	return fmt.Errorf("research requires topic <topic>, status <run-id>, show <run-id>, stats, update-scan, cache status, or cache clear")
+}
+
+func parsePackArguments(result *invocation) error {
+	if len(result.arguments) == 0 {
+		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, or activate <id>@<version>")
+	}
+	result.packOperation = result.arguments[0]
+	switch result.packOperation {
+	case "validate", "install":
+		if len(result.arguments) != 2 || strings.TrimSpace(result.arguments[1]) == "" {
+			return fmt.Errorf("packs %s requires exactly one path", result.packOperation)
+		}
+		result.packPath = result.arguments[1]
+		return nil
+	case "list":
+		if len(result.arguments) != 1 {
+			return fmt.Errorf("packs list does not accept positional arguments")
+		}
+		return nil
+	case "show":
+		if len(result.arguments) != 2 {
+			return fmt.Errorf("packs show requires exactly one pack id")
+		}
+		id, err := curriculum.NewID(result.arguments[1])
+		if err != nil {
+			return fmt.Errorf("packs show: invalid pack id: %w", err)
+		}
+		result.packID = id
+		return nil
+	case "activate":
+		if len(result.arguments) != 2 {
+			return fmt.Errorf("packs activate requires exactly one <id>@<version>")
+		}
+		separator := strings.LastIndex(result.arguments[1], "@")
+		if separator <= 0 || separator == len(result.arguments[1])-1 {
+			return fmt.Errorf("packs activate requires <id>@<version>")
+		}
+		id, err := curriculum.NewID(result.arguments[1][:separator])
+		if err != nil {
+			return fmt.Errorf("packs activate: invalid pack id: %w", err)
+		}
+		packVersion, err := curriculum.NewPackVersion(result.arguments[1][separator+1:])
+		if err != nil {
+			return fmt.Errorf("packs activate: invalid pack version: %w", err)
+		}
+		result.packID, result.packVersion = id, packVersion
+		return nil
+	default:
+		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, or activate <id>@<version>")
+	}
 }
 
 func formatResearchView(view app.ResearchCLIView) string {

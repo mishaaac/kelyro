@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/mishaaac/kelyro/internal/curriculum"
 	"github.com/mishaaac/kelyro/internal/research"
@@ -261,9 +262,11 @@ type PackValidationIssue struct {
 }
 
 type PackValidationResult struct {
-	Pack     *curriculum.LearningPack
-	Warnings []PackValidationIssue
-	Errors   []PackValidationIssue
+	Pack            *curriculum.LearningPack
+	ContentHash     string
+	PortableArchive []byte
+	Warnings        []PackValidationIssue
+	Errors          []PackValidationIssue
 }
 
 type PackValidationService interface {
@@ -274,14 +277,58 @@ type PackInstallRequest struct {
 	Source PackSource
 }
 
+type InstalledPack struct {
+	Pack        curriculum.LearningPack
+	ContentHash string
+	InstalledAt curriculum.Timestamp
+}
+
+func (installed InstalledPack) Validate() error {
+	if err := installed.Pack.Validate(); err != nil {
+		return err
+	}
+	if !canonicalSHA256(installed.ContentHash) {
+		return fmt.Errorf("installed pack content hash is not canonical SHA-256")
+	}
+	if err := installed.InstalledAt.Validate(); err != nil {
+		return fmt.Errorf("installed pack time: %w", err)
+	}
+	return nil
+}
+
+type PackInstallationArtifact struct {
+	InstalledPack
+	PortableArchive []byte
+}
+
+func (artifact PackInstallationArtifact) Validate() error {
+	if err := artifact.InstalledPack.Validate(); err != nil {
+		return err
+	}
+	if len(artifact.PortableArchive) == 0 {
+		return fmt.Errorf("installed pack archive is empty")
+	}
+	return nil
+}
+
 type PackInstallResult struct {
-	Pack      curriculum.LearningPack
-	Installed bool
+	Pack        curriculum.LearningPack
+	ContentHash string
+	Installed   bool
+}
+
+type PackActivateRequest struct {
+	WorkspaceRoot string
+	PackID        curriculum.ID
+	Version       curriculum.PackVersion
 }
 
 type PackInstallService interface {
 	Install(context.Context, PackInstallRequest) (PackInstallResult, error)
-	Activate(context.Context, curriculum.ID, curriculum.PackVersion) (PackActivation, error)
+	Activate(context.Context, PackActivateRequest) (PackActivation, error)
+	List(context.Context) ([]InstalledPack, error)
+	Find(context.Context, curriculum.ID) ([]InstalledPack, error)
+	Active(context.Context, string) (InstalledPack, error)
 }
 
 type PackUpgradeRequest struct {

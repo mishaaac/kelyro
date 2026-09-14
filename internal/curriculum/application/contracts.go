@@ -42,6 +42,17 @@ type PackRepository interface {
 	Active(context.Context) (curriculum.LearningPack, error)
 }
 
+// PackInstallationRepository stores immutable, globally installed pack
+// artifacts while keeping the active reference scoped to one workspace.
+// Artifact bytes are already validated and contain no executable entries.
+type PackInstallationRepository interface {
+	Add(context.Context, PackInstallationArtifact) error
+	Get(context.Context, curriculum.ID, curriculum.PackVersion) (InstalledPack, error)
+	List(context.Context) ([]InstalledPack, error)
+	Activate(context.Context, string, PackActivation) error
+	Active(context.Context, string) (InstalledPack, error)
+}
+
 // PackCatalogRepository stores discovery metadata only. It never installs or
 // activates a pack, and its manifests do not make pack contents trusted.
 type PackCatalogRepository interface {

@@ -12,6 +12,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/curriculum"
 	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/learning"
@@ -21,6 +22,7 @@ import (
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/research/queryplanner"
 	"github.com/mishaaac/kelyro/internal/update"
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 func TestRunnerDispatchesFoundationCommands(t *testing.T) {
@@ -110,6 +112,37 @@ func TestRunnerValidatesLearningPackWithoutDispatchingFoundation(t *testing.T) {
 	stderr.Reset()
 	if code := NewRunner(service, &stdout, &stderr).WithPackValidator(validator).Run(context.Background(), []string{"packs", "bad"}); code != ExitUsage || !strings.Contains(stderr.String(), "packs requires validate <path>") {
 		t.Fatalf("usage exit=%d stderr=%q", code, stderr.String())
+	}
+}
+
+func TestRunnerInstallsListsShowsAndActivatesLearningPacks(t *testing.T) {
+	t.Parallel()
+	id, _ := curriculum.NewID("pack.backend")
+	packVersion, _ := curriculum.NewPackVersion("1.2.0")
+	manager := &fakePackManager{install: curriculumapp.PackInstallResult{
+		Pack:        curriculum.LearningPack{Manifest: curriculum.PackManifest{ID: id, Version: packVersion}},
+		ContentHash: "sha256:" + strings.Repeat("a", 64), Installed: true,
+	}}
+	workspaces := &fakePackWorkspaces{found: workspace.Workspace{Root: filepath.Join("workspace", "root")}}
+	run := func(args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := NewRunner(&fakeService{}, &stdout, &stderr).
+			WithPackManager(manager, workspaces, func() (string, error) { return "nested", nil }).
+			Run(context.Background(), args)
+		return code, stdout.String(), stderr.String()
+	}
+	if code, stdout, stderr := run("packs", "install", "pack.zip"); code != ExitOK || stderr != "" || !strings.Contains(stdout, "Learning Pack installed") || manager.installPath != "pack.zip" {
+		t.Fatalf("install code=%d stdout=%q stderr=%q manager=%+v", code, stdout, stderr, manager)
+	}
+	manager.list = []curriculumapp.InstalledPack{{Pack: manager.install.Pack, ContentHash: manager.install.ContentHash}}
+	if code, stdout, stderr := run("packs", "list"); code != ExitOK || stderr != "" || !strings.Contains(stdout, "pack.backend@1.2.0") {
+		t.Fatalf("list code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	if code, _, stderr := run("packs", "show", "pack.backend"); code != ExitOK || stderr != "" || manager.findID != id {
+		t.Fatalf("show code=%d stderr=%q id=%v", code, stderr, manager.findID)
+	}
+	if code, stdout, stderr := run("--workspace", "nested", "packs", "activate", "pack.backend@1.2.0"); code != ExitOK || stderr != "" || !strings.Contains(stdout, "Learning Pack activated") || manager.activate.WorkspaceRoot != workspaces.found.Root {
+		t.Fatalf("activate code=%d stdout=%q stderr=%q request=%+v", code, stdout, stderr, manager.activate)
 	}
 }
 
@@ -1762,6 +1795,42 @@ type fakePackValidator struct {
 	result curriculumapp.PackValidationResult
 	err    error
 }
+
+type fakePackManager struct {
+	install     curriculumapp.PackInstallResult
+	installPath string
+	list        []curriculumapp.InstalledPack
+	findID      curriculum.ID
+	activate    curriculumapp.PackActivateRequest
+}
+
+func (manager *fakePackManager) Install(_ context.Context, request curriculumapp.PackInstallRequest) (curriculumapp.PackInstallResult, error) {
+	manager.installPath = request.Source.Path
+	return manager.install, nil
+}
+func (manager *fakePackManager) Activate(_ context.Context, request curriculumapp.PackActivateRequest) (curriculumapp.PackActivation, error) {
+	manager.activate = request
+	timestamp, _ := curriculum.NewTimestamp(time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC))
+	return curriculumapp.PackActivation{PackID: request.PackID, Version: request.Version, ActivatedAt: timestamp}, nil
+}
+func (manager *fakePackManager) List(context.Context) ([]curriculumapp.InstalledPack, error) {
+	return manager.list, nil
+}
+func (manager *fakePackManager) Find(_ context.Context, id curriculum.ID) ([]curriculumapp.InstalledPack, error) {
+	manager.findID = id
+	return manager.list, nil
+}
+func (manager *fakePackManager) Active(context.Context, string) (curriculumapp.InstalledPack, error) {
+	return curriculumapp.InstalledPack{}, nil
+}
+
+type fakePackWorkspaces struct{ found workspace.Workspace }
+
+func (fake *fakePackWorkspaces) Discover(string) (workspace.Workspace, error) { return fake.found, nil }
+func (fake *fakePackWorkspaces) Init(string, workspace.InitOptions) (workspace.Workspace, error) {
+	return fake.found, nil
+}
+func (fake *fakePackWorkspaces) Validate(string) error { return nil }
 
 func (validator *fakePackValidator) Validate(_ context.Context, source curriculumapp.PackSource) (curriculumapp.PackValidationResult, error) {
 	validator.path = source.Path

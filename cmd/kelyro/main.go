@@ -10,6 +10,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/cli"
 	"github.com/mishaaac/kelyro/internal/config"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/infra/artifactfs"
 	"github.com/mishaaac/kelyro/internal/infra/auditsqlite"
@@ -21,6 +22,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/learningdb"
 	"github.com/mishaaac/kelyro/internal/infra/learningpack"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
+	"github.com/mishaaac/kelyro/internal/infra/packfs"
 	"github.com/mishaaac/kelyro/internal/infra/platformos"
 	"github.com/mishaaac/kelyro/internal/infra/portabilityfs"
 	"github.com/mishaaac/kelyro/internal/infra/researchcachefs"
@@ -102,10 +104,13 @@ func main() {
 		WithResearchFetcher(researchFetcher).
 		WithResearchNormalizer(researchnormalize.New()).
 		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
+	packValidator := learningpack.NewValidator()
+	packManager := curriculumapp.NewPackInstallerV1(packValidator, curriculumapp.NewPackDependencyResolverV1(), packfs.NewRepository(packValidator), curriculumapp.SystemClock{})
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).
 		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New())).
-		WithPackValidator(learningpack.NewValidator())
+		WithPackValidator(packValidator).
+		WithPackManager(packManager, workspaces, os.Getwd)
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

@@ -479,3 +479,8 @@ fail-closed gate are documented in
 The append-only Research Run checkpoints, canonical reproducibility metadata,
 snapshot/hash bindings, legacy-safe SQLite storage, and `research show` view
 are documented in [research-audit-v1.md](research-audit-v1.md).
+
+The validate-first immutable global Learning Pack store, local dependency gate,
+content identity, atomic persistence, and workspace-scoped activation reference
+are documented in
+[learning-pack-installation-v1.md](learning-pack-installation-v1.md).

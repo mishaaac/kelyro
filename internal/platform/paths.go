@@ -10,12 +10,15 @@ import (
 const (
 	applicationDirectoryName      = "kelyro"
 	globalConfigFileName          = "config.toml"
+	globalPackDirectoryName       = "packs"
+	globalPackCatalogCacheName    = "pack-catalog-v1.json"
 	globalUpdateCacheFileName     = "updates.json"
 	workspaceDirectoryName        = ".kelyro"
 	workspaceConfigFileName       = "config.toml"
 	workspaceDatabaseFileName     = "learning.db"
 	workspaceMetadataFileName     = "workspace.json"
 	workspaceStateDirectoryName   = "state"
+	workspacePackActivationName   = "active-pack.json"
 	workspaceCacheDirectoryName   = "cache"
 	workspaceResearchCacheName    = "research"
 	workspaceBackupDirectoryName  = "backups"
@@ -103,6 +106,16 @@ func GlobalConfigPath() (string, error) {
 	return childPath(directory, globalConfigFileName)
 }
 
+// GlobalPackDir stores immutable Learning Pack versions once per user rather
+// than copying them into every workspace.
+func GlobalPackDir() (string, error) {
+	directory, err := GlobalConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return childPath(directory, globalPackDirectoryName)
+}
+
 // GlobalCacheDir returns Kelyro's directory below the current user's native
 // cache directory.
 func GlobalCacheDir() (string, error) {
@@ -121,6 +134,15 @@ func GlobalUpdateCachePath() (string, error) {
 		return "", err
 	}
 	return childPath(directory, globalUpdateCacheFileName)
+}
+
+// GlobalPackCatalogCachePath returns the disposable offline catalog snapshot.
+func GlobalPackCatalogCachePath() (string, error) {
+	directory, err := GlobalCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return childPath(directory, globalPackCatalogCacheName)
 }
 
 // WorkspaceInternalDir returns the machine-owned directory for a workspace.
@@ -146,6 +168,15 @@ func WorkspaceConfigPath(root string) (string, error) {
 // WorkspaceStatePath returns the path reserved for workspace state files.
 func WorkspaceStatePath(root string) (string, error) {
 	return workspaceChildPath(root, workspaceStateDirectoryName)
+}
+
+// WorkspacePackActivationPath stores only the active global pack reference.
+func WorkspacePackActivationPath(root string) (string, error) {
+	directory, err := WorkspaceStatePath(root)
+	if err != nil {
+		return "", err
+	}
+	return childPath(directory, workspacePackActivationName)
 }
 
 // WorkspaceCacheDir returns the directory for workspace-local disposable data.

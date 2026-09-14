@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/mishaaac/kelyro/internal/curriculum"
@@ -53,7 +54,15 @@ func (validator *Validator) Validate(ctx context.Context, source curriculumapp.P
 	if err != nil {
 		return invalidResult("pack", err.Error()), nil
 	}
-	return curriculumapp.PackValidationResult{Pack: &pack, Warnings: warnings}, nil
+	archive, err := canonicalArchive(entries)
+	if err != nil {
+		return curriculumapp.PackValidationResult{}, fmt.Errorf("snapshot validated pack: %w", err)
+	}
+	digest := sha256.Sum256(entries[ChecksumsName])
+	return curriculumapp.PackValidationResult{
+		Pack: &pack, ContentHash: "sha256:" + hex.EncodeToString(digest[:]),
+		PortableArchive: archive, Warnings: warnings,
+	}, nil
 }
 
 func invalidResult(path, message string) curriculumapp.PackValidationResult {
@@ -237,6 +246,34 @@ func readBoundedFile(name string) ([]byte, error) {
 		return nil, fmt.Errorf("file exceeds %d bytes", MaximumPackFileBytes)
 	}
 	return encoded, nil
+}
+
+func canonicalArchive(entries map[string][]byte) ([]byte, error) {
+	var encoded bytes.Buffer
+	archive := zip.NewWriter(&encoded)
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		header := &zip.FileHeader{Name: name, Method: zip.Store}
+		header.SetMode(0o644)
+		header.Modified = time.Unix(0, 0).UTC()
+		writer, err := archive.CreateHeader(header)
+		if err != nil {
+			_ = archive.Close()
+			return nil, err
+		}
+		if _, err := writer.Write(entries[name]); err != nil {
+			_ = archive.Close()
+			return nil, err
+		}
+	}
+	if err := archive.Close(); err != nil {
+		return nil, err
+	}
+	return encoded.Bytes(), nil
 }
 
 func validateEntryName(name string) error {

@@ -2172,7 +2172,7 @@ feat(doctor): make diagnostics curriculum-aware
 
 ## Paso 39 — Implementar Pack Installation y Activation
 
-- [ ] Paso 39 completado
+- [x] Paso 39 completado
 
 ### Objetivo
 

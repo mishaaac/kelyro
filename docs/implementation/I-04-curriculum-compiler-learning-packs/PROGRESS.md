@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 39
-Last completed step: 38
+Current step: 40
+Last completed step: 39
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1954,3 +1954,54 @@ Release: unreleased
 - El Paso 39 es el siguiente: instalación inmutable y activación por workspace
   de packs ya validados.
 - No implementar todavía catalog, upgrade, auto-install de tools ni I-05.
+
+## Step 39 — Learning Pack Installation and Activation v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- `pack-installation-policy-v1` con validación previa, resolución completa de
+  dependencias locales e instalación idempotente por hash.
+- Snapshot ZIP canónico generado desde las entradas ya validadas y content hash
+  estable derivado del `checksums.txt` estricto del pack.
+- Repositorio filesystem global con staging privado, revalidación antes del
+  rename atómico, versiones inmutables y detección de corrupción en cada read.
+- Activación por workspace mediante una referencia ID/version/hash en
+  `.kelyro/state/active-pack.json`, sin duplicar el archive global ni tocar
+  Student Core.
+- Comandos `packs install`, `packs list`, `packs show` y `packs activate`, con
+  discovery Foundation para la activación y soporte de `--workspace`.
+- Helpers de paths cross-platform y contrato documentado en
+  `docs/architecture/learning-pack-installation-v1.md`.
+
+### Decisions
+
+- Usar el directorio global de configuración de Foundation para datos
+  persistentes de packs y reservar el global cache para el catálogo del Paso
+  40; ninguna versión instalada es disposable.
+- Requerir que dependencias v1 ya estén instaladas y sean compatibles; el
+  installer no consulta catálogos, no descarga y no auto-instala.
+- Persistir una instantánea canónica producida durante validation para cerrar
+  la ventana TOCTOU entre leer un source directory/ZIP y almacenarlo.
+- Mantener activación fuera de SQLite como referencia workspace-local pequeña;
+  el pack completo permanece global y la referencia se escribe atómicamente.
+- No ejecutar archivos, scripts o install guidance y no modificar mastery,
+  evidence ni curriculum instances del estudiante.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- Tests de installer para dependencias, idempotencia, conflicto inmutable,
+  validación fallida, orden de versiones y aislamiento por workspace.
+- Tests de CLI para install/list/show/activate y de paths cross-platform.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 40 es el siguiente: modelo, source abstraction, cache offline y
+  búsqueda/listado de metadata del Pack Catalog v1.
+- Catalog metadata nunca autoriza instalación ni activa packs automáticamente.

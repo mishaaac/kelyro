@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -77,6 +78,7 @@ func TestWorkspacePaths(t *testing.T) {
 			assertPathHelper(t, "WorkspaceMetadataPath", WorkspaceMetadataPath, test.root, filepath.Join(root, ".kelyro", "workspace.json"))
 			assertPathHelper(t, "WorkspaceConfigPath", WorkspaceConfigPath, test.root, filepath.Join(root, ".kelyro", "config.toml"))
 			assertPathHelper(t, "WorkspaceStatePath", WorkspaceStatePath, test.root, filepath.Join(root, ".kelyro", "state"))
+			assertPathHelper(t, "WorkspacePackActivationPath", WorkspacePackActivationPath, test.root, filepath.Join(root, ".kelyro", "state", "active-pack.json"))
 			assertPathHelper(t, "WorkspaceCacheDir", WorkspaceCacheDir, test.root, filepath.Join(root, ".kelyro", "cache"))
 			assertPathHelper(t, "WorkspaceResearchCacheDir", WorkspaceResearchCacheDir, test.root, filepath.Join(root, ".kelyro", "cache", "research"))
 			assertPathHelper(t, "WorkspaceBackupDir", WorkspaceBackupDir, test.root, filepath.Join(root, ".kelyro", "backups"))
@@ -99,6 +101,7 @@ func TestWorkspacePathsRejectEmptyRoot(t *testing.T) {
 		{name: "WorkspaceMetadataPath", call: WorkspaceMetadataPath},
 		{name: "WorkspaceConfigPath", call: WorkspaceConfigPath},
 		{name: "WorkspaceStatePath", call: WorkspaceStatePath},
+		{name: "WorkspacePackActivationPath", call: WorkspacePackActivationPath},
 		{name: "WorkspaceCacheDir", call: WorkspaceCacheDir},
 		{name: "WorkspaceResearchCacheDir", call: WorkspaceResearchCacheDir},
 		{name: "WorkspaceBackupDir", call: WorkspaceBackupDir},
@@ -164,6 +167,18 @@ func TestGlobalConfigPathUsesNativeConfigDirectory(t *testing.T) {
 	}
 	if want := filepath.Join(directory, "config.toml"); path != want {
 		t.Errorf("GlobalConfigPath() = %q, want %q", path, want)
+	}
+}
+
+func TestGlobalPackDirUsesNativeConfigDirectory(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config"))
+	path, err := GlobalPackDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "kelyro", "packs")
+	if path != want {
+		t.Fatalf("GlobalPackDir() = %q, want %q", path, want)
 	}
 }
 
