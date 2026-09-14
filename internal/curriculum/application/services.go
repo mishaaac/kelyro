@@ -46,6 +46,9 @@ type CurriculumCompileRequest struct {
 	AssumptionBaseline    curriculum.AssumptionBaseline
 	PracticeContext       []curriculum.PracticeContextAssignment
 	ContextualConceptIDs  []curriculum.ConceptID
+	BeginnerTools         []curriculum.ToolRequirement
+	BeginnerToolUses      []curriculum.BeginnerToolUse
+	BeginnerAssumptions   []curriculum.BeginnerAssumption
 }
 
 type EvidenceIngestionRequest struct {
@@ -168,6 +171,20 @@ type CurriculumHierarchyBuildRequest struct {
 
 type CurriculumHierarchyBuilderService interface {
 	Build(context.Context, CurriculumHierarchyBuildRequest) (curriculum.CurriculumHierarchy, error)
+}
+
+type BeginnerSimulationRequest struct {
+	Concepts    []curriculum.Concept
+	Graph       curriculum.KnowledgeGraphCompilation
+	Hierarchy   curriculum.CurriculumHierarchy
+	Vocabulary  curriculum.VocabularyGraphCompilation
+	Tools       []curriculum.ToolRequirement
+	ToolUses    []curriculum.BeginnerToolUse
+	Assumptions []curriculum.BeginnerAssumption
+}
+
+type BeginnerSimulationService interface {
+	Simulate(context.Context, BeginnerSimulationRequest) (curriculum.BeginnerSimulationResult, error)
 }
 
 type DefinitionBeforeUseAuditRequest struct {

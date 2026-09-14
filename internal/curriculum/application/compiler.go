@@ -247,8 +247,26 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 	}
 	appendPass(pass)
 
+	beginnerSimulation, pass, err := runCompilerPass(ctx, "beginner-simulation", curriculum.BeginnerSimulationVersionV1, struct {
+		Graph       curriculum.KnowledgeGraphCompilation
+		Hierarchy   curriculum.CurriculumHierarchy
+		Vocabulary  curriculum.VocabularyGraphCompilation
+		Tools       []curriculum.ToolRequirement
+		ToolUses    []curriculum.BeginnerToolUse
+		Assumptions []curriculum.BeginnerAssumption
+	}{graph, hierarchy, vocabulary, request.BeginnerTools, request.BeginnerToolUses, request.BeginnerAssumptions}, func(ctx context.Context) (curriculum.BeginnerSimulationResult, error) {
+		return NewBeginnerSimulatorV1().Simulate(ctx, BeginnerSimulationRequest{
+			Concepts: concepts, Graph: graph, Hierarchy: hierarchy, Vocabulary: vocabulary,
+			Tools: request.BeginnerTools, ToolUses: request.BeginnerToolUses, Assumptions: request.BeginnerAssumptions,
+		})
+	})
+	if err != nil {
+		return fail(pass, err)
+	}
+	appendPass(pass)
+
 	draft := curriculum.CurriculumDefinition{ID: request.Metadata.ID, Version: request.Metadata.Version, Title: request.Metadata.Title, Description: request.Metadata.Description, Goal: request.Input.Goal, Competencies: matrix, Concepts: concepts, Prerequisites: graph.Prerequisites, Vocabulary: vocabulary.Graph, Phases: hierarchy.Phases, Modules: hierarchy.Modules, Lessons: hierarchy.Lessons, Topics: hierarchy.Topics, CoverageRequirements: request.CoverageRequirements, SourcePolicy: request.Config.SourcePolicy, SourceBundles: request.Input.SourceBundles, CreatedAt: request.Metadata.CreatedAt}
-	diagnostics := &curriculum.CompilationDiagnostics{Decomposition: decomposition, Granularity: granularity, Graph: graph, Vocabulary: vocabulary, Hierarchy: hierarchy, Coverage: coverage, GapScan: gapScan, DefinitionBeforeUse: definitionAudit, ZeroAssumption: zeroAudit, Temporal: temporal, Guidance: guidance}
+	diagnostics := &curriculum.CompilationDiagnostics{Decomposition: decomposition, Granularity: granularity, Graph: graph, Vocabulary: vocabulary, Hierarchy: hierarchy, Coverage: coverage, GapScan: gapScan, DefinitionBeforeUse: definitionAudit, ZeroAssumption: zeroAudit, Temporal: temporal, Guidance: guidance, BeginnerSimulation: beginnerSimulation}
 	result.Curriculum = draft
 	result.Diagnostics = diagnostics
 	for _, dimension := range coverage.Dimensions {
@@ -334,6 +352,10 @@ func compilerPassWarnings(output any) []string {
 	case curriculum.GapScanReport:
 		for _, gap := range value.Gaps {
 			warnings = append(warnings, string(gap.Severity)+": "+gap.ID.String())
+		}
+	case curriculum.BeginnerSimulationResult:
+		for _, gap := range value.Gaps {
+			warnings = append(warnings, string(gap.Kind)+": "+gap.ConceptID.String())
 		}
 	}
 	return warnings

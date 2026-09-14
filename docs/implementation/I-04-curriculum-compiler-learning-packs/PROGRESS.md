@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 33
-Last completed step: 32
+Current step: 34
+Last completed step: 33
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1654,3 +1654,51 @@ Release: unreleased
 - El Paso 33 es el siguiente: implementar Beginner Simulation sobre el graph y
   la hierarchy compilados.
 - No implementar Expert Review ni Source Review Contract durante el Paso 33.
+
+## Step 33 — Beginner Simulation v1
+
+Status: completed
+Date: 2026-09-13
+Release: unreleased
+
+### Delivered
+
+- `beginner-simulation-v1` como recorrido determinista de una persona sin
+  conocimiento implícito sobre el orden topológico del graph compilado.
+- Estado explícito de Concepts, vocabulario, herramientas y supuestos ya
+  introducidos, con trazabilidad de cada Concept hacia su Topic visible.
+- `BeginnerGap` tipado para prerequisitos, vocabulario, herramientas y
+  supuestos usados antes de su introducción o resolución.
+- Inputs pack-authored explícitos para tool uses y assumptions, sin inferencia
+  por keywords, ejecución de herramientas ni dependencia de LLM.
+- Integración como pass previo a final review y dimensión bloqueante
+  `beginner_simulation` del Curriculum Reviewer.
+- Copia defensiva del artifact en el repository in-memory y tests con
+  curriculum intencionalmente roto, curriculum corregido y orden remezclado.
+- Contrato documentado en
+  `docs/architecture/beginner-simulation-v1.md`.
+
+### Decisions
+
+- Recorrer siempre `KnowledgeGraphCompilation.TopologicalOrder`; la hierarchy
+  solo aporta ubicación UX y nunca redefine el orden pedagógico.
+- Comprobar necesidades antes de introducir el Concept actual, por lo que un
+  Concept no puede resolver silenciosamente una necesidad que ya usa.
+- Tratar el vocabulary baseline como la única excepción explícita de
+  conocimiento previo y exigir declaraciones equivalentes para tools y
+  assumptions.
+- Rechazar cualquier beginner gap en publicación, conservando el artifact
+  compilado y sus razones para inspección.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 34 es el siguiente: Expert Coverage Review contra outcomes
+  profesionales, competency depth y coberturas production/security/toolchain.
+- No implementar todavía Pack Versioning Policy ni Source Review Contract.

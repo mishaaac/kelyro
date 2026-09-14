@@ -229,6 +229,17 @@ func cloneCompilationDiagnostics(value curriculum.CompilationDiagnostics) curric
 	for index := range cloned.Guidance.Classifications {
 		cloned.Guidance.Classifications[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Guidance.Classifications[index].EvidenceRefs...)
 	}
+	cloned.BeginnerSimulation.Steps = append([]curriculum.BeginnerSimulationStep(nil), value.BeginnerSimulation.Steps...)
+	for index := range cloned.BeginnerSimulation.Steps {
+		cloned.BeginnerSimulation.Steps[index].IntroducedVocabulary = append([]string(nil), value.BeginnerSimulation.Steps[index].IntroducedVocabulary...)
+		cloned.BeginnerSimulation.Steps[index].IntroducedToolIDs = append([]curriculum.ID(nil), value.BeginnerSimulation.Steps[index].IntroducedToolIDs...)
+		cloned.BeginnerSimulation.Steps[index].ResolvedAssumptionIDs = append([]curriculum.ID(nil), value.BeginnerSimulation.Steps[index].ResolvedAssumptionIDs...)
+	}
+	cloned.BeginnerSimulation.Gaps = append([]curriculum.BeginnerGap(nil), value.BeginnerSimulation.Gaps...)
+	cloned.BeginnerSimulation.IntroducedConceptIDs = append([]curriculum.ConceptID(nil), value.BeginnerSimulation.IntroducedConceptIDs...)
+	cloned.BeginnerSimulation.IntroducedVocabulary = append([]string(nil), value.BeginnerSimulation.IntroducedVocabulary...)
+	cloned.BeginnerSimulation.IntroducedToolIDs = append([]curriculum.ID(nil), value.BeginnerSimulation.IntroducedToolIDs...)
+	cloned.BeginnerSimulation.ResolvedAssumptionIDs = append([]curriculum.ID(nil), value.BeginnerSimulation.ResolvedAssumptionIDs...)
 	cloned.Guidance.CurrentGuidanceFindings = append([]curriculum.CurrentGuidanceFinding(nil), value.Guidance.CurrentGuidanceFindings...)
 	for index := range cloned.Guidance.CurrentGuidanceFindings {
 		cloned.Guidance.CurrentGuidanceFindings[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Guidance.CurrentGuidanceFindings[index].EvidenceRefs...)

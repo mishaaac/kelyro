@@ -1927,7 +1927,7 @@ feat(review): add curriculum reviewer v1
 
 ## Paso 33 — Implementar Beginner Simulation
 
-- [ ] Paso 33 completado
+- [x] Paso 33 completado
 
 ### Objetivo
 

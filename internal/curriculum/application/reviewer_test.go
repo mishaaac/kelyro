@@ -21,7 +21,7 @@ func TestCurriculumReviewerV1ApprovesCompleteCompilation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Review() error = %v", err)
 	}
-	if review.Decision != curriculum.ReviewApproved || len(review.Dimensions) != 11 || len(review.AdvisorNotes) != 0 {
+	if review.Decision != curriculum.ReviewApproved || len(review.Dimensions) != 12 || len(review.AdvisorNotes) != 0 {
 		t.Fatalf("review = %+v", review)
 	}
 	for _, dimension := range review.Dimensions {

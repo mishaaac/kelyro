@@ -93,6 +93,7 @@ type CompilationDiagnostics struct {
 	ZeroAssumption      ZeroAssumptionAuditResult
 	Temporal            TemporalClassificationResult
 	Guidance            GuidanceClassificationResult
+	BeginnerSimulation  BeginnerSimulationResult
 	Review              *CurriculumReviewResult
 }
 
@@ -109,6 +110,7 @@ func (diagnostics CompilationDiagnostics) Validate(concepts []Concept) error {
 		diagnostics.ZeroAssumption.Validate,
 		diagnostics.Temporal.Validate,
 		diagnostics.Guidance.Validate,
+		diagnostics.BeginnerSimulation.Validate,
 	} {
 		if err := validation(); err != nil {
 			return err

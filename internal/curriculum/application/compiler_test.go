@@ -24,7 +24,8 @@ func TestCurriculumCompilerV1RunsDeterministicPipeline(t *testing.T) {
 		"atomize", "granularity", "prerequisite-extraction", "prerequisite-expansion",
 		"vocabulary-graph", "knowledge-graph", "hierarchy", "coverage",
 		"definition-before-use", "zero-assumption", "temporal-classification",
-		"guidance-classification", "gap-scan", "final-review", "compiled-artifact",
+		"guidance-classification", "gap-scan", "beginner-simulation", "final-review",
+		"compiled-artifact",
 	}
 	if len(result.Passes) != len(wantPasses) || result.Diagnostics == nil {
 		t.Fatalf("passes=%d diagnostics=%v", len(result.Passes), result.Diagnostics != nil)

@@ -87,6 +87,10 @@ The deterministic eleven-dimension publication gate and its non-authoritative
 optional advisor boundary are documented in
 [Curriculum Reviewer v1](curriculum-reviewer-v1.md).
 
+Zero-knowledge traversal across compiled prerequisites, vocabulary, tools, and
+declared assumptions is documented in
+[Beginner Simulation v1](beginner-simulation-v1.md).
+
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
 

@@ -35,6 +35,7 @@ const (
 	ReviewProduction          CurriculumReviewDimension = "production"
 	ReviewToolchain           CurriculumReviewDimension = "toolchain"
 	ReviewTemporalStatus      CurriculumReviewDimension = "temporal_status"
+	ReviewBeginnerSimulation  CurriculumReviewDimension = "beginner_simulation"
 )
 
 func AllCurriculumReviewDimensions() []CurriculumReviewDimension {
@@ -42,7 +43,7 @@ func AllCurriculumReviewDimensions() []CurriculumReviewDimension {
 		ReviewCoverage, ReviewGranularity, ReviewPrerequisites,
 		ReviewDefinitionBeforeUse, ReviewZeroAssumption, ReviewSourceReadiness,
 		ReviewFreshness, ReviewSecurity, ReviewProduction, ReviewToolchain,
-		ReviewTemporalStatus,
+		ReviewTemporalStatus, ReviewBeginnerSimulation,
 	}
 }
 
