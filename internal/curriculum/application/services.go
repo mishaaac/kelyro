@@ -331,6 +331,18 @@ type PackInstallService interface {
 	Active(context.Context, string) (InstalledPack, error)
 }
 
+type PackCatalogView struct {
+	Snapshot         curriculum.PackCatalogSnapshot
+	Offline          bool
+	SourceWarning    string
+	AlgorithmVersion string
+}
+
+type PackCatalogService interface {
+	Catalog(context.Context) (PackCatalogView, error)
+	Search(context.Context, string) (PackCatalogView, error)
+}
+
 type PackUpgradeRequest struct {
 	PackID        curriculum.ID
 	TargetVersion curriculum.PackVersion

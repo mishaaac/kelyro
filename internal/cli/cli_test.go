@@ -146,6 +146,26 @@ func TestRunnerInstallsListsShowsAndActivatesLearningPacks(t *testing.T) {
 	}
 }
 
+func TestRunnerListsAndSearchesPackCatalogWithoutInstalling(t *testing.T) {
+	t.Parallel()
+	id, _ := curriculum.NewID("go.backend")
+	generated, _ := curriculum.NewTimestamp(time.Date(2026, 9, 14, 13, 0, 0, 0, time.UTC))
+	catalog := &fakePackCatalog{view: curriculumapp.PackCatalogView{Offline: true, Snapshot: curriculum.PackCatalogSnapshot{
+		SchemaVersion: curriculum.PackCatalogSchemaVersionV1, GeneratedAt: generated,
+		Entries: []curriculum.PackCatalogEntry{{PackID: id, Name: "Go Backend", Description: "Backend engineering.", Maintainer: "Kelyro", Source: curriculum.PackCatalogSourceMetadata{Name: "Official", Trust: curriculum.PackCatalogOfficial}}},
+	}}}
+	var stdout, stderr bytes.Buffer
+	runner := NewRunner(&fakeService{}, &stdout, &stderr).WithPackCatalog(catalog)
+	if code := runner.Run(context.Background(), []string{"packs", "catalog"}); code != ExitOK || !strings.Contains(stdout.String(), "Mode: offline cache") || !strings.Contains(stdout.String(), "go.backend") {
+		t.Fatalf("catalog code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := runner.Run(context.Background(), []string{"packs", "search", "backend", "go"}); code != ExitOK || catalog.query != "backend go" {
+		t.Fatalf("search code=%d query=%q stdout=%q stderr=%q", code, catalog.query, stdout.String(), stderr.String())
+	}
+}
+
 func TestRunnerDispatchesAndRendersMaintenanceRecalculation(t *testing.T) {
 	t.Parallel()
 	impact := learningapp.RecalculationImpact{
@@ -1831,6 +1851,19 @@ func (fake *fakePackWorkspaces) Init(string, workspace.InitOptions) (workspace.W
 	return fake.found, nil
 }
 func (fake *fakePackWorkspaces) Validate(string) error { return nil }
+
+type fakePackCatalog struct {
+	view  curriculumapp.PackCatalogView
+	query string
+}
+
+func (fake *fakePackCatalog) Catalog(context.Context) (curriculumapp.PackCatalogView, error) {
+	return fake.view, nil
+}
+func (fake *fakePackCatalog) Search(_ context.Context, query string) (curriculumapp.PackCatalogView, error) {
+	fake.query = query
+	return fake.view, nil
+}
 
 func (validator *fakePackValidator) Validate(_ context.Context, source curriculumapp.PackSource) (curriculumapp.PackValidationResult, error) {
 	validator.path = source.Path

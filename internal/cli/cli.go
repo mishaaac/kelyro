@@ -203,6 +203,8 @@ Learning Pack commands:
   kelyro packs list
   kelyro packs show <id>
   kelyro packs activate <id>@<version>
+  kelyro packs catalog
+  kelyro packs search <query>
 
 Advanced maintenance command:
   kelyro maintenance recalculate [--dry-run]
@@ -250,6 +252,7 @@ type Runner struct {
 	confirmer        Confirmer
 	packValidator    curriculumapp.PackValidationService
 	packManager      curriculumapp.PackInstallService
+	packCatalog      curriculumapp.PackCatalogService
 	packWorkspaces   workspace.Service
 	currentDirectory func() (string, error)
 }
@@ -302,6 +305,11 @@ func (r Runner) WithPackManager(manager curriculumapp.PackInstallService, worksp
 	r.packManager = manager
 	r.packWorkspaces = workspaces
 	r.currentDirectory = currentDirectory
+	return r
+}
+
+func (r Runner) WithPackCatalog(catalog curriculumapp.PackCatalogService) Runner {
+	r.packCatalog = catalog
 	return r
 }
 
@@ -548,6 +556,31 @@ func (r Runner) runPacks(ctx context.Context, invocation invocation) int {
 			return ExitFailure
 		}
 	}
+	if invocation.packOperation == "catalog" || invocation.packOperation == "search" {
+		if r.packCatalog == nil {
+			fmt.Fprintln(r.stderr, "kelyro packs: pack catalog is unavailable")
+			return ExitFailure
+		}
+		var view curriculumapp.PackCatalogView
+		var err error
+		if invocation.packOperation == "search" {
+			view, err = r.packCatalog.Search(ctx, invocation.packQuery)
+		} else {
+			view, err = r.packCatalog.Catalog(ctx)
+		}
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs %s: %v\n", invocation.packOperation, err)
+			return ExitFailure
+		}
+		if !invocation.quiet {
+			title := "Learning Pack Catalog"
+			if invocation.packOperation == "search" {
+				title = "Learning Pack search: " + invocation.packQuery
+			}
+			fmt.Fprintln(r.stdout, formatPackCatalog(title, view))
+		}
+		return ExitOK
+	}
 	switch invocation.packOperation {
 	case "install":
 		result, err := r.packManager.Install(ctx, curriculumapp.PackInstallRequest{Source: curriculumapp.PackSource{Path: invocation.packPath}})
@@ -668,6 +701,31 @@ func formatInstalledPacks(title string, packs []curriculumapp.InstalledPack) str
 			"  Curriculum: "+manifest.CurriculumID.String()+"@"+installed.Pack.Curriculum.Version.String(),
 			"  Checksum: "+installed.ContentHash,
 		)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatPackCatalog(title string, view curriculumapp.PackCatalogView) string {
+	lines := []string{title}
+	if view.Offline {
+		lines = append(lines, "Mode: offline cache")
+	}
+	if view.SourceWarning != "" {
+		lines = append(lines, "Source warning: "+view.SourceWarning)
+	}
+	if len(view.Snapshot.Entries) == 0 {
+		return strings.Join(append(lines, "No catalog entries found."), "\n")
+	}
+	for _, entry := range view.Snapshot.Entries {
+		lines = append(lines,
+			fmt.Sprintf("- %s — %s", entry.PackID, entry.Name),
+			"  "+entry.Description,
+			"  Maintainer: "+entry.Maintainer,
+			fmt.Sprintf("  Source: %s (%s)", entry.Source.Name, entry.Source.Trust),
+		)
+		for _, version := range entry.Versions {
+			lines = append(lines, fmt.Sprintf("  Version: %s [%s, %s]", version.Version.String(), version.Status, version.Compatibility))
+		}
 	}
 	return strings.Join(lines, "\n")
 }
@@ -1363,6 +1421,7 @@ type invocation struct {
 	packOperation           string
 	packID                  curriculum.ID
 	packVersion             curriculum.PackVersion
+	packQuery               string
 }
 
 func parse(args []string) (invocation, error) {
@@ -1865,7 +1924,7 @@ func parseResearchArguments(result *invocation) error {
 
 func parsePackArguments(result *invocation) error {
 	if len(result.arguments) == 0 {
-		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, or activate <id>@<version>")
+		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, activate <id>@<version>, catalog, or search <query>")
 	}
 	result.packOperation = result.arguments[0]
 	switch result.packOperation {
@@ -1878,6 +1937,20 @@ func parsePackArguments(result *invocation) error {
 	case "list":
 		if len(result.arguments) != 1 {
 			return fmt.Errorf("packs list does not accept positional arguments")
+		}
+		return nil
+	case "catalog":
+		if len(result.arguments) != 1 {
+			return fmt.Errorf("packs catalog does not accept positional arguments")
+		}
+		return nil
+	case "search":
+		if len(result.arguments) < 2 {
+			return fmt.Errorf("packs search requires a query")
+		}
+		result.packQuery = strings.TrimSpace(strings.Join(result.arguments[1:], " "))
+		if result.packQuery == "" {
+			return fmt.Errorf("packs search requires a query")
 		}
 		return nil
 	case "show":
@@ -1909,7 +1982,7 @@ func parsePackArguments(result *invocation) error {
 		result.packID, result.packVersion = id, packVersion
 		return nil
 	default:
-		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, or activate <id>@<version>")
+		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, activate <id>@<version>, catalog, or search <query>")
 	}
 }
 

@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 40
-Last completed step: 39
+Current step: 41
+Last completed step: 40
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2005,3 +2005,54 @@ Release: unreleased
 - El Paso 40 es el siguiente: modelo, source abstraction, cache offline y
   búsqueda/listado de metadata del Pack Catalog v1.
 - Catalog metadata nunca autoriza instalación ni activa packs automáticamente.
+
+## Step 40 — Learning Pack Catalog / Marketplace v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- Modelo `pack-catalog/v1` con identidad, descripción, domain/target,
+  maintainer, versiones disponibles, temporal status, compatibility, source y
+  trust metadata cerrada.
+- `PackCatalogSource` separado de `PackCatalogCache`; metadata disponible nunca
+  equivale a pack validado, instalado o confiable para ejecución.
+- Compatibilidad recalculada localmente contra la versión SemVer de Kelyro y
+  estado `unknown` explícito para builds development/unknown.
+- Servicio cache-first/fallback que conserva el último snapshot válido y usa
+  modo offline ante source ausente, inválido o no disponible.
+- Búsqueda determinista, case-insensitive y multi-token sobre ID, nombre,
+  descripción, domain, target, maintainer y source, con ranking explicable.
+- Adaptador JSON estricto/bounded y cache global privado con writes atómicos.
+- Comandos `packs catalog` y `packs search <query>` sin descarga ni instalación
+  automática.
+- Contrato documentado en `docs/specs/pack-catalog-v1.md`.
+
+### Decisions
+
+- No definir un protocolo remoto ni ecosistema comunitario en v1; el source
+  transport-neutral permite conectarlo después sin mezclarlo con plugins.
+- Tratar locator de source y artifact como metadata inerte: ni CLI ni service
+  lo abre, descarga o ejecuta.
+- No confiar en la compatibility publicada; se deriva de
+  `minimum_kelyro_version` y la versión local.
+- Una cache inexistente representa un catálogo offline vacío válido, no un
+  error que impida usar otros comandos de packs.
+- Mantener trust status independiente de pack temporal status y de validación
+  criptográfica futura.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/packcatalogfs ./internal/cli -count=1`.
+- `go vet ./internal/curriculum/... ./internal/infra/packcatalogfs ./internal/cli`.
+- Tests de refresh/cache, fallback offline, compatibilidad, search ranking,
+  roundtrip atómico, documento desconocido/trailing y CLI catalog/search.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 41 es el siguiente: clasificar old/new curriculum con señales
+  explícitas de I-03 Drift/Impact y mappings declarados para split/merge.
+- El clasificador no aplicará migraciones ni modificará Student Core.

@@ -195,6 +195,13 @@ func TestGlobalUpdateCachePathUsesNativeCacheDirectory(t *testing.T) {
 	if want := filepath.Join(directory, "updates.json"); path != want {
 		t.Errorf("GlobalUpdateCachePath() = %q, want %q", path, want)
 	}
+	catalog, err := GlobalPackCatalogCachePath()
+	if err != nil {
+		t.Fatalf("GlobalPackCatalogCachePath() error = %v", err)
+	}
+	if want := filepath.Join(directory, "pack-catalog-v1.json"); catalog != want {
+		t.Errorf("GlobalPackCatalogCachePath() = %q, want %q", catalog, want)
+	}
 }
 
 func TestStandardDirectoriesAreCleanAbsolutePaths(t *testing.T) {

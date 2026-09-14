@@ -2211,7 +2211,7 @@ feat(pack): install and activate Learning Packs
 
 ## Paso 40 — Implementar Pack Catalog / Marketplace v1
 
-- [ ] Paso 40 completado
+- [x] Paso 40 completado
 
 ### Objetivo
 

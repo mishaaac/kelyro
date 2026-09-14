@@ -61,6 +61,18 @@ type PackCatalogRepository interface {
 	FindByID(context.Context, curriculum.ID) ([]curriculum.PackManifest, error)
 }
 
+// PackCatalogSource provides discovery metadata only. Implementations may be
+// local or remote, but returned entries never authorize installation.
+type PackCatalogSource interface {
+	Load(context.Context) (curriculum.PackCatalogSnapshot, error)
+}
+
+// PackCatalogCache retains the last validated snapshot for offline discovery.
+type PackCatalogCache interface {
+	Load(context.Context) (curriculum.PackCatalogSnapshot, error)
+	Replace(context.Context, curriculum.PackCatalogSnapshot) error
+}
+
 type EnvironmentPackRepository interface {
 	Add(context.Context, curriculum.EnvironmentPack) error
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.EnvironmentPack, error)
