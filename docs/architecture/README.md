@@ -16,6 +16,9 @@ The portable container contract is documented in
 Independent immutable pack release classification, including `0.x` and
 prerelease semantics, is documented in
 [Learning Pack Versioning Policy v1](../specs/pack-versioning-v1.md).
+Deterministic transitive constraint solving, graph failures, and
+dependency-first ordering are documented in
+[Learning Pack Dependency Resolver v1](learning-pack-dependency-resolver-v1.md).
 Its bounded directory/ZIP adapter and CLI behavior are documented in
 [Secure Learning Pack loader v1](learning-pack-loader-v1.md).
 The read-only I-03 hand-off is documented in

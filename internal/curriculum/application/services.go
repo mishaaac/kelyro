@@ -245,6 +245,15 @@ type PackService interface {
 	Active(context.Context) (curriculum.LearningPack, error)
 }
 
+type PackDependencyResolutionRequest struct {
+	Root      curriculum.PackManifest
+	Available []curriculum.PackManifest
+}
+
+type PackDependencyResolverService interface {
+	Resolve(context.Context, PackDependencyResolutionRequest) (curriculum.PackDependencyResolution, error)
+}
+
 type PackValidationIssue struct {
 	Code    string
 	Path    string

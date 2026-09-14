@@ -2049,7 +2049,7 @@ feat(pack): add Learning Pack version policy
 
 ## Paso 36 — Implementar Pack Dependency Resolver
 
-- [ ] Paso 36 completado
+- [x] Paso 36 completado
 
 ### Objetivo
 

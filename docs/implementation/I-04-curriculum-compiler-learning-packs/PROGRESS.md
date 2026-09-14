@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 36
-Last completed step: 35
+Current step: 37
+Last completed step: 36
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1800,6 +1800,53 @@ Release: unreleased
 
 ### Notes for next session
 
-- El Paso 36 es el siguiente: Curriculum Change Detector sobre dos versiones
-  inmutables y clasificación compatible con esta policy.
-- No implementar todavía migration planner, upgrade ni Student Core writes.
+- El Paso 36 es el siguiente: Pack Dependency Resolver sobre manifests locales
+  y constraints versionados.
+- No implementar todavía instalación, activación ni dependencias opcionales.
+
+## Step 36 — Learning Pack Dependency Resolver v1
+
+Status: completed
+Date: 2026-09-13
+Release: unreleased
+
+### Delivered
+
+- `pack-dependency-resolver-v1` para resolver el graph transitivo requerido
+  desde un root manifest y un conjunto local de versiones disponibles.
+- Parser y evaluación de constraints AND con SemVer exacto, `=`, `<`, `<=`,
+  `>` y `>=`, incluida precedencia correcta de prereleases.
+- Selección determinista de la versión compatible más alta con backtracking
+  cuando constraints compartidos o cycles invalidan una elección previa.
+- Diagnósticos tipados `missing`, `incompatible` y `cycle`, con depender,
+  constraint, versiones disponibles y path explicable.
+- `InstallOrder` dependency-first que contiene cada pack una sola vez y deja el
+  root al final, sin mezclar estas edges con concept prerequisites.
+- Tests de graph transitivo, highest-compatible, constraints compartidos,
+  backtracking, missing, incompatible, cycle y estabilidad ante input reorder.
+- Contrato documentado en
+  `docs/architecture/learning-pack-dependency-resolver-v1.md`.
+
+### Decisions
+
+- Tratar todas las dependencies v1 como requeridas; optional dependency queda
+  reservado para un schema futuro y nunca se infiere por ausencia.
+- Resolver solo manifests ya disponibles: catalog discovery, network,
+  instalación y activación no pertenecen a este servicio puro.
+- No devolver una selección parcial en failure para evitar que un installer
+  futuro confunda un graph incompleto con un plan ejecutable.
+- Usar el texto completo de versión únicamente como tie-break determinista
+  entre anomalías de igual precedencia SemVer por build metadata.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 37 es el siguiente: completar Environment Pack Format v1 y su parser
+  estricto dentro de `learning-pack/v1`.
+- No integrar todavía Doctor ni auto-instalar herramientas.
