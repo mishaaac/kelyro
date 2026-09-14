@@ -2,6 +2,8 @@ package curriculum
 
 import "fmt"
 
+const CurriculumChangeClassifierVersionV1 = "curriculum-change-classifier-v1"
+
 type CurriculumChangeKind string
 
 const (
@@ -55,6 +57,73 @@ type CurriculumChange struct {
 	Migration        MigrationClass
 	AffectedConcepts []ConceptID
 	Rationale        string
+}
+
+// ConceptIdentityMapping is explicit author/reviewer evidence that removed and
+// added Concept IDs represent a split or merge. The classifier never infers
+// identity continuity from similar text.
+type ConceptIdentityMapping struct {
+	OldConceptIDs []ConceptID
+	NewConceptIDs []ConceptID
+	Rationale     string
+}
+
+func (mapping ConceptIdentityMapping) Validate() error {
+	if err := validateConceptIDs("old concept mapping", mapping.OldConceptIDs); err != nil {
+		return err
+	}
+	if err := validateConceptIDs("new concept mapping", mapping.NewConceptIDs); err != nil {
+		return err
+	}
+	if !((len(mapping.OldConceptIDs) == 1 && len(mapping.NewConceptIDs) > 1) ||
+		(len(mapping.OldConceptIDs) > 1 && len(mapping.NewConceptIDs) == 1)) {
+		return fmt.Errorf("concept identity mapping must describe one split or one merge")
+	}
+	return requireText("concept identity mapping rationale", mapping.Rationale)
+}
+
+type CurriculumChangeClassification struct {
+	FromVersion      CurriculumVersion
+	ToVersion        CurriculumVersion
+	Changes          []CurriculumChange
+	AlgorithmVersion string
+}
+
+func (classification CurriculumChangeClassification) Validate() error {
+	if err := classification.FromVersion.Validate(); err != nil {
+		return err
+	}
+	if err := classification.ToVersion.Validate(); err != nil {
+		return err
+	}
+	if classification.FromVersion == classification.ToVersion {
+		return fmt.Errorf("curriculum change classification versions are identical")
+	}
+	if len(classification.Changes) == 0 {
+		return fmt.Errorf("curriculum change classification is empty")
+	}
+	seenIDs := make(map[ID]struct{}, len(classification.Changes))
+	seenKinds := make(map[CurriculumChangeKind]struct{}, len(classification.Changes))
+	for _, change := range classification.Changes {
+		if err := change.Validate(); err != nil {
+			return err
+		}
+		if change.FromVersion != classification.FromVersion || change.ToVersion != classification.ToVersion {
+			return fmt.Errorf("curriculum change versions do not match classification")
+		}
+		if _, exists := seenIDs[change.ID]; exists {
+			return fmt.Errorf("duplicate curriculum change %q", change.ID)
+		}
+		if _, exists := seenKinds[change.Kind]; exists {
+			return fmt.Errorf("duplicate curriculum change kind %q", change.Kind)
+		}
+		seenIDs[change.ID] = struct{}{}
+		seenKinds[change.Kind] = struct{}{}
+	}
+	if classification.AlgorithmVersion != CurriculumChangeClassifierVersionV1 {
+		return fmt.Errorf("unsupported curriculum change classifier version %q", classification.AlgorithmVersion)
+	}
+	return nil
 }
 
 func (change CurriculumChange) Validate() error {

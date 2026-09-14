@@ -2269,7 +2269,7 @@ feat(pack): add Learning Pack catalog v1
 
 ## Paso 41 — Implementar Curriculum Change Classification
 
-- [ ] Paso 41 completado
+- [x] Paso 41 completado
 
 ### Objetivo
 

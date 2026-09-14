@@ -489,3 +489,8 @@ The catalog discovery model, closed source trust and compatibility metadata,
 deterministic search policy, strict document source, offline cache fallback,
 and no-auto-install boundary are documented in
 [pack-catalog-v1.md](../specs/pack-catalog-v1.md).
+
+The deterministic old/new curriculum diff, explicit split/merge mappings,
+I-03 Drift/Impact severity integration, migration classes, and learner-state
+non-mutation boundary are documented in
+[curriculum-change-classifier-v1.md](curriculum-change-classifier-v1.md).

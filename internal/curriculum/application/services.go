@@ -370,6 +370,20 @@ type PackVersioningService interface {
 	Classify(context.Context, PackVersioningRequest) (curriculum.PackVersioningDecision, error)
 }
 
+type CurriculumChangeClassificationRequest struct {
+	Old              curriculum.CurriculumDefinition
+	New              curriculum.CurriculumDefinition
+	OldEnvironment   *curriculum.EnvironmentPack
+	NewEnvironment   *curriculum.EnvironmentPack
+	IdentityMappings []curriculum.ConceptIdentityMapping
+	DriftReports     []research.DriftReport
+	ImpactReports    []research.ImpactReport
+}
+
+type CurriculumChangeClassificationService interface {
+	Classify(context.Context, CurriculumChangeClassificationRequest) (curriculum.CurriculumChangeClassification, error)
+}
+
 type CoverageAnalysisRequest struct {
 	CurriculumID curriculum.CurriculumID
 	Goal         curriculum.LearningGoalSpec

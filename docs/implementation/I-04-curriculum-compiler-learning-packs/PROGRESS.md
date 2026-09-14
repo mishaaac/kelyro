@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 41
-Last completed step: 40
+Current step: 42
+Last completed step: 41
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2056,3 +2056,56 @@ Release: unreleased
 - El Paso 41 es el siguiente: clasificar old/new curriculum con señales
   explícitas de I-03 Drift/Impact y mappings declarados para split/merge.
 - El clasificador no aplicará migraciones ni modificará Student Core.
+
+## Step 41 — Curriculum Change Classification v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- `curriculum-change-classifier-v1` sobre definitions old/new válidas del mismo
+  curriculum, con output versionado, orden estable y change IDs deterministas.
+- Detección de `metadata_only`, `source_refresh`, Concept add/remove,
+  prerequisite, hierarchy, status y environment changes.
+- `ConceptIdentityMapping` obligatorio para clasificar split/merge; sin mapping
+  se conservan add/remove independientes y no se inventa continuidad.
+- Clases `safe`, `requires_recompile`, `requires_student_review` y `breaking`
+  asignadas conservadoramente por dimensión.
+- Integración explícita con Drift/Impact I-03 validados, incluida pertenencia de
+  Source Bundles, relación Impact→Drift, affected Concept refs y elevación de
+  severidad por recommended action.
+- Separación entre prerequisite structure y evidence refresh para no reportar
+  cambios de graph por una actualización de evidencia únicamente.
+- Contrato documentado en
+  `docs/architecture/curriculum-change-classifier-v1.md`.
+
+### Decisions
+
+- Nunca inferir split/merge por similitud textual o evidence overlap; una
+  mapping declarada y razonada es necesaria para cambios de identidad.
+- Agregar un record por change kind con Concept IDs ordenados, evitando que el
+  input order produzca diagnósticos o IDs distintos.
+- Clasificar removals y status changes como student review sin tocar mastery;
+  Step 42 decidirá las acciones de migration.
+- Tratar hierarchy y environment como recompilación compatible, no como pérdida
+  de progreso, y conservar source refresh como safe salvo señales I-03 más
+  severas.
+- No aplicar Pack SemVer aquí: el policy del Paso 35 consume los changes ya
+  clasificados y mantiene ambas responsabilidades separadas.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- Tests de todas las dimensiones, add/remove sin inferencia, split/merge
+  explícitos, input reorder, Drift/Impact, severidad y metadata-only safe.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 42 es el siguiente: producir un Student-safe Curriculum Migration
+  Plan a partir de estos changes, sin aplicar todavía upgrade ni Student writes.
+- Split/merge requerirán mappings explícitos y nunca derivarán mastery.
