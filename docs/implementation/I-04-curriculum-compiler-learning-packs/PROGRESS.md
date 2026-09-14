@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 34
-Last completed step: 33
+Current step: 35
+Last completed step: 34
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1702,3 +1702,52 @@ Release: unreleased
 - El Paso 34 es el siguiente: Expert Coverage Review contra outcomes
   profesionales, competency depth y coberturas production/security/toolchain.
 - No implementar todavía Pack Versioning Policy ni Source Review Contract.
+
+## Step 34 — Expert Coverage Review v1
+
+Status: completed
+Date: 2026-09-13
+Release: unreleased
+
+### Delivered
+
+- `expert-coverage-review-v1` como revisión determinista de que la ruta alcance
+  los outcomes profesionales declarados y no termine solo en fundamentos.
+- Policy capability-aware para explain, build, debug, operate y maintain, sin
+  asumir que todos los niveles avanzados son intercambiables.
+- Verificación de profundidad Concept/competency: introductory, foundational,
+  intermediate o advanced según el nivel esperado.
+- Findings tipados `missing_advanced_competency`, `insufficient_depth` y
+  `missing_production_capability` con dimensión production/security/toolchain.
+- Gate obligatorio de las tres coberturas de realidad profesional cuando el
+  goal declara un `ProfessionalRole`.
+- Puerto opcional `ExpertCoverageAdvisor` cuyas notas no pueden modificar el
+  resultado core, más tests de ruta completa, rota y determinismo.
+- Integración como pass del compiler, dimensión bloqueante del reviewer y
+  artifact copiado defensivamente por el repository in-memory.
+- Contrato documentado en
+  `docs/architecture/expert-coverage-review-v1.md`.
+
+### Decisions
+
+- Exigir `operate` explícito para un outcome operativo; design o explain no lo
+  satisfacen por una falsa ordenación numérica.
+- Pedir al menos un Concept con profundidad suficiente por competency sin
+  imponer cantidad de Concepts, módulos o lessons.
+- Aplicar el análisis de outcome/depth a todo goal y reservar el gate conjunto
+  production/security/toolchain para rutas que declaran rol profesional.
+- Mantener el adapter experto sin autoridad sobre findings o publicación y sin
+  volver IA un requisito.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 35 es el siguiente: Pack Versioning Policy v1 independiente de la
+  versión de Kelyro, incluida la semántica 0.x/prerelease.
+- No implementar todavía change detector, migration planner ni pack upgrade.

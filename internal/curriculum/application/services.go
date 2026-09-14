@@ -187,6 +187,23 @@ type BeginnerSimulationService interface {
 	Simulate(context.Context, BeginnerSimulationRequest) (curriculum.BeginnerSimulationResult, error)
 }
 
+type ExpertCoverageReviewRequest struct {
+	Goal         curriculum.LearningGoalSpec
+	Competencies curriculum.CompetencyMatrix
+	Concepts     []curriculum.Concept
+	Coverage     curriculum.CoverageReport
+}
+
+type ExpertCoverageReviewService interface {
+	Review(context.Context, ExpertCoverageReviewRequest) (curriculum.ExpertCoverageReviewResult, error)
+}
+
+// ExpertCoverageAdvisor is an optional, non-authoritative future AI or human
+// adapter. It may add notes but cannot change deterministic findings.
+type ExpertCoverageAdvisor interface {
+	Advise(context.Context, ExpertCoverageReviewRequest, curriculum.ExpertCoverageReviewResult) ([]string, error)
+}
+
 type DefinitionBeforeUseAuditRequest struct {
 	Graph      curriculum.KnowledgeGraphCompilation
 	Vocabulary curriculum.VocabularyGraphCompilation

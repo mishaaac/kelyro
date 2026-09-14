@@ -240,6 +240,10 @@ func cloneCompilationDiagnostics(value curriculum.CompilationDiagnostics) curric
 	cloned.BeginnerSimulation.IntroducedVocabulary = append([]string(nil), value.BeginnerSimulation.IntroducedVocabulary...)
 	cloned.BeginnerSimulation.IntroducedToolIDs = append([]curriculum.ID(nil), value.BeginnerSimulation.IntroducedToolIDs...)
 	cloned.BeginnerSimulation.ResolvedAssumptionIDs = append([]curriculum.ID(nil), value.BeginnerSimulation.ResolvedAssumptionIDs...)
+	cloned.ExpertCoverage.ReviewedOutcomeIDs = append([]curriculum.ID(nil), value.ExpertCoverage.ReviewedOutcomeIDs...)
+	cloned.ExpertCoverage.ReviewedCompetencyIDs = append([]curriculum.ID(nil), value.ExpertCoverage.ReviewedCompetencyIDs...)
+	cloned.ExpertCoverage.Findings = append([]curriculum.ExpertCoverageFinding(nil), value.ExpertCoverage.Findings...)
+	cloned.ExpertCoverage.AdvisorNotes = append([]string(nil), value.ExpertCoverage.AdvisorNotes...)
 	cloned.Guidance.CurrentGuidanceFindings = append([]curriculum.CurrentGuidanceFinding(nil), value.Guidance.CurrentGuidanceFindings...)
 	for index := range cloned.Guidance.CurrentGuidanceFindings {
 		cloned.Guidance.CurrentGuidanceFindings[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), value.Guidance.CurrentGuidanceFindings[index].EvidenceRefs...)

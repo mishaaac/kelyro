@@ -94,6 +94,7 @@ type CompilationDiagnostics struct {
 	Temporal            TemporalClassificationResult
 	Guidance            GuidanceClassificationResult
 	BeginnerSimulation  BeginnerSimulationResult
+	ExpertCoverage      ExpertCoverageReviewResult
 	Review              *CurriculumReviewResult
 }
 
@@ -111,6 +112,7 @@ func (diagnostics CompilationDiagnostics) Validate(concepts []Concept) error {
 		diagnostics.Temporal.Validate,
 		diagnostics.Guidance.Validate,
 		diagnostics.BeginnerSimulation.Validate,
+		diagnostics.ExpertCoverage.Validate,
 	} {
 		if err := validation(); err != nil {
 			return err

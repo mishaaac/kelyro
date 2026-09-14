@@ -14,7 +14,7 @@ The closed result vocabulary is:
 - `rejected`: at least one error.
 
 Every finding has a stable dimension, severity, code, target, and reason. The
-review always emits all twelve dimensions in canonical order:
+review always emits all thirteen dimensions in canonical order:
 
 1. coverage;
 2. granularity;
@@ -27,7 +27,8 @@ review always emits all twelve dimensions in canonical order:
 9. production;
 10. toolchain;
 11. temporal status;
-12. beginner simulation.
+12. beginner simulation;
+13. expert coverage.
 
 Missing or partial declared coverage is blocking. Non-atomic forced splits,
 unreachable Concepts, missing prerequisites, error-level audits, not-ready
@@ -37,6 +38,8 @@ Granularity diagnostics, caveated-ready/aging sources, and explicitly separated
 preview/experimental material are warnings.
 Any need encountered before its prerequisite, vocabulary, tool, or explicit
 assumption resolution is a blocking beginner-simulation finding.
+Missing professional outcome levels, insufficient Concept depth, or incomplete
+production/security/toolchain capability is a blocking expert-coverage finding.
 
 The reviewer trusts the versioned outputs of the constituent passes. It does
 not infer requirements from domain keywords or re-run I-03 trust/freshness

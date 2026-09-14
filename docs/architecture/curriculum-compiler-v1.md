@@ -39,8 +39,9 @@ The v1 pipeline records these passes:
 11. temporal and current-vs-historical guidance classification;
 12. gap scanning;
 13. deterministic beginner simulation;
-14. final structural review;
-15. compiled artifact assembly.
+14. expert coverage review;
+15. final structural review;
+16. compiled artifact assembly.
 
 Gap scanning runs after temporal classification because the existing scanner
 consumes current-guidance findings. This is a data dependency, not a change in
@@ -63,5 +64,5 @@ The compiler does not apply concept/module/lesson limits and does not modify a
 published pack or learner mastery.
 
 `CompilationDiagnostics` retains the graph, hierarchy, coverage, gaps, audits,
-temporal/guidance artifacts, and beginner simulation needed by the
-deterministic publication review.
+temporal/guidance artifacts, beginner simulation, and expert coverage review
+needed by the deterministic publication review.

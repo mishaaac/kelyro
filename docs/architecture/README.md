@@ -91,6 +91,9 @@ Zero-knowledge traversal across compiled prerequisites, vocabulary, tools, and
 declared assumptions is documented in
 [Beginner Simulation v1](beginner-simulation-v1.md).
 
+Professional outcome levels, Concept depth, and production-readiness gates are
+documented in [Expert Coverage Review v1](expert-coverage-review-v1.md).
+
 The Foundation package boundaries, dependency rules, and stable contracts are
 documented in [foundation.md](foundation.md).
 

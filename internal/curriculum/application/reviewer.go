@@ -45,6 +45,7 @@ func (reviewer CurriculumReviewerV1) Review(ctx context.Context, request Curricu
 		curriculum.ReviewToolchain:           reviewCoverageDimension(diagnostics.Coverage, curriculum.CoverageToolchain),
 		curriculum.ReviewTemporalStatus:      reviewTemporal(diagnostics.Temporal),
 		curriculum.ReviewBeginnerSimulation:  reviewBeginnerSimulation(diagnostics.BeginnerSimulation),
+		curriculum.ReviewExpertCoverage:      reviewExpertCoverage(diagnostics.ExpertCoverage),
 	}
 	result := curriculum.CurriculumReviewResult{AlgorithmVersion: curriculum.CurriculumReviewerVersionV1}
 	hasError, hasWarning := false, false
@@ -101,6 +102,20 @@ func reviewBeginnerSimulation(result curriculum.BeginnerSimulationResult) []curr
 			Code:     string(gap.Kind),
 			Target:   gap.ConceptID.String(),
 			Reason:   gap.Requirement + ": " + gap.Reason,
+		})
+	}
+	return findings
+}
+
+func reviewExpertCoverage(result curriculum.ExpertCoverageReviewResult) []curriculum.CurriculumReviewFinding {
+	findings := make([]curriculum.CurriculumReviewFinding, 0, len(result.Findings))
+	for _, finding := range result.Findings {
+		target := finding.TargetID.String()
+		if finding.Dimension != "" {
+			target += ":" + string(finding.Dimension)
+		}
+		findings = append(findings, curriculum.CurriculumReviewFinding{
+			Severity: curriculum.ReviewError, Code: string(finding.Kind), Target: target, Reason: finding.Reason,
 		})
 	}
 	return findings
