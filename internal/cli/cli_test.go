@@ -1347,6 +1347,21 @@ func TestRunnerRendersDoctorReportAndFailsOnlyForRequiredChecks(t *testing.T) {
 	}
 }
 
+func TestFormatDiagnosticsExplainsDeferredCurriculumTool(t *testing.T) {
+	t.Parallel()
+	output := formatDiagnostics(doctor.Report{Checks: []doctor.Check{{
+		ID: "tool.docker", Section: doctor.SectionDevelopment, DisplayName: "Docker",
+		Requirement: doctor.Required, State: doctor.Deferred, Detail: "not_needed_yet",
+		WhyNeeded: "Introduced in the Containers module.", MinimumVersion: "28.0.0", OfficialSource: "Docker project",
+		InstallGuidance: "Follow the official Linux instructions.", LearnMore: "https://docs.docker.com/get-docker/",
+	}}})
+	for _, expected := range []string{"· Docker", "not_needed_yet", "Why: Introduced", "Minimum version: 28.0.0", "Official source: Docker project", "Install guidance:", "Learn more: https://docs.docker.com/get-docker/"} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("diagnostics output missing %q:\n%s", expected, output)
+		}
+	}
+}
+
 func TestRunnerQuietSuppressesSuccessfulOutput(t *testing.T) {
 	t.Parallel()
 

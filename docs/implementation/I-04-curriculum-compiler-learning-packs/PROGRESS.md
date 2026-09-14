@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 38
-Last completed step: 37
+Current step: 39
+Last completed step: 38
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1900,3 +1900,57 @@ Release: unreleased
 - El Paso 38 es el siguiente: proyectar Environment Pack y posición curricular
   a un Doctor context-aware con reasons y official guidance.
 - No implementar instalación automática, pack activation ni Student writes.
+
+## Step 38 — Curriculum-aware Doctor v1
+
+Status: completed
+Date: 2026-09-13
+Release: unreleased
+
+### Delivered
+
+- `environment-doctor-planner-v1` como proyección determinista de Environment
+  Pack, plataforma, graph, hierarchy y Concept actual a un plan diagnóstico.
+- Estados tipados `current`, `future` y `not_needed_yet`, con rechazo de tools
+  requeridos antes de su `introduced_at` y orden canónico por tool ID.
+- Contexto con nivel required/recommended/optional, versión mínima, explicación,
+  módulo/fase de necesidad y guidance oficial específico de plataforma.
+- Doctor ampliado con estado no bloqueante `deferred`: tools futuros permanecen
+  visibles, pero no se resuelven ni ejecutan antes de ser necesarios.
+- Validación de minimum version para tools actuales con precedencia SemVer,
+  incluida semántica prerelease y failure cuando la versión no puede probarse.
+- Frontera segura para tools desconocidos: un requirement actual falla como
+  diagnóstico no disponible y uno futuro queda deferred; ninguno ejecuta datos
+  del pack.
+- Adaptador de aplicación desde `EnvironmentDoctorPlan` hacia `doctor.Context`
+  y render de reason, source e install guidance en CLI/TUI.
+- Contrato documentado en
+  `docs/architecture/curriculum-aware-doctor-v1.md`.
+
+### Decisions
+
+- Usar `KnowledgeGraphCompilation.TopologicalOrder` para timing pedagógico y la
+  hierarchy solo para nombres de phase/module mostrados al usuario.
+- Tratar `introduced_at` y `when_needed` como hitos distintos: una tool puede
+  estar enseñada pero seguir siendo futura antes del módulo que la necesita.
+- No permitir command candidates, version args, scripts o package-manager
+  commands desde Environment Packs; solo el registry confiable puede probar.
+- Mantener official URLs e instrucciones como metadata inerte, nunca abierta o
+  ejecutada automáticamente.
+- Recibir un plan explícito en application; la resolución del pack activo se
+  reserva al Paso 39 y no se anticipa aquí.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/doctor ./internal/app ./internal/cli ./internal/tui -count=1`.
+- `go vet ./internal/curriculum/... ./internal/doctor ./internal/app ./internal/cli ./internal/tui`.
+- `go test -race ./internal/curriculum/application/... ./internal/doctor -count=1`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 39 es el siguiente: instalación inmutable y activación por workspace
+  de packs ya validados.
+- No implementar todavía catalog, upgrade, auto-install de tools ni I-05.

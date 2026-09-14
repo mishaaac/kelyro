@@ -53,3 +53,21 @@ func TestDoctorViewRendersTypedSectionsAndRequirementReasons(t *testing.T) {
 		}
 	}
 }
+
+func TestDoctorViewRendersDeferredCurriculumToolMetadata(t *testing.T) {
+	t.Parallel()
+	model := readyModel(&fakeService{})
+	model.screen = screenDoctor
+	model.snapshot.Diagnostics = doctor.Report{Checks: []doctor.Check{{
+		ID: "tool.postgresql", Section: doctor.SectionDevelopment, DisplayName: "PostgreSQL",
+		Requirement: doctor.Required, State: doctor.Deferred, Detail: "future",
+		WhyNeeded: "Needed in the Persistence module.", MinimumVersion: "17.0.0", OfficialSource: "PostgreSQL project",
+		InstallGuidance: "Follow the official platform instructions.", LearnMore: "https://www.postgresql.org/download/",
+	}}}
+	view := model.View()
+	for _, expected := range []string{"· PostgreSQL", "future", "Why: Needed in the Persistence", "Minimum version: 17.0.0", "Official source: PostgreSQL project", "Install guidance:"} {
+		if !strings.Contains(view, expected) {
+			t.Errorf("doctor view missing %q:\n%s", expected, view)
+		}
+	}
+}

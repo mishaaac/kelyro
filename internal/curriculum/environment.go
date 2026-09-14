@@ -105,9 +105,8 @@ func (guidance ToolInstallGuidance) Validate() error {
 	if err := requireText("install guidance instructions", guidance.Instructions); err != nil {
 		return err
 	}
-	parsed, err := url.Parse(guidance.OfficialURL)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return fmt.Errorf("install guidance official URL must be a query-free HTTPS URL without credentials or fragment")
+	if err := validateOfficialInstallURL(guidance.OfficialURL); err != nil {
+		return err
 	}
 	return validateEvidenceRefs("install guidance evidence", guidance.EvidenceRefs)
 }
@@ -242,4 +241,12 @@ func validateEnvironmentPlatforms(name string, values []string) error {
 
 func validEnvironmentPlatform(value string) bool {
 	return value == EnvironmentPlatformLinux || value == EnvironmentPlatformDarwin || value == EnvironmentPlatformWindows
+}
+
+func validateOfficialInstallURL(value string) error {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("install guidance official URL must be a query-free HTTPS URL without credentials or fragment")
+	}
+	return nil
 }

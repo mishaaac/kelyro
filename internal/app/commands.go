@@ -14,6 +14,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/audit"
 	"github.com/mishaaac/kelyro/internal/backup"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/curriculum"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/editor"
 	"github.com/mishaaac/kelyro/internal/learning"
@@ -83,6 +84,7 @@ type Command struct {
 	SecretValue             string
 	OpenTarget              string
 	DoctorContext           doctor.Context
+	DoctorEnvironmentPlan   *curriculum.EnvironmentDoctorPlan
 	DoctorExplain           string
 	LogOperation            string
 	BackupOperation         string

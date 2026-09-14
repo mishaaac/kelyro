@@ -54,6 +54,64 @@ func TestContextSelectsAndStrengthensRelevantTool(t *testing.T) {
 	}
 }
 
+func TestCurriculumContextDefersFutureToolsWithoutProbingThem(t *testing.T) {
+	t.Parallel()
+	environment := &fakeEnvironment{platform: "linux", resolved: map[string]string{"go": "/tools/go"}, versions: map[string]string{"/tools/go": "go version go1.24.1 linux/amd64"}}
+	engine := New(environment, fakeStorage{}, DefaultRegistry())
+	report := engine.Run(context.Background(), Input{WorkspaceRoot: "/project", InternalDirectory: "/project/.kelyro"}, Context{ToolRequirements: []ToolRequirement{
+		{ToolID: "go", DisplayName: "Go", Requirement: Required, MinimumVersion: "1.24.0", Timing: ToolCurrent},
+		{ToolID: "docker", DisplayName: "Docker", Requirement: Required, MinimumVersion: "28.0.0", Timing: ToolNotNeededYet, WhyNeeded: "Introduced in Containers."},
+		{ToolID: "postgresql", DisplayName: "PostgreSQL", Requirement: Required, MinimumVersion: "17.0.0", Timing: ToolFuture, OfficialSource: "PostgreSQL project", LearnMore: "https://www.postgresql.org/download/"},
+	}})
+
+	assertCheck(t, report, "tool.go", Pass, "go1.24.1")
+	assertCheck(t, report, "tool.docker", Deferred, "not_needed_yet")
+	assertCheck(t, report, "tool.postgresql", Deferred, "future")
+	if report.Failed() {
+		t.Fatal("deferred required tools blocked the current curriculum")
+	}
+	if environment.resolveCalls != 1 {
+		t.Fatalf("Resolve() calls = %d, want only the current Go probe", environment.resolveCalls)
+	}
+}
+
+func TestCurriculumContextEnforcesMinimumVersionAndRejectsUnknownCurrentProbe(t *testing.T) {
+	t.Parallel()
+	environment := &fakeEnvironment{platform: "linux", resolved: map[string]string{"go": "/tools/go"}, versions: map[string]string{"/tools/go": "go version go1.23.9 linux/amd64"}}
+	report := New(environment, fakeStorage{}, DefaultRegistry()).Run(context.Background(), Input{WorkspaceRoot: "/project", InternalDirectory: "/project/.kelyro"}, Context{ToolRequirements: []ToolRequirement{
+		{ToolID: "go", Requirement: Required, MinimumVersion: "1.24.0", Timing: ToolCurrent},
+		{ToolID: "postgresql", DisplayName: "PostgreSQL", Requirement: Required, MinimumVersion: "17.0.0", Timing: ToolCurrent},
+	}})
+
+	assertCheck(t, report, "tool.go", Fail, "requires >= 1.24.0")
+	assertCheck(t, report, "tool.postgresql", Fail, "unregistered tool")
+	if !report.Failed() {
+		t.Fatal("failed current curriculum requirements did not block Doctor")
+	}
+	if environment.resolveCalls != 1 {
+		t.Fatalf("Resolve() calls = %d, unknown pack tool must not be executed", environment.resolveCalls)
+	}
+}
+
+func TestVersionAtLeastUsesSemverPrecedence(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		installed, minimum string
+		want               bool
+	}{
+		{"go1.24.0", "1.24.0", true},
+		{"1.24.1", "1.24.0", true},
+		{"1.23.99", "1.24.0", false},
+		{"1.24.0-rc.2", "1.24.0", false},
+		{"1.24.0", "1.24.0-rc.2", true},
+		{"1.24.0-rc.10", "1.24.0-rc.2", true},
+	} {
+		if got := versionAtLeast(test.installed, test.minimum); got != test.want {
+			t.Errorf("versionAtLeast(%q, %q) = %t, want %t", test.installed, test.minimum, got, test.want)
+		}
+	}
+}
+
 func TestDefaultToolGuidanceIsMaintainedAndPlatformSpecific(t *testing.T) {
 	t.Parallel()
 
@@ -252,6 +310,7 @@ type fakeEnvironment struct {
 	writableErr   error
 	writablePaths []string
 	version       func(context.Context, string, []string) (string, error)
+	resolveCalls  int
 }
 
 func (environment *fakeEnvironment) Platform() string { return environment.platform }
@@ -260,6 +319,7 @@ func (environment *fakeEnvironment) Writable(path string) error {
 	return environment.writableErr
 }
 func (environment *fakeEnvironment) Resolve(candidates []string) (string, bool) {
+	environment.resolveCalls++
 	for _, candidate := range candidates {
 		if path := environment.resolved[candidate]; path != "" {
 			return path, true

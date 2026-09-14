@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/curriculum"
 	"github.com/mishaaac/kelyro/internal/doctor"
 	"github.com/mishaaac/kelyro/internal/platform"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
@@ -40,7 +41,11 @@ func (service *Service) executeDoctor(ctx context.Context, command Command) (Res
 		input.WorkspaceError = err
 		input.ConfigurationError = err
 	}
-	report := service.diagnostics.Run(ctx, input, command.DoctorContext)
+	diagnosticContext, err := doctorContextForCommand(command)
+	if err != nil {
+		return Result{}, err
+	}
+	report := service.diagnostics.Run(ctx, input, diagnosticContext)
 	return Result{Diagnostics: &report, Failed: report.Failed()}, nil
 }
 
@@ -78,7 +83,58 @@ func (service *Service) doctorReport(ctx context.Context, command Command, found
 		input.WorkspaceError = err
 		input.ConfigurationError = err
 	}
-	return service.diagnostics.Run(ctx, input, command.DoctorContext)
+	diagnosticContext, contextErr := doctorContextForCommand(command)
+	if contextErr != nil {
+		return doctor.Report{Checks: []doctor.Check{{
+			ID: "kelyro.curriculum_environment", Section: doctor.SectionKelyro,
+			DisplayName: "Curriculum environment valid", Requirement: doctor.Required,
+			State: doctor.Fail, Detail: contextErr.Error(),
+		}}}
+	}
+	return service.diagnostics.Run(ctx, input, diagnosticContext)
+}
+
+// DoctorContextFromEnvironmentPlan maps inert curriculum metadata to Doctor's
+// trusted diagnostic registry. It never accepts commands from a Learning Pack.
+func DoctorContextFromEnvironmentPlan(plan curriculum.EnvironmentDoctorPlan) (doctor.Context, error) {
+	if err := plan.Validate(); err != nil {
+		return doctor.Context{}, fmt.Errorf("invalid curriculum environment diagnostic plan: %w", err)
+	}
+	result := doctor.Context{ToolRequirements: make([]doctor.ToolRequirement, 0, len(plan.Tools))}
+	for _, tool := range plan.Tools {
+		requirement, ok := doctorRequirement(tool.Level)
+		if !ok {
+			return doctor.Context{}, fmt.Errorf("invalid curriculum tool requirement %q", tool.Level)
+		}
+		result.ToolRequirements = append(result.ToolRequirements, doctor.ToolRequirement{
+			ToolID: tool.ToolID.String(), DisplayName: tool.DisplayName,
+			Requirement: requirement, MinimumVersion: tool.MinimumVersion,
+			Timing: doctor.ToolTiming(tool.Timing), WhyNeeded: tool.WhyNeeded,
+			OfficialSource: tool.OfficialSourceName, InstallGuidance: tool.InstallInstructions,
+			LearnMore: tool.OfficialURL,
+		})
+	}
+	return result, nil
+}
+
+func doctorContextForCommand(command Command) (doctor.Context, error) {
+	if command.DoctorEnvironmentPlan == nil {
+		return command.DoctorContext, nil
+	}
+	return DoctorContextFromEnvironmentPlan(*command.DoctorEnvironmentPlan)
+}
+
+func doctorRequirement(level curriculum.ToolRequirementLevel) (doctor.Requirement, bool) {
+	switch level {
+	case curriculum.ToolRequired:
+		return doctor.Required, true
+	case curriculum.ToolRecommended:
+		return doctor.Recommended, true
+	case curriculum.ToolOptional:
+		return doctor.Optional, true
+	default:
+		return "", false
+	}
 }
 
 func (service *Service) researchSearchReadiness(ctx context.Context, settings config.Settings, configErr error) doctor.ResearchSearchReadiness {

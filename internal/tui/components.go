@@ -25,6 +25,9 @@ func diagnosticLines(report doctor.Report, style styles, width int) []string {
 			} else if check.State == doctor.Miss {
 				marker = "○"
 				lineStyle = style.muted
+			} else if check.State == doctor.Deferred {
+				marker = "·"
+				lineStyle = style.muted
 			}
 			label := check.DisplayName
 			if check.Requirement != doctor.Required {
@@ -41,7 +44,22 @@ func diagnosticLines(report doctor.Report, style styles, width int) []string {
 					lines = append(lines, style.muted.Render("  "+why))
 				}
 			}
-			if check.State != doctor.Pass && check.LearnMore != "" {
+			if check.MinimumVersion != "" {
+				for _, minimum := range wrapText("Minimum version: "+check.MinimumVersion, max(12, width-2)) {
+					lines = append(lines, style.muted.Render("  "+minimum))
+				}
+			}
+			if check.OfficialSource != "" {
+				for _, source := range wrapText("Official source: "+check.OfficialSource, max(12, width-2)) {
+					lines = append(lines, style.muted.Render("  "+source))
+				}
+			}
+			if check.InstallGuidance != "" {
+				for _, guidance := range wrapText("Install guidance: "+check.InstallGuidance, max(12, width-2)) {
+					lines = append(lines, style.muted.Render("  "+guidance))
+				}
+			}
+			if check.LearnMore != "" && (check.State != doctor.Pass || check.OfficialSource != "") {
 				for _, link := range wrapText("Learn more: "+check.LearnMore, max(12, width-2)) {
 					lines = append(lines, style.muted.Render("  "+link))
 				}

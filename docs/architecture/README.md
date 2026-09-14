@@ -22,6 +22,9 @@ dependency-first ordering are documented in
 The strict declarative platform/tool entry, official guidance metadata, and
 non-installation boundary are documented in
 [Environment Pack Format v1](../specs/environment-pack-v1.md).
+The phase-aware projection, deferred-tool semantics, minimum-version checks,
+and trusted diagnostic registry boundary are documented in
+[Curriculum-aware Doctor v1](curriculum-aware-doctor-v1.md).
 Its bounded directory/ZIP adapter and CLI behavior are documented in
 [Secure Learning Pack loader v1](learning-pack-loader-v1.md).
 The read-only I-03 hand-off is documented in

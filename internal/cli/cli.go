@@ -1158,6 +1158,8 @@ func formatDiagnostics(report doctor.Report) string {
 				marker = "✗"
 			} else if check.State == doctor.Miss {
 				marker = "○"
+			} else if check.State == doctor.Deferred {
+				marker = "·"
 			}
 			label := check.DisplayName
 			if check.Requirement != doctor.Required {
@@ -1170,7 +1172,16 @@ func formatDiagnostics(report doctor.Report) string {
 			if check.WhyNeeded != "" {
 				lines = append(lines, "  Why: "+check.WhyNeeded)
 			}
-			if check.State != doctor.Pass && check.LearnMore != "" {
+			if check.MinimumVersion != "" {
+				lines = append(lines, "  Minimum version: "+check.MinimumVersion)
+			}
+			if check.OfficialSource != "" {
+				lines = append(lines, "  Official source: "+check.OfficialSource)
+			}
+			if check.InstallGuidance != "" {
+				lines = append(lines, "  Install guidance: "+check.InstallGuidance)
+			}
+			if check.LearnMore != "" && (check.State != doctor.Pass || check.OfficialSource != "") {
 				lines = append(lines, "  Learn more: "+check.LearnMore)
 			}
 		}

@@ -377,6 +377,19 @@ type ToolchainCoverageService interface {
 	Analyze(context.Context, ToolchainCoverageRequest) (curriculum.ToolchainCoverageReport, error)
 }
 
+type EnvironmentDoctorPlanRequest struct {
+	Environment      curriculum.EnvironmentPack
+	Concepts         []curriculum.Concept
+	Graph            curriculum.KnowledgeGraphCompilation
+	Hierarchy        curriculum.CurriculumHierarchy
+	CurrentConceptID curriculum.ConceptID
+	Platform         string
+}
+
+type EnvironmentDoctorPlanService interface {
+	Plan(context.Context, EnvironmentDoctorPlanRequest) (curriculum.EnvironmentDoctorPlan, error)
+}
+
 type SecurityCoverageRequest struct {
 	CurriculumID curriculum.CurriculumID
 	Goal         curriculum.LearningGoalSpec

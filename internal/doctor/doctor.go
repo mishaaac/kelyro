@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -24,9 +26,20 @@ const (
 type State string
 
 const (
-	Pass State = "pass"
-	Fail State = "fail"
-	Miss State = "missing"
+	Pass     State = "pass"
+	Fail     State = "fail"
+	Miss     State = "missing"
+	Deferred State = "deferred"
+)
+
+// ToolTiming controls whether Doctor should probe a curriculum tool now.
+// Deferred tools remain visible but never block the current curriculum phase.
+type ToolTiming string
+
+const (
+	ToolCurrent      ToolTiming = "current"
+	ToolFuture       ToolTiming = "future"
+	ToolNotNeededYet ToolTiming = "not_needed_yet"
 )
 
 const (
@@ -50,6 +63,10 @@ type Tool struct {
 	PlatformGuidance   map[string]string
 	LearnMore          string
 	VersionArgs        []string
+	MinimumVersion     string
+	Timing             ToolTiming
+	OfficialSource     string
+	InstallGuidance    string
 }
 
 // Guidance is the maintained, presentation-neutral educational explanation
@@ -221,9 +238,15 @@ func copyStringMap(source map[string]string) map[string]string {
 // ToolRequirement lets a future curriculum phase select and strengthen a tool
 // requirement, for example Docker required by one module.
 type ToolRequirement struct {
-	ToolID      string
-	Requirement Requirement
-	WhyNeeded   string
+	ToolID          string
+	DisplayName     string
+	Requirement     Requirement
+	MinimumVersion  string
+	Timing          ToolTiming
+	WhyNeeded       string
+	OfficialSource  string
+	InstallGuidance string
+	LearnMore       string
 }
 
 // Context narrows tool diagnostics to the requirements relevant to a phase.
@@ -276,14 +299,18 @@ type Environment interface {
 
 // Check is a safe, reusable diagnostic result for CLI and TUI presentation.
 type Check struct {
-	ID          string
-	Section     string
-	DisplayName string
-	Requirement Requirement
-	State       State
-	Detail      string
-	WhyNeeded   string
-	LearnMore   string
+	ID              string
+	Section         string
+	DisplayName     string
+	Requirement     Requirement
+	State           State
+	Detail          string
+	WhyNeeded       string
+	LearnMore       string
+	Timing          ToolTiming
+	MinimumVersion  string
+	OfficialSource  string
+	InstallGuidance string
 }
 
 // Report is the presentation-neutral output of Doctor.
@@ -295,7 +322,7 @@ type Report struct {
 // tools never make the overall diagnostic fail.
 func (report Report) Failed() bool {
 	for _, check := range report.Checks {
-		if check.Requirement == Required && check.State != Pass {
+		if check.Requirement == Required && check.State != Pass && check.State != Deferred {
 			return true
 		}
 	}
@@ -401,9 +428,7 @@ func (engine *Engine) Run(ctx context.Context, input Input, diagnosticContext Co
 	)
 	report.Checks = append(report.Checks, researchSearchChecks(input.ResearchSearch)...)
 
-	for _, tool := range contextualTools(engine.registry.Tools(), platformName, diagnosticContext) {
-		report.Checks = append(report.Checks, engine.checkTool(ctx, tool))
-	}
+	report.Checks = append(report.Checks, engine.contextualToolChecks(ctx, platformName, diagnosticContext)...)
 	return report
 }
 
@@ -458,7 +483,7 @@ func (engine *Engine) checkTool(ctx context.Context, tool Tool) Check {
 	if tool.Requirement != Optional {
 		section = SectionDevelopment
 	}
-	check := Check{ID: "tool." + tool.ID, Section: section, DisplayName: tool.DisplayName, Requirement: tool.Requirement, State: Miss, WhyNeeded: tool.WhyNeeded, LearnMore: tool.LearnMore}
+	check := Check{ID: "tool." + tool.ID, Section: section, DisplayName: tool.DisplayName, Requirement: tool.Requirement, State: Miss, WhyNeeded: tool.WhyNeeded, LearnMore: tool.LearnMore, Timing: normalizedToolTiming(tool.Timing), MinimumVersion: tool.MinimumVersion, OfficialSource: tool.OfficialSource, InstallGuidance: tool.InstallGuidance}
 	executable, found := engine.environment.Resolve(tool.CommandCandidates)
 	if !found {
 		check.Detail = "not found"
@@ -478,40 +503,116 @@ func (engine *Engine) checkTool(ctx context.Context, tool Tool) Check {
 		} else {
 			check.Detail += " (version unavailable)"
 		}
+		if tool.MinimumVersion != "" {
+			check.State = Fail
+			check.Detail += "; minimum version " + tool.MinimumVersion + " could not be verified"
+		}
 		return check
 	}
 	if version := parseVersion(output); version != "" {
 		check.Detail += " (" + version + ")"
+		if tool.MinimumVersion != "" && !versionAtLeast(version, tool.MinimumVersion) {
+			check.State = Fail
+			check.Detail += "; requires >= " + tool.MinimumVersion
+		}
+	} else if tool.MinimumVersion != "" {
+		check.State = Fail
+		check.Detail += "; minimum version " + tool.MinimumVersion + " could not be verified"
 	}
 	return check
 }
 
-func contextualTools(tools []Tool, platformName string, diagnosticContext Context) []Tool {
-	requirements := make(map[string]ToolRequirement, len(diagnosticContext.ToolRequirements))
-	for _, requirement := range diagnosticContext.ToolRequirements {
-		requirements[requirement.ToolID] = requirement
-	}
-	contextual := len(requirements) > 0
-	selected := make([]Tool, 0, len(tools))
-	for _, tool := range tools {
-		if !supports(tool, platformName) {
-			continue
-		}
-		requirement, relevant := requirements[tool.ID]
-		if contextual && !relevant {
-			continue
-		}
-		if relevant {
-			if validRequirement(requirement.Requirement) {
-				tool.Requirement = requirement.Requirement
-			}
-			if strings.TrimSpace(requirement.WhyNeeded) != "" {
-				tool.WhyNeeded = requirement.WhyNeeded
+func (engine *Engine) contextualToolChecks(ctx context.Context, platformName string, diagnosticContext Context) []Check {
+	registered := engine.registry.Tools()
+	if len(diagnosticContext.ToolRequirements) == 0 {
+		var checks []Check
+		for _, tool := range registered {
+			if supports(tool, platformName) {
+				checks = append(checks, engine.checkTool(ctx, tool))
 			}
 		}
-		selected = append(selected, tool)
+		return checks
 	}
-	return selected
+	byID := make(map[string]Tool, len(registered))
+	for _, tool := range registered {
+		byID[tool.ID] = tool
+	}
+	requirements := append([]ToolRequirement(nil), diagnosticContext.ToolRequirements...)
+	sort.Slice(requirements, func(i, j int) bool { return requirements[i].ToolID < requirements[j].ToolID })
+	checks := make([]Check, 0, len(requirements))
+	seen := make(map[string]struct{}, len(requirements))
+	for _, requirement := range requirements {
+		id := strings.ToLower(strings.TrimSpace(requirement.ToolID))
+		if id == "" {
+			continue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		tool, known := byID[id]
+		if !known || !supports(tool, platformName) {
+			checks = append(checks, unavailableContextToolCheck(id, requirement, known))
+			continue
+		}
+		if validRequirement(requirement.Requirement) {
+			tool.Requirement = requirement.Requirement
+		}
+		if strings.TrimSpace(requirement.DisplayName) != "" {
+			tool.DisplayName = strings.TrimSpace(requirement.DisplayName)
+		}
+		if strings.TrimSpace(requirement.WhyNeeded) != "" {
+			tool.WhyNeeded = strings.TrimSpace(requirement.WhyNeeded)
+		}
+		tool.MinimumVersion = requirement.MinimumVersion
+		tool.Timing = normalizedToolTiming(requirement.Timing)
+		tool.OfficialSource = requirement.OfficialSource
+		tool.InstallGuidance = requirement.InstallGuidance
+		if requirement.LearnMore != "" {
+			tool.LearnMore = requirement.LearnMore
+		}
+		if tool.Timing != ToolCurrent {
+			checks = append(checks, deferredToolCheck(tool))
+			continue
+		}
+		checks = append(checks, engine.checkTool(ctx, tool))
+	}
+	return checks
+}
+
+func unavailableContextToolCheck(id string, requirement ToolRequirement, registered bool) Check {
+	timing := normalizedToolTiming(requirement.Timing)
+	state := Fail
+	detail := "diagnostic unavailable for unregistered tool"
+	if registered {
+		detail = "registered tool is unsupported on this platform"
+	}
+	if timing != ToolCurrent {
+		state, detail = Deferred, string(timing)
+	}
+	name := requirement.DisplayName
+	if strings.TrimSpace(name) == "" {
+		name = id
+	}
+	return Check{ID: "tool." + id, Section: toolSection(requirement.Requirement), DisplayName: name, Requirement: requirement.Requirement, State: state, Detail: detail, WhyNeeded: requirement.WhyNeeded, LearnMore: requirement.LearnMore, Timing: timing, MinimumVersion: requirement.MinimumVersion, OfficialSource: requirement.OfficialSource, InstallGuidance: requirement.InstallGuidance}
+}
+
+func deferredToolCheck(tool Tool) Check {
+	return Check{ID: "tool." + tool.ID, Section: toolSection(tool.Requirement), DisplayName: tool.DisplayName, Requirement: tool.Requirement, State: Deferred, Detail: string(tool.Timing), WhyNeeded: tool.WhyNeeded, LearnMore: tool.LearnMore, Timing: tool.Timing, MinimumVersion: tool.MinimumVersion, OfficialSource: tool.OfficialSource, InstallGuidance: tool.InstallGuidance}
+}
+
+func toolSection(requirement Requirement) string {
+	if requirement == Optional {
+		return SectionOptional
+	}
+	return SectionDevelopment
+}
+
+func normalizedToolTiming(timing ToolTiming) ToolTiming {
+	if timing == ToolFuture || timing == ToolNotNeededYet {
+		return timing
+	}
+	return ToolCurrent
 }
 
 func supports(tool Tool, platformName string) bool {
@@ -563,4 +664,95 @@ func parseVersion(output string) string {
 		line = line[:newline]
 	}
 	return versionPattern.FindString(line)
+}
+
+func versionAtLeast(installed, minimum string) bool {
+	installedVersion, installedOK := parseComparableVersion(installed)
+	minimumVersion, minimumOK := parseComparableVersion(minimum)
+	if !installedOK || !minimumOK {
+		return false
+	}
+	for index := range installedVersion.core {
+		if compared := installedVersion.core[index].Cmp(minimumVersion.core[index]); compared != 0 {
+			return compared > 0
+		}
+	}
+	return comparePrerelease(installedVersion.prerelease, minimumVersion.prerelease) >= 0
+}
+
+type comparableVersion struct {
+	core       [3]*big.Int
+	prerelease []string
+}
+
+func parseComparableVersion(value string) (comparableVersion, bool) {
+	value = strings.TrimSpace(value)
+	if strings.HasPrefix(strings.ToLower(value), "go") {
+		value = value[2:]
+	}
+	if strings.HasPrefix(strings.ToLower(value), "v") {
+		value = value[1:]
+	}
+	if build := strings.IndexByte(value, '+'); build >= 0 {
+		value = value[:build]
+	}
+	var prerelease []string
+	if separator := strings.IndexByte(value, '-'); separator >= 0 {
+		prerelease = strings.Split(value[separator+1:], ".")
+		value = value[:separator]
+	}
+	parts := strings.Split(value, ".")
+	if len(parts) != 3 {
+		return comparableVersion{}, false
+	}
+	parsed := comparableVersion{prerelease: prerelease}
+	for index, part := range parts {
+		if part == "" {
+			return comparableVersion{}, false
+		}
+		component, ok := new(big.Int).SetString(part, 10)
+		if !ok {
+			return comparableVersion{}, false
+		}
+		parsed.core[index] = component
+	}
+	return parsed, true
+}
+
+func comparePrerelease(left, right []string) int {
+	if len(left) == 0 && len(right) == 0 {
+		return 0
+	}
+	if len(left) == 0 {
+		return 1
+	}
+	if len(right) == 0 {
+		return -1
+	}
+	for index := 0; index < len(left) && index < len(right); index++ {
+		if left[index] == right[index] {
+			continue
+		}
+		leftNumber, leftNumeric := new(big.Int).SetString(left[index], 10)
+		rightNumber, rightNumeric := new(big.Int).SetString(right[index], 10)
+		switch {
+		case leftNumeric && rightNumeric:
+			return leftNumber.Cmp(rightNumber)
+		case leftNumeric:
+			return -1
+		case rightNumeric:
+			return 1
+		case left[index] < right[index]:
+			return -1
+		default:
+			return 1
+		}
+	}
+	if len(left) < len(right) {
+		return -1
+	}
+	if len(left) > len(right) {
+		return 1
+	}
+	return 0
 }

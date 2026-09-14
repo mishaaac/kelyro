@@ -2133,7 +2133,7 @@ feat(environment): define Environment Pack format v1
 
 ## Paso 38 — Integrar Environment Packs con Doctor
 
-- [ ] Paso 38 completado
+- [x] Paso 38 completado
 
 ### Objetivo
 
@@ -3009,12 +3009,12 @@ No asumir número.
 - [x] Paso 30 — Hierarchy Builder
 - [x] Paso 31 — Compiler Pipeline
 - [x] Paso 32 — Curriculum Reviewer
-- [ ] Paso 33 — Beginner Simulation
-- [ ] Paso 34 — Expert Coverage
-- [ ] Paso 35 — Pack Versioning
-- [ ] Paso 36 — Pack Dependencies
-- [ ] Paso 37 — Environment Pack
-- [ ] Paso 38 — Doctor integration
+- [x] Paso 33 — Beginner Simulation
+- [x] Paso 34 — Expert Coverage
+- [x] Paso 35 — Pack Versioning
+- [x] Paso 36 — Pack Dependencies
+- [x] Paso 37 — Environment Pack
+- [x] Paso 38 — Doctor integration
 - [ ] Paso 39 — Pack Installation
 - [ ] Paso 40 — Pack Catalog
 - [ ] Paso 41 — Change Classification
