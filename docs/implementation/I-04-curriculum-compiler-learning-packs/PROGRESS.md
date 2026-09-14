@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 35
-Last completed step: 34
+Current step: 36
+Last completed step: 35
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1751,3 +1751,55 @@ Release: unreleased
 - El Paso 35 es el siguiente: Pack Versioning Policy v1 independiente de la
   versión de Kelyro, incluida la semántica 0.x/prerelease.
 - No implementar todavía change detector, migration planner ni pack upgrade.
+
+## Step 35 — Learning Pack Versioning Policy v1
+
+Status: completed
+Date: 2026-09-13
+Release: unreleased
+
+### Delivered
+
+- `pack-versioning-policy-v1` como servicio determinista que clasifica todos
+  los `CurriculumChange` antes de aceptar una nueva versión del pack.
+- Impactos cerrados PATCH, MINOR y MAJOR separados de la transición SemVer real
+  y agregados conservadoramente por el cambio de mayor impacto.
+- Mapping de source/metadata, expansión compatible, Concept identity breaks y
+  migration classes hacia una clasificación explicable por cambio.
+- Validación del incremento exacto siguiente, reset de componentes inferiores,
+  precedencia creciente y rechazo de versiones iguales, regresivas, saltadas,
+  sobre-versionadas o diferenciadas solo por build metadata.
+- Semántica explícita para breaking changes durante `0.x`: impacto MAJOR
+  conservado y transición al siguiente minor, con `1.0.0` permitido como nueva
+  línea estable cuando corresponda.
+- Iteraciones prerelease inmutables y crecientes sobre una core release line ya
+  clasificada, incluidas promotion a beta/RC/stable.
+- Tests de PATCH/MINOR/MAJOR, overrides por migration, `0.x`, prereleases,
+  decisiones inválidas, mayor impacto y determinismo por input reordenado.
+- Especificación publicada en `docs/specs/pack-versioning-v1.md`.
+
+### Decisions
+
+- Mantener pack version, Kelyro version, curriculum definition version, schema
+  version y Concept IDs como identidades independientes.
+- Rechazar over-versioning además de under-versioning para que el número de
+  versión comunique fielmente la clasificación completa del release.
+- Tratar `requires_student_review` como MAJOR porque la compatibilidad no puede
+  suponerse aunque la forma estructural aislada parezca menor.
+- No integrar todavía el policy con change detection, migration planning,
+  upgrade, catalog, filesystem o Git tags; pertenecen a pasos posteriores.
+
+### Verification
+
+- `go test ./internal/curriculum/... -count=1`.
+- `go vet ./internal/curriculum/...`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 36 es el siguiente: Curriculum Change Detector sobre dos versiones
+  inmutables y clasificación compatible con esta policy.
+- No implementar todavía migration planner, upgrade ni Student Core writes.

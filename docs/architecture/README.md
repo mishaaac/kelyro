@@ -13,6 +13,9 @@ automatic learner migration, or an AI runtime already exist.
 
 The portable container contract is documented in
 [Learning Pack format v1](../specs/learning-pack-v1.md).
+Independent immutable pack release classification, including `0.x` and
+prerelease semantics, is documented in
+[Learning Pack Versioning Policy v1](../specs/pack-versioning-v1.md).
 Its bounded directory/ZIP adapter and CLI behavior are documented in
 [Secure Learning Pack loader v1](learning-pack-loader-v1.md).
 The read-only I-03 hand-off is documented in
@@ -83,7 +86,7 @@ modules, lessons, and topics is documented in
 The end-to-end deterministic pass orchestration, trace hashes, failure records,
 and compiled diagnostics are documented in
 [Curriculum Compiler Pipeline v1](curriculum-compiler-v1.md).
-The deterministic eleven-dimension publication gate and its non-authoritative
+The deterministic thirteen-dimension publication gate and its non-authoritative
 optional advisor boundary are documented in
 [Curriculum Reviewer v1](curriculum-reviewer-v1.md).
 

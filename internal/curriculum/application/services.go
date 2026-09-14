@@ -292,6 +292,16 @@ type PackUpgradeService interface {
 	Upgrade(context.Context, PackUpgradeRequest) (PackUpgradeResult, error)
 }
 
+type PackVersioningRequest struct {
+	CurrentVersion   curriculum.PackVersion
+	CandidateVersion curriculum.PackVersion
+	Changes          []curriculum.CurriculumChange
+}
+
+type PackVersioningService interface {
+	Classify(context.Context, PackVersioningRequest) (curriculum.PackVersioningDecision, error)
+}
+
 type CoverageAnalysisRequest struct {
 	CurriculumID curriculum.CurriculumID
 	Goal         curriculum.LearningGoalSpec
