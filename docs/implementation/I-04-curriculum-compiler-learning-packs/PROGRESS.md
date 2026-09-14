@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 37
-Last completed step: 36
+Current step: 38
+Last completed step: 37
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -1850,3 +1850,53 @@ Release: unreleased
 - El Paso 37 es el siguiente: completar Environment Pack Format v1 y su parser
   estricto dentro de `learning-pack/v1`.
 - No integrar todavía Doctor ni auto-instalar herramientas.
+
+## Step 37 — Environment Pack Format v1
+
+Status: completed
+Date: 2026-09-13
+Release: unreleased
+
+### Delivered
+
+- Schema estricto `environment-pack/v1` con ID/version independientes,
+  platform support y tool requirements separados del curriculum conceptual.
+- Metadata de tool para display name, minimum version, nivel
+  required/recommended/optional, `introduced_at`, `when_needed`, plataformas,
+  evidence e install guidance refs.
+- Registros de instalación por plataforma con source name, instrucciones,
+  query-free HTTPS official URL y evidence refs.
+- Validación cross-document de Concepts, Source Bundles, plataformas y guidance
+  refs desde el loader seguro de `learning-pack/v1`.
+- Separación entre validación básica y portable estricta para que Toolchain
+  Coverage pueda reportar metadata incompleta sin aceptar packs publicables
+  incompletos.
+- Toolchain Coverage ampliado para display, minimum version, when-needed y
+  guidance, con copias defensivas de los nuevos campos.
+- Tests positivos y negativos de unknown auto-install fields, URL con
+  credentials/query, plataforma inválida, timing faltante y guidance incompleta.
+- Especificación en `docs/specs/environment-pack-v1.md`.
+
+### Decisions
+
+- Usar `linux`, `darwin` y `windows` como vocabulario portable cerrado; macOS
+  se representa con el identificador runtime de Go `darwin`.
+- No aceptar command candidates, version args, package-manager commands ni
+  secrets desde un pack; Doctor solo podrá usar su registry confiable.
+- Exigir evidence tanto para el tool requirement como para la metadata de su
+  fuente oficial de instalación.
+- Mantener URLs como metadata inerte que ninguna capa abre o ejecuta
+  automáticamente.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- `go vet ./internal/curriculum/... ./internal/infra/learningpack`.
+- `go test -race ./internal/curriculum/application/... -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 38 es el siguiente: proyectar Environment Pack y posición curricular
+  a un Doctor context-aware con reasons y official guidance.
+- No implementar instalación automática, pack activation ni Student writes.

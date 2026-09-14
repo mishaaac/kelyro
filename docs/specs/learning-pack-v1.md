@@ -94,8 +94,10 @@ marketplace, execute code, install the pack, or modify learner state.
 
 The curriculum entry is the complete learner-neutral I-04 definition. The
 evidence report contains exact immutable Source Bundle identities and Claim
-references. The optional environment entry contains declarative tool
-requirements only and never credentials or commands.
+references. The optional environment entry follows
+[`environment-pack/v1`](environment-pack-v1.md), contains declarative tool
+requirements only, and never grants permission to store credentials, execute
+commands, or install software.
 
 Each serialized goal outcome includes required `id`, `statement`, `category`
 and `evidence_refs`, plus optional `capability`. Categories and capabilities

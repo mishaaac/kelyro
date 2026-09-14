@@ -58,6 +58,11 @@ func (ToolchainCoverageV1) Analyze(ctx context.Context, request ToolchainCoverag
 				return curriculum.ToolchainCoverageReport{}, Invalid(operation, fmt.Errorf("environment tool %q: %w", tool.ID, err))
 			}
 		}
+		for _, guidance := range pack.InstallGuidance {
+			if err := requireKnownEvidence(guidance.EvidenceRefs, knownEvidence); err != nil {
+				return curriculum.ToolchainCoverageReport{}, Invalid(operation, fmt.Errorf("environment install guidance %q: %w", guidance.ID, err))
+			}
+		}
 		packs[key] = pack
 	}
 	requirements := make(map[curriculum.ID]curriculum.ToolchainCoverageRequirement, len(request.Requirements))
@@ -120,16 +125,30 @@ func (ToolchainCoverageV1) Analyze(ctx context.Context, request ToolchainCoverag
 		}
 		resolved := cloneToolRequirement(tool)
 		result.ResolvedTool = &resolved
+		if tool.DisplayName == "" {
+			result.MissingFields = append(result.MissingFields, "display_name")
+		}
+		if tool.MinimumVersion == "" {
+			result.MissingFields = append(result.MissingFields, "minimum_version")
+		}
 		if tool.IntroducedAt == nil {
 			result.MissingFields = append(result.MissingFields, "when_introduced")
 		} else if _, exists := concepts[*tool.IntroducedAt]; !exists {
 			result.MissingFields = append(result.MissingFields, "introduction_concept")
+		}
+		if tool.WhenNeeded == nil {
+			result.MissingFields = append(result.MissingFields, "when_needed")
+		} else if _, exists := concepts[*tool.WhenNeeded]; !exists {
+			result.MissingFields = append(result.MissingFields, "when_needed_concept")
 		}
 		if !toolLevelSatisfies(tool.Level, requirement.MinimumLevel) {
 			result.MissingFields = append(result.MissingFields, "requirement_level")
 		}
 		if len(tool.Platforms) == 0 {
 			result.MissingFields = append(result.MissingFields, "platform_notes")
+		}
+		if len(tool.InstallGuidanceRefs) == 0 {
+			result.MissingFields = append(result.MissingFields, "install_guidance")
 		}
 		if len(tool.EvidenceRefs) == 0 {
 			result.MissingFields = append(result.MissingFields, "evidence")
@@ -174,10 +193,18 @@ func findEnvironmentTool(tools []curriculum.ToolRequirement, id curriculum.ID) (
 func cloneToolRequirement(tool curriculum.ToolRequirement) curriculum.ToolRequirement {
 	tool.Platforms = append([]string(nil), tool.Platforms...)
 	sort.Strings(tool.Platforms)
+	tool.InstallGuidanceRefs = append([]curriculum.ID(nil), tool.InstallGuidanceRefs...)
+	sort.Slice(tool.InstallGuidanceRefs, func(i, j int) bool {
+		return tool.InstallGuidanceRefs[i].String() < tool.InstallGuidanceRefs[j].String()
+	})
 	tool.EvidenceRefs = sortedEvidenceCopy(tool.EvidenceRefs)
 	if tool.IntroducedAt != nil {
 		introduced := *tool.IntroducedAt
 		tool.IntroducedAt = &introduced
+	}
+	if tool.WhenNeeded != nil {
+		whenNeeded := *tool.WhenNeeded
+		tool.WhenNeeded = &whenNeeded
 	}
 	return tool
 }

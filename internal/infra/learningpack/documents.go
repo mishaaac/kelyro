@@ -166,18 +166,34 @@ type evidenceReportDocument struct {
 }
 
 type environmentDocument struct {
-	ID      string         `yaml:"id"`
-	Version string         `yaml:"version"`
-	Tools   []toolDocument `yaml:"tools"`
+	SchemaVersion   string                    `yaml:"schema_version"`
+	ID              string                    `yaml:"id"`
+	Version         string                    `yaml:"version"`
+	PlatformSupport []string                  `yaml:"platform_support"`
+	Tools           []toolDocument            `yaml:"tools"`
+	InstallGuidance []installGuidanceDocument `yaml:"install_guidance"`
 }
 
 type toolDocument struct {
+	ID                  string                `yaml:"id"`
+	DisplayName         string                `yaml:"display_name"`
+	Purpose             string                `yaml:"purpose"`
+	MinimumVersion      string                `yaml:"minimum_version"`
+	Level               string                `yaml:"level"`
+	IntroducedAt        string                `yaml:"introduced_at"`
+	WhenNeeded          string                `yaml:"when_needed"`
+	Platforms           []string              `yaml:"platforms"`
+	InstallGuidanceRefs []string              `yaml:"install_guidance_refs"`
+	EvidenceRefs        []evidenceRefDocument `yaml:"evidence_refs"`
+}
+
+type installGuidanceDocument struct {
 	ID           string                `yaml:"id"`
-	Purpose      string                `yaml:"purpose"`
-	Level        string                `yaml:"level"`
-	IntroducedAt string                `yaml:"introduced_at,omitempty"`
-	Platforms    []string              `yaml:"platforms,omitempty"`
-	EvidenceRefs []evidenceRefDocument `yaml:"evidence_refs,omitempty"`
+	Platform     string                `yaml:"platform"`
+	SourceName   string                `yaml:"source_name"`
+	OfficialURL  string                `yaml:"official_url"`
+	Instructions string                `yaml:"instructions"`
+	EvidenceRefs []evidenceRefDocument `yaml:"evidence_refs"`
 }
 
 func decodeStrictYAML[T any](name string, encoded []byte) (T, error) {
@@ -581,7 +597,21 @@ func decodeEnvironment(encoded []byte) (curriculum.EnvironmentPack, error) {
 	if err != nil {
 		return curriculum.EnvironmentPack{}, err
 	}
-	result := curriculum.EnvironmentPack{ID: id, Version: version}
+	result := curriculum.EnvironmentPack{ID: id, Version: version, SchemaVersion: source.SchemaVersion, SupportedPlatforms: append([]string(nil), source.PlatformSupport...)}
+	for _, raw := range source.InstallGuidance {
+		guidanceID, err := curriculum.NewID(raw.ID)
+		if err != nil {
+			return curriculum.EnvironmentPack{}, err
+		}
+		refs, err := decodeEvidenceRefs(raw.EvidenceRefs)
+		if err != nil {
+			return curriculum.EnvironmentPack{}, err
+		}
+		result.InstallGuidance = append(result.InstallGuidance, curriculum.ToolInstallGuidance{
+			ID: guidanceID, Platform: raw.Platform, SourceName: raw.SourceName,
+			OfficialURL: raw.OfficialURL, Instructions: raw.Instructions, EvidenceRefs: refs,
+		})
+	}
 	for _, raw := range source.Tools {
 		toolID, err := curriculum.NewID(raw.ID)
 		if err != nil {
@@ -591,7 +621,19 @@ func decodeEnvironment(encoded []byte) (curriculum.EnvironmentPack, error) {
 		if err != nil {
 			return curriculum.EnvironmentPack{}, err
 		}
-		tool := curriculum.ToolRequirement{ID: toolID, Purpose: raw.Purpose, Level: curriculum.ToolRequirementLevel(raw.Level), Platforms: append([]string(nil), raw.Platforms...), EvidenceRefs: refs}
+		guidanceRefs := make([]curriculum.ID, 0, len(raw.InstallGuidanceRefs))
+		for _, value := range raw.InstallGuidanceRefs {
+			guidanceID, err := curriculum.NewID(value)
+			if err != nil {
+				return curriculum.EnvironmentPack{}, err
+			}
+			guidanceRefs = append(guidanceRefs, guidanceID)
+		}
+		tool := curriculum.ToolRequirement{
+			ID: toolID, DisplayName: raw.DisplayName, Purpose: raw.Purpose,
+			MinimumVersion: raw.MinimumVersion, Level: curriculum.ToolRequirementLevel(raw.Level),
+			Platforms: append([]string(nil), raw.Platforms...), InstallGuidanceRefs: guidanceRefs, EvidenceRefs: refs,
+		}
 		if raw.IntroducedAt != "" {
 			conceptID, err := curriculum.NewConceptID(raw.IntroducedAt)
 			if err != nil {
@@ -599,9 +641,16 @@ func decodeEnvironment(encoded []byte) (curriculum.EnvironmentPack, error) {
 			}
 			tool.IntroducedAt = &conceptID
 		}
+		if raw.WhenNeeded != "" {
+			conceptID, err := curriculum.NewConceptID(raw.WhenNeeded)
+			if err != nil {
+				return curriculum.EnvironmentPack{}, err
+			}
+			tool.WhenNeeded = &conceptID
+		}
 		result.Tools = append(result.Tools, tool)
 	}
-	if err := result.Validate(); err != nil {
+	if err := result.ValidatePortableV1(); err != nil {
 		return curriculum.EnvironmentPack{}, fmt.Errorf("environment: %w", err)
 	}
 	return result, nil

@@ -80,6 +80,7 @@ func cloneManifests(values []curriculum.PackManifest) []curriculum.PackManifest 
 
 func cloneEnvironment(value curriculum.EnvironmentPack) curriculum.EnvironmentPack {
 	cloned := value
+	cloned.SupportedPlatforms = append([]string(nil), value.SupportedPlatforms...)
 	cloned.Tools = make([]curriculum.ToolRequirement, len(value.Tools))
 	for index, tool := range value.Tools {
 		cloned.Tools[index] = tool
@@ -87,8 +88,18 @@ func cloneEnvironment(value curriculum.EnvironmentPack) curriculum.EnvironmentPa
 			introducedAt := *tool.IntroducedAt
 			cloned.Tools[index].IntroducedAt = &introducedAt
 		}
+		if tool.WhenNeeded != nil {
+			whenNeeded := *tool.WhenNeeded
+			cloned.Tools[index].WhenNeeded = &whenNeeded
+		}
 		cloned.Tools[index].Platforms = append([]string(nil), tool.Platforms...)
+		cloned.Tools[index].InstallGuidanceRefs = append([]curriculum.ID(nil), tool.InstallGuidanceRefs...)
 		cloned.Tools[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), tool.EvidenceRefs...)
+	}
+	cloned.InstallGuidance = make([]curriculum.ToolInstallGuidance, len(value.InstallGuidance))
+	for index, guidance := range value.InstallGuidance {
+		cloned.InstallGuidance[index] = guidance
+		cloned.InstallGuidance[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), guidance.EvidenceRefs...)
 	}
 	return cloned
 }

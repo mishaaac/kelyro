@@ -67,6 +67,13 @@ func TestStoreRepositoriesRoundTripDefensiveCopiesAndConflicts(t *testing.T) {
 	if err != nil || loadedEnvironment.ID != environment.ID {
 		t.Fatalf("environment get = %q, %v", loadedEnvironment.ID, err)
 	}
+	loadedEnvironment.SupportedPlatforms[0] = curriculum.EnvironmentPlatformWindows
+	loadedEnvironment.Tools[0].InstallGuidanceRefs[0] = id(t, "install.mutated")
+	loadedEnvironment.InstallGuidance[0].Instructions = "mutated"
+	againEnvironment, err := environments.Get(ctx, environment.ID, environment.Version)
+	if err != nil || againEnvironment.SupportedPlatforms[0] != curriculum.EnvironmentPlatformLinux || againEnvironment.Tools[0].InstallGuidanceRefs[0] != id(t, "install.one") || againEnvironment.InstallGuidance[0].Instructions != "Fixture guidance." {
+		t.Fatalf("stored environment was mutated: %+v / %v", againEnvironment, err)
+	}
 
 	record := fixtureCompilation(t, definition)
 	if err := compilations.Append(ctx, record); err != nil {
@@ -159,7 +166,17 @@ func fixtureEnvironment(t *testing.T) curriculum.EnvironmentPack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return curriculum.EnvironmentPack{ID: id(t, "environment.one"), Version: version, Tools: []curriculum.ToolRequirement{{ID: id(t, "tool.one"), Purpose: "Fixture tool", Level: curriculum.ToolRecommended}}}
+	concept := conceptID(t, "concept.environment")
+	guidanceID := id(t, "install.one")
+	return curriculum.EnvironmentPack{
+		ID: id(t, "environment.one"), Version: version, SchemaVersion: curriculum.EnvironmentPackSchemaVersionV1,
+		SupportedPlatforms: []string{curriculum.EnvironmentPlatformLinux},
+		Tools: []curriculum.ToolRequirement{{
+			ID: id(t, "tool.one"), DisplayName: "Tool", Purpose: "Fixture tool", MinimumVersion: "1.0.0", Level: curriculum.ToolRecommended,
+			IntroducedAt: &concept, WhenNeeded: &concept, Platforms: []string{curriculum.EnvironmentPlatformLinux}, InstallGuidanceRefs: []curriculum.ID{guidanceID},
+		}},
+		InstallGuidance: []curriculum.ToolInstallGuidance{{ID: guidanceID, Platform: curriculum.EnvironmentPlatformLinux, SourceName: "Fixture", OfficialURL: "https://example.com/tool", Instructions: "Fixture guidance."}},
+	}
 }
 
 func fixtureCompilation(t *testing.T, definition curriculum.CurriculumDefinition) application.CompilationRecord {

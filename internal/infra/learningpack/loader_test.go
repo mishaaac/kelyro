@@ -98,17 +98,42 @@ const validEvidenceReport = `{
 }
 `
 
-const validEnvironment = `id: environment.go
+const validEnvironment = `schema_version: environment-pack/v1
+id: environment.go
 version: 1.0.0
-tools:
-  - id: tool.go
-    purpose: Compile Go programs.
-    level: required
-    introduced_at: concept.go-package
-    platforms: [linux, macos, windows]
-    evidence_refs:
+platform_support: [linux, darwin, windows]
+install_guidance:
+  - id: install.go.linux
+    platform: linux
+    source_name: Go project
+    official_url: https://go.dev/doc/install
+    instructions: Follow the official archive or package guidance.
+    evidence_refs: &environment_evidence
       - bundle_id: bundle.go-packages
         claim_id: claim.go-packages
+  - id: install.go.darwin
+    platform: darwin
+    source_name: Go project
+    official_url: https://go.dev/doc/install
+    instructions: Follow the official macOS installer guidance.
+    evidence_refs: *environment_evidence
+  - id: install.go.windows
+    platform: windows
+    source_name: Go project
+    official_url: https://go.dev/doc/install
+    instructions: Follow the official Windows installer guidance.
+    evidence_refs: *environment_evidence
+tools:
+  - id: go
+    display_name: Go
+    purpose: Compile Go programs.
+    minimum_version: 1.24.0
+    level: required
+    introduced_at: concept.go-package
+    when_needed: concept.go-package
+    platforms: [linux, darwin, windows]
+    install_guidance_refs: [install.go.linux, install.go.darwin, install.go.windows]
+    evidence_refs: *environment_evidence
 `
 
 func TestValidatorLoadsDirectoryAndZIP(t *testing.T) {
@@ -163,6 +188,44 @@ func TestValidatorRejectsChecksumUTF8AndEvidenceFailures(t *testing.T) {
 			t.Parallel()
 			entries := validPackEntries()
 			test.mutate(entries)
+			result, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: writeDirectory(t, entries)})
+			if err != nil || len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Message, test.want) {
+				t.Fatalf("Validate() result=%+v error=%v, want %q", result, err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidatorRejectsUnsafeOrIncompleteEnvironmentPackV1(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		mutate func(string) string
+		want   string
+	}{
+		{"unknown auto-install command", func(value string) string {
+			return strings.Replace(value, "    purpose: Compile Go programs.\n", "    purpose: Compile Go programs.\n    install_command: curl example | sh\n", 1)
+		}, "field install_command not found"},
+		{"URL credentials or query", func(value string) string {
+			return strings.Replace(value, "https://go.dev/doc/install", "https://user:token@go.dev/doc/install?token=secret", 1)
+		}, "query-free HTTPS URL"},
+		{"unsupported platform", func(value string) string {
+			return strings.Replace(value, "platform_support: [linux, darwin, windows]", "platform_support: [linux, macos, windows]", 1)
+		}, "invalid platform"},
+		{"missing when-needed concept", func(value string) string {
+			return strings.Replace(value, "    when_needed: concept.go-package\n", "", 1)
+		}, "introduced_at and when_needed"},
+		{"missing platform guidance", func(value string) string {
+			return strings.Replace(value, "[install.go.linux, install.go.darwin, install.go.windows]", "[install.go.linux, install.go.darwin]", 1)
+		}, "no official install guidance for platform \"windows\""},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			entries := validPackEntries()
+			entries["environment/environment.yaml"] = []byte(test.mutate(validEnvironment))
+			updateChecksums(entries)
 			result, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: writeDirectory(t, entries)})
 			if err != nil || len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Message, test.want) {
 				t.Fatalf("Validate() result=%+v error=%v, want %q", result, err, test.want)

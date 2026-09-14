@@ -119,7 +119,7 @@ func (pack LearningPack) Validate() error {
 		return fmt.Errorf("pack manifest curriculum does not match definition")
 	}
 	if pack.Environment != nil {
-		if err := pack.Environment.Validate(); err != nil {
+		if err := pack.Environment.ValidatePortableV1(); err != nil {
 			return err
 		}
 		concepts := make(map[ConceptID]struct{}, len(pack.Curriculum.Concepts))
@@ -136,9 +136,19 @@ func (pack LearningPack) Validate() error {
 					return fmt.Errorf("tool %q references missing introduction concept %q", tool.ID, tool.IntroducedAt)
 				}
 			}
+			if _, exists := concepts[*tool.WhenNeeded]; !exists {
+				return fmt.Errorf("tool %q references missing when-needed concept %q", tool.ID, tool.WhenNeeded)
+			}
 			for _, evidence := range tool.EvidenceRefs {
 				if _, exists := bundles[evidence.BundleID]; !exists {
 					return fmt.Errorf("tool %q evidence references undeclared source bundle %q", tool.ID, evidence.BundleID)
+				}
+			}
+		}
+		for _, guidance := range pack.Environment.InstallGuidance {
+			for _, evidence := range guidance.EvidenceRefs {
+				if _, exists := bundles[evidence.BundleID]; !exists {
+					return fmt.Errorf("install guidance %q evidence references undeclared source bundle %q", guidance.ID, evidence.BundleID)
 				}
 			}
 		}

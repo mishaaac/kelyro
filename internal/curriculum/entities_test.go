@@ -19,11 +19,19 @@ func TestPackEnvironmentCompilationAndChangeShapesValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	environment := EnvironmentPack{
-		ID: mustID(t, "environment.backend"), Version: packVersion,
+		ID: mustID(t, "environment.backend"), Version: packVersion, SchemaVersion: EnvironmentPackSchemaVersionV1,
+		SupportedPlatforms: []string{EnvironmentPlatformLinux, EnvironmentPlatformDarwin, EnvironmentPlatformWindows},
+		InstallGuidance: []ToolInstallGuidance{
+			{ID: mustID(t, "install.compiler.linux"), Platform: EnvironmentPlatformLinux, SourceName: "Compiler", OfficialURL: "https://example.com/compiler/linux", Instructions: "Follow the official Linux instructions.", EvidenceRefs: definition.Concepts[0].EvidenceRefs},
+			{ID: mustID(t, "install.compiler.darwin"), Platform: EnvironmentPlatformDarwin, SourceName: "Compiler", OfficialURL: "https://example.com/compiler/darwin", Instructions: "Follow the official macOS instructions.", EvidenceRefs: definition.Concepts[0].EvidenceRefs},
+			{ID: mustID(t, "install.compiler.windows"), Platform: EnvironmentPlatformWindows, SourceName: "Compiler", OfficialURL: "https://example.com/compiler/windows", Instructions: "Follow the official Windows instructions.", EvidenceRefs: definition.Concepts[0].EvidenceRefs},
+		},
 		Tools: []ToolRequirement{{
-			ID: mustID(t, "tool.compiler"), Purpose: "Compile examples", Level: ToolRequired,
-			IntroducedAt: &definition.Concepts[0].ID, Platforms: []string{"linux", "macos", "windows"},
-			EvidenceRefs: definition.Concepts[0].EvidenceRefs,
+			ID: mustID(t, "tool.compiler"), DisplayName: "Compiler", Purpose: "Compile examples", MinimumVersion: "1.0.0", Level: ToolRequired,
+			IntroducedAt: &definition.Concepts[0].ID, WhenNeeded: &definition.Concepts[0].ID,
+			Platforms:           []string{EnvironmentPlatformLinux, EnvironmentPlatformDarwin, EnvironmentPlatformWindows},
+			InstallGuidanceRefs: []ID{mustID(t, "install.compiler.linux"), mustID(t, "install.compiler.darwin"), mustID(t, "install.compiler.windows")},
+			EvidenceRefs:        definition.Concepts[0].EvidenceRefs,
 		}},
 	}
 	pack := LearningPack{

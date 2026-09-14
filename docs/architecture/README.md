@@ -19,6 +19,9 @@ prerelease semantics, is documented in
 Deterministic transitive constraint solving, graph failures, and
 dependency-first ordering are documented in
 [Learning Pack Dependency Resolver v1](learning-pack-dependency-resolver-v1.md).
+The strict declarative platform/tool entry, official guidance metadata, and
+non-installation boundary are documented in
+[Environment Pack Format v1](../specs/environment-pack-v1.md).
 Its bounded directory/ZIP adapter and CLI behavior are documented in
 [Secure Learning Pack loader v1](learning-pack-loader-v1.md).
 The read-only I-03 hand-off is documented in

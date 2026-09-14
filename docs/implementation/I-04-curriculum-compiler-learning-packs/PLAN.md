@@ -2091,7 +2091,7 @@ feat(pack): resolve Learning Pack dependencies
 
 ## Paso 37 — Implementar Environment Pack Format v1
 
-- [ ] Paso 37 completado
+- [x] Paso 37 completado
 
 ### Objetivo
 

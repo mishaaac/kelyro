@@ -410,6 +410,9 @@ func collectEvidenceRefs(definition curriculum.CurriculumDefinition, environment
 		for _, value := range environment.Tools {
 			add(value.EvidenceRefs)
 		}
+		for _, value := range environment.InstallGuidance {
+			add(value.EvidenceRefs)
+		}
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].BundleID != result[j].BundleID {
