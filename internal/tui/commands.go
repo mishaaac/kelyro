@@ -7,12 +7,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/session"
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 // Service is the application boundary consumed by the terminal adapter.
@@ -22,6 +24,34 @@ type Service interface {
 	ResumeSession(ctx context.Context, command app.Command) (session.Resume, error)
 	CheckpointSession(ctx context.Context, command app.Command, state session.State) error
 	CompleteSession(ctx context.Context, command app.Command, state session.State) error
+}
+
+func loadCurriculumCmd(ctx context.Context, service curriculumapp.CurriculumWorkspaceViewService, workspaces workspace.Service, currentDirectory func() (string, error), base app.Command) tea.Cmd {
+	return func() tea.Msg {
+		if service == nil || workspaces == nil {
+			return curriculumLoadFailedMsg{err: fmt.Errorf("curriculum view is unavailable")}
+		}
+		start := base.Workspace
+		if start == "" {
+			if currentDirectory == nil {
+				return curriculumLoadFailedMsg{err: fmt.Errorf("current directory is unavailable")}
+			}
+			var err error
+			start, err = currentDirectory()
+			if err != nil {
+				return curriculumLoadFailedMsg{err: err}
+			}
+		}
+		found, err := workspaces.Discover(start)
+		if err != nil {
+			return curriculumLoadFailedMsg{err: err}
+		}
+		view, err := service.View(ctx, found.Root)
+		if err != nil {
+			return curriculumLoadFailedMsg{err: err}
+		}
+		return curriculumLoadedMsg{view: view}
+	}
 }
 
 func initializeFoundationCmd(ctx context.Context, service Service, command app.Command) tea.Cmd {

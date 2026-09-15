@@ -2549,7 +2549,7 @@ feat(cli): expose Curriculum Compiler and pack management
 
 ## Paso 48 — Integrar Curriculum/Pack views en TUI
 
-- [ ] Paso 48 completado
+- [x] Paso 48 completado
 
 ### Objetivo
 

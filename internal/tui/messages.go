@@ -3,6 +3,7 @@ package tui
 import (
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/research"
@@ -28,6 +29,12 @@ type foundationLoadFailedMsg struct{ err error }
 type dashboardLoadedMsg struct{ dashboard learningapp.ProgressDashboard }
 
 type dashboardLoadFailedMsg struct{ err error }
+
+type curriculumLoadedMsg struct {
+	view curriculumapp.CurriculumWorkspaceView
+}
+
+type curriculumLoadFailedMsg struct{ err error }
 
 type configSavedMsg struct {
 	key     string

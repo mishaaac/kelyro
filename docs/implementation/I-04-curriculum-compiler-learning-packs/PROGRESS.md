@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 48
-Last completed step: 47
+Current step: 49
+Last completed step: 48
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2412,3 +2412,51 @@ Release: unreleased
 - El Paso 48 integrará Pack, Curriculum Overview, Coverage, Gaps, Audit,
   Evidence y estado de upgrade en TUI mediante lecturas explícitas.
 - La vista Roadmap seguirá tomando progreso conceptual exclusivamente de I-02.
+
+## Step 48 — Compiled Curriculum and Pack TUI Views
+
+Status: completed
+Date: 2026-09-15
+Release: unreleased
+
+### Delivered
+
+- Vista TUI `Curriculum & Learning Pack`, accesible con `u`, para Pack,
+  Curriculum Overview, Coverage, Gaps, Audit, Sources/Evidence y
+  Update/Migration Preview.
+- `CurriculumWorkspaceViewV1` compone el pack activo, su inspección y un preview
+  de upgrade exclusivamente `dry-run`, degradando de forma explícita cuando no
+  hay update o el preview no está disponible.
+- Carga y refresh asíncronos fuera del render; `View()` sólo proyecta estado ya
+  leído y mantiene viewport/scroll para curriculums extensos.
+- El home anuncia la nueva vista y sus golden files cubren terminales small,
+  normal y large.
+- Roadmap continúa proyectando Phase, Module, Lesson, Topic y concept mastery
+  desde el dashboard I-02, sin duplicar ni recalcular estado estudiantil.
+
+### Decisions
+
+- No ejecutar el compiler desde la TUI ni desde cada render. El pack activo es
+  un artefacto compilado inmutable y la inspección es read-only.
+- Detectar updates sólo entre versiones instaladas localmente; el catálogo no
+  descarga, instala ni activa contenido.
+- Un fallo del preview no oculta pack/curriculum/evidence ya disponibles; se
+  muestra como estado `unavailable` con razón.
+- Mantener una única vista scrolleable para el conjunto relacionado en vez de
+  introducir navegación profunda prematura antes del reference pack.
+
+### Verification
+
+- `go test ./internal/curriculum/application ./internal/tui ./cmd/kelyro -count=1`.
+- `go vet ./internal/curriculum/application ./internal/tui ./cmd/kelyro`.
+- Tests de composición, ausencia de update, navegación, workspace resolution,
+  carga asíncrona, overview, coverage, gaps, evidence y migration preview.
+- Golden tests TUI para anchos 32, 80 y 120.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 49 creará `backend-go-reference` como pack de desarrollo verificable,
+  con scope limitado por la evidencia fixture disponible y sin claim de
+  completitud productiva.
+- No imponer un número de conceptos ni introducir contenido I-05.

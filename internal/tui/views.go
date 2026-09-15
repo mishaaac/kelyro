@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/curriculum"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 )
@@ -63,6 +65,8 @@ func (model Model) viewLines(width int) []string {
 			lines = model.conflictsView(width)
 		case screenFreshness:
 			lines = model.freshnessView(width)
+		case screenCurriculum:
+			lines = model.curriculumPackView(width)
 		default:
 			lines = model.homeView(width)
 		}
@@ -112,8 +116,91 @@ func (model Model) homeView(width int) []string {
 		}
 	}
 	lines = append(lines, "")
-	lines = append(lines, shortcutLines(width, "[Enter] Today", "[r] Roadmap", "[p] Progress", "[c] Concept", "[v] Reviews", "[h] History", "[g] Goal", "[o] Profile", "[R] Research", "[f] Refresh", "[s] Setup", "[d] Doctor", "[C] Config", "[k] Streak", "[q] Quit")...)
+	lines = append(lines, shortcutLines(width, "[Enter] Today", "[r] Roadmap", "[u] Curriculum", "[p] Progress", "[c] Concept", "[v] Reviews", "[h] History", "[g] Goal", "[o] Profile", "[R] Research", "[f] Refresh", "[s] Setup", "[d] Doctor", "[C] Config", "[k] Streak", "[q] Quit")...)
 	return lines
+}
+
+func (model Model) curriculumPackView(width int) []string {
+	lines := []string{model.styles.title.Render("Curriculum & Learning Pack"), ""}
+	if model.curriculumLoading && model.curriculumView.Inspection.AlgorithmVersion == "" {
+		return append(lines, "Loading compiled curriculum...", "", "[Esc/h] Home   [q] Quit")
+	}
+	if model.curriculumErr != nil {
+		lines = append(lines, model.styles.failure.Render("Could not load compiled curriculum"))
+		lines = append(lines, wrapText(model.curriculumErr.Error(), width)...)
+		return append(lines, "", "[r] Retry   [Esc/h] Home   [q] Quit")
+	}
+	view := model.curriculumView
+	pack := view.Inspection.Pack
+	definition := pack.Curriculum
+	lines = append(lines,
+		model.styles.heading.Render("Pack"),
+		truncate(fmt.Sprintf("%s @ %s [%s]", pack.Manifest.Name, pack.Manifest.Version.String(), pack.Manifest.Status), width),
+		truncate(pack.Manifest.Description, width), "",
+		model.styles.heading.Render("Curriculum Overview"),
+		truncate(fmt.Sprintf("%s @ %s", definition.Title, definition.Version.String()), width),
+		truncate(fmt.Sprintf("%d phases · %d modules · %d lessons · %d topics · %d concepts", len(definition.Phases), len(definition.Modules), len(definition.Lessons), len(definition.Topics), len(definition.Concepts)), width), "",
+		model.styles.heading.Render("Coverage"),
+	)
+	for _, summary := range view.Inspection.Coverage {
+		lines = append(lines, truncate(fmt.Sprintf("- %s: %d requirements · %d gaps", summary.Dimension, summary.RequirementCount, summary.GapCount), width))
+	}
+	lines = append(lines, "", model.styles.heading.Render("Gaps"))
+	if len(view.Inspection.Gaps) == 0 {
+		lines = append(lines, "No retained compiler gaps.")
+	} else {
+		for _, gap := range view.Inspection.Gaps {
+			lines = append(lines, wrapText(fmt.Sprintf("- [%s/%s] %s", gap.Severity, gap.Kind, gap.Reason), width)...)
+		}
+	}
+	lines = append(lines, "", model.styles.heading.Render("Audit"))
+	for _, audit := range view.Inspection.Audits {
+		status := "passed"
+		if !audit.Passed {
+			status = "failed"
+		}
+		lines = append(lines, truncate(fmt.Sprintf("- %s: %s", audit.Name, status), width))
+	}
+	lines = append(lines, "", model.styles.heading.Render("Sources / Evidence"))
+	if len(view.Inspection.EvidenceLinks) == 0 {
+		lines = append(lines, "No retained source links.")
+	} else {
+		for _, citation := range view.Inspection.EvidenceLinks {
+			lines = append(lines, truncate("- "+citation.Title, width))
+			lines = append(lines, wrapText("  "+citation.URL, width)...)
+		}
+	}
+	lines = append(lines, "", model.styles.heading.Render("Update / Migration Preview"))
+	switch view.UpdateStatus {
+	case curriculumapp.CurriculumUpdateAvailable:
+		preview := view.MigrationPreview
+		lines = append(lines, model.styles.success.Render(fmt.Sprintf("Update available: %s → %s", preview.Current.Manifest.Version.String(), preview.Candidate.Manifest.Version.String())))
+		lines = append(lines, formatTUIUpgradePreview(preview)...)
+	case curriculumapp.CurriculumUpdateUnavailable:
+		lines = append(lines, model.styles.muted.Render("Preview unavailable: "+view.UpdateReason))
+	default:
+		lines = append(lines, model.styles.muted.Render("No update available."))
+	}
+	if model.curriculumLoading {
+		lines = append(lines, "", model.styles.muted.Render("Refreshing..."))
+	}
+	lines = append(lines, "")
+	lines = append(lines, shortcutLines(width, "[r] Refresh", "[Esc/h] Home", "[q] Quit")...)
+	return lines
+}
+
+func formatTUIUpgradePreview(preview *curriculumapp.PackUpgradeResult) []string {
+	if preview == nil {
+		return nil
+	}
+	counts := make(map[curriculum.CurriculumMigrationActionKind]int)
+	for _, action := range preview.MigrationPlan.Actions {
+		counts[action.Kind]++
+	}
+	return []string{
+		fmt.Sprintf("Preserve: %d · New unknown: %d · Historical: %d", counts[curriculum.MigrationPreserveState], counts[curriculum.MigrationInitializeUnknown], counts[curriculum.MigrationPreserveHistorical]),
+		fmt.Sprintf("Unlock recalculation: %t", preview.MigrationPlan.RecalculateUnlockEligibility),
+	}
 }
 
 func (model Model) onboardingView(width int) []string {

@@ -112,6 +112,8 @@ func main() {
 	packManager := curriculumapp.NewPackInstallerV1(packValidator, curriculumapp.NewPackDependencyResolverV1(), packfs.NewRepository(packValidator), curriculumapp.SystemClock{})
 	packCatalog := curriculumapp.NewPackCatalogV1(nil, packcatalogfs.NewCache(), version.Version)
 	packUpgradePreview := curriculumapp.NewPackUpgradePlannerV1(packManager, curriculumapp.NewCurriculumChangeClassifierV1(), curriculumapp.NewCurriculumMigrationPlannerV1(), curriculumapp.NewPackVersioningPolicyV1())
+	curriculumInspector := curriculumapp.NewCurriculumInspectorV1()
+	curriculumView := curriculumapp.NewCurriculumWorkspaceViewV1(packManager, curriculumInspector, packUpgradePreview)
 	packBackupRetention := func(_ context.Context, root string) (int, error) {
 		global, err := configs.LoadGlobal()
 		if err != nil {
@@ -136,11 +138,11 @@ func main() {
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).
-		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New())).
+		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New()).WithCurriculum(curriculumView, workspaces, os.Getwd)).
 		WithPackValidator(packValidator).
 		WithPackManager(packManager, workspaces, os.Getwd).
 		WithPackCatalog(packCatalog).
 		WithPackUpgrade(packUpgrade).
-		WithCurriculumInspector(curriculumapp.NewCurriculumInspectorV1())
+		WithCurriculumInspector(curriculumInspector)
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

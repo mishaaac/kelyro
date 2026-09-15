@@ -7,12 +7,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/platform"
 	"github.com/mishaaac/kelyro/internal/research"
 	researchapp "github.com/mishaaac/kelyro/internal/research/application"
 	"github.com/mishaaac/kelyro/internal/session"
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 type screen uint8
@@ -37,76 +39,83 @@ const (
 	screenClaimDetail
 	screenConflicts
 	screenFreshness
+	screenCurriculum
 )
 
 // Model contains terminal-only state. It never discovers a workspace or reads
 // configuration directly; asynchronous commands call the application service.
 type Model struct {
-	ctx               context.Context
-	service           Service
-	platform          platform.Platform
-	command           app.Command
-	snapshot          app.FoundationSnapshot
-	screen            screen
-	width             int
-	height            int
-	scrollOffset      int
-	loading           bool
-	saving            bool
-	opening           bool
-	dashboard         learningapp.ProgressDashboard
-	dashboardLoading  bool
-	dashboardErr      error
-	profile           learning.Student
-	profileLoading    bool
-	profileErr        error
-	streak            learning.Streak
-	streakLoading     bool
-	streakErr         error
-	reviews           learningapp.ReviewQueueView
-	reviewsLoading    bool
-	reviewsErr        error
-	history           learningapp.StudyHistoryView
-	historyLoading    bool
-	historyErr        error
-	milestones        []learning.Achievement
-	onboarding        learningapp.OnboardingView
-	setup             learningapp.LearnerSetupView
-	onboardingLoading bool
-	onboardingErr     error
-	onboardingInput   string
-	onboardingCursor  int
-	diagnosticAnswers map[int]bool
-	loadErr           error
-	notice            string
-	configCursor      int
-	session           session.State
-	sessionReady      bool
-	checkpointing     bool
-	checkpointPending bool
-	quitting          bool
-	forceNoColor      bool
-	researchStats     researchapp.ResearchCostStats
-	researchLoading   bool
-	researchErr       error
-	sources           []app.SourceCLIView
-	sourcesLoading    bool
-	sourcesErr        error
-	sourceCursor      int
-	sourceDetail      *app.SourceCLIView
-	sourceDetailErr   error
-	conflicts         []research.Conflict
-	conflictsLoading  bool
-	conflictsErr      error
-	conflictCursor    int
-	claimCursor       int
-	claimGraph        *research.ProvenanceGraph
-	claimLoading      bool
-	claimErr          error
-	staleSources      []researchapp.FreshnessRecord
-	freshnessLoading  bool
-	freshnessErr      error
-	styles            styles
+	ctx                  context.Context
+	service              Service
+	platform             platform.Platform
+	command              app.Command
+	snapshot             app.FoundationSnapshot
+	screen               screen
+	width                int
+	height               int
+	scrollOffset         int
+	loading              bool
+	saving               bool
+	opening              bool
+	dashboard            learningapp.ProgressDashboard
+	dashboardLoading     bool
+	dashboardErr         error
+	profile              learning.Student
+	profileLoading       bool
+	profileErr           error
+	streak               learning.Streak
+	streakLoading        bool
+	streakErr            error
+	reviews              learningapp.ReviewQueueView
+	reviewsLoading       bool
+	reviewsErr           error
+	history              learningapp.StudyHistoryView
+	historyLoading       bool
+	historyErr           error
+	milestones           []learning.Achievement
+	onboarding           learningapp.OnboardingView
+	setup                learningapp.LearnerSetupView
+	onboardingLoading    bool
+	onboardingErr        error
+	onboardingInput      string
+	onboardingCursor     int
+	diagnosticAnswers    map[int]bool
+	loadErr              error
+	notice               string
+	configCursor         int
+	session              session.State
+	sessionReady         bool
+	checkpointing        bool
+	checkpointPending    bool
+	quitting             bool
+	forceNoColor         bool
+	researchStats        researchapp.ResearchCostStats
+	researchLoading      bool
+	researchErr          error
+	sources              []app.SourceCLIView
+	sourcesLoading       bool
+	sourcesErr           error
+	sourceCursor         int
+	sourceDetail         *app.SourceCLIView
+	sourceDetailErr      error
+	conflicts            []research.Conflict
+	conflictsLoading     bool
+	conflictsErr         error
+	conflictCursor       int
+	claimCursor          int
+	claimGraph           *research.ProvenanceGraph
+	claimLoading         bool
+	claimErr             error
+	staleSources         []researchapp.FreshnessRecord
+	freshnessLoading     bool
+	freshnessErr         error
+	styles               styles
+	curriculumService    curriculumapp.CurriculumWorkspaceViewService
+	curriculumWorkspaces workspace.Service
+	currentDirectory     func() (string, error)
+	curriculumView       curriculumapp.CurriculumWorkspaceView
+	curriculumLoading    bool
+	curriculumErr        error
 }
 
 // NewModel creates the initial loading model. forceNoColor represents either
@@ -227,6 +236,15 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.dashboardLoading = false
 		model.dashboardErr = message.err
 		return model.finishDashboardLoad()
+	case curriculumLoadedMsg:
+		model.curriculumView = message.view
+		model.curriculumLoading = false
+		model.curriculumErr = nil
+		return model, nil
+	case curriculumLoadFailedMsg:
+		model.curriculumLoading = false
+		model.curriculumErr = message.err
+		return model, nil
 	case configSavedMsg:
 		model.snapshot.Settings = cloneSettings(model.snapshot.Settings)
 		model.snapshot.Settings[message.key] = message.value
@@ -525,6 +543,12 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.researchLoading = true
 			model.researchErr = nil
 			return model, loadResearchCmd(model.ctx, model.service, model.command)
+		case "u":
+			model.screen = screenCurriculum
+			model.scrollOffset = 0
+			model.curriculumLoading = true
+			model.curriculumErr = nil
+			return model, loadCurriculumCmd(model.ctx, model.curriculumService, model.curriculumWorkspaces, model.currentDirectory, model.command)
 		case "f":
 			if model.snapshot.LearningPath && !model.dashboardLoading {
 				model.dashboardLoading = true
@@ -621,6 +645,12 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.freshnessErr = nil
 			return model, loadFreshnessCmd(model.ctx, model.service, model.command)
 		}
+	case screenCurriculum:
+		if keyName == "r" && !model.curriculumLoading {
+			model.curriculumLoading = true
+			model.curriculumErr = nil
+			return model, loadCurriculumCmd(model.ctx, model.curriculumService, model.curriculumWorkspaces, model.currentDirectory, model.command)
+		}
 	}
 	return model, nil
 }
@@ -695,6 +725,8 @@ func sessionView(current screen) session.View {
 	case screenConfig:
 		return session.ViewConfig
 	case screenRoadmap:
+		return session.ViewRoadmap
+	case screenCurriculum:
 		return session.ViewRoadmap
 	case screenToday:
 		return session.ViewToday

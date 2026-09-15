@@ -12,9 +12,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	"github.com/mishaaac/kelyro/internal/curriculum"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/learning"
 	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
 	"github.com/mishaaac/kelyro/internal/session"
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 func TestModelLoadsFoundationStateThroughCommand(t *testing.T) {
@@ -76,6 +79,7 @@ func TestModelNavigatesFoundationScreens(t *testing.T) {
 		{name: "profile", key: "o", want: screenProfile},
 		{name: "goal", key: "g", want: screenGoal},
 		{name: "streak", key: "k", want: screenStreak},
+		{name: "curriculum", key: "u", want: screenCurriculum},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -320,6 +324,54 @@ func TestRoadmapOpenUsesApplicationService(t *testing.T) {
 	}
 	if len(service.executed) != 1 || service.executed[0].OpenTarget != "roadmap" {
 		t.Errorf("open commands = %#v", service.executed)
+	}
+}
+
+func TestCurriculumScreenLoadsCompiledPackThroughApplicationService(t *testing.T) {
+	t.Parallel()
+	packID, _ := curriculum.NewID("backend-go-reference")
+	packVersion, _ := curriculum.NewPackVersion("0.1.0")
+	curriculumID, _ := curriculum.NewCurriculumID("curriculum.backend-go-reference")
+	curriculumVersion, _ := curriculum.NewCurriculumVersion("2026.09.15-dev.1")
+	sourceID, _ := curriculum.NewID("source.go.dev")
+	conceptID, _ := curriculum.NewConceptID("concept.go.modules")
+	viewService := &fakeCurriculumViewService{view: curriculumapp.CurriculumWorkspaceView{
+		Inspection: curriculumapp.CurriculumInspection{
+			Pack: curriculum.LearningPack{
+				Manifest: curriculum.PackManifest{ID: packID, Name: "Backend Go Reference", Description: "Development reference pack.", Version: packVersion, Status: curriculum.ConceptPreview},
+				Curriculum: curriculum.CurriculumDefinition{ID: curriculumID, Version: curriculumVersion, Title: "Backend Engineering with Go",
+					Phases: make([]curriculum.Phase, 1), Modules: make([]curriculum.Module, 2), Lessons: make([]curriculum.LessonSpec, 3), Topics: make([]curriculum.TopicSpec, 4), Concepts: make([]curriculum.Concept, 5)},
+			},
+			Coverage:      []curriculumapp.CurriculumCoverageSummary{{Dimension: curriculum.CoverageSecurity, RequirementCount: 1}},
+			Audits:        []curriculumapp.CurriculumAuditResult{{Name: "pack-structure", Passed: true}},
+			EvidenceLinks: []curriculum.EvidenceReportCitation{{SourceID: sourceID, Title: "Go documentation", URL: "https://go.dev/doc/"}},
+		},
+		UpdateStatus: curriculumapp.CurriculumUpdateAvailable,
+		MigrationPreview: &curriculumapp.PackUpgradeResult{
+			Current:       curriculum.LearningPack{Manifest: curriculum.PackManifest{Version: packVersion}},
+			Candidate:     curriculum.LearningPack{Manifest: curriculum.PackManifest{Version: mustTuiPackVersion(t, "0.2.0")}},
+			MigrationPlan: curriculum.CurriculumMigrationPlan{Actions: []curriculum.CurriculumMigrationAction{{Kind: curriculum.MigrationPreserveState, FromConceptIDs: []curriculum.ConceptID{conceptID}, ToConceptIDs: []curriculum.ConceptID{conceptID}}}},
+		},
+	}}
+	model := readyModel(&fakeService{})
+	model.curriculumService = viewService
+	model.curriculumWorkspaces = &fakeTUIWorkspaces{root: "/workspace/root"}
+	model.currentDirectory = func() (string, error) { return "/workspace/root/nested", nil }
+
+	loading, command := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'u'}})
+	if command == nil || loading.(Model).screen != screenCurriculum || !loading.(Model).curriculumLoading {
+		t.Fatalf("curriculum navigation = %#v, command=%v", loading, command)
+	}
+	loaded, _ := loading.(Model).Update(command())
+	got := loaded.(Model)
+	got.height = 80
+	if got.curriculumLoading || got.curriculumErr != nil || viewService.root != "/workspace/root" {
+		t.Fatalf("loaded curriculum = %#v, requested root=%q", got, viewService.root)
+	}
+	for _, expected := range []string{"Curriculum & Learning Pack", "Backend Go Reference", "Curriculum Overview", "1 phases · 2 modules · 3 lessons · 4 topics · 5 concepts", "Coverage", "Gaps", "Audit", "Go documentation", "Update available: 0.1.0 → 0.2.0", "Preserve: 1"} {
+		if !strings.Contains(got.View(), expected) {
+			t.Errorf("curriculum view missing %q:\n%s", expected, got.View())
+		}
 	}
 }
 
@@ -905,6 +957,36 @@ type fakeService struct {
 	completed       []session.State
 	completeErr     error
 	incompleteSetup bool
+}
+
+type fakeCurriculumViewService struct {
+	view curriculumapp.CurriculumWorkspaceView
+	root string
+	err  error
+}
+
+func (fake *fakeCurriculumViewService) View(_ context.Context, root string) (curriculumapp.CurriculumWorkspaceView, error) {
+	fake.root = root
+	return fake.view, fake.err
+}
+
+type fakeTUIWorkspaces struct{ root string }
+
+func (fake *fakeTUIWorkspaces) Discover(string) (workspace.Workspace, error) {
+	return workspace.Workspace{Root: fake.root}, nil
+}
+func (fake *fakeTUIWorkspaces) Init(string, workspace.InitOptions) (workspace.Workspace, error) {
+	return workspace.Workspace{Root: fake.root}, nil
+}
+func (*fakeTUIWorkspaces) Validate(string) error { return nil }
+
+func mustTuiPackVersion(t *testing.T, value string) curriculum.PackVersion {
+	t.Helper()
+	version, err := curriculum.NewPackVersion(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return version
 }
 
 func (service *fakeService) LoadFoundation(_ context.Context, command app.Command) (app.FoundationSnapshot, error) {

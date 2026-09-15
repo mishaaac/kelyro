@@ -9,7 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/config"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
 	"github.com/mishaaac/kelyro/internal/platform"
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 type program interface {
@@ -20,12 +22,24 @@ type programFactory func(model tea.Model, options ...tea.ProgramOption) program
 
 // Runner owns Bubble Tea lifecycle and terminal restoration concerns.
 type Runner struct {
-	service    Service
-	input      io.Reader
-	output     io.Writer
-	lookupEnv  func(string) (string, bool)
-	newProgram programFactory
-	platform   platform.Platform
+	service          Service
+	input            io.Reader
+	output           io.Writer
+	lookupEnv        func(string) (string, bool)
+	newProgram       programFactory
+	platform         platform.Platform
+	curriculum       curriculumapp.CurriculumWorkspaceViewService
+	workspaces       workspace.Service
+	currentDirectory func() (string, error)
+}
+
+// WithCurriculum attaches the read-only compiled curriculum view and the
+// workspace discovery boundary used by its asynchronous TUI command.
+func (runner Runner) WithCurriculum(service curriculumapp.CurriculumWorkspaceViewService, workspaces workspace.Service, currentDirectory func() (string, error)) Runner {
+	runner.curriculum = service
+	runner.workspaces = workspaces
+	runner.currentDirectory = currentDirectory
+	return runner
 }
 
 // WithPlatform attaches the native URL opener used by source detail views.
@@ -66,6 +80,9 @@ func (runner Runner) Run(ctx context.Context, command app.Command) (runErr error
 	}
 	model := NewModel(ctx, runner.service, command, noColor)
 	model.platform = runner.platform
+	model.curriculumService = runner.curriculum
+	model.curriculumWorkspaces = runner.workspaces
+	model.currentDirectory = runner.currentDirectory
 	program := runner.newProgram(
 		model,
 		tea.WithContext(ctx),
