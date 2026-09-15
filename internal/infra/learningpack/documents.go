@@ -167,6 +167,7 @@ type evidenceReportDocument struct {
 	SourceBundleCount     int                                `json:"source_bundle_count"`
 	Bundles               []bundleRefDocument                `json:"bundles"`
 	Claims                []evidenceRefDocument              `json:"claims"`
+	Citations             []evidenceReportCitationDocument   `json:"citations"`
 	PrimarySourceCoverage evidenceReportCoverageDocument     `json:"primary_source_coverage"`
 	Freshness             []evidenceReportFreshnessDocument  `json:"freshness"`
 	Conflicts             []evidenceReportConflictDocument   `json:"conflicts"`
@@ -197,6 +198,15 @@ type evidenceReportCoverageDocument struct {
 	PrimaryClaims    int     `json:"primary_claims"`
 	Ratio            float64 `json:"ratio"`
 	PolicyVersion    string  `json:"policy_version"`
+}
+
+type evidenceReportCitationDocument struct {
+	SourceID    string `json:"source_id"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	License     string `json:"license,omitempty"`
+	Excerpt     string `json:"excerpt,omitempty"`
+	ExcerptHash string `json:"excerpt_hash,omitempty"`
 }
 
 type evidenceReportFreshnessDocument struct {
@@ -633,6 +643,13 @@ func decodeEvidenceReport(encoded []byte) (curriculum.CurriculumEvidenceReport, 
 	result.Claims, err = decodeEvidenceRefs(report.Claims)
 	if err != nil {
 		return curriculum.CurriculumEvidenceReport{}, err
+	}
+	for _, raw := range report.Citations {
+		sourceID, idErr := curriculum.NewID(raw.SourceID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		result.Citations = append(result.Citations, curriculum.EvidenceReportCitation{SourceID: sourceID, Title: raw.Title, URL: raw.URL, License: raw.License, Excerpt: raw.Excerpt, ExcerptHash: raw.ExcerptHash})
 	}
 	for _, raw := range report.Competencies {
 		id, idErr := curriculum.NewID(raw.ID)

@@ -15,6 +15,7 @@ type CurriculumCompilerService interface {
 type CurriculumEvidenceReportRequest struct {
 	Compilation  curriculum.CompilationResult
 	EvidenceSets []curriculum.CurriculumEvidenceSet
+	Citations    []curriculum.EvidenceReportCitation
 }
 
 type CurriculumEvidenceReportResult struct {
@@ -24,6 +25,34 @@ type CurriculumEvidenceReportResult struct {
 
 type CurriculumEvidenceReportService interface {
 	Generate(context.Context, CurriculumEvidenceReportRequest) (CurriculumEvidenceReportResult, error)
+}
+
+type PackBuildAsset struct {
+	Path            string
+	Content         []byte
+	License         string
+	CopyrightHolder string
+	KelyroAuthored  bool
+}
+
+type PackBuildRequest struct {
+	Manifest     curriculum.PackManifest
+	Compilation  curriculum.CompilationResult
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+	Environment  *curriculum.EnvironmentPack
+	Citations    []curriculum.EvidenceReportCitation
+	Assets       []PackBuildAsset
+}
+
+type PackBuildResult struct {
+	Pack            curriculum.LearningPack
+	ContentHash     string
+	PortableArchive []byte
+	Entries         []string
+}
+
+type PackBuildService interface {
+	Build(context.Context, PackBuildRequest) (PackBuildResult, error)
 }
 
 type CurriculumBuildMetadata struct {

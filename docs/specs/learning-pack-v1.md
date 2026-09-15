@@ -21,6 +21,9 @@ checksums.txt
 curriculum/curriculum.yaml
 sources/evidence-report.json
 build/build-info.json
+EVIDENCE.md
+assets/licenses.json
+assets/...                       # optional Kelyro-authored assets
 environment/environment.yaml   # optional
 README.md                       # optional
 LICENSE                         # optional
@@ -86,6 +89,15 @@ Entries are sorted bytewise by path. Missing, extra, duplicate, malformed or
 mismatched records invalidate the pack. Checksums cover `pack.yaml`, all
 required entries and optional documentation/license files.
 
+`EVIDENCE.md` is the byte-exact canonical Markdown projection of the evidence
+JSON. Citation excerpts are optional, UTF-8, SHA-256-bound, and limited to 512
+bytes. Packs with Source Bundles include absolute HTTP(S) citation URLs.
+
+Every file below `assets/` except `assets/licenses.json` is Kelyro-authored
+original content and has one sorted ledger entry with path, authorship marker,
+declared license, copyright holder, and exact SHA-256. The builder never accepts undeclared
+external assets.
+
 ## Resource limits and validation
 
 Loaders apply bounded per-file, total-uncompressed, entry-count and compression
@@ -93,6 +105,11 @@ ratio limits before decoding. YAML/JSON/text entries must be valid UTF-8.
 Unknown schema fields, duplicate YAML/JSON keys and trailing documents/data are
 invalid. Validation is entirely local and must not fetch evidence, resolve a
 marketplace, execute code, install the pack, or modify learner state.
+
+Known source-retention patterns are invalid: cache/raw/body/snapshot/transcript
+paths, full-document formats, transcript/full-article filenames, unlicensed
+assets, and structured fields that retain raw/cached/full bodies. These checks
+are conservative detectable-pattern gates, not a general copyright oracle.
 
 The curriculum entry is the complete learner-neutral I-04 definition. The
 evidence entry follows `curriculum-evidence-report/v1`: it contains goal and

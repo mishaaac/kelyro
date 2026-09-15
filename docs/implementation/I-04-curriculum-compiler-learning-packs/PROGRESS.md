@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 46
-Last completed step: 45
+Current step: 47
+Last completed step: 46
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2319,3 +2319,53 @@ Release: unreleased
 - El Paso 46 construirá el archive distribuible, incorporará JSON y
   `EVIDENCE.md`, y rechazará patrones de retención externa prohibidos.
 - No añadir scripts, contenido I-05, cache bodies ni descarga de sources.
+
+## Step 46 — Copyright-aware Learning Pack Builder v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- `PackBuildService` y adapter in-memory determinista que serializa manifest,
+  curriculum, environment opcional, build info, evidence JSON/Markdown,
+  README/licencia, assets autorizados, checksums y ZIP canónico.
+- Una citation HTTP(S) obligatoria por source del evidence set congelado;
+  excerpts opcionales limitados a 512 bytes y ligados por SHA-256.
+- Assets limitados a contenido original declarado Kelyro-authored bajo
+  `assets/`, con licencia, copyright holder y ledger hash-bound
+  `pack-asset-licenses/v1`.
+- `EVIDENCE.md` obligatorio y byte-identical a la proyección canónica del
+  reporte machine-readable, evitando agregar texto externo fuera del modelo.
+- Pack validation rechaza paths cache/raw/body/snapshot/transcript, formatos de
+  documentos completos, filenames de transcript/full article, campos
+  estructurados conocidos de retención y assets sin licencia detectable.
+- Contrato documentado en
+  `docs/architecture/copyright-aware-pack-builder-v1.md`.
+
+### Decisions
+
+- Construir el archive en memoria y devolver bytes portables; escritura a disco
+  y comandos build/export quedan fuera de este paso y de las reglas de dominio.
+- No copiar automáticamente statements de Claims ni Evidence excerpts. Sólo
+  una citation declarada puede incluir un excerpt mínimo, bounded y hasheado.
+- Generar todos los documentos core desde valores validados en lugar de aceptar
+  blobs YAML/JSON suministrados por el caller.
+- Tratar los checks por patrones como una barrera conservadora detectable, no
+  como una afirmación automática sobre titularidad o fair use.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- Tests de build repetible, roundtrip por el loader, ausencia de Claim text,
+  citation faltante/excerpt oversized, asset externo/sin licencia y patrones
+  prohibidos de cache/transcript/body.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 47 es el siguiente: exponer compile/validate/coverage/gaps/audit y
+  completar la CLI de packs, reutilizando los services ya implementados.
+- No implementar todavía I-05 ni publicación/descarga automática.

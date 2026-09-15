@@ -15,6 +15,8 @@ The report records:
   source, expressed as counts and a ratio under
   `primary-source-coverage-v1`;
 - per-bundle freshness state, score, verification time, and algorithm;
+- absolute source citation URLs plus optional SHA-256-bound excerpts limited to
+  512 UTF-8 bytes;
 - resolved/unresolved conflicts and bundle caveats;
 - legacy/historical/deprecated and preview/experimental Concept IDs;
 - compiler gaps and the compiler/pass version list.

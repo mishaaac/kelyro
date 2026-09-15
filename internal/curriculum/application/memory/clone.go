@@ -112,17 +112,38 @@ func clonePack(value curriculum.LearningPack) curriculum.LearningPack {
 		environment := cloneEnvironment(*value.Environment)
 		cloned.Environment = &environment
 	}
+	if value.BuildInfo != nil {
+		buildInfo := *value.BuildInfo
+		buildInfo.Passes = append([]curriculum.CompilationPassVersion(nil), value.BuildInfo.Passes...)
+		buildInfo.SourceBundles = append([]curriculum.SourceBundleRef(nil), value.BuildInfo.SourceBundles...)
+		cloned.BuildInfo = &buildInfo
+	}
 	if value.EvidenceReport != nil {
 		report := *value.EvidenceReport
 		report.Competencies = append([]curriculum.EvidenceReportCompetency(nil), value.EvidenceReport.Competencies...)
 		report.Bundles = append([]curriculum.SourceBundleRef(nil), value.EvidenceReport.Bundles...)
 		report.Claims = append([]curriculum.EvidenceRef(nil), value.EvidenceReport.Claims...)
+		report.Citations = append([]curriculum.EvidenceReportCitation(nil), value.EvidenceReport.Citations...)
 		report.Freshness = append([]curriculum.EvidenceReportFreshness(nil), value.EvidenceReport.Freshness...)
-		report.Conflicts = append([]curriculum.EvidenceReportConflict(nil), value.EvidenceReport.Conflicts...)
+		for index := range report.Freshness {
+			if value.EvidenceReport.Freshness[index].Freshness.LastVerifiedAt != nil {
+				verified := *value.EvidenceReport.Freshness[index].Freshness.LastVerifiedAt
+				report.Freshness[index].Freshness.LastVerifiedAt = &verified
+			}
+		}
+		report.Conflicts = make([]curriculum.EvidenceReportConflict, len(value.EvidenceReport.Conflicts))
+		for index, conflict := range value.EvidenceReport.Conflicts {
+			report.Conflicts[index] = conflict
+			report.Conflicts[index].ClaimIDs = append([]curriculum.ID(nil), conflict.ClaimIDs...)
+		}
 		report.Caveats = append([]curriculum.EvidenceReportCaveat(nil), value.EvidenceReport.Caveats...)
 		report.HistoricalContent = append([]curriculum.EvidenceReportTemporalContent(nil), value.EvidenceReport.HistoricalContent...)
 		report.ExperimentalContent = append([]curriculum.EvidenceReportTemporalContent(nil), value.EvidenceReport.ExperimentalContent...)
-		report.Gaps = append([]curriculum.Gap(nil), value.EvidenceReport.Gaps...)
+		report.Gaps = make([]curriculum.Gap, len(value.EvidenceReport.Gaps))
+		for index, gap := range value.EvidenceReport.Gaps {
+			report.Gaps[index] = gap
+			report.Gaps[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), gap.EvidenceRefs...)
+		}
 		report.PassVersions = append([]curriculum.CompilationPassVersion(nil), value.EvidenceReport.PassVersions...)
 		cloned.EvidenceReport = &report
 	}

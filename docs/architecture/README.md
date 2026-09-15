@@ -101,6 +101,10 @@ entry, and active-pack inspection command are documented in
 The deterministic goal/competency/evidence/freshness/conflict/temporal/gap
 summary and its source-body-free Markdown projection are documented in
 [Curriculum Evidence Report v1](curriculum-evidence-report-v1.md).
+Deterministic archive construction, bounded citation excerpts, authored-asset
+licenses, canonical evidence Markdown, and detectable retention rejection are
+documented in
+[Copyright-aware Learning Pack Builder v1](copyright-aware-pack-builder-v1.md).
 The deterministic thirteen-dimension publication gate and its non-authoritative
 optional advisor boundary are documented in
 [Curriculum Reviewer v1](curriculum-reviewer-v1.md).

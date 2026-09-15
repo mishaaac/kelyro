@@ -102,6 +102,7 @@ const validEvidenceReport = `{
     "verified_at": "2026-09-11T14:00:00Z"
   }],
   "claims": [{"bundle_id": "bundle.go-packages", "claim_id": "claim.go-packages"}],
+  "citations": [{"source_id": "source.go-packages", "title": "Go specification", "url": "https://go.dev/ref/spec#Packages"}],
   "primary_source_coverage": {"referenced_claims": 1, "primary_claims": 1, "ratio": 1, "policy_version": "primary-source-coverage-v1"},
   "freshness": [{"bundle_id": "bundle.go-packages", "state": "fresh", "score": 1, "last_verified_at": "2026-09-11T14:00:00Z", "algorithm": "source-bundle-freshness-v1"}],
   "conflicts": [],
@@ -336,7 +337,17 @@ func TestValidatorRejectsUnsafeDirectoryAndArchiveEntries(t *testing.T) {
 func validPackEntries() map[string][]byte {
 	manifest := strings.Replace(validManifest, "version: 1.2.0", "version: 1.0.0", 1)
 	manifest = strings.Replace(manifest, "constraint: \">=1.0.0 <2.0.0\"", "constraint: \"1.0.0\"", 1)
-	entries := map[string][]byte{ManifestName: []byte(manifest), "curriculum/curriculum.yaml": []byte(validCurriculum), "sources/evidence-report.json": []byte(validEvidenceReport), "build/build-info.json": []byte(validBuildInfo), "environment/environment.yaml": []byte(validEnvironment), "README.md": []byte("# Go Backend\n")}
+	report, err := decodeEvidenceReport([]byte(validEvidenceReport))
+	if err != nil {
+		panic(err)
+	}
+	entries := map[string][]byte{
+		ManifestName: []byte(manifest), "curriculum/curriculum.yaml": []byte(validCurriculum),
+		"sources/evidence-report.json": []byte(validEvidenceReport), "build/build-info.json": []byte(validBuildInfo),
+		"environment/environment.yaml": []byte(validEnvironment), "README.md": []byte("# Go Backend\n"),
+		EvidenceMarkdownName: []byte(curriculumapp.RenderCurriculumEvidenceMarkdown(report)),
+		AssetLicensesName:    []byte("{\"schema_version\":\"pack-asset-licenses/v1\",\"assets\":[]}\n"),
+	}
 	updateChecksums(entries)
 	return entries
 }

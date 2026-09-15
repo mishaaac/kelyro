@@ -2476,7 +2476,7 @@ feat(curriculum): generate curriculum evidence report
 
 ## Paso 46 — Implementar Copyright-aware Pack Builder
 
-- [ ] Paso 46 completado
+- [x] Paso 46 completado
 
 ### Objetivo
 

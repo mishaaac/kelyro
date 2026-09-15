@@ -1,12 +1,65 @@
 package curriculum
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 const CurriculumEvidenceReportSchemaVersionV1 = "curriculum-evidence-report/v1"
+const MaximumCitationExcerptBytes = 512
+
+type EvidenceReportCitation struct {
+	SourceID    ID
+	Title       string
+	URL         string
+	License     string
+	Excerpt     string
+	ExcerptHash string
+}
+
+func (citation EvidenceReportCitation) Validate() error {
+	if err := citation.SourceID.Validate(); err != nil {
+		return err
+	}
+	if err := requireText("evidence report citation title", citation.Title); err != nil {
+		return err
+	}
+	parsed, err := url.ParseRequestURI(citation.URL)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+		return errors.New("evidence report citation URL must be absolute HTTP(S)")
+	}
+	if strings.ContainsAny(citation.URL, "<>\\") || strings.IndexFunc(citation.URL, unicode.IsControl) >= 0 {
+		return errors.New("evidence report citation URL contains unsafe characters")
+	}
+	if !utf8.ValidString(citation.Excerpt) || len([]byte(citation.Excerpt)) > MaximumCitationExcerptBytes {
+		return fmt.Errorf("evidence report citation excerpt must be valid UTF-8 within %d bytes", MaximumCitationExcerptBytes)
+	}
+	if citation.Excerpt == "" && citation.ExcerptHash != "" {
+		return errors.New("evidence report citation hash requires an excerpt")
+	}
+	if citation.Excerpt != "" && !contentHashPattern.MatchString(citation.ExcerptHash) {
+		return errors.New("evidence report citation excerpt hash is not canonical sha256")
+	}
+	if citation.Excerpt != "" {
+		digest := sha256.Sum256([]byte(citation.Excerpt))
+		if citation.ExcerptHash != "sha256:"+hex.EncodeToString(digest[:]) {
+			return errors.New("evidence report citation excerpt hash does not match excerpt")
+		}
+	}
+	if citation.License != "" {
+		if err := requireText("evidence report citation license", citation.License); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 type EvidenceReportGoal struct {
 	ID     ID
@@ -139,6 +192,7 @@ type CurriculumEvidenceReport struct {
 	SourceBundleCount     int
 	Bundles               []SourceBundleRef
 	Claims                []EvidenceRef
+	Citations             []EvidenceReportCitation
 	PrimarySourceCoverage EvidenceReportCoverage
 	Freshness             []EvidenceReportFreshness
 	Conflicts             []EvidenceReportConflict
@@ -160,18 +214,38 @@ func (report CurriculumEvidenceReport) Validate() error {
 	if report.ConceptCount < 0 || report.SourceBundleCount < 0 || report.SourceBundleCount != len(report.Bundles) {
 		return errors.New("curriculum evidence report counts are invalid")
 	}
+	seenCompetencies := make(map[ID]struct{}, len(report.Competencies))
 	for _, competency := range report.Competencies {
 		if err := competency.Validate(); err != nil {
 			return err
 		}
+		if _, exists := seenCompetencies[competency.ID]; exists {
+			return fmt.Errorf("duplicate evidence report competency %q", competency.ID)
+		}
+		seenCompetencies[competency.ID] = struct{}{}
 	}
 	if err := validateSourceBundleRefs(report.Bundles, SourceReferencesOptionalForFixture); err != nil {
 		return err
 	}
+	seenClaims := make(map[EvidenceRef]struct{}, len(report.Claims))
 	for _, claim := range report.Claims {
 		if err := claim.Validate(); err != nil {
 			return err
 		}
+		if _, exists := seenClaims[claim]; exists {
+			return errors.New("duplicate curriculum evidence report claim")
+		}
+		seenClaims[claim] = struct{}{}
+	}
+	seenCitations := make(map[ID]struct{}, len(report.Citations))
+	for _, citation := range report.Citations {
+		if err := citation.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seenCitations[citation.SourceID]; exists {
+			return fmt.Errorf("duplicate evidence report citation %q", citation.SourceID)
+		}
+		seenCitations[citation.SourceID] = struct{}{}
 	}
 	if err := report.PrimarySourceCoverage.Validate(); err != nil {
 		return err
@@ -179,10 +253,15 @@ func (report CurriculumEvidenceReport) Validate() error {
 	if report.PrimarySourceCoverage.ReferencedClaims != len(report.Claims) {
 		return errors.New("curriculum evidence report referenced claim count does not match claims")
 	}
+	seenFreshness := make(map[ID]struct{}, len(report.Freshness))
 	for _, freshness := range report.Freshness {
 		if err := freshness.Validate(); err != nil {
 			return err
 		}
+		if _, exists := seenFreshness[freshness.BundleID]; exists {
+			return fmt.Errorf("duplicate evidence report freshness bundle %q", freshness.BundleID)
+		}
+		seenFreshness[freshness.BundleID] = struct{}{}
 	}
 	for _, conflict := range report.Conflicts {
 		if err := conflict.Validate(); err != nil {
@@ -194,9 +273,20 @@ func (report CurriculumEvidenceReport) Validate() error {
 			return err
 		}
 	}
-	for _, content := range append(append([]EvidenceReportTemporalContent(nil), report.HistoricalContent...), report.ExperimentalContent...) {
+	for _, content := range report.HistoricalContent {
 		if err := content.Validate(); err != nil {
 			return err
+		}
+		if content.Status != ConceptLegacy && content.Status != ConceptHistorical && content.Status != ConceptDeprecated {
+			return fmt.Errorf("concept %q is not historical content", content.ConceptID)
+		}
+	}
+	for _, content := range report.ExperimentalContent {
+		if err := content.Validate(); err != nil {
+			return err
+		}
+		if content.Status != ConceptExperimental && content.Status != ConceptPreview {
+			return fmt.Errorf("concept %q is not experimental content", content.ConceptID)
 		}
 	}
 	for _, gap := range report.Gaps {

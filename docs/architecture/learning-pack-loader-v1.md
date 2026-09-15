@@ -41,6 +41,9 @@ again while reading.
   coverage requirements or environment tools appears in the evidence report;
 - evidence report goal/counts and compiler/pass versions match the curriculum
   and build-info entry;
+- canonical `EVIDENCE.md`, citation URL/excerpt bounds, the asset license
+  ledger, and known forbidden source-retention paths/fields are checked before
+  a portable snapshot is accepted;
 - environment concept and bundle refs resolve in the curriculum;
 - the complete `LearningPack` passes domain validation.
 

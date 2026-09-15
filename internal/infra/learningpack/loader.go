@@ -6,11 +6,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -31,6 +33,9 @@ var forbiddenExtensions = map[string]struct{}{
 	".bat": {}, ".bash": {}, ".cmd": {}, ".com": {}, ".dll": {}, ".dylib": {},
 	".exe": {}, ".js": {}, ".msi": {}, ".ps1": {}, ".py": {}, ".sh": {}, ".so": {}, ".zsh": {},
 }
+
+var forbiddenRetentionExtensions = map[string]struct{}{".doc": {}, ".docx": {}, ".epub": {}, ".htm": {}, ".html": {}, ".mhtml": {}, ".pdf": {}}
+var forbiddenRetentionField = regexp.MustCompile(`(?i)["']?(raw_body|raw_content|cached_body|cached_content|response_body|web_body|page_body|full_article|full_text|transcript)["']?[ \t]*:`)
 
 // Validator loads and validates untrusted v1 directories and ZIP files. It is
 // read-only and never follows links, executes content, installs packs, or uses
@@ -283,11 +288,24 @@ func validateEntryName(name string) error {
 	if _, forbidden := forbiddenExtensions[strings.ToLower(filepath.Ext(name))]; forbidden {
 		return fmt.Errorf("script or executable entry %q is not allowed", name)
 	}
+	if _, forbidden := forbiddenRetentionExtensions[strings.ToLower(filepath.Ext(name))]; forbidden {
+		return fmt.Errorf("retained external document entry %q is not allowed", name)
+	}
+	lower := strings.ToLower(name)
+	for _, segment := range strings.Split(lower, "/") {
+		switch segment {
+		case "cache", "cached", "raw", "bodies", "snapshots", "transcripts":
+			return fmt.Errorf("forbidden retained-source path %q", name)
+		}
+	}
+	if strings.Contains(filepath.Base(lower), "transcript") || strings.Contains(filepath.Base(lower), "full-article") || strings.Contains(filepath.Base(lower), "full_article") {
+		return fmt.Errorf("forbidden retained-source path %q", name)
+	}
 	return nil
 }
 
 func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curriculumapp.PackValidationIssue, error) {
-	for _, required := range []string{ManifestName, ChecksumsName} {
+	for _, required := range []string{ManifestName, ChecksumsName, EvidenceMarkdownName, AssetLicensesName} {
 		if _, exists := entries[required]; !exists {
 			return curriculum.LearningPack{}, nil, fmt.Errorf("required entry %q is missing", required)
 		}
@@ -342,11 +360,92 @@ func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curr
 	if err := pack.Validate(); err != nil {
 		return curriculum.LearningPack{}, nil, fmt.Errorf("learning pack: %w", err)
 	}
+	if err := validateCopyrightAwareEntries(entries, report); err != nil {
+		return curriculum.LearningPack{}, nil, err
+	}
 	warnings := make([]curriculumapp.PackValidationIssue, 0)
 	if manifest.Status != curriculum.ConceptCurrent {
 		warnings = append(warnings, curriculumapp.PackValidationIssue{Code: "non_current_pack", Path: ManifestName, Message: "pack status is " + string(manifest.Status)})
 	}
 	return pack, warnings, nil
+}
+
+func validateCopyrightAwareEntries(entries map[string][]byte, report curriculum.CurriculumEvidenceReport) error {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		encoded := entries[name]
+		extension := strings.ToLower(filepath.Ext(name))
+		if (extension == ".json" || extension == ".yaml" || extension == ".yml") && forbiddenRetentionField.Match(encoded) {
+			return fmt.Errorf("entry %q contains a forbidden source-retention field", name)
+		}
+	}
+	if report.SourceBundleCount > 0 && len(report.Citations) == 0 {
+		return fmt.Errorf("evidence report has no source citation URLs")
+	}
+	expectedMarkdown := curriculumapp.RenderCurriculumEvidenceMarkdown(report)
+	if string(entries[EvidenceMarkdownName]) != expectedMarkdown {
+		return fmt.Errorf("%s does not match the canonical evidence report projection", EvidenceMarkdownName)
+	}
+	encoded := entries[AssetLicensesName]
+	if err := rejectDuplicateJSONKeys(encoded); err != nil {
+		return fmt.Errorf("decode asset licenses: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.DisallowUnknownFields()
+	var ledger assetLicenseDocument
+	if err := decoder.Decode(&ledger); err != nil {
+		return fmt.Errorf("decode asset licenses: %w", err)
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return err
+	}
+	if ledger.SchemaVersion != AssetLicenseSchemaV1 {
+		return fmt.Errorf("unsupported asset license schema %q", ledger.SchemaVersion)
+	}
+	recorded := make(map[string]assetLicenseEntryDocument, len(ledger.Assets))
+	previous := ""
+	for _, asset := range ledger.Assets {
+		if err := validatePortablePath("licensed asset", asset.Path); err != nil {
+			return err
+		}
+		if !strings.HasPrefix(asset.Path, "assets/") || asset.Path == AssetLicensesName {
+			return fmt.Errorf("licensed asset %q is outside assets/", asset.Path)
+		}
+		if strings.TrimSpace(asset.License) == "" || strings.TrimSpace(asset.CopyrightHolder) == "" {
+			return fmt.Errorf("licensed asset %q has no license or copyright holder", asset.Path)
+		}
+		if asset.Authorship != AssetAuthorshipKelyro {
+			return fmt.Errorf("licensed asset %q is not declared Kelyro-authored", asset.Path)
+		}
+		if previous != "" && asset.Path <= previous {
+			return fmt.Errorf("asset license entries are duplicate or not sorted")
+		}
+		previous = asset.Path
+		recorded[asset.Path] = asset
+	}
+	for _, name := range names {
+		content := entries[name]
+		if !strings.HasPrefix(name, "assets/") || name == AssetLicensesName {
+			continue
+		}
+		asset, exists := recorded[name]
+		if !exists {
+			return fmt.Errorf("asset %q has no license record", name)
+		}
+		digest := sha256.Sum256(content)
+		if asset.ContentHash != "sha256:"+hex.EncodeToString(digest[:]) {
+			return fmt.Errorf("asset %q license record hash does not match", name)
+		}
+		delete(recorded, name)
+	}
+	if len(recorded) != 0 {
+		return fmt.Errorf("asset license ledger references a missing asset")
+	}
+	return nil
 }
 
 func validateChecksums(entries map[string][]byte) error {

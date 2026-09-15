@@ -41,6 +41,7 @@ func (CurriculumEvidenceReporterV1) Generate(ctx context.Context, request Curric
 		Gaps:            append([]curriculum.Gap(nil), request.Compilation.Gaps...),
 		CompilerVersion: request.Compilation.BuildInfo.CompilerVersion,
 		PassVersions:    append([]curriculum.CompilationPassVersion(nil), request.Compilation.BuildInfo.Passes...),
+		Citations:       append([]curriculum.EvidenceReportCitation(nil), request.Citations...),
 	}
 	for _, competency := range definition.Competencies.Competencies {
 		report.Competencies = append(report.Competencies, curriculum.EvidenceReportCompetency{
@@ -77,7 +78,7 @@ func (CurriculumEvidenceReporterV1) Generate(ctx context.Context, request Curric
 	if err := report.Validate(); err != nil {
 		return CurriculumEvidenceReportResult{}, Invalid(operation, err)
 	}
-	return CurriculumEvidenceReportResult{Report: report, Markdown: renderEvidenceMarkdown(report)}, nil
+	return CurriculumEvidenceReportResult{Report: report, Markdown: RenderCurriculumEvidenceMarkdown(report)}, nil
 }
 
 func primaryCoverage(references []curriculum.EvidenceRef, sets []curriculum.CurriculumEvidenceSet) curriculum.EvidenceReportCoverage {
@@ -147,6 +148,9 @@ func compilationEvidenceRefs(definition curriculum.CurriculumDefinition) []curri
 }
 
 func sortEvidenceReport(report *curriculum.CurriculumEvidenceReport) {
+	sort.Slice(report.Citations, func(i, j int) bool {
+		return report.Citations[i].SourceID.String() < report.Citations[j].SourceID.String()
+	})
 	sort.Slice(report.Freshness, func(i, j int) bool {
 		return report.Freshness[i].BundleID.String() < report.Freshness[j].BundleID.String()
 	})
@@ -171,7 +175,7 @@ func sortEvidenceReport(report *curriculum.CurriculumEvidenceReport) {
 	sort.Slice(report.Gaps, func(i, j int) bool { return report.Gaps[i].ID.String() < report.Gaps[j].ID.String() })
 }
 
-func renderEvidenceMarkdown(report curriculum.CurriculumEvidenceReport) string {
+func RenderCurriculumEvidenceMarkdown(report curriculum.CurriculumEvidenceReport) string {
 	lines := []string{
 		"# Curriculum Evidence Report", "",
 		"Goal: " + markdownText(report.Goal.Title) + " (`" + report.Goal.ID.String() + "`)",
@@ -194,6 +198,20 @@ func renderEvidenceMarkdown(report curriculum.CurriculumEvidenceReport) string {
 	lines = append(lines, "", "## Evidence references", "")
 	for _, reference := range report.Claims {
 		lines = append(lines, fmt.Sprintf("- `%s#%s`", reference.BundleID, reference.ClaimID))
+	}
+	lines = append(lines, "", "## Citations", "")
+	if len(report.Citations) == 0 {
+		lines = append(lines, "No source locators were supplied.")
+	}
+	for _, citation := range report.Citations {
+		line := fmt.Sprintf("- [%s](<%s>) (`%s`)", markdownText(citation.Title), citation.URL, citation.SourceID)
+		if citation.License != "" {
+			line += " — license: " + markdownText(citation.License)
+		}
+		lines = append(lines, line)
+		if citation.Excerpt != "" {
+			lines = append(lines, "  - Minimal excerpt: “"+markdownText(citation.Excerpt)+"”")
+		}
 	}
 	lines = append(lines, "", "## Conflicts and caveats", "")
 	if len(report.Conflicts) == 0 && len(report.Caveats) == 0 {
