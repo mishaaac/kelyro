@@ -81,7 +81,7 @@ Options:
       --quiet         Suppress successful command output
       --workspace PATH  Override workspace discovery
       --allow-nested  Confirm initialization inside another workspace
-      --yes           Confirm backup restore or development setup reset
+      --yes           Confirm restore, reset, or Learning Pack upgrade
       --full          Include allowlisted machine state in an export
       --output FILE   Set the export archive path
       --dry-run       Preview import, maintenance, or a pack upgrade
@@ -574,8 +574,27 @@ func (r Runner) runPacks(ctx context.Context, invocation invocation) int {
 			fmt.Fprintf(r.stderr, "kelyro packs upgrade: %v\n", err)
 			return ExitFailure
 		}
+		confirmed := invocation.yes
+		if !invocation.packDryRun && !confirmed {
+			if r.confirmer == nil {
+				fmt.Fprintln(r.stderr, "kelyro packs upgrade: confirmation input is unavailable; use --yes to confirm")
+				return ExitFailure
+			}
+			confirmed, err = r.confirmer.Confirm(fmt.Sprintf("Upgrade Learning Pack %s? A backup will be created and learner instances migrated [y/N]: ", invocation.packID))
+			if err != nil {
+				fmt.Fprintf(r.stderr, "kelyro packs upgrade: confirm: %v\n", err)
+				return ExitFailure
+			}
+			if !confirmed {
+				if !invocation.quiet {
+					fmt.Fprintln(r.stdout, "Learning Pack upgrade canceled.")
+				}
+				return ExitOK
+			}
+		}
 		result, err := r.packUpgrade.Upgrade(ctx, curriculumapp.PackUpgradeRequest{
-			WorkspaceRoot: root, PackID: invocation.packID, TargetVersion: invocation.packVersion, DryRun: invocation.packDryRun,
+			WorkspaceRoot: root, PackID: invocation.packID, TargetVersion: invocation.packVersion,
+			DryRun: invocation.packDryRun, Confirmed: confirmed,
 		})
 		if err != nil {
 			fmt.Fprintf(r.stderr, "kelyro packs upgrade: %v\n", err)
@@ -1719,8 +1738,8 @@ func parse(args []string) (invocation, error) {
 	if result.allowNested && result.command != "init" {
 		return invocation{}, fmt.Errorf("option --allow-nested requires the init command")
 	}
-	if result.yes && result.command != "backup" && result.command != "setup" {
-		return invocation{}, fmt.Errorf("option --yes requires backup restore or setup reset")
+	if result.yes && result.command != "backup" && result.command != "setup" && result.command != "packs" {
+		return invocation{}, fmt.Errorf("option --yes requires backup restore or setup reset, or packs upgrade")
 	}
 	if result.configScope != "" && result.command != "config" {
 		return invocation{}, fmt.Errorf("configuration scope options require the config command")
@@ -1862,8 +1881,8 @@ func parse(args []string) (invocation, error) {
 			return invocation{}, fmt.Errorf("unexpected argument %q", result.arguments[0])
 		}
 	}
-	if result.yes && !((result.command == "backup" && result.backupOperation == "restore") || (result.command == "setup" && result.setupOperation == "reset")) {
-		return invocation{}, fmt.Errorf("option --yes requires backup restore or setup reset")
+	if result.yes && !((result.command == "backup" && result.backupOperation == "restore") || (result.command == "setup" && result.setupOperation == "reset") || (result.command == "packs" && result.packOperation == "upgrade")) {
+		return invocation{}, fmt.Errorf("option --yes requires backup restore or setup reset, or packs upgrade")
 	}
 	if result.exportMode == portability.ModeFull && result.command != "export" {
 		return invocation{}, fmt.Errorf("option --full requires the export command")
@@ -2048,9 +2067,6 @@ func parsePackArguments(result *invocation) error {
 			return fmt.Errorf("packs upgrade: invalid pack id: %w", err)
 		}
 		result.packID = id
-		if !result.packDryRun {
-			return fmt.Errorf("packs upgrade requires --dry-run until application is explicitly confirmed")
-		}
 		return nil
 	case "activate":
 		if len(result.arguments) != 2 {

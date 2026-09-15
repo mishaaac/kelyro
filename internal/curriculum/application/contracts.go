@@ -73,6 +73,30 @@ type PackCatalogCache interface {
 	Replace(context.Context, curriculum.PackCatalogSnapshot) error
 }
 
+type StudentCurriculumMigrationRequest struct {
+	WorkspaceRoot string
+	BackupID      string
+	Old           curriculum.CurriculumDefinition
+	New           curriculum.CurriculumDefinition
+	Plan          curriculum.CurriculumMigrationPlan
+}
+
+type StudentCurriculumMigrationResult struct {
+	SourceInstancesArchived     int
+	TargetInstancesCreated      int
+	ConceptStatesPreserved      int
+	UnknownConceptStatesCreated int
+	RecalculatedUnlocks         bool
+	ProjectionVersion           string
+}
+
+// StudentCurriculumMigrationService is the I-04-facing adapter port. Its
+// implementation must delegate learner writes to an I-02 application service.
+type StudentCurriculumMigrationService interface {
+	Apply(context.Context, StudentCurriculumMigrationRequest) (StudentCurriculumMigrationResult, error)
+	CheckIntegrity(context.Context, string) error
+}
+
 type EnvironmentPackRepository interface {
 	Add(context.Context, curriculum.EnvironmentPack) error
 	Get(context.Context, curriculum.ID, curriculum.PackVersion) (curriculum.EnvironmentPack, error)

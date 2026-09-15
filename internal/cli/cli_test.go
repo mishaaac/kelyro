@@ -196,8 +196,14 @@ func TestRunnerPreviewsLearningPackUpgradeWithoutWriting(t *testing.T) {
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := NewRunner(&fakeService{}, &stdout, &stderr).Run(context.Background(), []string{"packs", "upgrade", "pack.backend"}); code != ExitUsage || !strings.Contains(stderr.String(), "requires --dry-run") {
-		t.Fatalf("non-dry upgrade = code %d stderr %q", code, stderr.String())
+	upgrade.result.Applied = true
+	upgrade.result.BackupID = "backup.pack-upgrade"
+	if code := NewRunner(&fakeService{}, &stdout, &stderr).
+		WithConfirmer(&fakeConfirmer{answer: true}).
+		WithPackManager(&fakePackManager{}, workspaces, func() (string, error) { return "nested", nil }).
+		WithPackUpgrade(upgrade).
+		Run(context.Background(), []string{"packs", "upgrade", "pack.backend"}); code != ExitOK || stderr.String() != "" || !upgrade.request.Confirmed || !strings.Contains(stdout.String(), "Status: applied") || !strings.Contains(stdout.String(), "Backup: backup.pack-upgrade") {
+		t.Fatalf("applied upgrade = code %d stdout %q stderr %q request %+v", code, stdout.String(), stderr.String(), upgrade.request)
 	}
 }
 

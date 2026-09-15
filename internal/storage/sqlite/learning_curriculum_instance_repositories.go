@@ -154,6 +154,32 @@ FROM learner_curriculum_instances WHERE student_id = ? ORDER BY created_at, id`,
 	return instances, nil
 }
 
+func (repository learningCurriculumInstanceRepository) Update(ctx context.Context, instance learning.CurriculumInstance) error {
+	const operation = "update SQLite curriculum instance"
+	if err := instance.Validate(); err != nil {
+		return invalidLearning(operation, err)
+	}
+	operationContext, cancel := context.WithTimeout(ctx, repository.timeout)
+	defer cancel()
+	result, err := repository.executor.ExecContext(operationContext, `UPDATE learner_curriculum_instances
+SET status = ?, updated_at = ?
+WHERE id = ? AND student_id = ? AND goal_id = ? AND curriculum_id = ? AND curriculum_version = ?
+  AND source_kind = ? AND created_at = ? AND updated_at <= ?`, string(instance.Status), encodeTimestamp(instance.UpdatedAt),
+		instance.ID.String(), instance.StudentID.String(), instance.GoalID.String(), instance.Curriculum.ID.String(),
+		instance.Curriculum.Version, string(instance.Source), encodeTimestamp(instance.CreatedAt), encodeTimestamp(instance.UpdatedAt))
+	if err != nil {
+		return classifyLearningError(operation, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return classifyLearningError(operation, err)
+	}
+	if changed != 1 {
+		return application.Classify(application.ErrorNotFound, operation, errors.New("curriculum instance was not found or immutable identity changed"))
+	}
+	return nil
+}
+
 func scanCurriculumInstance(row rowScanner) (learning.CurriculumInstance, error) {
 	var id, studentID, goalID, curriculumID, version, source, status, createdAt, updatedAt string
 	if err := row.Scan(&id, &studentID, &goalID, &curriculumID, &version, &source, &status, &createdAt, &updatedAt); err != nil {

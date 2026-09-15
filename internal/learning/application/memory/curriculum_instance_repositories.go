@@ -207,6 +207,28 @@ func (repository curriculumInstanceRepository) ListByStudent(ctx context.Context
 	return instances, nil
 }
 
+func (repository curriculumInstanceRepository) Update(ctx context.Context, instance learning.CurriculumInstance) error {
+	const operation = "update memory curriculum instance"
+	if err := contextError(operation, ctx); err != nil {
+		return err
+	}
+	if err := instance.Validate(); err != nil {
+		return application.Classify(application.ErrorInvalidState, operation, err)
+	}
+	repository.store.mu.Lock()
+	defer repository.store.mu.Unlock()
+	current, exists := repository.store.instances[instance.ID]
+	if !exists {
+		return notFound(operation)
+	}
+	if current.StudentID != instance.StudentID || current.GoalID != instance.GoalID || current.Curriculum != instance.Curriculum ||
+		current.Source != instance.Source || current.CreatedAt != instance.CreatedAt || instance.UpdatedAt.Before(current.UpdatedAt) {
+		return application.Classify(application.ErrorInvalidState, operation, errors.New("curriculum instance immutable identity changed or update time regressed"))
+	}
+	repository.store.instances[instance.ID] = instance
+	return nil
+}
+
 type instanceConceptStateRepository struct{ store *Store }
 
 func (repository instanceConceptStateRepository) Get(ctx context.Context, instanceID, conceptID learning.ID) (learning.InstanceConceptState, error) {

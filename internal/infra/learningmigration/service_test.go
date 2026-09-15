@@ -1,0 +1,77 @@
+package learningmigration
+
+import (
+	"testing"
+	"time"
+
+	"github.com/mishaaac/kelyro/internal/curriculum"
+	"github.com/mishaaac/kelyro/internal/learning"
+)
+
+func TestProjectCurriculumProducesDeterministicStudentCoreContract(t *testing.T) {
+	t.Parallel()
+	definition := projectionFixture(t)
+	projected, err := ProjectCurriculum(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projected.ContractVersion != learning.CurriculumContractVersion || projected.Reference.ID.String() != definition.ID.String() || projected.Reference.Version != definition.Version.String() {
+		t.Fatalf("projection identity = %+v", projected)
+	}
+	root, exists := projected.Node(mustLearningID(t, "concept.root"))
+	if !exists || root.Concept.Difficulty != learning.ConceptDifficultyFoundational || root.Concept.EstimatedEffortMinutes != 60 {
+		t.Fatalf("root projection = %+v", root)
+	}
+	use, exists := projected.Node(mustLearningID(t, "concept.use"))
+	if !exists || use.Status.State != learning.CurriculumNodeDeprecated || len(use.Concept.Prerequisites) != 1 ||
+		use.Concept.Prerequisites[0].ConceptID != root.ID || use.Concept.Prerequisites[0].Requirement != learning.PrerequisiteMastered {
+		t.Fatalf("dependent projection = %+v", use)
+	}
+}
+
+func projectionFixture(t *testing.T) curriculum.CurriculumDefinition {
+	t.Helper()
+	id := func(value string) curriculum.ID {
+		result, err := curriculum.NewID(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	conceptID := func(value string) curriculum.ConceptID {
+		result, err := curriculum.NewConceptID(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	curriculumID, _ := curriculum.NewCurriculumID("curriculum.projection")
+	version, _ := curriculum.NewCurriculumVersion("2026.09.14.1")
+	createdAt, _ := curriculum.NewTimestamp(time.Date(2026, 9, 14, 18, 0, 0, 0, time.UTC))
+	goalID, outcomeID := id("goal.projection"), id("outcome.projection")
+	root, use := conceptID("concept.root"), conceptID("concept.use")
+	return curriculum.CurriculumDefinition{
+		ID: curriculumID, Version: version, Title: "Projection", Description: "Projection fixture.",
+		Goal:         curriculum.LearningGoalSpec{ID: goalID, Title: "Goal", Description: "Projection goal.", Domain: "general", Outcomes: []curriculum.GoalOutcome{{ID: outcomeID, Statement: "Apply the concepts.", Category: curriculum.OutcomeApplication, Capability: curriculum.OutcomeCapabilityBuild}}},
+		Competencies: curriculum.CompetencyMatrix{Version: curriculum.CompetencyMatrixVersionV1, GoalID: goalID, Competencies: []curriculum.Competency{{ID: id("competency.projection"), AreaID: id("area.projection"), Area: "general", OutcomeID: outcomeID, ExpectedLevel: curriculum.CompetencyApply, ConceptRefs: []curriculum.ConceptID{root, use}}}},
+		Concepts: []curriculum.Concept{
+			{ID: root, Title: "Root", Definition: "Understand the root concept.", Version: "1", Atomicity: curriculum.AtomicityAtomic, Difficulty: curriculum.DifficultyFoundational, Status: curriculum.ConceptCurrent, Foundational: true},
+			{ID: use, Title: "Use", Definition: "Apply the root concept.", Version: "1", Atomicity: curriculum.AtomicityAtomic, Difficulty: curriculum.DifficultyIntermediate, Status: curriculum.ConceptDeprecated},
+		},
+		Prerequisites: []curriculum.Prerequisite{{ConceptID: use, RequiredConceptID: root, Kind: curriculum.PrerequisiteHard}},
+		Phases:        []curriculum.Phase{{ID: id("phase.projection"), Title: "Phase", Description: "Phase.", Order: 0}},
+		Modules:       []curriculum.Module{{ID: id("module.projection"), PhaseID: id("phase.projection"), Title: "Module", Description: "Module.", Order: 0}},
+		Lessons:       []curriculum.LessonSpec{{ID: id("lesson.projection"), ModuleID: id("module.projection"), Title: "Lesson", Description: "Lesson.", Order: 0}},
+		Topics:        []curriculum.TopicSpec{{ID: id("topic.projection"), LessonID: id("lesson.projection"), Title: "Topic", Description: "Topic.", Order: 0, ConceptIDs: []curriculum.ConceptID{root, use}}},
+		SourcePolicy:  curriculum.SourceReferencesOptionalForFixture, CreatedAt: createdAt,
+	}
+}
+
+func mustLearningID(t *testing.T, value string) learning.ID {
+	t.Helper()
+	id, err := learning.NewID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}

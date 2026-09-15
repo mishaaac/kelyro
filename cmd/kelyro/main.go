@@ -20,6 +20,7 @@ import (
 	"github.com/mishaaac/kelyro/internal/infra/doctorsqlite"
 	"github.com/mishaaac/kelyro/internal/infra/editoros"
 	"github.com/mishaaac/kelyro/internal/infra/learningdb"
+	"github.com/mishaaac/kelyro/internal/infra/learningmigration"
 	"github.com/mishaaac/kelyro/internal/infra/learningpack"
 	"github.com/mishaaac/kelyro/internal/infra/logfs"
 	"github.com/mishaaac/kelyro/internal/infra/packcatalogfs"
@@ -87,6 +88,8 @@ func main() {
 		})
 		return err
 	}
+	auditStores := auditsqlite.NewFactory(version.Version).WithMigrationBackup(migrationBackup)
+	profileStores := learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup)
 	service := app.NewService(workspaces, os.Getwd).
 		WithConfig(configs).
 		WithSecrets(secrets).
@@ -95,7 +98,7 @@ func main() {
 		WithEditor(editoros.New()).
 		WithDoctor(doctor.New(doctoros.New(), doctorsqlite.New().WithMigrationBackup(migrationBackup), doctor.DefaultRegistry())).
 		WithLogging(logfs.New()).
-		WithAudit(auditsqlite.NewFactory(version.Version).WithMigrationBackup(migrationBackup)).
+		WithAudit(auditStores).
 		WithBackups(backups).
 		WithPortability(portable).
 		WithUpdates(updates).
@@ -104,11 +107,32 @@ func main() {
 		WithResearchSearch(researchSearch).
 		WithResearchFetcher(researchFetcher).
 		WithResearchNormalizer(researchnormalize.New()).
-		WithProfiles(learningdb.NewFactory(version.Version).WithMigrationBackup(migrationBackup))
+		WithProfiles(profileStores)
 	packValidator := learningpack.NewValidator()
 	packManager := curriculumapp.NewPackInstallerV1(packValidator, curriculumapp.NewPackDependencyResolverV1(), packfs.NewRepository(packValidator), curriculumapp.SystemClock{})
 	packCatalog := curriculumapp.NewPackCatalogV1(nil, packcatalogfs.NewCache(), version.Version)
-	packUpgrade := curriculumapp.NewPackUpgradePlannerV1(packManager, curriculumapp.NewCurriculumChangeClassifierV1(), curriculumapp.NewCurriculumMigrationPlannerV1(), curriculumapp.NewPackVersioningPolicyV1())
+	packUpgradePreview := curriculumapp.NewPackUpgradePlannerV1(packManager, curriculumapp.NewCurriculumChangeClassifierV1(), curriculumapp.NewCurriculumMigrationPlannerV1(), curriculumapp.NewPackVersioningPolicyV1())
+	packBackupRetention := func(_ context.Context, root string) (int, error) {
+		global, err := configs.LoadGlobal()
+		if err != nil {
+			return 0, err
+		}
+		project, err := configs.LoadProject(root)
+		if err != nil {
+			return 0, err
+		}
+		settings, err := config.Resolve(global, project)
+		if err != nil {
+			return 0, err
+		}
+		retention, ok := settings[config.KeyBackupRetention].NumberField()
+		if !ok {
+			return 0, fmt.Errorf("backup retention configuration is invalid")
+		}
+		return int(retention), nil
+	}
+	packUpgrade := curriculumapp.NewPackUpgradeExecutorV1(packUpgradePreview, packManager, backups,
+		learningmigration.New(profileStores, sqlite.SnapshotValidator{}), auditStores, packBackupRetention, version.Version)
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).

@@ -499,3 +499,8 @@ The deterministic student-safe migration actions, stable-ID preservation,
 unknown initialization, historical retention, explicit split/merge handling,
 and read-only pack-upgrade preview are documented in
 [curriculum-migration-plan-v1.md](curriculum-migration-plan-v1.md).
+
+The confirmed Learning Pack upgrade flow, I-02 application-service migration,
+immutable instance history, backup/restore recovery, post-write integrity scan,
+and durable success/failure audit are documented in
+[pack-upgrade-v1.md](pack-upgrade-v1.md).

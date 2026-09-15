@@ -371,6 +371,7 @@ type CurriculumInstanceService interface {
 	State(context.Context, learning.ID, learning.ID) (learning.InstanceConceptState, error)
 	States(context.Context, learning.ID) ([]learning.InstanceConceptState, error)
 	SaveState(context.Context, learning.InstanceConceptState) error
+	Migrate(context.Context, CurriculumInstanceMigrationRequest) (CurriculumInstanceMigrationImpact, error)
 }
 
 // DiagnosticView exposes the next deterministic item and estimated result.
@@ -487,6 +488,7 @@ type CurriculumInstanceRepository interface {
 	Create(context.Context, learning.CurriculumInstance) error
 	Get(context.Context, learning.ID) (learning.CurriculumInstance, error)
 	ListByStudent(context.Context, learning.ID) ([]learning.CurriculumInstance, error)
+	Update(context.Context, learning.CurriculumInstance) error
 }
 
 type InstanceConceptStateRepository interface {

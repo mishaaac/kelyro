@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 43
-Last completed step: 42
+Current step: 44
+Last completed step: 43
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2163,3 +2163,67 @@ Release: unreleased
   I-02 transaccional, integrity check, rollback/recovery y audit.
 - La instancia anterior seguirá siendo histórica; no se reescribirán evidence
   facts ni packs publicados.
+
+## Step 43 — Safe Learning Pack Upgrade v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- `pack-upgrade-policy-v1` compone discovery local, revalidación del artifact,
+  diff, SemVer, migration plan, backup, confirmación, aplicación I-02,
+  activación, integrity check y audit.
+- El CLI permite `kelyro packs upgrade <id>` con confirmación interactiva o
+  `--yes`; `--dry-run` conserva el preview sin backup ni writes.
+- Backup Foundation obligatorio con `backup.retention` resuelto desde la
+  configuración efectiva del workspace antes de cualquier aplicación.
+- `CurriculumInstanceService.Migrate` de I-02 instala la definición nueva y,
+  dentro de una única Unit of Work, crea la instancia target, transfiere solo
+  estados de stable IDs, inicializa nuevos targets unknown y archiva la
+  instancia source sin borrar su estado histórico.
+- Adapter `learningmigration` explícito entre I-04 e I-02, con proyección
+  determinista al contrato `curriculum-consumption/v1`; no existe SQL en los
+  servicios de curriculum o aprendizaje.
+- Unlock eligibility se recalcula naturalmente contra el grafo de la nueva
+  definición; no se copia ningún unlock cache, retention o review schedule.
+- Chequeo posterior mediante el validador SQLite read-only: `quick_check`,
+  migrations, foreign keys e invariantes Student Core.
+- Eventos auditables `pack.upgrade.completed` y `pack.upgrade.failed` con
+  versiones, plan, backup, conteos, etapa fallida y estado de recovery.
+- Restore automático del backup ante fallos de migration, activation,
+  integrity o audit; el backup contiene tanto `learning.db` como la referencia
+  `state/active-pack.json`.
+- Contrato documentado en `docs/architecture/pack-upgrade-v1.md`.
+
+### Decisions
+
+- V1 descubre únicamente versiones inmutables ya instaladas. Un catalog entry
+  no es contenido confiable y el upgrade nunca instala automáticamente desde
+  red; `packs install` sigue siendo el paso explícito de adquisición.
+- No rebind de una instancia existente: la antigua queda archived y auditable,
+  y la nueva tiene identidad propia. Los facts append-only no se reasignan.
+- Un target preexistente para el mismo goal hace fail closed en lugar de
+  asumir que una migración anterior fue completa.
+- Toda aplicación requiere confirmación, incluso patch; breaking split/merge
+  exige además mappings explícitos en el request y jamás transfiere mastery.
+- La proyección de conceptos reutiliza definición/dificultad/estado del pack y
+  colapsa prerequisitos al contrato I-02, prefiriendo `mastered` sobre
+  `introduced`; no genera lesson, practice, assessment ni project runtimes.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/application/... ./internal/learning/application/... ./internal/infra/learningmigration ./internal/cli -count=1`.
+- Tests de patch, addition, split explícito sin mastery, confirmación, backup,
+  activation, audit, projection I-04→I-02, migración transaccional, state
+  preservation, unknown initialization y rollback por fallo inyectado.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 44 es el siguiente: persistir reproducibility metadata completa del
+  compiler y pack sin reabrir la semántica de upgrade.
+- No implementar I-05 ni añadir descarga automática de packs.

@@ -2353,7 +2353,7 @@ feat(pack): plan student-safe curriculum migrations
 
 ## Paso 43 — Implementar Pack Upgrade
 
-- [ ] Paso 43 completado
+- [x] Paso 43 completado
 
 ### Objetivo
 
