@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 49
-Last completed step: 48
+Current step: 50
+Last completed step: 49
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2460,3 +2460,64 @@ Release: unreleased
   con scope limitado por la evidencia fixture disponible y sin claim de
   completitud productiva.
 - No imponer un número de conceptos ni introducir contenido I-05.
+
+## Step 49 — Backend Go Reference Learning Pack
+
+Status: completed
+Date: 2026-09-15
+Release: unreleased
+
+### Delivered
+
+- Artefacto portable `reference-packs/backend-go-reference.zip`, válido como
+  `learning-pack/v1`, más fuente/generador determinista en
+  `internal/infra/referencepack`.
+- Goal profesional con outcomes explain/build/debug/operate/maintain, cuatro
+  competency areas y cinco competencias.
+- Nueve conceptos atómicos respaldados por la evidencia fixture disponible,
+  sin mínimo, máximo ni target artificial de tamaño.
+- Root fundacional explícito, ocho edges de prerequisitos, vocabulary graph,
+  hierarchy, baseline zero-assumption y beginner simulation.
+- Coverage declarada para las ocho dimensiones, incluidos production,
+  security y toolchain; el evidence report no retiene bodies ni Claim text.
+- Clasificación temporal con ocho conceptos current y un concepto GOPATH
+  legacy limitado a contexto histórico.
+- Environment Pack declarativo para Linux, macOS y Windows con Go toolchain,
+  punto de introducción/uso y guidance oficial sin instalar herramientas.
+- Documentación de límites y regeneración en
+  `docs/architecture/backend-go-reference-pack.md` y `reference-packs/README.md`.
+
+### Decisions
+
+- Marcar pack `preview` y source policy `optional_for_fixture`: la fixture
+  determinista tiene caveat visible y no sustituye Source Bundles productivos
+  verificados de I-03.
+- No inflar el curriculum a cientos de conceptos sin evidencia. Los nueve
+  conceptos existen para cubrir seams reales del compiler; producción puede
+  crecer sin límites cuando I-03 lo justifique.
+- Hacer que el build falle si el reviewer determinista rechaza el curriculum;
+  el caveat esperado produce approval con warnings, no una publicación falsa.
+- Usar el copyright-aware builder productivo para generar README, licencia,
+  ledger de assets, checksums, build info, evidence JSON/Markdown y ZIP
+  canónico.
+- Context7 confirmó `/golang/go` como fuente oficial de alta reputación y las
+  rutas `https://go.dev/dl/` y `https://go.dev/doc/install`; el pack conserva
+  sólo el link oficial y metadata propia.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test ./internal/infra/referencepack -count=1` compara bytes regenerados
+  con el ZIP committed, comprueba determinismo/cancelación y valida el archive.
+- `go run ./cmd/kelyro packs validate reference-packs/backend-go-reference.zip`
+  devuelve `Status: valid` y el warning esperado por status `preview`.
+- Context7 `resolve-library-id` y `query-docs` contra `/golang/go` para la ruta
+  oficial de instalación del Environment Pack.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 50 es el siguiente: E2E desde Source Bundle hasta Curriculum Instance.
+- Reemplazar la fixture por evidencia productiva I-03 será trabajo separado;
+  no promover este pack preview a production-complete in-place.

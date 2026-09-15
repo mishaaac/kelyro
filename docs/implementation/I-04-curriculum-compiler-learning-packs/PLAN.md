@@ -2598,7 +2598,7 @@ feat(tui): integrate compiled curriculum and pack views
 
 ## Paso 49 — Crear primer Reference Learning Pack de desarrollo
 
-- [ ] Paso 49 completado
+- [x] Paso 49 completado
 
 ### Objetivo
 

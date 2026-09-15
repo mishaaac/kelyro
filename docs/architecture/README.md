@@ -105,6 +105,9 @@ Deterministic archive construction, bounded citation excerpts, authored-asset
 licenses, canonical evidence Markdown, and detectable retention rejection are
 documented in
 [Copyright-aware Learning Pack Builder v1](copyright-aware-pack-builder-v1.md).
+The deterministic, preview-only Backend Go fixture that exercises the complete
+I-04 compiler, evidence, environment, and archive boundaries is documented in
+[Backend Go Reference Learning Pack](backend-go-reference-pack.md).
 The deterministic thirteen-dimension publication gate and its non-authoritative
 optional advisor boundary are documented in
 [Curriculum Reviewer v1](curriculum-reviewer-v1.md).
