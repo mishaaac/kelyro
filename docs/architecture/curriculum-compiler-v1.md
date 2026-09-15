@@ -66,3 +66,9 @@ published pack or learner mastery.
 `CompilationDiagnostics` retains the graph, hierarchy, coverage, gaps, audits,
 temporal/guidance artifacts, beginner simulation, and expert coverage review
 needed by the deterministic publication review.
+
+Every successful result also includes `curriculum-build-info/v1`, which freezes
+the ordered pass versions, exact Source Bundle identities, complete compilation
+config, target pack schema, first-pass input hash, final-pass output hash, and
+deterministic build timestamp. Compilation repositories require this metadata;
+portable packs store it in their manifest-declared build-info entry.

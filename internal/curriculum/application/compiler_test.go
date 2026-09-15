@@ -97,7 +97,7 @@ func compilerFixture(t *testing.T) CurriculumCompileRequest {
 	curriculumVersion, _ := curriculum.NewCurriculumVersion("2026.09.12")
 	return CurriculumCompileRequest{
 		Input:        curriculum.CompilationInput{Goal: goal, SourceBundles: []curriculum.SourceBundleRef{evidence.Bundle}, RequestedAt: createdAt},
-		Config:       curriculum.CompilationConfig{CompilerVersion: curriculum.CurriculumCompilerVersionV1, SourcePolicy: curriculum.SourceReferencesRequired},
+		Config:       curriculum.CompilationConfig{CompilerVersion: curriculum.CurriculumCompilerVersionV1, SourcePolicy: curriculum.SourceReferencesRequired, PackSchemaVersion: curriculum.LearningPackSchemaVersionV1},
 		Metadata:     CurriculumBuildMetadata{ID: curriculumIDValue, Version: curriculumVersion, Title: "HTTP curriculum", Description: "A deterministic HTTP curriculum.", CreatedAt: createdAt},
 		EvidenceSets: []curriculum.CurriculumEvidenceSet{evidence}, DomainProfile: profile,
 		Competencies:     []curriculum.Competency{competency},

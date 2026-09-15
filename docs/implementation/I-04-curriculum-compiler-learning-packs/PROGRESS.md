@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 44
-Last completed step: 43
+Current step: 45
+Last completed step: 44
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2227,3 +2227,49 @@ Release: unreleased
 - El Paso 44 es el siguiente: persistir reproducibility metadata completa del
   compiler y pack sin reabrir la semántica de upgrade.
 - No implementar I-05 ni añadir descarga automática de packs.
+
+## Step 44 — Curriculum Build Reproducibility Metadata v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- Contrato `curriculum-build-info/v1` con versión del compiler, lista ordenada
+  de pass/version, Source Bundle IDs/hashes, config completa, pack schema,
+  input/output hashes y timestamp UTC determinista.
+- El compiler adjunta metadata sólo al resultado exitoso y la valida contra
+  los hashes y versiones reales de su trace; los records persistibles la
+  requieren explícitamente.
+- Learning Pack v1 declara `build_info_entry`; el loader JSON estricto valida
+  el documento y cruza schema y Source Bundles con manifest/curriculum.
+- `kelyro curriculum build-info` inspecciona el pack activo del workspace sin
+  compilar, usar red o modificar Student Core.
+- Contrato documentado en
+  `docs/architecture/curriculum-reproducibility-v1.md` y enlazado desde el
+  índice y las especificaciones relacionadas.
+
+### Decisions
+
+- Reutilizar el timestamp inmutable de build en vez del reloj de ejecución para
+  conservar determinismo completo.
+- Excluir durations observacionales de los hashes; input/output y pass
+  versions sí quedan vinculados y validados.
+- Mantener build info opcional en valores de dominio parciales o fixtures, pero
+  obligatorio para resultados persistidos y packs portables validados.
+- Limitar la CLI de este paso a `build-info`; compile/validate/coverage/gaps y
+  audit siguen reservados al Paso 47.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack ./internal/cli ./cmd/kelyro -count=1`.
+- Tests de determinismo del compiler, decode JSON estricto, cruce de bundles y
+  render del build info del pack activo.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 45 es el siguiente: generar el reporte humano/machine-readable de
+  evidencia a partir del resultado y evidence sets ya congelados.
+- El reporte conservará citations/identidades y no copiará cuerpos externos.

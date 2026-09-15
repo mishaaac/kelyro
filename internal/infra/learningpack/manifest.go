@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	SchemaVersionV1      = "learning-pack/v1"
+	SchemaVersionV1      = curriculum.LearningPackSchemaVersionV1
 	ManifestName         = "pack.yaml"
 	ChecksumsName        = "checksums.txt"
 	MaximumManifestBytes = 64 << 10
@@ -43,6 +43,7 @@ type manifestDocument struct {
 	EnvironmentPack      string               `yaml:"environment_pack,omitempty"`
 	CurriculumEntry      string               `yaml:"curriculum_entry"`
 	SourceEvidenceEntry  string               `yaml:"source_evidence_entry"`
+	BuildInfoEntry       string               `yaml:"build_info_entry"`
 	Status               string               `yaml:"status"`
 	CurriculumID         string               `yaml:"curriculum_id"`
 }
@@ -124,6 +125,7 @@ func decodeManifest(source manifestDocument) (curriculum.PackManifest, error) {
 	entries := []struct{ name, value string }{
 		{"curriculum_entry", source.CurriculumEntry},
 		{"source_evidence_entry", source.SourceEvidenceEntry},
+		{"build_info_entry", source.BuildInfoEntry},
 	}
 	if source.EnvironmentPack != "" {
 		entries = append(entries, struct{ name, value string }{"environment_pack", source.EnvironmentPack})
@@ -159,7 +161,8 @@ func decodeManifest(source manifestDocument) (curriculum.PackManifest, error) {
 		License: source.License, CreatedAt: createdAt, MinimumKelyroVersion: minimumVersion,
 		Dependencies: dependencies, EnvironmentEntry: source.EnvironmentPack,
 		CurriculumEntry: source.CurriculumEntry, SourceEvidenceEntry: source.SourceEvidenceEntry,
-		Status: curriculum.PackStatus(source.Status), CurriculumID: curriculumID,
+		BuildInfoEntry: source.BuildInfoEntry,
+		Status:         curriculum.PackStatus(source.Status), CurriculumID: curriculumID,
 	}
 	if err := manifest.Validate(); err != nil {
 		return curriculum.PackManifest{}, fmt.Errorf("pack manifest: %w", err)

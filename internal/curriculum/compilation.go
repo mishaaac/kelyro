@@ -8,6 +8,8 @@ import (
 
 const CurriculumCompilerVersionV1 = "curriculum-compiler-v1"
 
+const ReproducibilityMetadataSchemaVersionV1 = "curriculum-build-info/v1"
+
 type CompilationInput struct {
 	Goal          LearningGoalSpec
 	SourceBundles []SourceBundleRef
@@ -31,15 +33,93 @@ func (input CompilationInput) Validate(policy SourceReferencePolicy) error {
 }
 
 type CompilationConfig struct {
-	CompilerVersion string
-	SourcePolicy    SourceReferencePolicy
+	CompilerVersion   string
+	SourcePolicy      SourceReferencePolicy
+	PackSchemaVersion string
 }
 
 func (config CompilationConfig) Validate() error {
 	if err := requireText("compiler version", config.CompilerVersion); err != nil {
 		return err
 	}
+	if err := requireText("pack schema version", config.PackSchemaVersion); err != nil {
+		return err
+	}
 	return config.SourcePolicy.Validate()
+}
+
+type CompilationPassVersion struct {
+	Name    string
+	Version string
+}
+
+func (version CompilationPassVersion) Validate() error {
+	if err := requireText("compilation pass name", version.Name); err != nil {
+		return err
+	}
+	return requireText("compilation pass version", version.Version)
+}
+
+// ReproducibilityMetadata freezes the complete, content-addressed recipe used
+// to produce one compiled curriculum. It contains identities and hashes only,
+// never raw source bodies or learner state.
+type ReproducibilityMetadata struct {
+	SchemaVersion     string
+	CompilerVersion   string
+	Passes            []CompilationPassVersion
+	SourceBundles     []SourceBundleRef
+	CompilationConfig CompilationConfig
+	PackSchemaVersion string
+	InputHash         string
+	OutputHash        string
+	BuiltAt           Timestamp
+}
+
+func (metadata ReproducibilityMetadata) Validate() error {
+	if metadata.SchemaVersion != ReproducibilityMetadataSchemaVersionV1 {
+		return fmt.Errorf("unsupported reproducibility metadata schema %q", metadata.SchemaVersion)
+	}
+	if err := requireText("reproducibility compiler version", metadata.CompilerVersion); err != nil {
+		return err
+	}
+	if len(metadata.Passes) == 0 {
+		return errors.New("reproducibility metadata has no pass versions")
+	}
+	seen := make(map[string]struct{}, len(metadata.Passes))
+	for _, pass := range metadata.Passes {
+		if err := pass.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seen[pass.Name]; exists {
+			return fmt.Errorf("duplicate reproducibility pass %q", pass.Name)
+		}
+		seen[pass.Name] = struct{}{}
+	}
+	if err := metadata.CompilationConfig.Validate(); err != nil {
+		return err
+	}
+	if metadata.CompilerVersion != metadata.CompilationConfig.CompilerVersion {
+		return errors.New("reproducibility compiler version does not match compilation config")
+	}
+	if err := requireText("reproducibility pack schema version", metadata.PackSchemaVersion); err != nil {
+		return err
+	}
+	if metadata.PackSchemaVersion != metadata.CompilationConfig.PackSchemaVersion {
+		return errors.New("reproducibility pack schema version does not match compilation config")
+	}
+	if err := validateSourceBundleRefs(metadata.SourceBundles, metadata.CompilationConfig.SourcePolicy); err != nil {
+		return err
+	}
+	if !contentHashPattern.MatchString(metadata.InputHash) {
+		return errors.New("reproducibility input hash is not canonical sha256")
+	}
+	if !contentHashPattern.MatchString(metadata.OutputHash) {
+		return errors.New("reproducibility output hash is not canonical sha256")
+	}
+	if err := metadata.BuiltAt.Validate(); err != nil {
+		return fmt.Errorf("reproducibility build time: %w", err)
+	}
+	return nil
 }
 
 type CompilationPass struct {
@@ -75,6 +155,7 @@ func (pass CompilationPass) Validate() error {
 type CompilationResult struct {
 	Curriculum  CurriculumDefinition
 	Passes      []CompilationPass
+	BuildInfo   *ReproducibilityMetadata
 	Coverage    []CoverageResult
 	Gaps        []Gap
 	Warnings    []string
@@ -136,6 +217,37 @@ func (result CompilationResult) Validate() error {
 	for _, pass := range result.Passes {
 		if err := pass.Validate(); err != nil {
 			return err
+		}
+	}
+	if result.BuildInfo != nil {
+		if err := result.BuildInfo.Validate(); err != nil {
+			return err
+		}
+		if result.BuildInfo.CompilerVersion != result.Passes[0].Version {
+			return errors.New("reproducibility compiler version does not match validation pass")
+		}
+		if result.BuildInfo.InputHash != result.Passes[0].InputHash {
+			return errors.New("reproducibility input hash does not match validation pass")
+		}
+		if len(result.BuildInfo.SourceBundles) != len(result.Curriculum.SourceBundles) {
+			return errors.New("reproducibility source bundles do not match curriculum")
+		}
+		for index := range result.Curriculum.SourceBundles {
+			if result.BuildInfo.SourceBundles[index] != result.Curriculum.SourceBundles[index] {
+				return fmt.Errorf("reproducibility source bundle %d does not match curriculum", index)
+			}
+		}
+		if len(result.BuildInfo.Passes) != len(result.Passes) {
+			return errors.New("reproducibility pass versions do not match compilation passes")
+		}
+		for index, pass := range result.Passes {
+			version := result.BuildInfo.Passes[index]
+			if version.Name != pass.Name || version.Version != pass.Version {
+				return fmt.Errorf("reproducibility pass %d does not match compilation trace", index)
+			}
+		}
+		if result.BuildInfo.OutputHash != result.Passes[len(result.Passes)-1].OutputHash {
+			return errors.New("reproducibility output hash does not match final pass")
 		}
 	}
 	for _, coverage := range result.Coverage {

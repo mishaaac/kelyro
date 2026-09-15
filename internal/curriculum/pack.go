@@ -2,6 +2,8 @@ package curriculum
 
 import "fmt"
 
+const LearningPackSchemaVersionV1 = "learning-pack/v1"
+
 type PackDependency struct {
 	PackID     ID
 	Constraint string
@@ -31,6 +33,7 @@ type PackManifest struct {
 	EnvironmentEntry     string
 	CurriculumEntry      string
 	SourceEvidenceEntry  string
+	BuildInfoEntry       string
 	Status               PackStatus
 	CurriculumID         CurriculumID
 }
@@ -106,6 +109,7 @@ type LearningPack struct {
 	Manifest    PackManifest
 	Curriculum  CurriculumDefinition
 	Environment *EnvironmentPack
+	BuildInfo   *ReproducibilityMetadata
 }
 
 func (pack LearningPack) Validate() error {
@@ -117,6 +121,22 @@ func (pack LearningPack) Validate() error {
 	}
 	if pack.Manifest.CurriculumID != pack.Curriculum.ID {
 		return fmt.Errorf("pack manifest curriculum does not match definition")
+	}
+	if pack.BuildInfo != nil {
+		if err := pack.BuildInfo.Validate(); err != nil {
+			return fmt.Errorf("pack build info: %w", err)
+		}
+		if pack.BuildInfo.PackSchemaVersion != pack.Manifest.SchemaVersion {
+			return fmt.Errorf("pack build info schema does not match manifest")
+		}
+		if len(pack.BuildInfo.SourceBundles) != len(pack.Curriculum.SourceBundles) {
+			return fmt.Errorf("pack build info source bundles do not match curriculum")
+		}
+		for index := range pack.Curriculum.SourceBundles {
+			if pack.BuildInfo.SourceBundles[index] != pack.Curriculum.SourceBundles[index] {
+				return fmt.Errorf("pack build info source bundle %d does not match curriculum", index)
+			}
+		}
 	}
 	if pack.Environment != nil {
 		if err := pack.Environment.ValidatePortableV1(); err != nil {

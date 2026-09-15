@@ -124,6 +124,9 @@ func (record CompilationRecord) Validate() error {
 	if err := record.Result.Validate(); err != nil {
 		return err
 	}
+	if record.Result.BuildInfo == nil {
+		return fmt.Errorf("compilation record has no reproducibility metadata")
+	}
 	if record.Input.Goal.ID != record.Result.Curriculum.Goal.ID {
 		return fmt.Errorf("compilation input and result goals differ")
 	}

@@ -98,6 +98,31 @@ const validEvidenceReport = `{
 }
 `
 
+const validBuildInfo = `{
+  "schema_version": "curriculum-build-info/v1",
+  "compiler_version": "curriculum-compiler-v1",
+  "passes": [
+    {"name": "validate-input", "version": "curriculum-compiler-v1"},
+    {"name": "compiled-artifact", "version": "curriculum-compiler-v1"}
+  ],
+  "source_bundles": [{
+    "id": "bundle.go-packages",
+    "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "algorithm_version": "source-bundle-v1",
+    "verified_at": "2026-09-11T14:00:00Z"
+  }],
+  "compilation_config": {
+    "compiler_version": "curriculum-compiler-v1",
+    "source_policy": "required",
+    "pack_schema_version": "learning-pack/v1"
+  },
+  "pack_schema_version": "learning-pack/v1",
+  "input_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "output_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "built_at": "2026-09-11T15:00:00Z"
+}
+`
+
 const validEnvironment = `schema_version: environment-pack/v1
 id: environment.go
 version: 1.0.0
@@ -292,7 +317,7 @@ func TestValidatorRejectsUnsafeDirectoryAndArchiveEntries(t *testing.T) {
 func validPackEntries() map[string][]byte {
 	manifest := strings.Replace(validManifest, "version: 1.2.0", "version: 1.0.0", 1)
 	manifest = strings.Replace(manifest, "constraint: \">=1.0.0 <2.0.0\"", "constraint: \"1.0.0\"", 1)
-	entries := map[string][]byte{ManifestName: []byte(manifest), "curriculum/curriculum.yaml": []byte(validCurriculum), "sources/evidence-report.json": []byte(validEvidenceReport), "environment/environment.yaml": []byte(validEnvironment), "README.md": []byte("# Go Backend\n")}
+	entries := map[string][]byte{ManifestName: []byte(manifest), "curriculum/curriculum.yaml": []byte(validCurriculum), "sources/evidence-report.json": []byte(validEvidenceReport), "build/build-info.json": []byte(validBuildInfo), "environment/environment.yaml": []byte(validEnvironment), "README.md": []byte("# Go Backend\n")}
 	updateChecksums(entries)
 	return entries
 }

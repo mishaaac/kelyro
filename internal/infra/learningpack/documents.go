@@ -165,6 +165,29 @@ type evidenceReportDocument struct {
 	Claims        []evidenceRefDocument `json:"claims"`
 }
 
+type buildInfoDocument struct {
+	SchemaVersion     string                    `json:"schema_version"`
+	CompilerVersion   string                    `json:"compiler_version"`
+	Passes            []compilationPassDocument `json:"passes"`
+	SourceBundles     []bundleRefDocument       `json:"source_bundles"`
+	CompilationConfig compilationConfigDocument `json:"compilation_config"`
+	PackSchemaVersion string                    `json:"pack_schema_version"`
+	InputHash         string                    `json:"input_hash"`
+	OutputHash        string                    `json:"output_hash"`
+	BuiltAt           string                    `json:"built_at"`
+}
+
+type compilationPassDocument struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+type compilationConfigDocument struct {
+	CompilerVersion   string `json:"compiler_version"`
+	SourcePolicy      string `json:"source_policy"`
+	PackSchemaVersion string `json:"pack_schema_version"`
+}
+
 type environmentDocument struct {
 	SchemaVersion   string                    `yaml:"schema_version"`
 	ID              string                    `yaml:"id"`
@@ -522,6 +545,51 @@ func decodeEvidenceReport(encoded []byte) (evidenceReportDocument, error) {
 		return report, fmt.Errorf("unsupported evidence report schema %q", report.SchemaVersion)
 	}
 	return report, nil
+}
+
+func decodeBuildInfo(encoded []byte) (curriculum.ReproducibilityMetadata, error) {
+	if err := rejectDuplicateJSONKeys(encoded); err != nil {
+		return curriculum.ReproducibilityMetadata{}, fmt.Errorf("decode build info: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.DisallowUnknownFields()
+	var document buildInfoDocument
+	if err := decoder.Decode(&document); err != nil {
+		return curriculum.ReproducibilityMetadata{}, fmt.Errorf("decode build info: %w", err)
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return curriculum.ReproducibilityMetadata{}, err
+	}
+	builtAt, err := parseTimestamp(document.BuiltAt)
+	if err != nil {
+		return curriculum.ReproducibilityMetadata{}, fmt.Errorf("build info built_at: %w", err)
+	}
+	passes := make([]curriculum.CompilationPassVersion, len(document.Passes))
+	for index, pass := range document.Passes {
+		passes[index] = curriculum.CompilationPassVersion{Name: pass.Name, Version: pass.Version}
+	}
+	bundles := make([]curriculum.SourceBundleRef, len(document.SourceBundles))
+	for index, bundle := range document.SourceBundles {
+		bundles[index], err = decodeBundleRef(bundle)
+		if err != nil {
+			return curriculum.ReproducibilityMetadata{}, fmt.Errorf("build info source bundle %d: %w", index, err)
+		}
+	}
+	metadata := curriculum.ReproducibilityMetadata{
+		SchemaVersion: document.SchemaVersion, CompilerVersion: document.CompilerVersion,
+		Passes: passes, SourceBundles: bundles,
+		CompilationConfig: curriculum.CompilationConfig{
+			CompilerVersion:   document.CompilationConfig.CompilerVersion,
+			SourcePolicy:      curriculum.SourceReferencePolicy(document.CompilationConfig.SourcePolicy),
+			PackSchemaVersion: document.CompilationConfig.PackSchemaVersion,
+		},
+		PackSchemaVersion: document.PackSchemaVersion, InputHash: document.InputHash,
+		OutputHash: document.OutputHash, BuiltAt: builtAt,
+	}
+	if err := metadata.Validate(); err != nil {
+		return curriculum.ReproducibilityMetadata{}, fmt.Errorf("build info: %w", err)
+	}
+	return metadata, nil
 }
 
 func rejectDuplicateJSONKeys(encoded []byte) error {

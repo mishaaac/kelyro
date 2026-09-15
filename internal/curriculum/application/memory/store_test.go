@@ -3,6 +3,7 @@ package memory_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,8 +183,15 @@ func fixtureEnvironment(t *testing.T) curriculum.EnvironmentPack {
 func fixtureCompilation(t *testing.T, definition curriculum.CurriculumDefinition) application.CompilationRecord {
 	t.Helper()
 	input := curriculum.CompilationInput{Goal: definition.Goal, RequestedAt: timestamp(t, 17)}
-	config := curriculum.CompilationConfig{CompilerVersion: "compiler-v1", SourcePolicy: curriculum.SourceReferencesOptionalForFixture}
-	result := curriculum.CompilationResult{Curriculum: definition, Passes: []curriculum.CompilationPass{{Name: "fixture", Version: "fixture-v1", InputHash: "hash-in", OutputHash: "hash-out"}}}
+	config := curriculum.CompilationConfig{CompilerVersion: "compiler-v1", SourcePolicy: curriculum.SourceReferencesOptionalForFixture, PackSchemaVersion: curriculum.LearningPackSchemaVersionV1}
+	inputHash := "sha256:" + strings.Repeat("a", 64)
+	outputHash := "sha256:" + strings.Repeat("b", 64)
+	result := curriculum.CompilationResult{Curriculum: definition, Passes: []curriculum.CompilationPass{{Name: "fixture", Version: "compiler-v1", InputHash: inputHash, OutputHash: outputHash}}}
+	result.BuildInfo = &curriculum.ReproducibilityMetadata{
+		SchemaVersion: curriculum.ReproducibilityMetadataSchemaVersionV1, CompilerVersion: config.CompilerVersion,
+		Passes: []curriculum.CompilationPassVersion{{Name: "fixture", Version: "compiler-v1"}}, CompilationConfig: config,
+		PackSchemaVersion: config.PackSchemaVersion, InputHash: inputHash, OutputHash: outputHash, BuiltAt: timestamp(t, 20),
+	}
 	return application.CompilationRecord{ID: id(t, "compilation.one"), Input: input, Config: config, Result: result, CreatedAt: timestamp(t, 20)}
 }
 

@@ -20,6 +20,7 @@ pack.yaml
 checksums.txt
 curriculum/curriculum.yaml
 sources/evidence-report.json
+build/build-info.json
 environment/environment.yaml   # optional
 README.md                       # optional
 LICENSE                         # optional
@@ -53,6 +54,7 @@ dependencies:
 environment_pack: environment/environment.yaml
 curriculum_entry: curriculum/curriculum.yaml
 source_evidence_entry: sources/evidence-report.json
+build_info_entry: build/build-info.json
 status: current
 curriculum_id: curriculum.go-backend
 ```
@@ -94,7 +96,9 @@ marketplace, execute code, install the pack, or modify learner state.
 
 The curriculum entry is the complete learner-neutral I-04 definition. The
 evidence report contains exact immutable Source Bundle identities and Claim
-references. The optional environment entry follows
+references. The required build-info entry follows `curriculum-build-info/v1`
+and freezes the compiler/pass/config/source recipe plus input/output hashes.
+The optional environment entry follows
 [`environment-pack/v1`](environment-pack-v1.md), contains declarative tool
 requirements only, and never grants permission to store credentials, execute
 commands, or install software.

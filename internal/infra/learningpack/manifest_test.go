@@ -23,6 +23,7 @@ dependencies:
 environment_pack: environment/environment.yaml
 curriculum_entry: curriculum/curriculum.yaml
 source_evidence_entry: sources/evidence-report.json
+build_info_entry: build/build-info.json
 status: current
 curriculum_id: curriculum.go-backend
 `
@@ -35,7 +36,7 @@ func TestParseManifestV1(t *testing.T) {
 	}
 	if manifest.ID.String() != "go.backend" || manifest.Version.String() != "1.2.0" ||
 		manifest.SchemaVersion != SchemaVersionV1 || manifest.CurriculumID.String() != "curriculum.go-backend" ||
-		len(manifest.Dependencies) != 1 || manifest.EnvironmentEntry != "environment/environment.yaml" {
+		len(manifest.Dependencies) != 1 || manifest.EnvironmentEntry != "environment/environment.yaml" || manifest.BuildInfoEntry != "build/build-info.json" {
 		t.Fatalf("manifest = %+v", manifest)
 	}
 }

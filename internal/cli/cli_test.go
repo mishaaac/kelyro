@@ -146,6 +146,41 @@ func TestRunnerInstallsListsShowsAndActivatesLearningPacks(t *testing.T) {
 	}
 }
 
+func TestRunnerShowsActiveCurriculumBuildInfo(t *testing.T) {
+	t.Parallel()
+	packID, _ := curriculum.NewID("pack.backend")
+	packVersion, _ := curriculum.NewPackVersion("1.2.0")
+	curriculumID, _ := curriculum.NewCurriculumID("curriculum.backend")
+	curriculumVersion, _ := curriculum.NewCurriculumVersion("2026.09.14")
+	bundleID, _ := curriculum.NewID("bundle.backend")
+	builtAt, _ := curriculum.NewTimestamp(time.Date(2026, 9, 14, 18, 0, 0, 0, time.UTC))
+	config := curriculum.CompilationConfig{CompilerVersion: curriculum.CurriculumCompilerVersionV1, SourcePolicy: curriculum.SourceReferencesRequired, PackSchemaVersion: curriculum.LearningPackSchemaVersionV1}
+	metadata := &curriculum.ReproducibilityMetadata{
+		SchemaVersion: curriculum.ReproducibilityMetadataSchemaVersionV1, CompilerVersion: config.CompilerVersion,
+		Passes:            []curriculum.CompilationPassVersion{{Name: "compiled-artifact", Version: config.CompilerVersion}},
+		SourceBundles:     []curriculum.SourceBundleRef{{ID: bundleID, ContentHash: "sha256:" + strings.Repeat("a", 64), AlgorithmVersion: "source-bundle-v1", VerifiedAt: builtAt}},
+		CompilationConfig: config, PackSchemaVersion: config.PackSchemaVersion,
+		InputHash: "sha256:" + strings.Repeat("b", 64), OutputHash: "sha256:" + strings.Repeat("c", 64), BuiltAt: builtAt,
+	}
+	manager := &fakePackManager{active: curriculumapp.InstalledPack{Pack: curriculum.LearningPack{
+		Manifest:   curriculum.PackManifest{ID: packID, Version: packVersion},
+		Curriculum: curriculum.CurriculumDefinition{ID: curriculumID, Version: curriculumVersion}, BuildInfo: metadata,
+	}}}
+	workspaces := &fakePackWorkspaces{found: workspace.Workspace{Root: filepath.Join("workspace", "root")}}
+	var stdout, stderr bytes.Buffer
+	code := NewRunner(&fakeService{}, &stdout, &stderr).
+		WithPackManager(manager, workspaces, func() (string, error) { return "nested", nil }).
+		Run(context.Background(), []string{"curriculum", "build-info"})
+	if code != ExitOK || stderr.Len() != 0 {
+		t.Fatalf("build-info code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	for _, want := range []string{"Curriculum build information", "pack.backend@1.2.0", "curriculum.backend@2026.09.14", "curriculum-compiler-v1", "bundle.backend", metadata.InputHash, metadata.OutputHash} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q missing %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestRunnerListsAndSearchesPackCatalogWithoutInstalling(t *testing.T) {
 	t.Parallel()
 	id, _ := curriculum.NewID("go.backend")
@@ -1863,6 +1898,8 @@ type fakePackManager struct {
 	list        []curriculumapp.InstalledPack
 	findID      curriculum.ID
 	activate    curriculumapp.PackActivateRequest
+	active      curriculumapp.InstalledPack
+	activeErr   error
 }
 
 func (manager *fakePackManager) Install(_ context.Context, request curriculumapp.PackInstallRequest) (curriculumapp.PackInstallResult, error) {
@@ -1882,7 +1919,7 @@ func (manager *fakePackManager) Find(_ context.Context, id curriculum.ID) ([]cur
 	return manager.list, nil
 }
 func (manager *fakePackManager) Active(context.Context, string) (curriculumapp.InstalledPack, error) {
-	return curriculumapp.InstalledPack{}, nil
+	return manager.active, manager.activeErr
 }
 
 type fakePackWorkspaces struct{ found workspace.Workspace }

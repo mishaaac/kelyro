@@ -137,6 +137,12 @@ func cloneCompilation(value application.CompilationRecord) application.Compilati
 		cloned.Result.Gaps[index].EvidenceRefs = append([]curriculum.EvidenceRef(nil), gap.EvidenceRefs...)
 	}
 	cloned.Result.Warnings = append([]string(nil), value.Result.Warnings...)
+	if value.Result.BuildInfo != nil {
+		buildInfo := *value.Result.BuildInfo
+		buildInfo.Passes = append([]curriculum.CompilationPassVersion(nil), value.Result.BuildInfo.Passes...)
+		buildInfo.SourceBundles = append([]curriculum.SourceBundleRef(nil), value.Result.BuildInfo.SourceBundles...)
+		cloned.Result.BuildInfo = &buildInfo
+	}
 	if value.Result.Diagnostics != nil {
 		diagnostics := cloneCompilationDiagnostics(*value.Result.Diagnostics)
 		cloned.Result.Diagnostics = &diagnostics

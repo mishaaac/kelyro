@@ -70,6 +70,7 @@ Commands:
   streak   Show study consistency without affecting progress
   sources  Inspect sources, conflicts, provenance, and stale evidence
   research Plan and inspect Research runs, costs, and the offline cache
+  curriculum Inspect reproducibility metadata for the active curriculum
   packs    Validate, install, inspect, activate, and upgrade Learning Packs
   maintenance  Run advanced local maintenance operations
 
@@ -196,6 +197,9 @@ Research commands:
   kelyro research update-scan
   kelyro research cache status
   kelyro research cache clear
+
+Curriculum commands:
+  kelyro curriculum build-info
 
 Learning Pack commands:
   kelyro packs validate <path>
@@ -340,6 +344,9 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 	if invocation.command == "packs" {
 		return r.runPacks(ctx, invocation)
+	}
+	if invocation.command == "curriculum" {
+		return r.runCurriculum(ctx, invocation)
 	}
 
 	action := app.ActionTUI
@@ -554,6 +561,54 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 
 	return ExitOK
+}
+
+func (r Runner) runCurriculum(ctx context.Context, invocation invocation) int {
+	if r.packManager == nil {
+		fmt.Fprintln(r.stderr, "kelyro curriculum: pack manager is unavailable")
+		return ExitFailure
+	}
+	root, err := r.resolvePackWorkspace(invocation.workspace)
+	if err != nil {
+		fmt.Fprintf(r.stderr, "kelyro curriculum build-info: %v\n", err)
+		return ExitFailure
+	}
+	installed, err := r.packManager.Active(ctx, root)
+	if err != nil {
+		fmt.Fprintf(r.stderr, "kelyro curriculum build-info: %v\n", err)
+		return ExitFailure
+	}
+	if installed.Pack.BuildInfo == nil {
+		fmt.Fprintln(r.stderr, "kelyro curriculum build-info: active pack has no reproducibility metadata")
+		return ExitFailure
+	}
+	if !invocation.quiet {
+		fmt.Fprintln(r.stdout, formatCurriculumBuildInfo(installed.Pack, *installed.Pack.BuildInfo))
+	}
+	return ExitOK
+}
+
+func formatCurriculumBuildInfo(pack curriculum.LearningPack, metadata curriculum.ReproducibilityMetadata) string {
+	lines := []string{
+		"Curriculum build information",
+		fmt.Sprintf("Pack: %s@%s", pack.Manifest.ID, pack.Manifest.Version.String()),
+		fmt.Sprintf("Curriculum: %s@%s", pack.Curriculum.ID, pack.Curriculum.Version.String()),
+		"Built: " + metadata.BuiltAt.Time().Format(time.RFC3339),
+		"Compiler: " + metadata.CompilerVersion,
+		"Pack schema: " + metadata.PackSchemaVersion,
+		"Source policy: " + string(metadata.CompilationConfig.SourcePolicy),
+		"Input hash: " + metadata.InputHash,
+		"Output hash: " + metadata.OutputHash,
+		fmt.Sprintf("Source bundles (%d)", len(metadata.SourceBundles)),
+	}
+	for _, bundle := range metadata.SourceBundles {
+		lines = append(lines, fmt.Sprintf("- %s  %s  %s", bundle.ID, bundle.ContentHash, bundle.AlgorithmVersion))
+	}
+	lines = append(lines, fmt.Sprintf("Compiler passes (%d)", len(metadata.Passes)))
+	for _, pass := range metadata.Passes {
+		lines = append(lines, fmt.Sprintf("- %s: %s", pass.Name, pass.Version))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (r Runner) runPacks(ctx context.Context, invocation invocation) int {
@@ -1502,6 +1557,7 @@ type invocation struct {
 	packVersion             curriculum.PackVersion
 	packQuery               string
 	packDryRun              bool
+	curriculumOperation     string
 }
 
 func parse(args []string) (invocation, error) {
@@ -1871,6 +1927,11 @@ func parse(args []string) (invocation, error) {
 		if err := parsePackArguments(&result); err != nil {
 			return invocation{}, err
 		}
+	case "curriculum":
+		if len(result.arguments) != 1 || result.arguments[0] != "build-info" {
+			return invocation{}, fmt.Errorf("curriculum requires build-info")
+		}
+		result.curriculumOperation = "build-info"
 	case "maintenance":
 		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
 			return invocation{}, fmt.Errorf("maintenance requires recalculate")

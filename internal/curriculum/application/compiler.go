@@ -29,6 +29,9 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 		if request.Config.CompilerVersion != curriculum.CurriculumCompilerVersionV1 {
 			return false, Invalid(operation, fmt.Errorf("unsupported compiler version %q", request.Config.CompilerVersion))
 		}
+		if request.Config.PackSchemaVersion != curriculum.LearningPackSchemaVersionV1 {
+			return false, Invalid(operation, fmt.Errorf("unsupported pack schema version %q", request.Config.PackSchemaVersion))
+		}
 		if err := request.Config.Validate(); err != nil {
 			return false, Invalid(operation, err)
 		}
@@ -314,6 +317,21 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 		return fail(pass, err)
 	}
 	appendPass(pass)
+	passVersions := make([]curriculum.CompilationPassVersion, len(result.Passes))
+	for index, recorded := range result.Passes {
+		passVersions[index] = curriculum.CompilationPassVersion{Name: recorded.Name, Version: recorded.Version}
+	}
+	result.BuildInfo = &curriculum.ReproducibilityMetadata{
+		SchemaVersion:     curriculum.ReproducibilityMetadataSchemaVersionV1,
+		CompilerVersion:   request.Config.CompilerVersion,
+		Passes:            passVersions,
+		SourceBundles:     append([]curriculum.SourceBundleRef(nil), request.Input.SourceBundles...),
+		CompilationConfig: request.Config,
+		PackSchemaVersion: request.Config.PackSchemaVersion,
+		InputHash:         result.Passes[0].InputHash,
+		OutputHash:        result.Passes[len(result.Passes)-1].OutputHash,
+		BuiltAt:           request.Metadata.CreatedAt,
+	}
 	if err := result.Validate(); err != nil {
 		return result, Invalid(operation, err)
 	}

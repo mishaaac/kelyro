@@ -304,7 +304,7 @@ func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curr
 	if err != nil {
 		return curriculum.LearningPack{}, nil, err
 	}
-	for _, required := range []string{manifest.CurriculumEntry, manifest.SourceEvidenceEntry} {
+	for _, required := range []string{manifest.CurriculumEntry, manifest.SourceEvidenceEntry, manifest.BuildInfoEntry} {
 		if _, exists := entries[required]; !exists {
 			return curriculum.LearningPack{}, nil, fmt.Errorf("manifest entry %q is missing", required)
 		}
@@ -320,7 +320,11 @@ func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curr
 	if err != nil {
 		return curriculum.LearningPack{}, nil, err
 	}
-	pack := curriculum.LearningPack{Manifest: manifest, Curriculum: curriculumDefinition}
+	buildInfo, err := decodeBuildInfo(entries[manifest.BuildInfoEntry])
+	if err != nil {
+		return curriculum.LearningPack{}, nil, err
+	}
+	pack := curriculum.LearningPack{Manifest: manifest, Curriculum: curriculumDefinition, BuildInfo: &buildInfo}
 	if manifest.EnvironmentEntry != "" {
 		encoded, exists := entries[manifest.EnvironmentEntry]
 		if !exists {

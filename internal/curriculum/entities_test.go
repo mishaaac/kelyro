@@ -50,7 +50,7 @@ func TestPackEnvironmentCompilationAndChangeShapesValidate(t *testing.T) {
 	}
 
 	input := CompilationInput{Goal: definition.Goal, SourceBundles: definition.SourceBundles, RequestedAt: createdAt}
-	config := CompilationConfig{CompilerVersion: "curriculum-compiler-v1", SourcePolicy: SourceReferencesRequired}
+	config := CompilationConfig{CompilerVersion: "curriculum-compiler-v1", SourcePolicy: SourceReferencesRequired, PackSchemaVersion: LearningPackSchemaVersionV1}
 	if err := input.Validate(config.SourcePolicy); err != nil {
 		t.Fatalf("valid compilation input rejected: %v", err)
 	}
