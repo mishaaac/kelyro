@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 45
-Last completed step: 44
+Current step: 46
+Last completed step: 45
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2273,3 +2273,49 @@ Release: unreleased
 - El Paso 45 es el siguiente: generar el reporte humano/machine-readable de
   evidencia a partir del resultado y evidence sets ya congelados.
 - El reporte conservará citations/identidades y no copiará cuerpos externos.
+
+## Step 45 — Curriculum Evidence Report v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- Modelo validado `curriculum-evidence-report/v1` para goal, competencias,
+  conteos, bundles/Claims, cobertura primaria, freshness, conflictos/caveats,
+  contenido temporal, gaps y versiones del compiler.
+- Reporter determinista que consume exclusivamente el `CompilationResult` y
+  los `CurriculumEvidenceSet` congelados que corresponden a sus Source Bundles.
+- Policy `primary-source-coverage-v1`, calculada por Claim referenciado con al
+  menos un Source ID de rol primario dentro del bundle exacto.
+- Proyección Markdown determinista destinada a `EVIDENCE.md`, sin statements
+  de Claims, excerpts, cuerpos web ni transcripciones externas.
+- Evidence JSON portable ampliado y decodificado estrictamente; el loader lo
+  cruza con curriculum, build info y referencias de evidencia utilizadas.
+- Contrato documentado en
+  `docs/architecture/curriculum-evidence-report-v1.md`.
+
+### Decisions
+
+- Representar evidencia externa mediante IDs/hashes/roles/freshness y no
+  duplicar prosa externa en el reporte.
+- Medir cobertura primaria sobre Claims únicos realmente referenciados por el
+  curriculum, no sobre el número bruto de sources del bundle.
+- Mantener el reporter separado del compiler: recibe un resultado ya válido y
+  puede generar JSON/Markdown para build/export sin alterar sus hashes.
+- Reservar la inclusión física de `EVIDENCE.md` y los checks copyright del
+  archive para el Pack Builder del Paso 46.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/infra/learningpack -count=1`.
+- Tests de salida repetible, cobertura primaria, ausencia de Claim statements,
+  evidencia no coincidente y carga estricta del reporte portable.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 46 construirá el archive distribuible, incorporará JSON y
+  `EVIDENCE.md`, y rechazará patrones de retención externa prohibidos.
+- No añadir scripts, contenido I-05, cache bodies ni descarga de sources.

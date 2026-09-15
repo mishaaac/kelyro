@@ -87,14 +87,33 @@ created_at: 2026-09-11T15:00:00Z
 `
 
 const validEvidenceReport = `{
-  "schema_version": "curriculum-evidence/v1",
+  "schema_version": "curriculum-evidence-report/v1",
+  "goal": {"id": "goal.go-backend", "title": "Backend Engineer with Go", "domain": "software-engineering"},
+  "competencies": [{
+    "id": "competency.packages", "area": "go-language", "outcome_id": "outcome.explain",
+    "expected_level": "understand", "concept_count": 1
+  }],
+  "concept_count": 1,
+  "source_bundle_count": 1,
   "bundles": [{
     "id": "bundle.go-packages",
     "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "algorithm_version": "source-bundle-v1",
     "verified_at": "2026-09-11T14:00:00Z"
   }],
-  "claims": [{"bundle_id": "bundle.go-packages", "claim_id": "claim.go-packages"}]
+  "claims": [{"bundle_id": "bundle.go-packages", "claim_id": "claim.go-packages"}],
+  "primary_source_coverage": {"referenced_claims": 1, "primary_claims": 1, "ratio": 1, "policy_version": "primary-source-coverage-v1"},
+  "freshness": [{"bundle_id": "bundle.go-packages", "state": "fresh", "score": 1, "last_verified_at": "2026-09-11T14:00:00Z", "algorithm": "source-bundle-freshness-v1"}],
+  "conflicts": [],
+  "caveats": [],
+  "historical_content": [],
+  "experimental_content": [],
+  "gaps": [],
+  "compiler_version": "curriculum-compiler-v1",
+  "pass_versions": [
+    {"name": "validate-input", "version": "curriculum-compiler-v1"},
+    {"name": "compiled-artifact", "version": "curriculum-compiler-v1"}
+  ]
 }
 `
 
@@ -178,7 +197,7 @@ func TestValidatorLoadsDirectoryAndZIP(t *testing.T) {
 			if err != nil || len(result.Errors) != 0 || result.Pack == nil {
 				t.Fatalf("Validate() result=%+v error=%v", result, err)
 			}
-			if result.Pack.Manifest.ID.String() != "go.backend" || result.Pack.Environment == nil || result.Pack.Curriculum.ID.String() != "curriculum.go-backend" {
+			if result.Pack.Manifest.ID.String() != "go.backend" || result.Pack.Environment == nil || result.Pack.EvidenceReport == nil || result.Pack.Curriculum.ID.String() != "curriculum.go-backend" {
 				t.Fatalf("pack = %+v", result.Pack)
 			}
 		})
@@ -221,7 +240,7 @@ func TestValidatorRejectsChecksumUTF8AndEvidenceFailures(t *testing.T) {
 			updateChecksums(entries)
 		}, "missing from evidence report"},
 		{"duplicate JSON key", func(entries map[string][]byte) {
-			entries["sources/evidence-report.json"] = []byte(strings.Replace(validEvidenceReport, `"schema_version": "curriculum-evidence/v1",`, `"schema_version": "curriculum-evidence/v1", "schema_version": "curriculum-evidence/v1",`, 1))
+			entries["sources/evidence-report.json"] = []byte(strings.Replace(validEvidenceReport, `"schema_version": "curriculum-evidence-report/v1",`, `"schema_version": "curriculum-evidence-report/v1", "schema_version": "curriculum-evidence-report/v1",`, 1))
 			updateChecksums(entries)
 		}, "duplicate JSON key"},
 		{"unknown curriculum field", func(entries map[string][]byte) {

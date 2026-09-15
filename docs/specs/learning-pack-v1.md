@@ -95,8 +95,12 @@ invalid. Validation is entirely local and must not fetch evidence, resolve a
 marketplace, execute code, install the pack, or modify learner state.
 
 The curriculum entry is the complete learner-neutral I-04 definition. The
-evidence report contains exact immutable Source Bundle identities and Claim
-references. The required build-info entry follows `curriculum-build-info/v1`
+evidence entry follows `curriculum-evidence-report/v1`: it contains goal and
+competency summaries, exact immutable Source Bundle/Claim references, primary
+coverage, freshness, conflicts/caveats, temporal content, gaps, and compiler
+versions. It never embeds Claim statements or Evidence excerpts. Pack builds
+also include its human-readable `EVIDENCE.md` projection. The required
+build-info entry follows `curriculum-build-info/v1`
 and freezes the compiler/pass/config/source recipe plus input/output hashes.
 The optional environment entry follows
 [`environment-pack/v1`](environment-pack-v1.md), contains declarative tool

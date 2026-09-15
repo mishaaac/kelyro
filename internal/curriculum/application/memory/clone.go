@@ -112,6 +112,20 @@ func clonePack(value curriculum.LearningPack) curriculum.LearningPack {
 		environment := cloneEnvironment(*value.Environment)
 		cloned.Environment = &environment
 	}
+	if value.EvidenceReport != nil {
+		report := *value.EvidenceReport
+		report.Competencies = append([]curriculum.EvidenceReportCompetency(nil), value.EvidenceReport.Competencies...)
+		report.Bundles = append([]curriculum.SourceBundleRef(nil), value.EvidenceReport.Bundles...)
+		report.Claims = append([]curriculum.EvidenceRef(nil), value.EvidenceReport.Claims...)
+		report.Freshness = append([]curriculum.EvidenceReportFreshness(nil), value.EvidenceReport.Freshness...)
+		report.Conflicts = append([]curriculum.EvidenceReportConflict(nil), value.EvidenceReport.Conflicts...)
+		report.Caveats = append([]curriculum.EvidenceReportCaveat(nil), value.EvidenceReport.Caveats...)
+		report.HistoricalContent = append([]curriculum.EvidenceReportTemporalContent(nil), value.EvidenceReport.HistoricalContent...)
+		report.ExperimentalContent = append([]curriculum.EvidenceReportTemporalContent(nil), value.EvidenceReport.ExperimentalContent...)
+		report.Gaps = append([]curriculum.Gap(nil), value.EvidenceReport.Gaps...)
+		report.PassVersions = append([]curriculum.CompilationPassVersion(nil), value.EvidenceReport.PassVersions...)
+		cloned.EvidenceReport = &report
+	}
 	return cloned
 }
 

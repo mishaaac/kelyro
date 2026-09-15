@@ -324,7 +324,7 @@ func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curr
 	if err != nil {
 		return curriculum.LearningPack{}, nil, err
 	}
-	pack := curriculum.LearningPack{Manifest: manifest, Curriculum: curriculumDefinition, BuildInfo: &buildInfo}
+	pack := curriculum.LearningPack{Manifest: manifest, Curriculum: curriculumDefinition, BuildInfo: &buildInfo, EvidenceReport: &report}
 	if manifest.EnvironmentEntry != "" {
 		encoded, exists := entries[manifest.EnvironmentEntry]
 		if !exists {
@@ -389,29 +389,21 @@ func validateChecksums(entries map[string][]byte) error {
 	return nil
 }
 
-func validateEvidenceReport(report evidenceReportDocument, definition curriculum.CurriculumDefinition, environment *curriculum.EnvironmentPack) error {
+func validateEvidenceReport(report curriculum.CurriculumEvidenceReport, definition curriculum.CurriculumDefinition, environment *curriculum.EnvironmentPack) error {
 	if len(report.Bundles) != len(definition.SourceBundles) {
 		return fmt.Errorf("evidence report bundle set does not match curriculum")
 	}
-	for index, raw := range report.Bundles {
-		value, err := decodeBundleRef(raw)
-		if err != nil {
-			return fmt.Errorf("evidence report bundle %d: %w", index, err)
-		}
+	for index, value := range report.Bundles {
 		if value != definition.SourceBundles[index] {
 			return fmt.Errorf("evidence report bundle %d does not match curriculum", index)
 		}
 	}
 	reported := make(map[curriculum.EvidenceRef]struct{}, len(report.Claims))
-	for _, raw := range report.Claims {
-		refs, err := decodeEvidenceRefs([]evidenceRefDocument{raw})
-		if err != nil {
-			return err
-		}
-		if _, exists := reported[refs[0]]; exists {
+	for _, reference := range report.Claims {
+		if _, exists := reported[reference]; exists {
 			return fmt.Errorf("evidence report contains duplicate claim reference")
 		}
-		reported[refs[0]] = struct{}{}
+		reported[reference] = struct{}{}
 	}
 	for _, reference := range collectEvidenceRefs(definition, environment) {
 		if _, exists := reported[reference]; !exists {

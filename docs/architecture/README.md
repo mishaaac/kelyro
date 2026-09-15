@@ -98,6 +98,9 @@ and compiled diagnostics are documented in
 The persisted compiler/pass/config/source recipe, content hashes, portable pack
 entry, and active-pack inspection command are documented in
 [Curriculum build reproducibility metadata v1](curriculum-reproducibility-v1.md).
+The deterministic goal/competency/evidence/freshness/conflict/temporal/gap
+summary and its source-body-free Markdown projection are documented in
+[Curriculum Evidence Report v1](curriculum-evidence-report-v1.md).
 The deterministic thirteen-dimension publication gate and its non-authoritative
 optional advisor boundary are documented in
 [Curriculum Reviewer v1](curriculum-reviewer-v1.md).

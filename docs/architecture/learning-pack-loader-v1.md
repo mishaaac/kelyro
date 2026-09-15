@@ -22,7 +22,7 @@ The v1 pipeline is deterministic:
    100:1 per-entry ZIP compression-ratio ceiling;
 5. require valid UTF-8, `pack.yaml`, and `checksums.txt`;
 6. verify a complete, sorted, duplicate-free SHA-256 inventory;
-7. strictly decode the manifest, curriculum, evidence report and optional
+7. strictly decode the manifest, curriculum, evidence report, build info and optional
    environment document;
 8. validate domain aggregates and all cross-document identities/references.
 
@@ -39,6 +39,8 @@ again while reading.
   refs, including hash, algorithm and verification time;
 - every Claim ref used by goals, competencies, concepts, prerequisites,
   coverage requirements or environment tools appears in the evidence report;
+- evidence report goal/counts and compiler/pass versions match the curriculum
+  and build-info entry;
 - environment concept and bundle refs resolve in the curriculum;
 - the complete `LearningPack` passes domain validation.
 

@@ -160,9 +160,77 @@ type coverageRequirementDocument struct {
 }
 
 type evidenceReportDocument struct {
-	SchemaVersion string                `json:"schema_version"`
-	Bundles       []bundleRefDocument   `json:"bundles"`
-	Claims        []evidenceRefDocument `json:"claims"`
+	SchemaVersion         string                             `json:"schema_version"`
+	Goal                  evidenceReportGoalDocument         `json:"goal"`
+	Competencies          []evidenceReportCompetencyDocument `json:"competencies"`
+	ConceptCount          int                                `json:"concept_count"`
+	SourceBundleCount     int                                `json:"source_bundle_count"`
+	Bundles               []bundleRefDocument                `json:"bundles"`
+	Claims                []evidenceRefDocument              `json:"claims"`
+	PrimarySourceCoverage evidenceReportCoverageDocument     `json:"primary_source_coverage"`
+	Freshness             []evidenceReportFreshnessDocument  `json:"freshness"`
+	Conflicts             []evidenceReportConflictDocument   `json:"conflicts"`
+	Caveats               []evidenceReportCaveatDocument     `json:"caveats"`
+	HistoricalContent     []temporalContentDocument          `json:"historical_content"`
+	ExperimentalContent   []temporalContentDocument          `json:"experimental_content"`
+	Gaps                  []gapDocument                      `json:"gaps"`
+	CompilerVersion       string                             `json:"compiler_version"`
+	PassVersions          []compilationPassDocument          `json:"pass_versions"`
+}
+
+type evidenceReportGoalDocument struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Domain string `json:"domain"`
+}
+
+type evidenceReportCompetencyDocument struct {
+	ID            string `json:"id"`
+	Area          string `json:"area"`
+	OutcomeID     string `json:"outcome_id"`
+	ExpectedLevel string `json:"expected_level"`
+	ConceptCount  int    `json:"concept_count"`
+}
+
+type evidenceReportCoverageDocument struct {
+	ReferencedClaims int     `json:"referenced_claims"`
+	PrimaryClaims    int     `json:"primary_claims"`
+	Ratio            float64 `json:"ratio"`
+	PolicyVersion    string  `json:"policy_version"`
+}
+
+type evidenceReportFreshnessDocument struct {
+	BundleID       string  `json:"bundle_id"`
+	State          string  `json:"state"`
+	Score          float64 `json:"score"`
+	LastVerifiedAt string  `json:"last_verified_at,omitempty"`
+	Algorithm      string  `json:"algorithm"`
+}
+
+type evidenceReportConflictDocument struct {
+	BundleID         string   `json:"bundle_id"`
+	ConflictID       string   `json:"conflict_id"`
+	ClaimIDs         []string `json:"claim_ids"`
+	Unresolved       bool     `json:"unresolved"`
+	Reason           string   `json:"reason"`
+	AlgorithmVersion string   `json:"algorithm_version"`
+}
+
+type evidenceReportCaveatDocument struct {
+	BundleID string `json:"bundle_id"`
+	Text     string `json:"text"`
+}
+type temporalContentDocument struct {
+	ConceptID string `json:"concept_id"`
+	Status    string `json:"status"`
+}
+type gapDocument struct {
+	ID           string                `json:"id"`
+	Kind         string                `json:"kind"`
+	Severity     string                `json:"severity"`
+	TargetID     string                `json:"target_id"`
+	Reason       string                `json:"reason"`
+	EvidenceRefs []evidenceRefDocument `json:"evidence_refs"`
 }
 
 type buildInfoDocument struct {
@@ -528,23 +596,136 @@ func parseTimestamp(value string) (curriculum.Timestamp, error) {
 	return curriculum.NewTimestamp(parsed)
 }
 
-func decodeEvidenceReport(encoded []byte) (evidenceReportDocument, error) {
+func decodeEvidenceReport(encoded []byte) (curriculum.CurriculumEvidenceReport, error) {
 	if err := rejectDuplicateJSONKeys(encoded); err != nil {
-		return evidenceReportDocument{}, fmt.Errorf("decode evidence report: %w", err)
+		return curriculum.CurriculumEvidenceReport{}, fmt.Errorf("decode evidence report: %w", err)
 	}
 	decoder := json.NewDecoder(strings.NewReader(string(encoded)))
 	decoder.DisallowUnknownFields()
 	var report evidenceReportDocument
 	if err := decoder.Decode(&report); err != nil {
-		return report, fmt.Errorf("decode evidence report: %w", err)
+		return curriculum.CurriculumEvidenceReport{}, fmt.Errorf("decode evidence report: %w", err)
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
-		return report, err
+		return curriculum.CurriculumEvidenceReport{}, err
 	}
-	if report.SchemaVersion != "curriculum-evidence/v1" {
-		return report, fmt.Errorf("unsupported evidence report schema %q", report.SchemaVersion)
+	goalID, err := curriculum.NewID(report.Goal.ID)
+	if err != nil {
+		return curriculum.CurriculumEvidenceReport{}, err
 	}
-	return report, nil
+	result := curriculum.CurriculumEvidenceReport{
+		SchemaVersion: report.SchemaVersion,
+		Goal:          curriculum.EvidenceReportGoal{ID: goalID, Title: report.Goal.Title, Domain: report.Goal.Domain},
+		ConceptCount:  report.ConceptCount, SourceBundleCount: report.SourceBundleCount,
+		PrimarySourceCoverage: curriculum.EvidenceReportCoverage{
+			ReferencedClaims: report.PrimarySourceCoverage.ReferencedClaims, PrimaryClaims: report.PrimarySourceCoverage.PrimaryClaims,
+			Ratio: report.PrimarySourceCoverage.Ratio, PolicyVersion: report.PrimarySourceCoverage.PolicyVersion,
+		},
+		CompilerVersion: report.CompilerVersion,
+	}
+	for index, raw := range report.Bundles {
+		bundle, err := decodeBundleRef(raw)
+		if err != nil {
+			return curriculum.CurriculumEvidenceReport{}, fmt.Errorf("evidence report bundle %d: %w", index, err)
+		}
+		result.Bundles = append(result.Bundles, bundle)
+	}
+	result.Claims, err = decodeEvidenceRefs(report.Claims)
+	if err != nil {
+		return curriculum.CurriculumEvidenceReport{}, err
+	}
+	for _, raw := range report.Competencies {
+		id, idErr := curriculum.NewID(raw.ID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		outcome, idErr := curriculum.NewID(raw.OutcomeID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		result.Competencies = append(result.Competencies, curriculum.EvidenceReportCompetency{ID: id, Area: raw.Area, OutcomeID: outcome, ExpectedLevel: curriculum.CompetencyLevel(raw.ExpectedLevel), ConceptCount: raw.ConceptCount})
+	}
+	for _, raw := range report.Freshness {
+		bundleID, idErr := curriculum.NewID(raw.BundleID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		freshness := curriculum.EvidenceFreshness{State: raw.State, Score: raw.Score, Algorithm: raw.Algorithm}
+		if raw.LastVerifiedAt != "" {
+			value, timeErr := parseTimestamp(raw.LastVerifiedAt)
+			if timeErr != nil {
+				return curriculum.CurriculumEvidenceReport{}, timeErr
+			}
+			freshness.LastVerifiedAt = &value
+		}
+		result.Freshness = append(result.Freshness, curriculum.EvidenceReportFreshness{BundleID: bundleID, Freshness: freshness})
+	}
+	for _, raw := range report.Conflicts {
+		bundleID, idErr := curriculum.NewID(raw.BundleID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		conflictID, idErr := curriculum.NewID(raw.ConflictID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		claimIDs := make([]curriculum.ID, len(raw.ClaimIDs))
+		for index, value := range raw.ClaimIDs {
+			claimIDs[index], idErr = curriculum.NewID(value)
+			if idErr != nil {
+				return curriculum.CurriculumEvidenceReport{}, idErr
+			}
+		}
+		result.Conflicts = append(result.Conflicts, curriculum.EvidenceReportConflict{BundleID: bundleID, ConflictID: conflictID, ClaimIDs: claimIDs, Unresolved: raw.Unresolved, Reason: raw.Reason, AlgorithmVersion: raw.AlgorithmVersion})
+	}
+	for _, raw := range report.Caveats {
+		bundleID, idErr := curriculum.NewID(raw.BundleID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		result.Caveats = append(result.Caveats, curriculum.EvidenceReportCaveat{BundleID: bundleID, Text: raw.Text})
+	}
+	decodeTemporal := func(values []temporalContentDocument) ([]curriculum.EvidenceReportTemporalContent, error) {
+		output := make([]curriculum.EvidenceReportTemporalContent, len(values))
+		for index, raw := range values {
+			id, idErr := curriculum.NewConceptID(raw.ConceptID)
+			if idErr != nil {
+				return nil, idErr
+			}
+			output[index] = curriculum.EvidenceReportTemporalContent{ConceptID: id, Status: curriculum.ConceptStatus(raw.Status)}
+		}
+		return output, nil
+	}
+	result.HistoricalContent, err = decodeTemporal(report.HistoricalContent)
+	if err != nil {
+		return curriculum.CurriculumEvidenceReport{}, err
+	}
+	result.ExperimentalContent, err = decodeTemporal(report.ExperimentalContent)
+	if err != nil {
+		return curriculum.CurriculumEvidenceReport{}, err
+	}
+	for _, raw := range report.Gaps {
+		id, idErr := curriculum.NewID(raw.ID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		target, idErr := curriculum.NewID(raw.TargetID)
+		if idErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, idErr
+		}
+		refs, refErr := decodeEvidenceRefs(raw.EvidenceRefs)
+		if refErr != nil {
+			return curriculum.CurriculumEvidenceReport{}, refErr
+		}
+		result.Gaps = append(result.Gaps, curriculum.Gap{ID: id, Kind: curriculum.GapKind(raw.Kind), Severity: curriculum.GapSeverity(raw.Severity), TargetID: target, Reason: raw.Reason, EvidenceRefs: refs})
+	}
+	for _, raw := range report.PassVersions {
+		result.PassVersions = append(result.PassVersions, curriculum.CompilationPassVersion{Name: raw.Name, Version: raw.Version})
+	}
+	if err := result.Validate(); err != nil {
+		return curriculum.CurriculumEvidenceReport{}, fmt.Errorf("evidence report: %w", err)
+	}
+	return result, nil
 }
 
 func decodeBuildInfo(encoded []byte) (curriculum.ReproducibilityMetadata, error) {

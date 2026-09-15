@@ -106,10 +106,11 @@ func (manifest PackManifest) Validate() error {
 }
 
 type LearningPack struct {
-	Manifest    PackManifest
-	Curriculum  CurriculumDefinition
-	Environment *EnvironmentPack
-	BuildInfo   *ReproducibilityMetadata
+	Manifest       PackManifest
+	Curriculum     CurriculumDefinition
+	Environment    *EnvironmentPack
+	BuildInfo      *ReproducibilityMetadata
+	EvidenceReport *CurriculumEvidenceReport
 }
 
 func (pack LearningPack) Validate() error {
@@ -135,6 +136,32 @@ func (pack LearningPack) Validate() error {
 		for index := range pack.Curriculum.SourceBundles {
 			if pack.BuildInfo.SourceBundles[index] != pack.Curriculum.SourceBundles[index] {
 				return fmt.Errorf("pack build info source bundle %d does not match curriculum", index)
+			}
+		}
+	}
+	if pack.EvidenceReport != nil {
+		if err := pack.EvidenceReport.Validate(); err != nil {
+			return fmt.Errorf("pack evidence report: %w", err)
+		}
+		if pack.EvidenceReport.Goal.ID != pack.Curriculum.Goal.ID || pack.EvidenceReport.ConceptCount != len(pack.Curriculum.Concepts) {
+			return fmt.Errorf("pack evidence report does not match curriculum")
+		}
+		if len(pack.EvidenceReport.Bundles) != len(pack.Curriculum.SourceBundles) {
+			return fmt.Errorf("pack evidence report source bundles do not match curriculum")
+		}
+		for index := range pack.Curriculum.SourceBundles {
+			if pack.EvidenceReport.Bundles[index] != pack.Curriculum.SourceBundles[index] {
+				return fmt.Errorf("pack evidence report source bundle %d does not match curriculum", index)
+			}
+		}
+		if pack.BuildInfo != nil {
+			if pack.EvidenceReport.CompilerVersion != pack.BuildInfo.CompilerVersion || len(pack.EvidenceReport.PassVersions) != len(pack.BuildInfo.Passes) {
+				return fmt.Errorf("pack evidence report compiler versions do not match build info")
+			}
+			for index := range pack.BuildInfo.Passes {
+				if pack.EvidenceReport.PassVersions[index] != pack.BuildInfo.Passes[index] {
+					return fmt.Errorf("pack evidence report pass %d does not match build info", index)
+				}
 			}
 		}
 	}

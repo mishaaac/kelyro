@@ -12,6 +12,20 @@ type CurriculumCompilerService interface {
 	Compile(context.Context, CurriculumCompileRequest) (curriculum.CompilationResult, error)
 }
 
+type CurriculumEvidenceReportRequest struct {
+	Compilation  curriculum.CompilationResult
+	EvidenceSets []curriculum.CurriculumEvidenceSet
+}
+
+type CurriculumEvidenceReportResult struct {
+	Report   curriculum.CurriculumEvidenceReport
+	Markdown string
+}
+
+type CurriculumEvidenceReportService interface {
+	Generate(context.Context, CurriculumEvidenceReportRequest) (CurriculumEvidenceReportResult, error)
+}
+
 type CurriculumBuildMetadata struct {
 	ID          curriculum.CurriculumID
 	Version     curriculum.CurriculumVersion
