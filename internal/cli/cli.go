@@ -70,7 +70,7 @@ Commands:
   streak   Show study consistency without affecting progress
   sources  Inspect sources, conflicts, provenance, and stale evidence
   research Plan and inspect Research runs, costs, and the offline cache
-  curriculum Inspect reproducibility metadata for the active curriculum
+  curriculum Inspect the active compiled curriculum
   packs    Validate, install, inspect, activate, and upgrade Learning Packs
   maintenance  Run advanced local maintenance operations
 
@@ -199,6 +199,11 @@ Research commands:
   kelyro research cache clear
 
 Curriculum commands:
+  kelyro curriculum compile
+  kelyro curriculum validate
+  kelyro curriculum coverage
+  kelyro curriculum gaps
+  kelyro curriculum audit
   kelyro curriculum build-info
 
 Learning Pack commands:
@@ -259,6 +264,7 @@ type Runner struct {
 	packManager      curriculumapp.PackInstallService
 	packCatalog      curriculumapp.PackCatalogService
 	packUpgrade      curriculumapp.PackUpgradeService
+	curriculum       curriculumapp.CurriculumInspectionService
 	packWorkspaces   workspace.Service
 	currentDirectory func() (string, error)
 }
@@ -322,6 +328,13 @@ func (r Runner) WithPackCatalog(catalog curriculumapp.PackCatalogService) Runner
 // WithPackUpgrade attaches the student-safe pack upgrade planner/executor.
 func (r Runner) WithPackUpgrade(upgrade curriculumapp.PackUpgradeService) Runner {
 	r.packUpgrade = upgrade
+	return r
+}
+
+// WithCurriculumInspector attaches read-only inspection of the immutable
+// compiled artifact contained by an active Learning Pack.
+func (r Runner) WithCurriculumInspector(inspector curriculumapp.CurriculumInspectionService) Runner {
+	r.curriculum = inspector
 	return r
 }
 
@@ -568,15 +581,30 @@ func (r Runner) runCurriculum(ctx context.Context, invocation invocation) int {
 		fmt.Fprintln(r.stderr, "kelyro curriculum: pack manager is unavailable")
 		return ExitFailure
 	}
+	if r.curriculum == nil && invocation.curriculumOperation != "build-info" {
+		fmt.Fprintln(r.stderr, "kelyro curriculum: curriculum inspector is unavailable")
+		return ExitFailure
+	}
 	root, err := r.resolvePackWorkspace(invocation.workspace)
 	if err != nil {
-		fmt.Fprintf(r.stderr, "kelyro curriculum build-info: %v\n", err)
+		fmt.Fprintf(r.stderr, "kelyro curriculum %s: %v\n", invocation.curriculumOperation, err)
 		return ExitFailure
 	}
 	installed, err := r.packManager.Active(ctx, root)
 	if err != nil {
-		fmt.Fprintf(r.stderr, "kelyro curriculum build-info: %v\n", err)
+		fmt.Fprintf(r.stderr, "kelyro curriculum %s: %v\n", invocation.curriculumOperation, err)
 		return ExitFailure
+	}
+	if invocation.curriculumOperation != "build-info" {
+		inspection, inspectErr := r.curriculum.Inspect(ctx, installed.Pack)
+		if inspectErr != nil {
+			fmt.Fprintf(r.stderr, "kelyro curriculum %s: %v\n", invocation.curriculumOperation, inspectErr)
+			return ExitFailure
+		}
+		if !invocation.quiet {
+			fmt.Fprintln(r.stdout, formatCurriculumInspection(invocation.curriculumOperation, inspection))
+		}
+		return ExitOK
 	}
 	if installed.Pack.BuildInfo == nil {
 		fmt.Fprintln(r.stderr, "kelyro curriculum build-info: active pack has no reproducibility metadata")
@@ -586,6 +614,65 @@ func (r Runner) runCurriculum(ctx context.Context, invocation invocation) int {
 		fmt.Fprintln(r.stdout, formatCurriculumBuildInfo(installed.Pack, *installed.Pack.BuildInfo))
 	}
 	return ExitOK
+}
+
+func formatCurriculumInspection(operation string, inspection curriculumapp.CurriculumInspection) string {
+	definition := inspection.Pack.Curriculum
+	identity := []string{
+		fmt.Sprintf("Pack: %s@%s", inspection.Pack.Manifest.ID, inspection.Pack.Manifest.Version.String()),
+		fmt.Sprintf("Curriculum: %s@%s", definition.ID, definition.Version.String()),
+	}
+	switch operation {
+	case "compile":
+		lines := append([]string{"Compiled curriculum artifact"}, identity...)
+		lines = append(lines,
+			fmt.Sprintf("Structure: %d phases, %d modules, %d lessons, %d topics, %d concepts", len(definition.Phases), len(definition.Modules), len(definition.Lessons), len(definition.Topics), len(definition.Concepts)),
+			fmt.Sprintf("Compiler passes retained: %d", len(inspection.CompilationPasses)),
+			"Status: immutable artifact verified (no source policy was inferred)",
+		)
+		return strings.Join(lines, "\n")
+	case "validate":
+		return strings.Join(append([]string{"Curriculum validation", "Status: valid"}, identity...), "\n")
+	case "coverage":
+		lines := append([]string{"Curriculum coverage"}, identity...)
+		for _, summary := range inspection.Coverage {
+			lines = append(lines, fmt.Sprintf("- %s: %d requirements, %d retained gaps", summary.Dimension, summary.RequirementCount, summary.GapCount))
+		}
+		if report := inspection.Pack.EvidenceReport; report != nil {
+			lines = append(lines, fmt.Sprintf("Primary-source claim coverage: %d/%d (%.0f%%)", report.PrimarySourceCoverage.PrimaryClaims, report.PrimarySourceCoverage.ReferencedClaims, report.PrimarySourceCoverage.Ratio*100))
+		}
+		return strings.Join(lines, "\n")
+	case "gaps":
+		lines := append([]string{"Curriculum gaps"}, identity...)
+		if len(inspection.Gaps) == 0 {
+			return strings.Join(append(lines, "No retained compiler gaps."), "\n")
+		}
+		for _, gap := range inspection.Gaps {
+			lines = append(lines, fmt.Sprintf("- [%s/%s] %s: %s", gap.Severity, gap.Kind, gap.ID, gap.Reason))
+		}
+		return strings.Join(lines, "\n")
+	case "audit":
+		lines := append([]string{"Curriculum audit"}, identity...)
+		for _, audit := range inspection.Audits {
+			status := "passed"
+			if !audit.Passed {
+				status = "failed"
+			}
+			lines = append(lines, fmt.Sprintf("- %s (%s): %s", audit.Name, audit.Version, status))
+			for _, reason := range audit.Reasons {
+				lines = append(lines, "  "+reason)
+			}
+		}
+		if len(inspection.EvidenceLinks) > 0 {
+			lines = append(lines, "Sources/evidence")
+			for _, citation := range inspection.EvidenceLinks {
+				lines = append(lines, fmt.Sprintf("- %s: %s", citation.Title, citation.URL))
+			}
+		}
+		return strings.Join(lines, "\n")
+	default:
+		return ""
+	}
 }
 
 func formatCurriculumBuildInfo(pack curriculum.LearningPack, metadata curriculum.ReproducibilityMetadata) string {
@@ -1928,10 +2015,15 @@ func parse(args []string) (invocation, error) {
 			return invocation{}, err
 		}
 	case "curriculum":
-		if len(result.arguments) != 1 || result.arguments[0] != "build-info" {
-			return invocation{}, fmt.Errorf("curriculum requires build-info")
+		if len(result.arguments) != 1 {
+			return invocation{}, fmt.Errorf("curriculum requires compile, validate, coverage, gaps, audit, or build-info")
 		}
-		result.curriculumOperation = "build-info"
+		switch result.arguments[0] {
+		case "compile", "validate", "coverage", "gaps", "audit", "build-info":
+		default:
+			return invocation{}, fmt.Errorf("curriculum requires compile, validate, coverage, gaps, audit, or build-info")
+		}
+		result.curriculumOperation = result.arguments[0]
 	case "maintenance":
 		if len(result.arguments) != 1 || result.arguments[0] != "recalculate" {
 			return invocation{}, fmt.Errorf("maintenance requires recalculate")

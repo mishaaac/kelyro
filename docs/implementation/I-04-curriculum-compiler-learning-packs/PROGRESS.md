@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 47
-Last completed step: 46
+Current step: 48
+Last completed step: 47
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2369,3 +2369,46 @@ Release: unreleased
 - El Paso 47 es el siguiente: exponer compile/validate/coverage/gaps/audit y
   completar la CLI de packs, reutilizando los services ya implementados.
 - No implementar todavía I-05 ni publicación/descarga automática.
+
+## Step 47 — Curriculum and Learning Pack CLI
+
+Status: completed
+Date: 2026-09-15
+Release: unreleased
+
+### Delivered
+
+- Comandos `curriculum compile`, `validate`, `coverage`, `gaps`, `audit` y
+  `build-info` sobre el Learning Pack activo del workspace.
+- `CurriculumInspectorV1` read-only para estructura portable, receta de
+  compilación, cobertura declarada, gaps retenidos, evidencia y grafo de
+  prerequisitos.
+- Salida humana determinista con identidad pack/curriculum, conteos de
+  jerarquía, dimensiones de cobertura, razones de auditoría y links de fuentes.
+- Los comandos existentes `packs validate/install/list/show/activate/search`
+  y `packs upgrade --dry-run` permanecen conectados a sus application services.
+
+### Decisions
+
+- `curriculum compile` inspecciona y verifica el artefacto compilado inmutable
+  activo. No inventa un formato de autoría CLI ni reconstruye inputs de
+  atomización, competencias o soportes que el pack portable no conserva.
+- Coverage muestra requirements y gaps retenidos; no presenta una
+  recomputación falsa sin los `CoverageSupport` usados por el compiler.
+- Mantener salida human-readable únicamente: el CLI vigente rechaza `--json`,
+  por lo que no existe la convención opcional mencionada por el plan.
+- La inspección no usa red, no compila en cada render y no toca Student Core.
+
+### Verification
+
+- `go test ./internal/curriculum/application ./internal/cli ./cmd/kelyro -count=1`.
+- `go vet ./internal/curriculum/application ./internal/cli ./cmd/kelyro`.
+- Tests de los cinco nuevos renderers, build info, validación de pack, grafo,
+  cobertura, gaps, auditorías y evidencia.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 48 integrará Pack, Curriculum Overview, Coverage, Gaps, Audit,
+  Evidence y estado de upgrade en TUI mediante lecturas explícitas.
+- La vista Roadmap seguirá tomando progreso conceptual exclusivamente de I-02.

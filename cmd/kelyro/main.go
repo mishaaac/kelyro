@@ -140,6 +140,7 @@ func main() {
 		WithPackValidator(packValidator).
 		WithPackManager(packManager, workspaces, os.Getwd).
 		WithPackCatalog(packCatalog).
-		WithPackUpgrade(packUpgrade)
+		WithPackUpgrade(packUpgrade).
+		WithCurriculumInspector(curriculumapp.NewCurriculumInspectorV1())
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

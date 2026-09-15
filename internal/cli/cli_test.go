@@ -181,6 +181,59 @@ func TestRunnerShowsActiveCurriculumBuildInfo(t *testing.T) {
 	}
 }
 
+func TestRunnerInspectsActiveCompiledCurriculum(t *testing.T) {
+	t.Parallel()
+	packID, _ := curriculum.NewID("pack.backend")
+	packVersion, _ := curriculum.NewPackVersion("1.2.0")
+	curriculumID, _ := curriculum.NewCurriculumID("curriculum.backend")
+	curriculumVersion, _ := curriculum.NewCurriculumVersion("2026.09.14")
+	gapID, _ := curriculum.NewID("gap.security")
+	targetID, _ := curriculum.NewID("competency.security")
+	pack := curriculum.LearningPack{
+		Manifest: curriculum.PackManifest{ID: packID, Version: packVersion},
+		Curriculum: curriculum.CurriculumDefinition{ID: curriculumID, Version: curriculumVersion,
+			Phases: make([]curriculum.Phase, 1), Modules: make([]curriculum.Module, 2),
+			Lessons: make([]curriculum.LessonSpec, 3), Topics: make([]curriculum.TopicSpec, 4), Concepts: make([]curriculum.Concept, 5)},
+	}
+	inspection := curriculumapp.CurriculumInspection{
+		Pack:              pack,
+		Coverage:          []curriculumapp.CurriculumCoverageSummary{{Dimension: curriculum.CoverageSecurity, RequirementCount: 2, GapCount: 1}},
+		Gaps:              []curriculum.Gap{{ID: gapID, Kind: curriculum.GapMissingSecurity, Severity: curriculum.GapBlocking, TargetID: targetID, Reason: "Threat modeling is uncovered."}},
+		Audits:            []curriculumapp.CurriculumAuditResult{{Name: "pack-structure", Version: "learning-pack/v1", Passed: true, Reasons: []string{"cross-references are valid"}}},
+		CompilationPasses: []curriculum.CompilationPassVersion{{Name: "compiled-artifact", Version: curriculum.CurriculumCompilerVersionV1}},
+	}
+	manager := &fakePackManager{active: curriculumapp.InstalledPack{Pack: pack}}
+	workspaces := &fakePackWorkspaces{found: workspace.Workspace{Root: filepath.Join("workspace", "root")}}
+	for _, test := range []struct {
+		operation string
+		want      []string
+	}{
+		{"compile", []string{"Compiled curriculum artifact", "1 phases, 2 modules, 3 lessons, 4 topics, 5 concepts", "immutable artifact verified"}},
+		{"validate", []string{"Curriculum validation", "Status: valid"}},
+		{"coverage", []string{"Curriculum coverage", "security: 2 requirements, 1 retained gaps"}},
+		{"gaps", []string{"Curriculum gaps", "missing_security", "Threat modeling is uncovered."}},
+		{"audit", []string{"Curriculum audit", "pack-structure", "cross-references are valid"}},
+	} {
+		test := test
+		t.Run(test.operation, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			code := NewRunner(&fakeService{}, &stdout, &stderr).
+				WithPackManager(manager, workspaces, func() (string, error) { return "nested", nil }).
+				WithCurriculumInspector(&fakeCurriculumInspector{inspection: inspection}).
+				Run(context.Background(), []string{"curriculum", test.operation})
+			if code != ExitOK || stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			for _, want := range test.want {
+				if !strings.Contains(stdout.String(), want) {
+					t.Fatalf("stdout %q missing %q", stdout.String(), want)
+				}
+			}
+		})
+	}
+}
+
 func TestRunnerListsAndSearchesPackCatalogWithoutInstalling(t *testing.T) {
 	t.Parallel()
 	id, _ := curriculum.NewID("go.backend")
@@ -1938,6 +1991,15 @@ type fakePackCatalog struct {
 type fakePackUpgrade struct {
 	result  curriculumapp.PackUpgradeResult
 	request curriculumapp.PackUpgradeRequest
+}
+
+type fakeCurriculumInspector struct {
+	inspection curriculumapp.CurriculumInspection
+	err        error
+}
+
+func (fake *fakeCurriculumInspector) Inspect(context.Context, curriculum.LearningPack) (curriculumapp.CurriculumInspection, error) {
+	return fake.inspection, fake.err
 }
 
 func (fake *fakePackUpgrade) Upgrade(_ context.Context, request curriculumapp.PackUpgradeRequest) (curriculumapp.PackUpgradeResult, error) {

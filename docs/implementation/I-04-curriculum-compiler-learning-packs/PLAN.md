@@ -2506,7 +2506,7 @@ fix(pack): enforce copyright-aware pack builds
 
 ## Paso 47 — Implementar CLI `kelyro curriculum` y completar `kelyro packs`
 
-- [ ] Paso 47 completado
+- [x] Paso 47 completado
 
 ### Objetivo
 
