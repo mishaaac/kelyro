@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 42
-Last completed step: 41
+Current step: 43
+Last completed step: 42
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2109,3 +2109,57 @@ Release: unreleased
 - El Paso 42 es el siguiente: producir un Student-safe Curriculum Migration
   Plan a partir de estos changes, sin aplicar todavía upgrade ni Student writes.
 - Split/merge requerirán mappings explícitos y nunca derivarán mastery.
+
+## Step 42 — Student-safe Curriculum Migration Plan v1
+
+Status: completed
+Date: 2026-09-14
+Release: unreleased
+
+### Delivered
+
+- `CurriculumMigrationPlan` versionado, validado y con ID determinista para dos
+  versiones inmutables del mismo curriculum.
+- Acciones explícitas `preserve_state`, `initialize_unknown`,
+  `preserve_historical`, `split_no_transfer` y `merge_no_transfer`.
+- Preservación de mastery/evidence para stable Concept IDs, incluida la
+  conservación histórica de conceptos deprecated, legacy o historical.
+- Inicialización unknown para conceptos añadidos, sin fabricar exposición,
+  mastery ni evidencia.
+- Split/merge fail-closed: requieren exactamente los mappings declarados al
+  clasificador, preservan evidencia histórica y no transfieren mastery.
+- Señal explícita para recalcular unlock eligibility cuando cambia el grafo de
+  prerequisitos; los cambios de jerarquía conservan el estado por stable ID.
+- Planner read-only de upgrades locales: descubre la versión instalada más
+  reciente, vuelve a validarla mediante el repository, clasifica el diff,
+  verifica SemVer y construye el migration plan.
+- Comando `kelyro packs upgrade <id> --dry-run`, con target opcional
+  `<id>@<version>` y resumen explícito de impacto sin writes.
+- Contrato documentado en
+  `docs/architecture/curriculum-migration-plan-v1.md`.
+
+### Decisions
+
+- No inferir continuidad por título, texto, orden o similitud: solo el stable
+  Concept ID o un mapping split/merge explícito participan en el plan.
+- Conservar el plan learner-neutral; I-02 será el único dueño de su aplicación
+  mediante un application service en el Paso 43.
+- Descubrir solo versiones ya instaladas e inmutables. El catálogo sigue siendo
+  metadata no confiable y nunca dispara instalación automática.
+- Rechazar una transición SemVer que no corresponde al impacto clasificado
+  antes de ofrecer cualquier aplicación.
+
+### Verification
+
+- `go test ./internal/curriculum/... ./internal/cli ./cmd/kelyro -count=1`.
+- Tests de stable IDs, additions, deprecation, removal, hierarchy,
+  prerequisite recalculation, split explícito, ausencia de mapping,
+  determinismo, discovery local, SemVer y CLI dry-run.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 43 aplicará el plan con backup, confirmación, un application service
+  I-02 transaccional, integrity check, rollback/recovery y audit.
+- La instancia anterior seguirá siendo histórica; no se reescribirán evidence
+  facts ni packs publicados.

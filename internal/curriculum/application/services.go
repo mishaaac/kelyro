@@ -344,16 +344,22 @@ type PackCatalogService interface {
 }
 
 type PackUpgradeRequest struct {
-	PackID        curriculum.ID
-	TargetVersion curriculum.PackVersion
-	DryRun        bool
+	WorkspaceRoot    string
+	PackID           curriculum.ID
+	TargetVersion    curriculum.PackVersion
+	DryRun           bool
+	Confirmed        bool
+	IdentityMappings []curriculum.ConceptIdentityMapping
 }
 
 type PackUpgradeResult struct {
-	Current   curriculum.LearningPack
-	Candidate curriculum.LearningPack
-	Changes   []curriculum.CurriculumChange
-	Applied   bool
+	Current            curriculum.LearningPack
+	Candidate          curriculum.LearningPack
+	Changes            []curriculum.CurriculumChange
+	MigrationPlan      curriculum.CurriculumMigrationPlan
+	VersioningDecision curriculum.PackVersioningDecision
+	BackupID           string
+	Applied            bool
 }
 
 type PackUpgradeService interface {
@@ -382,6 +388,17 @@ type CurriculumChangeClassificationRequest struct {
 
 type CurriculumChangeClassificationService interface {
 	Classify(context.Context, CurriculumChangeClassificationRequest) (curriculum.CurriculumChangeClassification, error)
+}
+
+type CurriculumMigrationPlanningRequest struct {
+	Old              curriculum.CurriculumDefinition
+	New              curriculum.CurriculumDefinition
+	Classification   curriculum.CurriculumChangeClassification
+	IdentityMappings []curriculum.ConceptIdentityMapping
+}
+
+type CurriculumMigrationPlanningService interface {
+	Plan(context.Context, CurriculumMigrationPlanningRequest) (curriculum.CurriculumMigrationPlan, error)
 }
 
 type CoverageAnalysisRequest struct {

@@ -494,3 +494,8 @@ The deterministic old/new curriculum diff, explicit split/merge mappings,
 I-03 Drift/Impact severity integration, migration classes, and learner-state
 non-mutation boundary are documented in
 [curriculum-change-classifier-v1.md](curriculum-change-classifier-v1.md).
+
+The deterministic student-safe migration actions, stable-ID preservation,
+unknown initialization, historical retention, explicit split/merge handling,
+and read-only pack-upgrade preview are documented in
+[curriculum-migration-plan-v1.md](curriculum-migration-plan-v1.md).

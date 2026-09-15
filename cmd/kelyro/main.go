@@ -108,12 +108,14 @@ func main() {
 	packValidator := learningpack.NewValidator()
 	packManager := curriculumapp.NewPackInstallerV1(packValidator, curriculumapp.NewPackDependencyResolverV1(), packfs.NewRepository(packValidator), curriculumapp.SystemClock{})
 	packCatalog := curriculumapp.NewPackCatalogV1(nil, packcatalogfs.NewCache(), version.Version)
+	packUpgrade := curriculumapp.NewPackUpgradePlannerV1(packManager, curriculumapp.NewCurriculumChangeClassifierV1(), curriculumapp.NewCurriculumMigrationPlannerV1(), curriculumapp.NewPackVersioningPolicyV1())
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).
 		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New())).
 		WithPackValidator(packValidator).
 		WithPackManager(packManager, workspaces, os.Getwd).
-		WithPackCatalog(packCatalog)
+		WithPackCatalog(packCatalog).
+		WithPackUpgrade(packUpgrade)
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

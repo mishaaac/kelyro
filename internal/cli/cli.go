@@ -70,7 +70,7 @@ Commands:
   streak   Show study consistency without affecting progress
   sources  Inspect sources, conflicts, provenance, and stale evidence
   research Plan and inspect Research runs, costs, and the offline cache
-  packs    Validate, install, inspect, and activate Learning Packs
+  packs    Validate, install, inspect, activate, and upgrade Learning Packs
   maintenance  Run advanced local maintenance operations
 
 Options:
@@ -84,7 +84,7 @@ Options:
       --yes           Confirm backup restore or development setup reset
       --full          Include allowlisted machine state in an export
       --output FILE   Set the export archive path
-      --dry-run       Preview import or maintenance without writing
+      --dry-run       Preview import, maintenance, or a pack upgrade
       --conflict MODE Resolve import conflicts with fail, keep, or overwrite
       --global        Use global configuration scope
       --project       Use project configuration scope
@@ -203,6 +203,7 @@ Learning Pack commands:
   kelyro packs list
   kelyro packs show <id>
   kelyro packs activate <id>@<version>
+  kelyro packs upgrade <id> [--dry-run]
   kelyro packs catalog
   kelyro packs search <query>
 
@@ -253,6 +254,7 @@ type Runner struct {
 	packValidator    curriculumapp.PackValidationService
 	packManager      curriculumapp.PackInstallService
 	packCatalog      curriculumapp.PackCatalogService
+	packUpgrade      curriculumapp.PackUpgradeService
 	packWorkspaces   workspace.Service
 	currentDirectory func() (string, error)
 }
@@ -310,6 +312,12 @@ func (r Runner) WithPackManager(manager curriculumapp.PackInstallService, worksp
 
 func (r Runner) WithPackCatalog(catalog curriculumapp.PackCatalogService) Runner {
 	r.packCatalog = catalog
+	return r
+}
+
+// WithPackUpgrade attaches the student-safe pack upgrade planner/executor.
+func (r Runner) WithPackUpgrade(upgrade curriculumapp.PackUpgradeService) Runner {
+	r.packUpgrade = upgrade
 	return r
 }
 
@@ -556,6 +564,28 @@ func (r Runner) runPacks(ctx context.Context, invocation invocation) int {
 			return ExitFailure
 		}
 	}
+	if invocation.packOperation == "upgrade" {
+		if r.packUpgrade == nil {
+			fmt.Fprintln(r.stderr, "kelyro packs: pack upgrade service is unavailable")
+			return ExitFailure
+		}
+		root, err := r.resolvePackWorkspace(invocation.workspace)
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs upgrade: %v\n", err)
+			return ExitFailure
+		}
+		result, err := r.packUpgrade.Upgrade(ctx, curriculumapp.PackUpgradeRequest{
+			WorkspaceRoot: root, PackID: invocation.packID, TargetVersion: invocation.packVersion, DryRun: invocation.packDryRun,
+		})
+		if err != nil {
+			fmt.Fprintf(r.stderr, "kelyro packs upgrade: %v\n", err)
+			return ExitFailure
+		}
+		if !invocation.quiet {
+			fmt.Fprintln(r.stdout, formatPackUpgrade(result))
+		}
+		return ExitOK
+	}
 	if invocation.packOperation == "catalog" || invocation.packOperation == "search" {
 		if r.packCatalog == nil {
 			fmt.Fprintln(r.stderr, "kelyro packs: pack catalog is unavailable")
@@ -726,6 +756,36 @@ func formatPackCatalog(title string, view curriculumapp.PackCatalogView) string 
 		for _, version := range entry.Versions {
 			lines = append(lines, fmt.Sprintf("  Version: %s [%s, %s]", version.Version.String(), version.Status, version.Compatibility))
 		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatPackUpgrade(result curriculumapp.PackUpgradeResult) string {
+	plan := result.MigrationPlan
+	counts := make(map[curriculum.CurriculumMigrationActionKind]int)
+	for _, action := range plan.Actions {
+		counts[action.Kind]++
+	}
+	status := "dry-run"
+	if result.Applied {
+		status = "applied"
+	}
+	lines := []string{
+		"Learning Pack upgrade", "Status: " + status,
+		fmt.Sprintf("Pack: %s %s -> %s", result.Current.Manifest.ID, result.Current.Manifest.Version.String(), result.Candidate.Manifest.Version.String()),
+		fmt.Sprintf("Migration plan: %s", plan.ID),
+		fmt.Sprintf("Preserved stable concepts: %d", counts[curriculum.MigrationPreserveState]),
+		fmt.Sprintf("New unknown concepts: %d", counts[curriculum.MigrationInitializeUnknown]),
+		fmt.Sprintf("Historical removals: %d", counts[curriculum.MigrationPreserveHistorical]),
+		fmt.Sprintf("Split/merge mappings without mastery transfer: %d", counts[curriculum.MigrationSplitNoTransfer]+counts[curriculum.MigrationMergeNoTransfer]),
+		fmt.Sprintf("Recalculate unlock eligibility: %t", plan.RecalculateUnlockEligibility),
+		fmt.Sprintf("Requires student review: %t", plan.RequiresStudentReview),
+	}
+	if result.BackupID != "" {
+		lines = append(lines, "Backup: "+result.BackupID)
+	}
+	if !result.Applied {
+		lines = append(lines, "No pack activation or Student State was written.")
 	}
 	return strings.Join(lines, "\n")
 }
@@ -1422,6 +1482,7 @@ type invocation struct {
 	packID                  curriculum.ID
 	packVersion             curriculum.PackVersion
 	packQuery               string
+	packDryRun              bool
 }
 
 func parse(args []string) (invocation, error) {
@@ -1453,6 +1514,7 @@ func parse(args []string) (invocation, error) {
 		case argument == "--dry-run":
 			result.importDryRun = true
 			result.maintenanceDryRun = true
+			result.packDryRun = true
 		case argument == "--today":
 			result.historyToday = true
 		case argument == "--display-name":
@@ -1809,8 +1871,8 @@ func parse(args []string) (invocation, error) {
 	if result.exportOutput != "" && result.command != "export" {
 		return invocation{}, fmt.Errorf("option --output requires the export command")
 	}
-	if result.importDryRun && result.command != "import" && result.command != "maintenance" {
-		return invocation{}, fmt.Errorf("option --dry-run requires the import command or maintenance recalculate")
+	if result.importDryRun && result.command != "import" && result.command != "maintenance" && result.command != "packs" {
+		return invocation{}, fmt.Errorf("option --dry-run requires the import command, maintenance recalculate, or packs upgrade")
 	}
 	if result.conflictSet && result.command != "import" {
 		return invocation{}, fmt.Errorf("option --conflict requires the import command")
@@ -1924,7 +1986,7 @@ func parseResearchArguments(result *invocation) error {
 
 func parsePackArguments(result *invocation) error {
 	if len(result.arguments) == 0 {
-		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, activate <id>@<version>, catalog, or search <query>")
+		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, activate <id>@<version>, upgrade <id>, catalog, or search <query>")
 	}
 	result.packOperation = result.arguments[0]
 	switch result.packOperation {
@@ -1963,6 +2025,33 @@ func parsePackArguments(result *invocation) error {
 		}
 		result.packID = id
 		return nil
+	case "upgrade":
+		if len(result.arguments) != 2 {
+			return fmt.Errorf("packs upgrade requires exactly one pack id or <id>@<version>")
+		}
+		value := result.arguments[1]
+		separator := strings.LastIndex(value, "@")
+		idValue := value
+		if separator >= 0 {
+			if separator == 0 || separator == len(value)-1 {
+				return fmt.Errorf("packs upgrade requires a pack id or <id>@<version>")
+			}
+			idValue = value[:separator]
+			version, err := curriculum.NewPackVersion(value[separator+1:])
+			if err != nil {
+				return fmt.Errorf("packs upgrade: invalid pack version: %w", err)
+			}
+			result.packVersion = version
+		}
+		id, err := curriculum.NewID(idValue)
+		if err != nil {
+			return fmt.Errorf("packs upgrade: invalid pack id: %w", err)
+		}
+		result.packID = id
+		if !result.packDryRun {
+			return fmt.Errorf("packs upgrade requires --dry-run until application is explicitly confirmed")
+		}
+		return nil
 	case "activate":
 		if len(result.arguments) != 2 {
 			return fmt.Errorf("packs activate requires exactly one <id>@<version>")
@@ -1982,7 +2071,7 @@ func parsePackArguments(result *invocation) error {
 		result.packID, result.packVersion = id, packVersion
 		return nil
 	default:
-		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, activate <id>@<version>, catalog, or search <query>")
+		return fmt.Errorf("packs requires validate <path>, install <path>, list, show <id>, activate <id>@<version>, upgrade <id>, catalog, or search <query>")
 	}
 }
 

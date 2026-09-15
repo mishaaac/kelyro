@@ -2313,7 +2313,7 @@ feat(curriculum): classify curriculum version changes
 
 ## Paso 42 — Implementar Student-safe Curriculum Migration Plan
 
-- [ ] Paso 42 completado
+- [x] Paso 42 completado
 
 ### Objetivo
 

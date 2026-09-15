@@ -4,6 +4,8 @@ import "fmt"
 
 const CurriculumChangeClassifierVersionV1 = "curriculum-change-classifier-v1"
 
+const CurriculumMigrationPlannerVersionV1 = "curriculum-migration-planner-v1"
+
 type CurriculumChangeKind string
 
 const (
@@ -149,4 +151,153 @@ func (change CurriculumChange) Validate() error {
 		return err
 	}
 	return requireText("curriculum change rationale", change.Rationale)
+}
+
+// CurriculumMigrationActionKind describes how one group of stable Concept
+// identities is handled. Split and merge actions deliberately do not transfer
+// mastery; their mappings retain provenance only.
+type CurriculumMigrationActionKind string
+
+const (
+	MigrationPreserveState      CurriculumMigrationActionKind = "preserve_state"
+	MigrationInitializeUnknown  CurriculumMigrationActionKind = "initialize_unknown"
+	MigrationPreserveHistorical CurriculumMigrationActionKind = "preserve_historical"
+	MigrationSplitNoTransfer    CurriculumMigrationActionKind = "split_no_transfer"
+	MigrationMergeNoTransfer    CurriculumMigrationActionKind = "merge_no_transfer"
+)
+
+func (kind CurriculumMigrationActionKind) Validate() error {
+	switch kind {
+	case MigrationPreserveState, MigrationInitializeUnknown, MigrationPreserveHistorical,
+		MigrationSplitNoTransfer, MigrationMergeNoTransfer:
+		return nil
+	default:
+		return fmt.Errorf("invalid curriculum migration action kind %q", kind)
+	}
+}
+
+type CurriculumMigrationAction struct {
+	Kind                       CurriculumMigrationActionKind
+	FromConceptIDs             []ConceptID
+	ToConceptIDs               []ConceptID
+	PreserveMastery            bool
+	PreserveEvidence           bool
+	InitializeUnknown          bool
+	PreserveHistoricalEvidence bool
+	RequiresStudentReview      bool
+	Rationale                  string
+}
+
+func (action CurriculumMigrationAction) Validate() error {
+	if err := action.Kind.Validate(); err != nil {
+		return err
+	}
+	if err := validateOptionalConceptIDs("migration source concepts", action.FromConceptIDs); err != nil {
+		return err
+	}
+	if err := validateOptionalConceptIDs("migration target concepts", action.ToConceptIDs); err != nil {
+		return err
+	}
+	if err := requireText("curriculum migration rationale", action.Rationale); err != nil {
+		return err
+	}
+	switch action.Kind {
+	case MigrationPreserveState:
+		if len(action.FromConceptIDs) != 1 || len(action.ToConceptIDs) != 1 || action.FromConceptIDs[0] != action.ToConceptIDs[0] ||
+			!action.PreserveMastery || !action.PreserveEvidence || action.InitializeUnknown {
+			return fmt.Errorf("preserve-state action must retain one stable concept without initialization")
+		}
+	case MigrationInitializeUnknown:
+		if len(action.FromConceptIDs) != 0 || len(action.ToConceptIDs) != 1 || action.PreserveMastery || action.PreserveEvidence ||
+			!action.InitializeUnknown || action.PreserveHistoricalEvidence || action.RequiresStudentReview {
+			return fmt.Errorf("initialize-unknown action must create one target concept without transferred state")
+		}
+	case MigrationPreserveHistorical:
+		if len(action.FromConceptIDs) != 1 || len(action.ToConceptIDs) != 0 || action.PreserveMastery || action.PreserveEvidence ||
+			action.InitializeUnknown || !action.PreserveHistoricalEvidence || !action.RequiresStudentReview {
+			return fmt.Errorf("preserve-historical action must retain one removed concept as reviewed history")
+		}
+	case MigrationSplitNoTransfer:
+		if len(action.FromConceptIDs) != 1 || len(action.ToConceptIDs) < 2 || action.PreserveMastery || action.PreserveEvidence ||
+			!action.InitializeUnknown || !action.PreserveHistoricalEvidence || !action.RequiresStudentReview {
+			return fmt.Errorf("split action must map one source to multiple unknown targets without mastery transfer")
+		}
+	case MigrationMergeNoTransfer:
+		if len(action.FromConceptIDs) < 2 || len(action.ToConceptIDs) != 1 || action.PreserveMastery || action.PreserveEvidence ||
+			!action.InitializeUnknown || !action.PreserveHistoricalEvidence || !action.RequiresStudentReview {
+			return fmt.Errorf("merge action must map multiple sources to one unknown target without mastery transfer")
+		}
+	}
+	return nil
+}
+
+type CurriculumMigrationPlan struct {
+	ID                           ID
+	CurriculumID                 CurriculumID
+	FromVersion                  CurriculumVersion
+	ToVersion                    CurriculumVersion
+	Actions                      []CurriculumMigrationAction
+	RecalculateUnlockEligibility bool
+	RequiresStudentReview        bool
+	AlgorithmVersion             string
+}
+
+func (plan CurriculumMigrationPlan) Validate() error {
+	if err := plan.ID.Validate(); err != nil {
+		return fmt.Errorf("curriculum migration plan: %w", err)
+	}
+	if err := plan.CurriculumID.Validate(); err != nil {
+		return err
+	}
+	if err := plan.FromVersion.Validate(); err != nil {
+		return err
+	}
+	if err := plan.ToVersion.Validate(); err != nil {
+		return err
+	}
+	if plan.FromVersion == plan.ToVersion {
+		return fmt.Errorf("curriculum migration plan versions are identical")
+	}
+	if len(plan.Actions) == 0 {
+		return fmt.Errorf("curriculum migration plan is empty")
+	}
+	review := false
+	seenFrom, seenTo := make(map[ConceptID]struct{}), make(map[ConceptID]struct{})
+	for _, action := range plan.Actions {
+		if err := action.Validate(); err != nil {
+			return err
+		}
+		for _, id := range action.FromConceptIDs {
+			if _, duplicate := seenFrom[id]; duplicate {
+				return fmt.Errorf("source concept %q appears in multiple migration actions", id)
+			}
+			seenFrom[id] = struct{}{}
+		}
+		for _, id := range action.ToConceptIDs {
+			if _, duplicate := seenTo[id]; duplicate {
+				return fmt.Errorf("target concept %q appears in multiple migration actions", id)
+			}
+			seenTo[id] = struct{}{}
+		}
+		review = review || action.RequiresStudentReview
+	}
+	if review != plan.RequiresStudentReview {
+		return fmt.Errorf("curriculum migration review summary does not match actions")
+	}
+	if plan.AlgorithmVersion != CurriculumMigrationPlannerVersionV1 {
+		return fmt.Errorf("unsupported curriculum migration planner version %q", plan.AlgorithmVersion)
+	}
+	return nil
+}
+
+func validateOptionalConceptIDs(name string, values []ConceptID) error {
+	for index, id := range values {
+		if err := id.Validate(); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		if index > 0 && values[index-1].String() >= id.String() {
+			return fmt.Errorf("%s must be unique and sorted", name)
+		}
+	}
+	return nil
 }

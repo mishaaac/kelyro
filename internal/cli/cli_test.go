@@ -166,6 +166,41 @@ func TestRunnerListsAndSearchesPackCatalogWithoutInstalling(t *testing.T) {
 	}
 }
 
+func TestRunnerPreviewsLearningPackUpgradeWithoutWriting(t *testing.T) {
+	t.Parallel()
+	id, _ := curriculum.NewID("pack.backend")
+	currentVersion, _ := curriculum.NewPackVersion("1.0.0")
+	candidateVersion, _ := curriculum.NewPackVersion("1.0.1")
+	planID, _ := curriculum.NewID("curriculum-migration.preview")
+	conceptID, _ := curriculum.NewConceptID("concept.http")
+	upgrade := &fakePackUpgrade{result: curriculumapp.PackUpgradeResult{
+		Current:   curriculum.LearningPack{Manifest: curriculum.PackManifest{ID: id, Version: currentVersion}},
+		Candidate: curriculum.LearningPack{Manifest: curriculum.PackManifest{ID: id, Version: candidateVersion}},
+		MigrationPlan: curriculum.CurriculumMigrationPlan{ID: planID, Actions: []curriculum.CurriculumMigrationAction{{
+			Kind: curriculum.MigrationPreserveState, FromConceptIDs: []curriculum.ConceptID{conceptID}, ToConceptIDs: []curriculum.ConceptID{conceptID},
+		}}},
+	}}
+	workspaces := &fakePackWorkspaces{found: workspace.Workspace{Root: filepath.Join("workspace", "root")}}
+	var stdout, stderr bytes.Buffer
+	code := NewRunner(&fakeService{}, &stdout, &stderr).
+		WithPackManager(&fakePackManager{}, workspaces, func() (string, error) { return "nested", nil }).
+		WithPackUpgrade(upgrade).
+		Run(context.Background(), []string{"packs", "upgrade", "pack.backend", "--dry-run"})
+	if code != ExitOK || stderr.String() != "" || upgrade.request.WorkspaceRoot != workspaces.found.Root || !upgrade.request.DryRun {
+		t.Fatalf("upgrade CLI = code %d stdout %q stderr %q request %+v", code, stdout.String(), stderr.String(), upgrade.request)
+	}
+	for _, want := range []string{"Status: dry-run", "pack.backend 1.0.0 -> 1.0.1", "Preserved stable concepts: 1", "No pack activation or Student State was written."} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout %q missing %q", stdout.String(), want)
+		}
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := NewRunner(&fakeService{}, &stdout, &stderr).Run(context.Background(), []string{"packs", "upgrade", "pack.backend"}); code != ExitUsage || !strings.Contains(stderr.String(), "requires --dry-run") {
+		t.Fatalf("non-dry upgrade = code %d stderr %q", code, stderr.String())
+	}
+}
+
 func TestRunnerDispatchesAndRendersMaintenanceRecalculation(t *testing.T) {
 	t.Parallel()
 	impact := learningapp.RecalculationImpact{
@@ -1855,6 +1890,16 @@ func (fake *fakePackWorkspaces) Validate(string) error { return nil }
 type fakePackCatalog struct {
 	view  curriculumapp.PackCatalogView
 	query string
+}
+
+type fakePackUpgrade struct {
+	result  curriculumapp.PackUpgradeResult
+	request curriculumapp.PackUpgradeRequest
+}
+
+func (fake *fakePackUpgrade) Upgrade(_ context.Context, request curriculumapp.PackUpgradeRequest) (curriculumapp.PackUpgradeResult, error) {
+	fake.request = request
+	return fake.result, nil
 }
 
 func (fake *fakePackCatalog) Catalog(context.Context) (curriculumapp.PackCatalogView, error) {
