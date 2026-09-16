@@ -792,51 +792,66 @@ func decodeBuildInfo(encoded []byte) (curriculum.ReproducibilityMetadata, error)
 
 func rejectDuplicateJSONKeys(encoded []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	var walk func() error
-	walk = func() error {
+	type container struct {
+		kind      json.Delim
+		keys      map[string]struct{}
+		expectKey bool
+	}
+	stack := make([]container, 0, 16)
+	rootSeen := false
+	valueComplete := func() {
+		if len(stack) > 0 && stack[len(stack)-1].kind == '{' {
+			stack[len(stack)-1].expectKey = true
+		}
+	}
+	for {
 		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			if !rootSeen || len(stack) != 0 {
+				return io.ErrUnexpectedEOF
+			}
+			return nil
+		}
 		if err != nil {
 			return err
 		}
-		delimiter, structured := token.(json.Delim)
-		if !structured {
-			return nil
-		}
-		switch delimiter {
-		case '{':
-			seen := make(map[string]struct{})
-			for decoder.More() {
-				keyToken, err := decoder.Token()
-				if err != nil {
-					return err
-				}
-				key, ok := keyToken.(string)
-				if !ok {
-					return fmt.Errorf("object key is not a string")
-				}
-				if _, exists := seen[key]; exists {
-					return fmt.Errorf("duplicate JSON key %q", key)
-				}
-				seen[key] = struct{}{}
-				if err := walk(); err != nil {
-					return err
-				}
+		if len(stack) == 0 {
+			if rootSeen {
+				return fmt.Errorf("trailing JSON value")
 			}
-			_, err = decoder.Token()
-			return err
-		case '[':
-			for decoder.More() {
-				if err := walk(); err != nil {
-					return err
-				}
-			}
-			_, err = decoder.Token()
-			return err
-		default:
-			return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+			rootSeen = true
 		}
+		if delimiter, structured := token.(json.Delim); structured {
+			switch delimiter {
+			case '{':
+				stack = append(stack, container{kind: delimiter, keys: make(map[string]struct{}), expectKey: true})
+			case '[':
+				stack = append(stack, container{kind: delimiter})
+			case '}', ']':
+				if len(stack) == 0 || (delimiter == '}' && stack[len(stack)-1].kind != '{') || (delimiter == ']' && stack[len(stack)-1].kind != '[') {
+					return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+				}
+				stack = stack[:len(stack)-1]
+				valueComplete()
+			default:
+				return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+			}
+			continue
+		}
+		if len(stack) > 0 && stack[len(stack)-1].kind == '{' && stack[len(stack)-1].expectKey {
+			key, ok := token.(string)
+			if !ok {
+				return fmt.Errorf("object key is not a string")
+			}
+			if _, exists := stack[len(stack)-1].keys[key]; exists {
+				return fmt.Errorf("duplicate JSON key %q", key)
+			}
+			stack[len(stack)-1].keys[key] = struct{}{}
+			stack[len(stack)-1].expectKey = false
+			continue
+		}
+		valueComplete()
 	}
-	return walk()
 }
 
 func ensureJSONEOF(decoder *json.Decoder) error {

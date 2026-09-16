@@ -1,6 +1,7 @@
 package learningpack
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -48,7 +49,10 @@ func TestParseManifestRejectsInvalidDocuments(t *testing.T) {
 		{"path traversal", "curriculum_entry: curriculum/curriculum.yaml", "curriculum_entry: ../outside.yaml", "canonical relative path"},
 		{"absolute path", "curriculum_entry: curriculum/curriculum.yaml", "curriculum_entry: /tmp/curriculum.yaml", "canonical relative path"},
 		{"windows path", "curriculum_entry: curriculum/curriculum.yaml", `curriculum_entry: curriculum\\curriculum.yaml`, "valid portable relative path"},
+		{"windows device path", "curriculum_entry: curriculum/curriculum.yaml", "curriculum_entry: curriculum/CON.yaml", "unsafe path segment"},
+		{"path control", "curriculum_entry: curriculum/curriculum.yaml", `curriculum_entry: "curriculum\u001b.yaml"`, "control character"},
 		{"unstable id", "id: go.backend", "id: Go Backend", "stable portable id"},
+		{"display control", "name: Go Backend", `name: "Go\u001b[2J Backend"`, "control character"},
 		{"invalid dependency", `constraint: ">=1.0.0 <2.0.0"`, `constraint: "latest"`, "invalid version constraint"},
 	}
 	for _, test := range tests {
@@ -76,4 +80,13 @@ func TestParseManifestRejectsMultipleAndOversizedDocuments(t *testing.T) {
 	if _, err := ParseManifest(strings.NewReader(oversized)); err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("oversized error = %v", err)
 	}
+}
+
+func FuzzParseManifest(f *testing.F) {
+	f.Add([]byte(validManifest))
+	f.Add([]byte("---\n[]\n"))
+	f.Add([]byte("name: &name [*name]\n"))
+	f.Fuzz(func(t *testing.T, encoded []byte) {
+		_, _ = ParseManifest(bytes.NewReader(encoded))
+	})
 }

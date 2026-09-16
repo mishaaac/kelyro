@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/mishaaac/kelyro/internal/curriculum"
@@ -22,6 +23,7 @@ const (
 	ManifestName         = "pack.yaml"
 	ChecksumsName        = "checksums.txt"
 	MaximumManifestBytes = 64 << 10
+	MaximumPackPathBytes = 1024
 )
 
 var portableIDPattern = regexp.MustCompile(`^[a-z0-9]+(?:[._-][a-z0-9]+)*$`)
@@ -171,18 +173,29 @@ func decodeManifest(source manifestDocument) (curriculum.PackManifest, error) {
 }
 
 func validatePortablePath(name, value string) error {
-	if value == "" || !utf8.ValidString(value) || strings.Contains(value, "\\") || strings.ContainsRune(value, '\x00') {
+	if value == "" || len(value) > MaximumPackPathBytes || !utf8.ValidString(value) || strings.ContainsAny(value, `\:<>"|?*`) {
 		return fmt.Errorf("%s %q is not a valid portable relative path", name, value)
+	}
+	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		return fmt.Errorf("%s contains a control character", name)
 	}
 	if path.IsAbs(value) || path.Clean(value) != value || value == "." || strings.HasPrefix(value, "../") {
 		return fmt.Errorf("%s %q is not a canonical relative path", name, value)
 	}
 	for _, part := range strings.Split(value, "/") {
-		if part == "" || part == "." || part == ".." {
+		if part == "" || part == "." || part == ".." || strings.HasSuffix(part, " ") || strings.HasSuffix(part, ".") || windowsReservedPathSegment(part) {
 			return fmt.Errorf("%s %q contains an unsafe path segment", name, value)
 		}
 	}
 	return nil
+}
+
+func windowsReservedPathSegment(value string) bool {
+	base := strings.ToUpper(strings.TrimSuffix(value, path.Ext(value)))
+	if base == "CON" || base == "PRN" || base == "AUX" || base == "NUL" {
+		return true
+	}
+	return len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '1' && base[3] <= '9'
 }
 
 func validateVersionConstraint(value string) error {

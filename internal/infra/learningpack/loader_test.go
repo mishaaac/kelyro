@@ -257,6 +257,22 @@ func TestValidatorRejectsChecksumUTF8AndEvidenceFailures(t *testing.T) {
 			entries["curriculum/curriculum.yaml"] = append(entries["curriculum/curriculum.yaml"], []byte("unknown: true\n")...)
 			updateChecksums(entries)
 		}, "field unknown not found"},
+		{"terminal control in decoded YAML", func(entries map[string][]byte) {
+			entries["curriculum/curriculum.yaml"] = []byte(strings.Replace(validCurriculum, "title: Go Backend", `title: "Go\u001b[2J Backend"`, 1))
+			updateChecksums(entries)
+		}, "control character"},
+		{"raw HTML in Markdown", func(entries map[string][]byte) {
+			entries["README.md"] = []byte("# Go Backend\n\n<script>alert('unsafe')</script>\n")
+			updateChecksums(entries)
+		}, "unsafe raw HTML"},
+		{"active content link in Markdown", func(entries map[string][]byte) {
+			entries["README.md"] = []byte("# Go Backend\n\n[open](javascript:alert(1))\n")
+			updateChecksums(entries)
+		}, "unsafe link scheme"},
+		{"embedded image in Markdown", func(entries map[string][]byte) {
+			entries["README.md"] = []byte("# Go Backend\n\n![tracking pixel](https://example.test/pixel)\n")
+			updateChecksums(entries)
+		}, "embedded image"},
 	}
 	for _, test := range tests {
 		test := test
@@ -330,6 +346,10 @@ func TestValidatorRejectsUnsafeDirectoryAndArchiveEntries(t *testing.T) {
 		{"duplicate", &zip.FileHeader{Name: ManifestName}, "duplicate archive entry"},
 		{"symlink", symlinkHeader("link"), "symlink archive entry"},
 		{"executable", executableHeader("bin/tool"), "executable archive entry"},
+		{"script extension", &zip.FileHeader{Name: "assets/install.sh", Method: zip.Store}, "script or executable entry"},
+		{"active SVG", &zip.FileHeader{Name: "assets/diagram.svg", Method: zip.Store}, "script or executable entry"},
+		{"Windows drive path", &zip.FileHeader{Name: "C:/escape.txt", Method: zip.Store}, "valid portable relative path"},
+		{"oversized path", &zip.FileHeader{Name: "assets/" + strings.Repeat("x", MaximumPackPathBytes), Method: zip.Store}, "valid portable relative path"},
 	} {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
@@ -341,6 +361,50 @@ func TestValidatorRejectsUnsafeDirectoryAndArchiveEntries(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidatorCountsDirectoryEntriesForResourceBounds(t *testing.T) {
+	t.Parallel()
+	root := writeDirectory(t, validPackEntries())
+	for index := 0; index <= MaximumPackEntries; index++ {
+		if err := os.Mkdir(filepath.Join(root, fmt.Sprintf("empty-%04d", index)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: root})
+	if err != nil || len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Message, "file system entries") {
+		t.Fatalf("Validate() result=%+v error=%v, want directory entry bound", result, err)
+	}
+}
+
+func TestValidatorRejectsCompressionBomb(t *testing.T) {
+	t.Parallel()
+	entries := validPackEntries()
+	entries["README.md"] = bytes.Repeat([]byte("A"), 1<<20)
+	updateChecksums(entries)
+	source := writeCompressedZIP(t, entries)
+	result, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: source})
+	if err != nil || len(result.Errors) != 1 || !strings.Contains(result.Errors[0].Message, "compression ratio") {
+		t.Fatalf("Validate() result=%+v error=%v, want compression-ratio rejection", result, err)
+	}
+}
+
+func TestRejectDuplicateJSONKeysHandlesDeepInputIteratively(t *testing.T) {
+	t.Parallel()
+	const depth = 10_000
+	encoded := []byte(strings.Repeat("[", depth) + "0" + strings.Repeat("]", depth))
+	if err := rejectDuplicateJSONKeys(encoded); err != nil {
+		t.Fatalf("rejectDuplicateJSONKeys() error = %v", err)
+	}
+}
+
+func FuzzRejectDuplicateJSONKeys(f *testing.F) {
+	f.Add([]byte(`{"safe":{"nested":true}}`))
+	f.Add([]byte(`{"duplicate":1,"duplicate":2}`))
+	f.Add([]byte(`[[[[0]]]]`))
+	f.Fuzz(func(t *testing.T, encoded []byte) {
+		_ = rejectDuplicateJSONKeys(encoded)
+	})
 }
 
 func validPackEntries() map[string][]byte {
@@ -437,6 +501,39 @@ func writeZIPBytes(t *testing.T, encoded []byte) string {
 	t.Helper()
 	target := filepath.Join(t.TempDir(), "snapshot.zip")
 	if err := os.WriteFile(target, encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return target
+}
+
+func writeCompressedZIP(t *testing.T, entries map[string][]byte) string {
+	t.Helper()
+	target := filepath.Join(t.TempDir(), "pack.zip")
+	file, err := os.Create(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive := zip.NewWriter(file)
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+		header.SetMode(0o644)
+		writer, createErr := archive.CreateHeader(header)
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, writeErr := writer.Write(entries[name]); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
 	return target

@@ -86,6 +86,9 @@ func validateIdentifier(name, value string) error {
 	if strings.IndexFunc(value, unicode.IsSpace) >= 0 {
 		return fmt.Errorf("%s %q contains whitespace", name, value)
 	}
+	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		return fmt.Errorf("%s contains a control character", name)
+	}
 	return nil
 }
 
@@ -235,6 +238,9 @@ func requireText(name, value string) error {
 	}
 	if value != strings.TrimSpace(value) {
 		return fmt.Errorf("%s has surrounding whitespace", name)
+	}
+	if strings.IndexFunc(value, unicode.IsControl) >= 0 {
+		return fmt.Errorf("%s contains a control character", name)
 	}
 	return nil
 }

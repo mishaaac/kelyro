@@ -2739,7 +2739,7 @@ perf(curriculum): harden compiler for large learning graphs
 
 ## Paso 52 — Security hardening de packs/compiler
 
-- [ ] Paso 52 completado
+- [x] Paso 52 completado
 
 ### Objetivo
 
@@ -3028,7 +3028,7 @@ No asumir número.
 - [ ] Paso 49 — Reference Pack
 - [ ] Paso 50 — E2E
 - [ ] Paso 51 — Performance
-- [ ] Paso 52 — Security
+- [x] Paso 52 — Security
 - [ ] Paso 53 — Dogfooding
 - [ ] Paso 54 — Cierre formal
 

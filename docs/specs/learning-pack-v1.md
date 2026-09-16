@@ -29,10 +29,12 @@ README.md                       # optional
 LICENSE                         # optional
 ```
 
-All names use UTF-8 and canonical `/`-separated relative paths. Absolute paths,
-empty segments, `.`, `..`, backslashes, NUL, links, duplicate entries and paths
-that escape the logical root are invalid. Implementations must not execute any
-pack file. V1 rejects executable/script-like entries.
+All names use UTF-8 and canonical `/`-separated relative paths of at most 1,024
+bytes. Absolute paths, empty segments, `.`, `..`, backslashes, controls,
+Windows-invalid characters/device names, trailing dots/spaces, links, duplicate
+entries and paths that escape the logical root are invalid. Implementations
+must not execute any pack file. V1 rejects executable, script-like, package,
+shared-library, WebAssembly and active SVG entries.
 
 ## Manifest
 
@@ -91,7 +93,8 @@ required entries and optional documentation/license files.
 
 `EVIDENCE.md` is the byte-exact canonical Markdown projection of the evidence
 JSON. Citation excerpts are optional, UTF-8, SHA-256-bound, and limited to 512
-bytes. Packs with Source Bundles include absolute HTTP(S) citation URLs.
+bytes. Packs with Source Bundles include absolute HTTP(S) citation URLs bounded
+to 8 KiB and without userinfo or credential-like query/fragment parameters.
 
 Every file below `assets/` except `assets/licenses.json` is Kelyro-authored
 original content and has one sorted ledger entry with path, authorship marker,
@@ -100,11 +103,18 @@ external assets.
 
 ## Resource limits and validation
 
-Loaders apply bounded per-file, total-uncompressed, entry-count and compression
-ratio limits before decoding. YAML/JSON/text entries must be valid UTF-8.
+Loaders apply bounded per-file, total-uncompressed, filesystem/archive-entry,
+path-length and exact compression-ratio limits before decoding. YAML/JSON/text
+entries must be valid UTF-8 and terminal-control-safe.
 Unknown schema fields, duplicate YAML/JSON keys and trailing documents/data are
 invalid. Validation is entirely local and must not fetch evidence, resolve a
 marketplace, execute code, install the pack, or modify learner state.
+
+Markdown outside fenced code must not contain raw HTML, active `javascript:`,
+`vbscript:`, `data:` or `file:` destinations, or embedded images that could
+trigger an external request. Checksums establish byte integrity only; they do
+not authenticate a publisher. Signature verification is an optional future
+application port and is not required by v1.
 
 Known source-retention patterns are invalid: cache/raw/body/snapshot/transcript
 paths, full-document formats, transcript/full-article filenames, unlicensed

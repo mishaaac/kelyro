@@ -21,7 +21,7 @@ func TestStableIdentityValueObjects(t *testing.T) {
 			if err := construct("domain.stable-id"); err != nil {
 				t.Fatalf("valid identity rejected: %v", err)
 			}
-			for _, invalid := range []string{"", " ", "padded ", "two words", "line\nbreak"} {
+			for _, invalid := range []string{"", " ", "padded ", "two words", "line\nbreak", "terminal\x1b[2J"} {
 				if err := construct(invalid); err == nil {
 					t.Fatalf("identity %q accepted", invalid)
 				}

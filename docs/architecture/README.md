@@ -27,6 +27,9 @@ and trusted diagnostic registry boundary are documented in
 [Curriculum-aware Doctor v1](curriculum-aware-doctor-v1.md).
 Its bounded directory/ZIP adapter and CLI behavior are documented in
 [Secure Learning Pack loader v1](learning-pack-loader-v1.md).
+The untrusted pack/compiler threat review, terminal and Markdown protections,
+resource policy, and future signature seam are documented in
+[Learning Pack and Curriculum Compiler threat model](../security/learning-pack-threat-model.md).
 The read-only I-03 hand-off is documented in
 [Curriculum evidence ingestion v1](curriculum-evidence-ingestion-v1.md).
 Evidence-backed, pack-declared goal expansion is documented in

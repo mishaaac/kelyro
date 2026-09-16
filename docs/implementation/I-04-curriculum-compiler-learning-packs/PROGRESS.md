@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 51
-Last completed step: 50
+Current step: 53
+Last completed step: 52
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2666,3 +2666,71 @@ Release: unreleased
 - El Paso 52 es el siguiente: security hardening de packs/compiler.
 - Mantener los límites resource-bound del loader y no convertir el fixture de
   escala en un tamaño recomendado o en un límite artificial del dominio.
+
+## Step 52 — Security hardening de packs/compiler
+
+Status: completed
+Date: 2026-09-16
+Release: unreleased
+
+### Delivered
+
+- Threat model explícito para packs externos y compiler, con controles para
+  traversal, symlinks, parsers, checksums, dependencias, contenido activo,
+  agotamiento de recursos, terminales y la frontera sin ejecución/red/IA.
+- Paths portables limitados a 1,024 bytes y válidos también en Windows: se
+  rechazan controles, caracteres inválidos, device names y sufijos punto/space.
+- El budget de 1,024 entradas ahora cuenta directorios vacíos además de archivos;
+  las lecturas comparan tamaño real/declarado, identidad de archivo y root para
+  detectar cambios o sustituciones durante validación.
+- Ratio ZIP exacto de 100:1 sin división truncada; inventario de checksums
+  escaneado incrementalmente con tamaño de línea y cantidad esperada bounded.
+- JSON duplicate-key scan iterativo, sin recursión proporcional a nesting, más
+  fuzz targets offline para JSON y manifest YAML.
+- Rechazo de controles terminales aun cuando YAML/JSON los codifique con escape,
+  extensiones ejecutables/activas adicionales y Markdown con raw HTML, esquemas
+  activos o imágenes que puedan iniciar requests externas.
+- El hook futuro `SignatureVerifier` queda confirmado como frontera opcional:
+  checksums aportan integridad, no identidad de publisher, y v1 no inventa una
+  PKI ni requiere marketplace signing.
+
+### Bugs fixed
+
+- Un árbol de pack podía contener una cantidad no acotada de directorios vacíos
+  porque el límite contaba sólo archivos; ahora toda entrada del filesystem
+  consume budget.
+- Campos YAML/JSON con controles escapados podían superar el filtro UTF-8 y
+  llegar a vistas terminales; las invariantes de IDs/texto y excerpts los
+  rechazan después de decodificar.
+- Markdown checksum-valid podía incluir HTML activo, enlaces `javascript:` o
+  imágenes remotas; el loader ahora aplica un perfil Markdown pasivo.
+- Citation URLs podían retener userinfo o parámetros con tokens/secrets; ahora
+  son bounded y rechazan credenciales en userinfo, query y fragment.
+- El cálculo entero del ratio ZIP podía aceptar valores ligeramente superiores
+  a 100:1; ahora compara contra el mínimo comprimido exacto.
+- El detector de claves JSON duplicadas descendía recursivamente y exponía el
+  stack a nesting hostil; ahora usa un stack explícito bounded por el input.
+
+### Decisions
+
+- Mantener límites sólo en el container no impone un máximo curricular: no se
+  añadió límite de conceptos, módulos, lecciones, competencias o edges.
+- Rechazar contenido activo en vez de intentar sanearlo de forma dependiente de
+  un renderer futuro; fenced code permanece dato y nunca se ejecuta.
+- No implementar firmas, trust roots, descarga, plugins, AI ni behavior de I-05.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go test -race ./internal/infra/learningpack ./internal/curriculum/... -count=1`.
+- `go test ./internal/infra/learningpack -run '^$' -fuzz '^FuzzParseManifest$' -fuzztime=3s` (35,559 executions).
+- `go test ./internal/infra/learningpack -run '^$' -fuzz '^FuzzRejectDuplicateJSONKeys$' -fuzztime=3s` (296,043 executions).
+- Regresiones deterministas para controles escapados, raw HTML, active links,
+  imágenes, ZIP bombs, paths Windows/oversized, extensiones activas y exceso de
+  directorios.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 53 es el siguiente: dogfooding manual del compiler y reference pack.
+- No promover el pack preview ni comenzar I-05 durante el dogfooding.

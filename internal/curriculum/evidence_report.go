@@ -14,6 +14,7 @@ import (
 
 const CurriculumEvidenceReportSchemaVersionV1 = "curriculum-evidence-report/v1"
 const MaximumCitationExcerptBytes = 512
+const MaximumCitationURLBytes = 8 << 10
 
 type EvidenceReportCitation struct {
 	SourceID    ID
@@ -31,15 +32,44 @@ func (citation EvidenceReportCitation) Validate() error {
 	if err := requireText("evidence report citation title", citation.Title); err != nil {
 		return err
 	}
-	parsed, err := url.ParseRequestURI(citation.URL)
-	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+	if len(citation.URL) > MaximumCitationURLBytes {
+		return fmt.Errorf("evidence report citation URL exceeds %d bytes", MaximumCitationURLBytes)
+	}
+	parsed, err := url.Parse(citation.URL)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Hostname() == "" || parsed.Opaque != "" {
 		return errors.New("evidence report citation URL must be absolute HTTP(S)")
 	}
 	if strings.ContainsAny(citation.URL, "<>\\") || strings.IndexFunc(citation.URL, unicode.IsControl) >= 0 {
 		return errors.New("evidence report citation URL contains unsafe characters")
 	}
+	if parsed.User != nil {
+		return errors.New("evidence report citation URL must not contain credentials")
+	}
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil {
+		return errors.New("evidence report citation URL query is invalid")
+	}
+	for name := range query {
+		if sensitiveCitationParameter(name) {
+			return errors.New("evidence report citation URL contains credential-like query parameters")
+		}
+	}
+	if strings.Contains(parsed.Fragment, "=") {
+		fragment, fragmentErr := url.ParseQuery(parsed.Fragment)
+		if fragmentErr != nil {
+			return errors.New("evidence report citation URL fragment is invalid")
+		}
+		for name := range fragment {
+			if sensitiveCitationParameter(name) {
+				return errors.New("evidence report citation URL contains credential-like fragment parameters")
+			}
+		}
+	}
 	if !utf8.ValidString(citation.Excerpt) || len([]byte(citation.Excerpt)) > MaximumCitationExcerptBytes {
 		return fmt.Errorf("evidence report citation excerpt must be valid UTF-8 within %d bytes", MaximumCitationExcerptBytes)
+	}
+	if strings.IndexFunc(citation.Excerpt, unicode.IsControl) >= 0 {
+		return errors.New("evidence report citation excerpt contains a control character")
 	}
 	if citation.Excerpt == "" && citation.ExcerptHash != "" {
 		return errors.New("evidence report citation hash requires an excerpt")
@@ -59,6 +89,16 @@ func (citation EvidenceReportCitation) Validate() error {
 		}
 	}
 	return nil
+}
+
+func sensitiveCitationParameter(name string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(name), "-", "_"), ".", "_"))
+	for _, marker := range []string{"api_key", "apikey", "key", "access_token", "token", "auth", "secret", "password", "credential", "signature", "sig"} {
+		if normalized == marker || strings.HasSuffix(normalized, "_"+marker) {
+			return true
+		}
+	}
+	return false
 }
 
 type EvidenceReportGoal struct {

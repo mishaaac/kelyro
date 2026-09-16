@@ -2,6 +2,7 @@ package learningpack
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -16,6 +17,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/mishaaac/kelyro/internal/curriculum"
@@ -30,12 +32,17 @@ const (
 )
 
 var forbiddenExtensions = map[string]struct{}{
-	".bat": {}, ".bash": {}, ".cmd": {}, ".com": {}, ".dll": {}, ".dylib": {},
-	".exe": {}, ".js": {}, ".msi": {}, ".ps1": {}, ".py": {}, ".sh": {}, ".so": {}, ".zsh": {},
+	".apk": {}, ".app": {}, ".bat": {}, ".bash": {}, ".class": {}, ".cmd": {}, ".com": {},
+	".deb": {}, ".dll": {}, ".dmg": {}, ".dylib": {}, ".exe": {}, ".hta": {}, ".jar": {},
+	".js": {}, ".msi": {}, ".pkg": {}, ".ps1": {}, ".py": {}, ".rpm": {}, ".scr": {},
+	".sh": {}, ".so": {}, ".svg": {}, ".vbs": {}, ".wasm": {}, ".zsh": {},
 }
 
 var forbiddenRetentionExtensions = map[string]struct{}{".doc": {}, ".docx": {}, ".epub": {}, ".htm": {}, ".html": {}, ".mhtml": {}, ".pdf": {}}
 var forbiddenRetentionField = regexp.MustCompile(`(?i)["']?(raw_body|raw_content|cached_body|cached_content|response_body|web_body|page_body|full_article|full_text|transcript)["']?[ \t]*:`)
+var rawHTMLTag = regexp.MustCompile(`(?i)<\s*/?\s*[a-z][a-z0-9-]*(?:\s[^>]*)?/?>`)
+var unsafeMarkdownDestination = regexp.MustCompile(`(?i)(?:!?\[[^\]\r\n]*\]\(\s*<?|\[[^\]\r\n]+\]:\s*<?|<\s*)(?:javascript|vbscript|data|file)(?::|&colon;|&#0*58;|&#x0*3a;)`)
+var markdownImage = regexp.MustCompile(`!\[`)
 
 // Validator loads and validates untrusted v1 directories and ZIP files. It is
 // read-only and never follows links, executes content, installs packs, or uses
@@ -83,7 +90,7 @@ func loadPackEntries(ctx context.Context, source string) (map[string][]byte, err
 		return nil, fmt.Errorf("pack root must not be a symlink")
 	}
 	if info.IsDir() {
-		return loadDirectory(ctx, source)
+		return loadDirectory(ctx, source, info)
 	}
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("pack source is neither a directory nor a regular ZIP file")
@@ -91,13 +98,15 @@ func loadPackEntries(ctx context.Context, source string) (map[string][]byte, err
 	return loadZIP(ctx, source)
 }
 
-func loadDirectory(ctx context.Context, root string) (map[string][]byte, error) {
+func loadDirectory(ctx context.Context, root string, rootInfo fs.FileInfo) (map[string][]byte, error) {
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
 	}
 	entries := make(map[string][]byte)
-	total := int64(0)
+	declaredTotal := int64(0)
+	readTotal := int64(0)
+	entryCount := 0
 	err = filepath.WalkDir(rootAbs, func(name string, item fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -107,6 +116,10 @@ func loadDirectory(ctx context.Context, root string) (map[string][]byte, error) 
 		}
 		if name == rootAbs {
 			return nil
+		}
+		entryCount++
+		if entryCount > MaximumPackEntries {
+			return fmt.Errorf("pack exceeds %d file system entries", MaximumPackEntries)
 		}
 		if item.Type()&os.ModeSymlink != 0 {
 			return fmt.Errorf("symlink entry %q is not allowed", name)
@@ -135,12 +148,9 @@ func loadDirectory(ctx context.Context, root string) (map[string][]byte, error) 
 		if info.Size() > MaximumPackFileBytes {
 			return fmt.Errorf("entry %q exceeds %d bytes", portable, MaximumPackFileBytes)
 		}
-		total += info.Size()
-		if total > MaximumPackTotalBytes {
+		declaredTotal += info.Size()
+		if declaredTotal > MaximumPackTotalBytes {
 			return fmt.Errorf("pack exceeds %d uncompressed bytes", MaximumPackTotalBytes)
-		}
-		if len(entries) >= MaximumPackEntries {
-			return fmt.Errorf("pack exceeds %d file entries", MaximumPackEntries)
 		}
 		resolved, err := filepath.EvalSymlinks(name)
 		if err != nil {
@@ -154,15 +164,23 @@ func loadDirectory(ctx context.Context, root string) (map[string][]byte, error) 
 		if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
 			return fmt.Errorf("entry %q escapes pack root", portable)
 		}
-		encoded, err := readBoundedFile(resolvedAbs)
+		encoded, err := readBoundedDirectoryFile(resolvedAbs, info)
 		if err != nil {
 			return fmt.Errorf("read entry %q: %w", portable, err)
+		}
+		readTotal += int64(len(encoded))
+		if readTotal > MaximumPackTotalBytes {
+			return fmt.Errorf("pack exceeds %d uncompressed bytes", MaximumPackTotalBytes)
 		}
 		entries[portable] = encoded
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("load pack directory: %w", err)
+	}
+	currentRoot, err := os.Lstat(rootAbs)
+	if err != nil || currentRoot.Mode()&os.ModeSymlink != 0 || !os.SameFile(rootInfo, currentRoot) {
+		return nil, fmt.Errorf("load pack directory: pack root changed during validation")
 	}
 	return entries, nil
 }
@@ -214,7 +232,8 @@ func loadZIP(ctx context.Context, source string) (map[string][]byte, error) {
 		if total > MaximumPackTotalBytes {
 			return nil, fmt.Errorf("pack exceeds %d uncompressed bytes", MaximumPackTotalBytes)
 		}
-		if item.UncompressedSize64 > 0 && (item.CompressedSize64 == 0 || item.UncompressedSize64/item.CompressedSize64 > MaximumCompressionRatio) {
+		minimumCompressedSize := (item.UncompressedSize64 + MaximumCompressionRatio - 1) / MaximumCompressionRatio
+		if item.UncompressedSize64 > 0 && item.CompressedSize64 < minimumCompressedSize {
 			return nil, fmt.Errorf("entry %q exceeds compression ratio limit", name)
 		}
 		reader, err := item.Open()
@@ -237,18 +256,37 @@ func loadZIP(ctx context.Context, source string) (map[string][]byte, error) {
 	return entries, nil
 }
 
-func readBoundedFile(name string) ([]byte, error) {
+func readBoundedDirectoryFile(name string, expected fs.FileInfo) ([]byte, error) {
 	file, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	current, err := os.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	if current.Mode()&os.ModeSymlink != 0 || !opened.Mode().IsRegular() || !current.Mode().IsRegular() ||
+		!os.SameFile(expected, opened) || !os.SameFile(opened, current) {
+		return nil, fmt.Errorf("file changed or became unsafe during validation")
+	}
+	if opened.Size() > MaximumPackFileBytes {
+		return nil, fmt.Errorf("file exceeds %d bytes", MaximumPackFileBytes)
+	}
 	encoded, err := io.ReadAll(io.LimitReader(file, MaximumPackFileBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if len(encoded) > MaximumPackFileBytes {
 		return nil, fmt.Errorf("file exceeds %d bytes", MaximumPackFileBytes)
+	}
+	after, err := file.Stat()
+	if err != nil || after.Size() != opened.Size() || int64(len(encoded)) != opened.Size() {
+		return nil, fmt.Errorf("file changed size during validation")
 	}
 	return encoded, nil
 }
@@ -317,6 +355,14 @@ func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curr
 		if !utf8.Valid(encoded) {
 			return curriculum.LearningPack{}, nil, fmt.Errorf("entry %q is not valid UTF-8", name)
 		}
+		if err := validateTextControls(name, encoded); err != nil {
+			return curriculum.LearningPack{}, nil, err
+		}
+		if strings.EqualFold(filepath.Ext(name), ".md") {
+			if err := validateMarkdown(name, encoded); err != nil {
+				return curriculum.LearningPack{}, nil, err
+			}
+		}
 	}
 	if err := validateChecksums(entries); err != nil {
 		return curriculum.LearningPack{}, nil, err
@@ -371,6 +417,45 @@ func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curr
 		warnings = append(warnings, curriculumapp.PackValidationIssue{Code: "non_current_pack", Path: ManifestName, Message: "pack status is " + string(manifest.Status)})
 	}
 	return pack, warnings, nil
+}
+
+func validateTextControls(name string, encoded []byte) error {
+	for _, character := range string(encoded) {
+		if unicode.IsControl(character) && character != '\n' && character != '\t' {
+			return fmt.Errorf("entry %q contains a control character", name)
+		}
+	}
+	return nil
+}
+
+func validateMarkdown(name string, encoded []byte) error {
+	inFence := false
+	fence := ""
+	for _, line := range strings.Split(string(encoded), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			marker := trimmed[:3]
+			if !inFence {
+				inFence, fence = true, marker
+			} else if marker == fence {
+				inFence, fence = false, ""
+			}
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if rawHTMLTag.MatchString(line) {
+			return fmt.Errorf("Markdown entry %q contains unsafe raw HTML", name)
+		}
+		if unsafeMarkdownDestination.MatchString(line) {
+			return fmt.Errorf("Markdown entry %q contains an unsafe link scheme", name)
+		}
+		if markdownImage.MatchString(line) {
+			return fmt.Errorf("Markdown entry %q contains an embedded image", name)
+		}
+	}
+	return nil
 }
 
 // validateInMemoryEntryBounds keeps builder validation aligned with the
@@ -441,6 +526,9 @@ func validateCopyrightAwareEntries(entries map[string][]byte, report curriculum.
 		if strings.TrimSpace(asset.License) == "" || strings.TrimSpace(asset.CopyrightHolder) == "" {
 			return fmt.Errorf("licensed asset %q has no license or copyright holder", asset.Path)
 		}
+		if strings.IndexFunc(asset.License, unicode.IsControl) >= 0 || strings.IndexFunc(asset.CopyrightHolder, unicode.IsControl) >= 0 {
+			return fmt.Errorf("licensed asset %q metadata contains a control character", asset.Path)
+		}
 		if asset.Authorship != AssetAuthorshipKelyro {
 			return fmt.Errorf("licensed asset %q is not declared Kelyro-authored", asset.Path)
 		}
@@ -472,25 +560,36 @@ func validateCopyrightAwareEntries(entries map[string][]byte, report curriculum.
 }
 
 func validateChecksums(entries map[string][]byte) error {
-	lines := strings.Split(strings.TrimSuffix(string(entries[ChecksumsName]), "\n"), "\n")
-	checksums := make(map[string]string, len(lines))
+	expectedCount := len(entries) - 1
+	checksums := make(map[string]string, expectedCount)
 	previous := ""
-	for index, line := range lines {
+	scanner := bufio.NewScanner(bytes.NewReader(entries[ChecksumsName]))
+	scanner.Buffer(make([]byte, 4096), 64+2+MaximumPackPathBytes+1)
+	index := 0
+	for scanner.Scan() {
+		index++
+		if index > expectedCount {
+			return fmt.Errorf("checksums do not cover every pack file")
+		}
+		line := scanner.Text()
 		parts := strings.SplitN(line, "  ", 2)
 		if len(parts) != 2 || len(parts[0]) != 64 {
-			return fmt.Errorf("checksums line %d is malformed", index+1)
+			return fmt.Errorf("checksums line %d is malformed", index)
 		}
 		if _, err := hex.DecodeString(parts[0]); err != nil || strings.ToLower(parts[0]) != parts[0] {
-			return fmt.Errorf("checksums line %d has invalid SHA-256", index+1)
+			return fmt.Errorf("checksums line %d has invalid SHA-256", index)
 		}
 		if err := validateEntryName(parts[1]); err != nil || parts[1] == ChecksumsName {
-			return fmt.Errorf("checksums line %d has invalid path", index+1)
+			return fmt.Errorf("checksums line %d has invalid path", index)
 		}
 		if previous != "" && parts[1] <= previous {
 			return fmt.Errorf("checksums entries are duplicate or not sorted")
 		}
 		previous = parts[1]
 		checksums[parts[1]] = parts[0]
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read checksums: %w", err)
 	}
 	if len(checksums) != len(entries)-1 {
 		return fmt.Errorf("checksums do not cover every pack file")

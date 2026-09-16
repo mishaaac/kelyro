@@ -57,3 +57,56 @@ func TestCurriculumEvidenceReporterV1RejectsEvidenceOutsideFrozenBuild(t *testin
 		t.Fatalf("Generate() error = %v", err)
 	}
 }
+
+func TestCurriculumEvidenceReporterV1RejectsTerminalControlsInCitations(t *testing.T) {
+	t.Parallel()
+	request := compilerFixture(t)
+	compilation, err := NewCurriculumCompilerV1().Compile(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID, err := curriculum.NewID("source.terminal-control")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = NewCurriculumEvidenceReporterV1().Generate(context.Background(), CurriculumEvidenceReportRequest{
+		Compilation:  compilation,
+		EvidenceSets: request.EvidenceSets,
+		Citations: []curriculum.EvidenceReportCitation{{
+			SourceID: sourceID, Title: "Official reference", URL: "https://example.test/reference",
+			Excerpt: "trusted\x1b[2Jspoof", ExcerptHash: "sha256:" + strings.Repeat("a", 64),
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "control character") {
+		t.Fatalf("Generate() error = %v, want control-character rejection", err)
+	}
+}
+
+func TestCurriculumEvidenceReporterV1RejectsCredentialsInCitationURLs(t *testing.T) {
+	t.Parallel()
+	request := compilerFixture(t)
+	compilation, err := NewCurriculumCompilerV1().Compile(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceID, err := curriculum.NewID("source.secret-url")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unsafeURL := range []string{
+		"https://user:secret@example.test/reference",
+		"https://example.test/reference?access_token=secret",
+		"https://example.test/reference#api_key=secret",
+	} {
+		_, err = NewCurriculumEvidenceReporterV1().Generate(context.Background(), CurriculumEvidenceReportRequest{
+			Compilation:  compilation,
+			EvidenceSets: request.EvidenceSets,
+			Citations: []curriculum.EvidenceReportCitation{{
+				SourceID: sourceID, Title: "Official reference", URL: unsafeURL,
+			}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "credential") {
+			t.Fatalf("Generate() URL %q error = %v, want credential rejection", unsafeURL, err)
+		}
+	}
+}
