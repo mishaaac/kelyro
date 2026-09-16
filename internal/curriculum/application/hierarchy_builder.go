@@ -16,6 +16,12 @@ func NewCurriculumHierarchyBuilderV1() CurriculumHierarchyBuilderV1 {
 	return CurriculumHierarchyBuilderV1{}
 }
 
+type CurriculumHierarchyBuilderV2 struct{}
+
+func NewCurriculumHierarchyBuilderV2() CurriculumHierarchyBuilderV2 {
+	return CurriculumHierarchyBuilderV2{}
+}
+
 type hierarchyPlacement struct {
 	concept    curriculum.Concept
 	areaID     curriculum.ID
@@ -33,6 +39,14 @@ type hierarchyGroupKey struct {
 }
 
 func (CurriculumHierarchyBuilderV1) Build(ctx context.Context, request CurriculumHierarchyBuildRequest) (curriculum.CurriculumHierarchy, error) {
+	return buildCurriculumHierarchy(ctx, request, curriculum.CurriculumHierarchyBuilderVersionV1, false)
+}
+
+func (CurriculumHierarchyBuilderV2) Build(ctx context.Context, request CurriculumHierarchyBuildRequest) (curriculum.CurriculumHierarchy, error) {
+	return buildCurriculumHierarchy(ctx, request, curriculum.CurriculumHierarchyBuilderVersionV2, true)
+}
+
+func buildCurriculumHierarchy(ctx context.Context, request CurriculumHierarchyBuildRequest, algorithmVersion string, prerequisiteOrder bool) (curriculum.CurriculumHierarchy, error) {
 	const operation = "build curriculum hierarchy"
 	if err := ctx.Err(); err != nil {
 		return curriculum.CurriculumHierarchy{}, ExternalError(operation, err)
@@ -116,35 +130,50 @@ func (CurriculumHierarchyBuilderV1) Build(ctx context.Context, request Curriculu
 		placements = append(placements, hierarchyPlacement{concept: concept, areaID: competency.AreaID, area: competency.Area, competency: competency.ID, context: practiceContext, position: position[id]})
 	}
 
-	result := buildHierarchyProjection(placements)
+	result := buildHierarchyProjection(placements, algorithmVersion, prerequisiteOrder)
 	if err := result.Validate(request.Concepts); err != nil {
 		return curriculum.CurriculumHierarchy{}, Invalid(operation, err)
 	}
 	return result, nil
 }
 
-func buildHierarchyProjection(placements []hierarchyPlacement) curriculum.CurriculumHierarchy {
-	result := curriculum.CurriculumHierarchy{AlgorithmVersion: curriculum.CurriculumHierarchyBuilderVersionV1}
+func buildHierarchyProjection(placements []hierarchyPlacement, algorithmVersion string, prerequisiteOrder bool) curriculum.CurriculumHierarchy {
+	result := curriculum.CurriculumHierarchy{AlgorithmVersion: algorithmVersion}
 	difficulties := make(map[curriculum.Difficulty]struct{})
 	areas := make(map[curriculum.Difficulty]map[string]string)
 	lessons := make(map[string]map[string]struct{})
 	topics := make(map[string]map[string][]hierarchyPlacement)
+	areaPositions := make(map[curriculum.Difficulty]map[string]int)
+	lessonPositions := make(map[string]map[string]int)
+	topicPositions := make(map[string]map[string]int)
 	for _, placement := range placements {
 		difficulties[placement.concept.Difficulty] = struct{}{}
 		if areas[placement.concept.Difficulty] == nil {
 			areas[placement.concept.Difficulty] = make(map[string]string)
 		}
 		areas[placement.concept.Difficulty][placement.areaID.String()] = placement.area
+		if areaPositions[placement.concept.Difficulty] == nil {
+			areaPositions[placement.concept.Difficulty] = make(map[string]int)
+		}
+		retainEarliestPosition(areaPositions[placement.concept.Difficulty], placement.areaID.String(), placement.position)
 		moduleKey := fmt.Sprintf("%d\x00%s", placement.concept.Difficulty, placement.areaID.String())
 		if lessons[moduleKey] == nil {
 			lessons[moduleKey] = make(map[string]struct{})
 		}
 		lessons[moduleKey][placement.competency.String()] = struct{}{}
+		if lessonPositions[moduleKey] == nil {
+			lessonPositions[moduleKey] = make(map[string]int)
+		}
+		retainEarliestPosition(lessonPositions[moduleKey], placement.competency.String(), placement.position)
 		lessonKey := moduleKey + "\x00" + placement.competency.String()
 		if topics[lessonKey] == nil {
 			topics[lessonKey] = make(map[string][]hierarchyPlacement)
 		}
 		topics[lessonKey][placement.context] = append(topics[lessonKey][placement.context], placement)
+		if topicPositions[lessonKey] == nil {
+			topicPositions[lessonKey] = make(map[string]int)
+		}
+		retainEarliestPosition(topicPositions[lessonKey], placement.context, placement.position)
 	}
 
 	difficultyOrder := make([]int, 0, len(difficulties))
@@ -159,17 +188,26 @@ func buildHierarchyProjection(placements []hierarchyPlacement) curriculum.Curric
 		result.Phases = append(result.Phases, curriculum.Phase{ID: phaseID, Title: label, Description: label + " concepts grouped for curriculum navigation.", Order: phaseOrder})
 
 		areaIDs := sortedStringKeys(areas[difficulty])
+		if prerequisiteOrder {
+			sortByPosition(areaIDs, areaPositions[difficulty])
+		}
 		for moduleOrder, rawAreaID := range areaIDs {
 			moduleID := derivedHierarchyID("module", fmt.Sprintf("%d\x00%s", rawDifficulty, rawAreaID))
 			areaTitle := areas[difficulty][rawAreaID]
 			result.Modules = append(result.Modules, curriculum.Module{ID: moduleID, PhaseID: phaseID, Title: areaTitle, Description: "Competency area: " + areaTitle + ".", Order: moduleOrder})
 			moduleKey := fmt.Sprintf("%d\x00%s", rawDifficulty, rawAreaID)
 			competencyIDs := sortedStringSet(lessons[moduleKey])
+			if prerequisiteOrder {
+				sortByPosition(competencyIDs, lessonPositions[moduleKey])
+			}
 			for lessonOrder, rawCompetencyID := range competencyIDs {
 				lessonID := derivedHierarchyID("lesson", moduleKey+"\x00"+rawCompetencyID)
 				result.Lessons = append(result.Lessons, curriculum.LessonSpec{ID: lessonID, ModuleID: moduleID, Title: "Competency " + rawCompetencyID, Description: "Concepts supporting competency " + rawCompetencyID + ".", Order: lessonOrder})
 				lessonKey := moduleKey + "\x00" + rawCompetencyID
 				contextNames := sortedPlacementContexts(topics[lessonKey])
+				if prerequisiteOrder {
+					sortByPosition(contextNames, topicPositions[lessonKey])
+				}
 				for topicOrder, contextName := range contextNames {
 					values := topics[lessonKey][contextName]
 					sort.Slice(values, func(i, j int) bool {
@@ -240,4 +278,21 @@ func sortedPlacementContexts(values map[string][]hierarchyPlacement) []string {
 	return result
 }
 
+func retainEarliestPosition(values map[string]int, key string, position int) {
+	current, exists := values[key]
+	if !exists || position < current {
+		values[key] = position
+	}
+}
+
+func sortByPosition(values []string, positions map[string]int) {
+	sort.Slice(values, func(i, j int) bool {
+		if positions[values[i]] != positions[values[j]] {
+			return positions[values[i]] < positions[values[j]]
+		}
+		return values[i] < values[j]
+	})
+}
+
 var _ CurriculumHierarchyBuilderService = CurriculumHierarchyBuilderV1{}
+var _ CurriculumHierarchyBuilderService = CurriculumHierarchyBuilderV2{}

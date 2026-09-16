@@ -63,6 +63,41 @@ func TestCurriculumHierarchyBuilderV1BuildsStableUXProjection(t *testing.T) {
 	}
 }
 
+func TestCurriculumHierarchyBuilderV2OrdersSiblingTopicsByPrerequisites(t *testing.T) {
+	t.Parallel()
+	foundation := graphConcept(t, "concept.foundation", true)
+	foundation.Difficulty = curriculum.DifficultyAdvanced
+	dependent := graphConcept(t, "concept.dependent", false)
+	dependent.Difficulty = curriculum.DifficultyAdvanced
+	concepts := []curriculum.Concept{dependent, foundation}
+	graph := compileAuditGraph(t, concepts, []curriculum.Prerequisite{
+		graphPrerequisite(dependent, foundation, curriculum.PrerequisiteHard),
+	})
+	areaID := curriculumID(t, "area.operations")
+	competencyID := curriculumID(t, "competency.operations")
+	matrix := curriculum.CompetencyMatrix{Version: curriculum.CompetencyMatrixVersionV1, GoalID: curriculumID(t, "goal.operations"), Competencies: []curriculum.Competency{{
+		ID: competencyID, AreaID: areaID, Area: "Operations", OutcomeID: curriculumID(t, "outcome.operate"), ExpectedLevel: curriculum.CompetencyOperate,
+		ConceptRefs: []curriculum.ConceptID{dependent.ID, foundation.ID},
+	}}}
+
+	result, err := NewCurriculumHierarchyBuilderV2().Build(context.Background(), CurriculumHierarchyBuildRequest{
+		Competencies: matrix, Concepts: concepts, Graph: graph,
+		PracticeContext: []curriculum.PracticeContextAssignment{
+			{ConceptID: dependent.ID, Context: "A dependent topic"},
+			{ConceptID: foundation.ID, Context: "Z prerequisite topic"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if result.AlgorithmVersion != curriculum.CurriculumHierarchyBuilderVersionV2 {
+		t.Fatalf("algorithm version = %q", result.AlgorithmVersion)
+	}
+	if len(result.Topics) != 2 || result.Topics[0].Title != "Z prerequisite topic" || result.Topics[1].Title != "A dependent topic" {
+		t.Fatalf("topics are not prerequisite ordered: %+v", result.Topics)
+	}
+}
+
 func TestCurriculumHierarchyBuilderV1PreservesTwoThousandConcepts(t *testing.T) {
 	t.Parallel()
 	const count = 2000

@@ -183,12 +183,12 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 	}
 	appendPass(pass)
 
-	hierarchy, pass, err := runCompilerPass(ctx, "hierarchy", curriculum.CurriculumHierarchyBuilderVersionV1, struct {
+	hierarchy, pass, err := runCompilerPass(ctx, "hierarchy", curriculum.CurriculumHierarchyBuilderVersionV2, struct {
 		Matrix  curriculum.CompetencyMatrix
 		Graph   curriculum.KnowledgeGraphCompilation
 		Context []curriculum.PracticeContextAssignment
 	}{matrix, graph, request.PracticeContext}, func(ctx context.Context) (curriculum.CurriculumHierarchy, error) {
-		return NewCurriculumHierarchyBuilderV1().Build(ctx, CurriculumHierarchyBuildRequest{Competencies: matrix, Concepts: concepts, Graph: graph, PracticeContext: request.PracticeContext})
+		return NewCurriculumHierarchyBuilderV2().Build(ctx, CurriculumHierarchyBuildRequest{Competencies: matrix, Concepts: concepts, Graph: graph, PracticeContext: request.PracticeContext})
 	})
 	if err != nil {
 		return fail(pass, err)

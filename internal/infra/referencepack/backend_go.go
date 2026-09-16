@@ -75,7 +75,7 @@ func BackendGoDevelopmentFixture(ctx context.Context) (curriculumapp.CurriculumC
 }
 
 func backendGoCompileRequest(ctx context.Context) (curriculumapp.CurriculumCompileRequest, curriculum.EnvironmentPack, error) {
-	builtAt := mustTimestamp(time.Date(2026, time.September, 15, 12, 0, 0, 0, time.UTC))
+	builtAt := mustTimestamp(time.Date(2026, time.September, 16, 12, 0, 0, 0, time.UTC))
 	bundleHash := sha256.Sum256([]byte("backend-go-reference-development-evidence-v1"))
 	bundle := curriculum.SourceBundleRef{ID: mustID("bundle.backend-go-reference.dev-v1"), ContentHash: "sha256:" + hex.EncodeToString(bundleHash[:]), AlgorithmVersion: "source-bundle-fixture-v1", VerifiedAt: builtAt}
 	sourceID := mustID("source.backend-go-reference")
@@ -164,7 +164,7 @@ func backendGoCompileRequest(ctx context.Context) (curriculumapp.CurriculumCompi
 		InstallGuidanceRefs: []curriculum.ID{mustID("install.go.darwin"), mustID("install.go.linux"), mustID("install.go.windows")}, EvidenceRefs: refs(references, "modules"),
 	}
 	environment := curriculum.EnvironmentPack{
-		ID: mustID("environment.backend-go-reference"), Version: mustPackVersion("0.1.0"), SchemaVersion: curriculum.EnvironmentPackSchemaVersionV1,
+		ID: mustID("environment.backend-go-reference"), Version: mustPackVersion("0.2.0"), SchemaVersion: curriculum.EnvironmentPackSchemaVersionV1,
 		SupportedPlatforms: []string{curriculum.EnvironmentPlatformDarwin, curriculum.EnvironmentPlatformLinux, curriculum.EnvironmentPlatformWindows}, Tools: []curriculum.ToolRequirement{goTool},
 		InstallGuidance: []curriculum.ToolInstallGuidance{
 			installGuidance("darwin", curriculum.EnvironmentPlatformDarwin, references),
@@ -175,7 +175,7 @@ func backendGoCompileRequest(ctx context.Context) (curriculumapp.CurriculumCompi
 	request := curriculumapp.CurriculumCompileRequest{
 		Input:        curriculum.CompilationInput{Goal: goal, SourceBundles: []curriculum.SourceBundleRef{bundle}, RequestedAt: builtAt},
 		Config:       curriculum.CompilationConfig{CompilerVersion: curriculum.CurriculumCompilerVersionV1, SourcePolicy: curriculum.SourceReferencesOptionalForFixture, PackSchemaVersion: curriculum.LearningPackSchemaVersionV1},
-		Metadata:     curriculumapp.CurriculumBuildMetadata{ID: curriculumID, Version: mustCurriculumVersion("2026.09.15-dev.1"), Title: "Backend engineering with Go reference", Description: "A bounded development curriculum used to verify the I-04 compiler and Learning Pack lifecycle.", CreatedAt: builtAt},
+		Metadata:     curriculumapp.CurriculumBuildMetadata{ID: curriculumID, Version: mustCurriculumVersion("2026.09.16-dev.2"), Title: "Backend engineering with Go reference", Description: "A bounded development curriculum used to verify the I-04 compiler and Learning Pack lifecycle.", CreatedAt: builtAt},
 		EvidenceSets: []curriculum.CurriculumEvidenceSet{evidence}, DomainProfile: profile, Competencies: competencies,
 		AtomizationPlans: plans, PrerequisiteSemantics: semantics,
 		VocabularyDefinitions: []curriculum.VocabularyDefinition{
@@ -197,7 +197,7 @@ func backendGoCompileRequest(ctx context.Context) (curriculumapp.CurriculumCompi
 func backendGoManifest(compiled curriculum.CompilationResult) curriculum.PackManifest {
 	return curriculum.PackManifest{
 		ID: mustID("backend-go-reference"), Name: "Backend Go Reference", Description: "Development-only preview pack that exercises I-04; deterministic fixture evidence does not establish production completeness.",
-		Version: mustPackVersion("0.1.0"), SchemaVersion: curriculum.LearningPackSchemaVersionV1, Domain: "backend engineering", Target: "Backend Go engineer development reference",
+		Version: mustPackVersion("0.2.0"), SchemaVersion: curriculum.LearningPackSchemaVersionV1, Domain: "backend engineering", Target: "Backend Go engineer development reference",
 		Authors: []string{"Kelyro contributors"}, Maintainers: []string{"Kelyro contributors"}, License: "CC-BY-4.0", CreatedAt: compiled.BuildInfo.BuiltAt,
 		MinimumKelyroVersion: mustPackVersion("0.2.0-alpha.3"), EnvironmentEntry: "environment/environment.yaml", CurriculumEntry: "curriculum/curriculum.yaml",
 		SourceEvidenceEntry: "sources/evidence-report.json", BuildInfoEntry: "build/build-info.json", Status: curriculum.ConceptPreview, CurriculumID: compiled.Curriculum.ID,

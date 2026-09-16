@@ -2,7 +2,10 @@ package curriculum
 
 import "fmt"
 
-const CurriculumHierarchyBuilderVersionV1 = "curriculum-hierarchy-builder-v1"
+const (
+	CurriculumHierarchyBuilderVersionV1 = "curriculum-hierarchy-builder-v1"
+	CurriculumHierarchyBuilderVersionV2 = "curriculum-hierarchy-builder-v2"
+)
 
 type Phase struct {
 	ID          ID
@@ -82,7 +85,7 @@ func (hierarchy CurriculumHierarchy) Validate(concepts []Concept) error {
 		}
 		known[concept.ID] = struct{}{}
 	}
-	if hierarchy.AlgorithmVersion != CurriculumHierarchyBuilderVersionV1 {
+	if hierarchy.AlgorithmVersion != CurriculumHierarchyBuilderVersionV1 && hierarchy.AlgorithmVersion != CurriculumHierarchyBuilderVersionV2 {
 		return fmt.Errorf("unsupported curriculum hierarchy builder version %q", hierarchy.AlgorithmVersion)
 	}
 	return validateHierarchyParts(hierarchy.Phases, hierarchy.Modules, hierarchy.Lessons, hierarchy.Topics, known)
