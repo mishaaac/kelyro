@@ -132,8 +132,8 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 	extraction, pass, err := runCompilerPass(ctx, "prerequisite-extraction", curriculum.PrerequisiteExtractorVersionV1, struct {
 		Concepts  []curriculum.Concept
 		Semantics []curriculum.ConceptPrerequisiteSemantic
-	}{concepts, request.PrerequisiteSemantics}, func(ctx context.Context) (curriculum.PrerequisiteExtraction, error) {
-		return NewPrerequisiteExtractorV1().Extract(ctx, PrerequisiteExtractionRequest{Concepts: concepts, EvidenceSets: request.EvidenceSets, Semantics: request.PrerequisiteSemantics})
+	}{concepts, currentPrerequisiteSemantics(concepts, request.PrerequisiteSemantics)}, func(ctx context.Context) (curriculum.PrerequisiteExtraction, error) {
+		return NewPrerequisiteExtractorV1().Extract(ctx, PrerequisiteExtractionRequest{Concepts: concepts, EvidenceSets: request.EvidenceSets, Semantics: currentPrerequisiteSemantics(concepts, request.PrerequisiteSemantics)})
 	})
 	if err != nil {
 		return fail(pass, err)
@@ -336,6 +336,28 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 		return result, Invalid(operation, err)
 	}
 	return result, nil
+}
+
+// currentPrerequisiteSemantics limits extraction to edges whose two endpoints
+// were atomized in the current pass. Semantics that reference verified
+// AvailableConcepts belong to prerequisite expansion, which runs next and can
+// add those concepts recursively without weakening the standalone extractor.
+func currentPrerequisiteSemantics(concepts []curriculum.Concept, semantics []curriculum.ConceptPrerequisiteSemantic) []curriculum.ConceptPrerequisiteSemantic {
+	known := make(map[curriculum.ConceptID]struct{}, len(concepts))
+	for _, concept := range concepts {
+		known[concept.ID] = struct{}{}
+	}
+	result := make([]curriculum.ConceptPrerequisiteSemantic, 0, len(semantics))
+	for _, semantic := range semantics {
+		if _, exists := known[semantic.ConceptID]; !exists {
+			continue
+		}
+		if _, exists := known[semantic.RequiredConceptID]; !exists {
+			continue
+		}
+		result = append(result, semantic)
+	}
+	return result
 }
 
 func runCompilerPass[T any](ctx context.Context, name, version string, input any, execute func(context.Context) (T, error)) (T, curriculum.CompilationPass, error) {

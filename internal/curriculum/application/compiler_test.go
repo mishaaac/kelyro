@@ -72,6 +72,34 @@ func TestCurriculumCompilerV1RecordsFailingPass(t *testing.T) {
 	}
 }
 
+func TestCurriculumCompilerV1ExpandsVerifiedAvailablePrerequisite(t *testing.T) {
+	t.Parallel()
+	request := compilerFixture(t)
+	reference := request.EvidenceSets[0].Claims[0]
+	availableID, _ := curriculum.NewConceptID("concept.process")
+	currentID := request.Competencies[0].ConceptRefs[0]
+	request.AvailableConcepts = []curriculum.Concept{{
+		ID: availableID, Title: "Process", Definition: "A process is one executing program instance.",
+		Version: "concept-v1", Atomicity: curriculum.AtomicityAtomic, Difficulty: curriculum.DifficultyIntroductory,
+		Status: curriculum.ConceptCurrent, Foundational: true,
+		EvidenceRefs: []curriculum.EvidenceRef{{BundleID: request.EvidenceSets[0].Bundle.ID, ClaimID: reference.ID}},
+	}}
+	request.PrerequisiteSemantics = []curriculum.ConceptPrerequisiteSemantic{{
+		ConceptID: currentID, RequiredConceptID: availableID, Kind: curriculum.PrerequisiteHard,
+		EvidenceRefs: request.AvailableConcepts[0].EvidenceRefs, Reason: "A process precedes protocol handling.",
+	}}
+	request.Competencies[0].ConceptRefs = append(request.Competencies[0].ConceptRefs, availableID)
+
+	result, err := NewCurriculumCompilerV1().Compile(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	if len(result.Curriculum.Concepts) != 2 || len(result.Curriculum.Prerequisites) != 1 ||
+		result.Curriculum.Prerequisites[0].RequiredConceptID != availableID {
+		t.Fatalf("expanded curriculum = %+v", result.Curriculum)
+	}
+}
+
 func compilerFixture(t *testing.T) CurriculumCompileRequest {
 	t.Helper()
 	evidence, reference := decompositionEvidence(t)
