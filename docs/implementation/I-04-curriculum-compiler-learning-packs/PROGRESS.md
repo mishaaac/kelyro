@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 53
-Last completed step: 52
+Current step: 54
+Last completed step: 53
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2734,3 +2734,86 @@ Release: unreleased
 
 - El Paso 53 es el siguiente: dogfooding manual del compiler y reference pack.
 - No promover el pack preview ni comenzar I-05 durante el dogfooding.
+
+## Step 53 — Dogfooding de I-04
+
+Status: completed
+Date: 2026-09-16
+Release: unreleased
+
+### Delivered
+
+- Revisión manual de las 20 dimensiones del plan mediante el binario real,
+  stores XDG aislados y workspaces nuevos; el registro detallado queda en
+  `DOGFOODING.md`.
+- Lectura humana de los nueve conceptos del pack, que constituyen tanto la
+  muestra inicial como la muestra aleatoria al ser una población menor que 20,
+  más los módulos advanced, security y production.
+- Reference pack regenerado como `backend-go-reference@0.2.0`, curriculum
+  `2026.09.16-dev.2`, checksum
+  `sha256:3609f07446adfcbbe2f5f24ad97130177fcb272910fec31b22ec642c46c27b23`.
+- Jerarquía `curriculum-hierarchy-builder-v2`, ordenada por la primera posición
+  topológica y compatible con artifacts v1; observability ahora precede a su
+  dependiente deployment en roadmap.
+- Activación inicial enlazada al application service I-02: crea una Curriculum
+  Instance idempotente para el goal activo y hace visible el pack en roadmap.
+- Cambios directos de versión bloqueados antes de cualquier write estudiantil;
+  `packs upgrade` es el único flujo que autoriza la transición tras clasificar,
+  respaldar y migrar estado.
+- Doctor conectado al Environment Pack activo y a la posición curricular I-02;
+  al inicio reporta Go 1.24 como `not_needed_yet`, con razón y guidance oficial.
+- Upgrade dry-run real `0.1.0 -> 0.2.0`: nueve stable IDs preservados, cero
+  estados nuevos/removidos/split y ningún write.
+
+### Bugs fixed
+
+- Los topics hermanos se ordenaban alfabéticamente, de modo que deployment se
+  mostraba antes de su hard prerequisite observability. El algoritmo v2 usa el
+  orden topológico como fuente determinista para modules, lessons y topics.
+- `packs activate` sólo escribía `active-pack.json`; incluso con profile y goal
+  activos, `kelyro roadmap` respondía que no existía curriculum. La activación
+  ahora hace el hand-off explícito a Student Core sin mutar mastery directamente.
+- Una segunda llamada a `packs activate` podía saltarse change classification y
+  migration. Las transiciones quedan fail-closed salvo autorización interna del
+  executor seguro de upgrades.
+- El Environment Pack tenía planner y tests, pero el CLI real nunca adjuntaba su
+  plan a Doctor. La composición del workspace activo quedó conectada.
+
+### Decisions
+
+- Mantener el reference pack como `preview` y `optional_for_fixture`: el 100% de
+  referencias demuestra integridad interna de la fixture, no cobertura
+  profesional productiva ni verificación de contenido web real.
+- Publicar `0.2.0`, no `0.1.1`: el classifier detectó correctamente que el cambio
+  visible de jerarquía requiere transición minor.
+- Exigir un goal activo para la activación inicial en vez de inventar perfil,
+  intención educativa, nivel o mastery desde I-04.
+- Mantener Roadmap como proyección exclusiva de I-02; la solución crea la
+  Curriculum Instance por el adapter de aplicación en lugar de renderizar el
+  pack directamente desde CLI/TUI.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/... ./internal/infra/learningmigration ./internal/cli ./cmd/kelyro -count=1`.
+- `go test -tags=e2e ./tests/e2e -run TestCurriculumCompilerAndPackLifecycleEndToEnd -count=1`.
+- Benchmark de una iteración: compiler ~1.27 s / 872,480,680 B/op; pack
+  serialization ~2.10 s / 1,425,290,832 B/op.
+- CLI real: validate, install, list, show, activate, compile, validate, coverage,
+  gaps, audit, build-info, roadmap, Doctor, upgrade dry-run y catalog offline.
+- `privacy.allow_network=false`; catálogo vacío servido como offline cache y
+  ninguna fase del compiler/pack lifecycle requirió red.
+- `git diff --check`.
+
+### Commits
+
+- `9a8d4a1 fix(curriculum): preserve prerequisite order in hierarchy`.
+- `9166b40 fix(pack): complete active curriculum handoff`.
+
+### Notes for next session
+
+- El Paso 54 es el siguiente: cierre formal de I-04 y ejecución de todos sus
+  gates de release/CI sin abrir I-05.
+- No promover el reference pack preview ni interpretar la fixture como evidencia
+  productiva; sustituirla requiere Source Bundles I-03 reales y scope separado.
