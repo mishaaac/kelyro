@@ -241,14 +241,16 @@ func TestProgressDashboardIgnoresPausedGoalContext(t *testing.T) {
 	}
 }
 
-func TestProgressDashboardHandlesThousandsOfConcepts(t *testing.T) {
+func TestProgressDashboardHandlesTenThousandConcepts(t *testing.T) {
 	t.Parallel()
-	const conceptCount = 5000
+	const conceptCount = 10_000
 	fixture := newProgressDashboardFixture(t, progressDashboardCurriculum(t, conceptCount))
+	started := time.Now()
 	view, err := fixture.dashboard.Show(fixture.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("10,000-concept roadmap read: %s", time.Since(started))
 	if view.Curriculum == nil || view.Curriculum.ConceptsTotal != conceptCount ||
 		view.OverallProgress.ConceptsTotal.Value != conceptCount || view.Current == nil ||
 		view.Current.Concept.ID != testID(t, "concept.dashboard.00000") || view.TodayPlan == nil {

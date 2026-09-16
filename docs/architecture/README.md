@@ -95,6 +95,9 @@ modules, lessons, and topics is documented in
 The end-to-end deterministic pass orchestration, trace hashes, failure records,
 and compiled diagnostics are documented in
 [Curriculum Compiler Pipeline v1](curriculum-compiler-v1.md).
+The deterministic 10,000-concept scale fixture, graph/index complexity
+controls, bounded pack behavior, and local measurements are documented in
+[Curriculum scale hardening v1](curriculum-scale-hardening-v1.md).
 The persisted compiler/pass/config/source recipe, content hashes, portable pack
 entry, and active-pack inspection command are documented in
 [Curriculum build reproducibility metadata v1](curriculum-reproducibility-v1.md).

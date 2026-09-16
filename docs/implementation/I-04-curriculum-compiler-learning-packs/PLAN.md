@@ -2696,7 +2696,7 @@ test(e2e): cover curriculum compilation and pack lifecycle
 
 ## Paso 51 — Performance y scale hardening
 
-- [ ] Paso 51 completado
+- [x] Paso 51 completado
 
 ### Objetivo
 

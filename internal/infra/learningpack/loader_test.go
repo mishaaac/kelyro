@@ -227,6 +227,15 @@ func TestValidatorProducesDeterministicPortableSnapshot(t *testing.T) {
 	}
 }
 
+func TestInMemoryPackValidationAppliesLoaderSizeBounds(t *testing.T) {
+	t.Parallel()
+	entries := validPackEntries()
+	entries["curriculum/curriculum.yaml"] = make([]byte, MaximumPackFileBytes+1)
+	if _, _, err := validateEntries(entries); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("validateEntries() error = %v, want entry size rejection", err)
+	}
+}
+
 func TestValidatorRejectsChecksumUTF8AndEvidenceFailures(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

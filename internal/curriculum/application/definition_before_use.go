@@ -78,7 +78,6 @@ func (DefinitionBeforeUseAuditV1) Audit(ctx context.Context, request DefinitionB
 			continue
 		}
 		introductionPrecedes := graphRequires(dependencies, use.UsedAt, term.IntroducedBy)
-		usePrecedesIntroduction := graphRequires(dependencies, term.IntroducedBy, use.UsedAt)
 		introPosition, introPositioned := positions[term.IntroducedBy]
 		usePosition, usePositioned := positions[use.UsedAt]
 		sameLesson := introPositioned && usePositioned && introPosition.lesson == usePosition.lesson
@@ -88,6 +87,7 @@ func (DefinitionBeforeUseAuditV1) Audit(ctx context.Context, request DefinitionB
 			}
 			continue
 		}
+		usePrecedesIntroduction := graphRequires(dependencies, term.IntroducedBy, use.UsedAt)
 		if usePrecedesIntroduction {
 			result.Violations = append(result.Violations, definitionBeforeUseViolation(use, term, curriculum.DefinitionBeforeUseIntroducedAfterUse, "the knowledge graph places the term introduction after its use", false))
 			continue

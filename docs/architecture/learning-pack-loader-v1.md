@@ -18,7 +18,7 @@ The v1 pipeline is deterministic:
 2. enumerate a directory without following links, or enumerate one ZIP;
 3. validate canonical portable names and reject links, special files,
    executable modes and script-like extensions;
-4. enforce 1,024 entries, 4 MiB per file, 32 MiB total uncompressed and a
+4. enforce 1,024 entries, 16 MiB per file, 32 MiB total uncompressed and a
    100:1 per-entry ZIP compression-ratio ceiling;
 5. require valid UTF-8, `pack.yaml`, and `checksums.txt`;
 6. verify a complete, sorted, duplicate-free SHA-256 inventory;
@@ -29,7 +29,8 @@ The v1 pipeline is deterministic:
 The directory adapter resolves each discovered file and confirms it remains
 inside the pack root. The ZIP adapter rejects traversal names and duplicate
 entries before opening content. Resource bounds are checked from metadata and
-again while reading.
+again while reading. Builder-owned in-memory entries pass through the same
+entry-count, per-file, and total-byte checks before an archive is returned.
 
 ## Cross-document invariants
 

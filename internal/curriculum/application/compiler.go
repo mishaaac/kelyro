@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"sort"
 	"strings"
 	"time"
@@ -97,13 +98,17 @@ func (CurriculumCompilerV1) Compile(ctx context.Context, request CurriculumCompi
 			plans[plan.CandidateID] = plan
 		}
 		atomizer := NewConceptAtomizerV1(curriculum.NewAtomicConceptPolicyV1())
+		knownEvidence, err := indexUsableEvidence(request.EvidenceSets)
+		if err != nil {
+			return nil, Invalid(operation, err)
+		}
 		var values []curriculum.Concept
 		for _, candidate := range candidates.Candidates {
 			plan, exists := plans[candidate.ID]
 			if !exists {
 				return nil, Invalid(operation, fmt.Errorf("candidate %q has no atomization plan", candidate.ID))
 			}
-			set, err := atomizer.Atomize(ctx, ConceptAtomizationRequest{Candidate: candidate, EvidenceSets: request.EvidenceSets, CandidateCriteria: plan.Criteria, DomainHints: plan.Hints})
+			set, err := atomizer.atomize(ctx, ConceptAtomizationRequest{Candidate: candidate, EvidenceSets: request.EvidenceSets, CandidateCriteria: plan.Criteria, DomainHints: plan.Hints}, knownEvidence)
 			if err != nil {
 				return nil, err
 			}
@@ -421,12 +426,49 @@ func compilerPassWarnings(output any) []string {
 }
 
 func compilerHash(value any) string {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		encoded = []byte(fmt.Sprintf("%T:%s", value, err))
+	stream := newJSONHashWriter()
+	if err := json.NewEncoder(stream).Encode(value); err != nil {
+		digest := sha256.Sum256([]byte(fmt.Sprintf("%T:%s", value, err)))
+		return fmt.Sprintf("sha256:%x", digest)
 	}
-	digest := sha256.Sum256(encoded)
-	return fmt.Sprintf("sha256:%x", digest)
+	return fmt.Sprintf("sha256:%x", stream.sum())
+}
+
+// jsonHashWriter preserves json.Marshal's byte stream while allowing Encoder
+// to feed SHA-256 incrementally. Encoder appends one newline; retaining the
+// final byte until the next write lets sum omit only that terminator.
+type jsonHashWriter struct {
+	digest  hash.Hash
+	last    byte
+	pending bool
+}
+
+func newJSONHashWriter() *jsonHashWriter {
+	return &jsonHashWriter{digest: sha256.New()}
+}
+
+func (writer *jsonHashWriter) Write(value []byte) (int, error) {
+	length := len(value)
+	if length == 0 {
+		return 0, nil
+	}
+	if writer.pending {
+		_, _ = writer.digest.Write([]byte{writer.last})
+	}
+	if length > 1 {
+		_, _ = writer.digest.Write(value[:length-1])
+	}
+	writer.last = value[length-1]
+	writer.pending = true
+	return length, nil
+}
+
+func (writer *jsonHashWriter) sum() []byte {
+	if writer.pending && writer.last != '\n' {
+		_, _ = writer.digest.Write([]byte{writer.last})
+		writer.pending = false
+	}
+	return writer.digest.Sum(nil)
 }
 
 func validateBuildMetadata(metadata CurriculumBuildMetadata) error {

@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -101,6 +103,47 @@ func TestPrerequisiteExpansionV1ReportsUnavailablePrerequisite(t *testing.T) {
 	}
 	if len(result.UnresolvedGaps) != 1 || result.UnresolvedGaps[0].Code != curriculum.PrerequisiteGapConceptUnavailable || result.UnresolvedGaps[0].RequiredConceptID == nil || *result.UnresolvedGaps[0].RequiredConceptID != missing.ID {
 		t.Fatalf("unavailable prerequisite result = %+v", result)
+	}
+}
+
+func TestPrerequisiteExpansionV1RejectsCycleInExistingGraph(t *testing.T) {
+	t.Parallel()
+	evidence, reference := decompositionEvidence(t)
+	first := expansionConcept(t, "concept.first", false, reference)
+	second := expansionConcept(t, "concept.second", false, reference)
+	_, err := NewPrerequisiteExpansionV1().Expand(context.Background(), PrerequisiteExpansionRequest{
+		Concepts: []curriculum.Concept{first, second}, EvidenceSets: []curriculum.CurriculumEvidenceSet{evidence},
+		Prerequisites: []curriculum.Prerequisite{
+			{ConceptID: first.ID, RequiredConceptID: second.ID, Kind: curriculum.PrerequisiteHard, EvidenceRefs: []curriculum.EvidenceRef{reference}},
+			{ConceptID: second.ID, RequiredConceptID: first.ID, Kind: curriculum.PrerequisiteHard, EvidenceRefs: []curriculum.EvidenceRef{reference}},
+		},
+	})
+	if !errors.Is(err, ErrInvalidState) {
+		t.Fatalf("Expand() error = %v, want invalid existing cycle", err)
+	}
+}
+
+func TestPrerequisiteExpansionV1HandlesDeepExpansionIteratively(t *testing.T) {
+	t.Parallel()
+	const size = 10_000
+	evidence, reference := decompositionEvidence(t)
+	concepts := make([]curriculum.Concept, size)
+	semantics := make([]curriculum.ConceptPrerequisiteSemantic, 0, size-1)
+	for index := range concepts {
+		concepts[index] = expansionConcept(t, fmt.Sprintf("concept.deep.%05d", index), index == 0, reference)
+		if index > 0 {
+			semantics = append(semantics, prerequisiteSemantic(concepts[index], concepts[index-1], curriculum.PrerequisiteHard, reference, "Generated deep dependency."))
+		}
+	}
+	result, err := NewPrerequisiteExpansionV1().Expand(context.Background(), PrerequisiteExpansionRequest{
+		Concepts: []curriculum.Concept{concepts[size-1]}, AvailableConcepts: concepts[:size-1],
+		Semantics: semantics, EvidenceSets: []curriculum.CurriculumEvidenceSet{evidence},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.AddedConcepts) != size-1 || len(result.ExpandedPrerequisites) != size-1 || len(result.UnresolvedGaps) != 0 {
+		t.Fatalf("deep expansion: added=%d prerequisites=%d gaps=%d", len(result.AddedConcepts), len(result.ExpandedPrerequisites), len(result.UnresolvedGaps))
 	}
 }
 

@@ -17,6 +17,13 @@ func NewConceptAtomizerV1(policy AtomicityPolicy) *ConceptAtomizerV1 {
 }
 
 func (service *ConceptAtomizerV1) Atomize(ctx context.Context, request ConceptAtomizationRequest) (curriculum.AtomicConceptSet, error) {
+	return service.atomize(ctx, request, nil)
+}
+
+// atomize accepts a compiler-owned evidence index so a compilation with many
+// candidates does not rebuild the same O(claims) map for every candidate.
+// Standalone callers keep the public behavior by passing nil through Atomize.
+func (service *ConceptAtomizerV1) atomize(ctx context.Context, request ConceptAtomizationRequest, indexedEvidence map[evidenceKey]struct{}) (curriculum.AtomicConceptSet, error) {
 	const operation = "atomize concept candidate"
 	if err := ctx.Err(); err != nil {
 		return curriculum.AtomicConceptSet{}, ExternalError(operation, err)
@@ -30,9 +37,13 @@ func (service *ConceptAtomizerV1) Atomize(ctx context.Context, request ConceptAt
 	if err := request.Candidate.Validate(); err != nil {
 		return curriculum.AtomicConceptSet{}, Invalid(operation, err)
 	}
-	known, err := indexUsableEvidence(request.EvidenceSets)
-	if err != nil {
-		return curriculum.AtomicConceptSet{}, Invalid(operation, err)
+	known := indexedEvidence
+	if known == nil {
+		var err error
+		known, err = indexUsableEvidence(request.EvidenceSets)
+		if err != nil {
+			return curriculum.AtomicConceptSet{}, Invalid(operation, err)
+		}
 	}
 	if err := requireKnownEvidence(request.Candidate.ClaimRefs, known); err != nil {
 		return curriculum.AtomicConceptSet{}, Invalid(operation, fmt.Errorf("candidate %q: %w", request.Candidate.ID, err))

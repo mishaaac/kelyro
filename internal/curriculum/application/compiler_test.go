@@ -2,13 +2,32 @@ package application
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/mishaaac/kelyro/internal/curriculum"
 )
+
+func TestCompilerHashStreamsMarshalCompatibleJSON(t *testing.T) {
+	t.Parallel()
+	value := struct {
+		Name   string
+		Values []int
+	}{Name: "deterministic <compiler> & hash", Values: []int{3, 1, 2}}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf("sha256:%x", sha256.Sum256(encoded))
+	if got := compilerHash(value); got != want {
+		t.Fatalf("compilerHash() = %q, want marshal-compatible %q", got, want)
+	}
+}
 
 func TestCurriculumCompilerV1RunsDeterministicPipeline(t *testing.T) {
 	t.Parallel()

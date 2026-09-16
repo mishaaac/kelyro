@@ -2,8 +2,8 @@
 
 ## Estado general
 
-Current step: 50
-Last completed step: 49
+Current step: 51
+Last completed step: 50
 Current release: v0.2.0-alpha.3
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
@@ -2586,3 +2586,83 @@ Release: unreleased
   10,000 conceptos y 20,000 edges.
 - La fixture E2E continúa siendo deliberadamente offline y no convierte el
   reference pack preview en contenido productivo.
+
+## Step 51 — Performance y scale hardening
+
+Status: completed
+Date: 2026-09-15
+Release: unreleased
+
+### Delivered
+
+- Fixture determinista y offline con 10,000 conceptos, 20,000 edges
+  acíclicos, 1,000 competencias, 100 Source Bundles y las ocho dimensiones de
+  coverage.
+- Gate integral que compila dos veces, compara curriculum/diagnostics/hashes,
+  serializa dos packs byte-identical, valida e instala el ZIP real y comprueba
+  sus cardinalidades.
+- Índice de critical paths O(V), con un predecesor y longitud por concepto, en
+  lugar de retener todos los prefijos de ruta O(V²).
+- Validación única O(V+E) del grafo de prerrequisitos ya extraído, expansión
+  profunda con stack explícito y regresiones para ciclos y cadenas de 10,000
+  conceptos.
+- Índice de evidencia construido una vez por compilación y reutilizado por los
+  10,000 candidatos de atomización.
+- Hashes de trazabilidad enviados por streaming a SHA-256, compatibles byte a
+  byte con el hash JSON anterior, sin conservar un segundo buffer completo por
+  pass.
+- Lectura I-02 de dashboard/roadmap elevada a 10,000 conceptos, sin trasladar
+  reglas ni trabajo del compiler a la TUI.
+- Benchmarks de compiler y serialización con `-benchmem`, más tiempos por pass
+  y contrato operativo en
+  `docs/architecture/curriculum-scale-hardening-v1.md`.
+
+### Bug fixed
+
+- El builder podía devolver un Learning Pack que el validator del mismo
+  paquete rechazaba: la fixture serializa un curriculum YAML de 9,038,778
+  bytes, por encima del antiguo límite por entrada de 4 MiB.
+- El límite por entrada sube a 16 MiB, manteniendo el techo total de 32 MiB,
+  1,024 entries y ratio ZIP 100:1. `validateEntries` ahora aplica los mismos
+  límites en memoria que los loaders directory/ZIP, por lo que builder e
+  installer no pueden divergir de nuevo por este motivo.
+
+### Measurements
+
+- Linux `amd64`, Intel i7-12650H: compiler completo ~1.15 s; knowledge graph
+  ~80 ms; coverage ~21 ms; definition-before-use ~46 ms; zero-assumption
+  ~21 ms; final review ~134 ms.
+- Pack serialization ~2.04 s para 10,677,994 bytes; validación + instalación
+  ~1.64 s; roadmap/dashboard read ~20 ms.
+- Benchmark de una iteración: compiler ~1.14 s y 884,622,928 B/op;
+  serialization ~2.05 s y 1,411,015,800 B/op. Son bytes acumulados asignados,
+  no memoria residente ni budgets portables; quedan registrados para detectar
+  regresiones futuras.
+
+### Decisions
+
+- No fijar un máximo de conceptos, competencias o edges. Las cardinalidades
+  son probes de regresión; los límites de bytes/entries sólo protegen el
+  boundary de archivos no confiables.
+- Preservar el digest existente de `json.Marshal` al cambiar a hashing por
+  streaming, evitando invalidar builds reproducibles o packs ya generados.
+- Mantener `pathExists` únicamente para edges nuevos de expansión, donde se
+  necesita decidir si una propuesta introduce ciclo; el DAG existente se
+  valida una sola vez.
+- Medir tiempos sin convertir resultados dependientes de la máquina en
+  thresholds frágiles de CI.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go test -tags=e2e ./tests/e2e -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/... ./internal/infra/curriculumscale ./internal/infra/learningpack ./internal/learning/application -count=1`.
+- `go test ./internal/infra/curriculumscale -run '^$' -bench 'BenchmarkLargeCurriculum' -benchtime=1x -benchmem -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 52 es el siguiente: security hardening de packs/compiler.
+- Mantener los límites resource-bound del loader y no convertir el fixture de
+  escala en un tamaño recomendado o en un límite artificial del dominio.

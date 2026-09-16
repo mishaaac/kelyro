@@ -24,7 +24,7 @@ import (
 
 const (
 	MaximumPackEntries      = 1024
-	MaximumPackFileBytes    = 4 << 20
+	MaximumPackFileBytes    = 16 << 20
 	MaximumPackTotalBytes   = 32 << 20
 	MaximumCompressionRatio = 100
 )
@@ -305,6 +305,9 @@ func validateEntryName(name string) error {
 }
 
 func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curriculumapp.PackValidationIssue, error) {
+	if err := validateInMemoryEntryBounds(entries); err != nil {
+		return curriculum.LearningPack{}, nil, err
+	}
 	for _, required := range []string{ManifestName, ChecksumsName, EvidenceMarkdownName, AssetLicensesName} {
 		if _, exists := entries[required]; !exists {
 			return curriculum.LearningPack{}, nil, fmt.Errorf("required entry %q is missing", required)
@@ -368,6 +371,26 @@ func validateEntries(entries map[string][]byte) (curriculum.LearningPack, []curr
 		warnings = append(warnings, curriculumapp.PackValidationIssue{Code: "non_current_pack", Path: ManifestName, Message: "pack status is " + string(manifest.Status)})
 	}
 	return pack, warnings, nil
+}
+
+// validateInMemoryEntryBounds keeps builder validation aligned with the
+// directory and ZIP loaders. Without it, Build could return an archive that
+// the same package would later reject during installation.
+func validateInMemoryEntryBounds(entries map[string][]byte) error {
+	if len(entries) > MaximumPackEntries {
+		return fmt.Errorf("pack exceeds %d file entries", MaximumPackEntries)
+	}
+	total := uint64(0)
+	for name, encoded := range entries {
+		if len(encoded) > MaximumPackFileBytes {
+			return fmt.Errorf("entry %q exceeds %d bytes", name, MaximumPackFileBytes)
+		}
+		total += uint64(len(encoded))
+		if total > MaximumPackTotalBytes {
+			return fmt.Errorf("pack exceeds %d uncompressed bytes", MaximumPackTotalBytes)
+		}
+	}
+	return nil
 }
 
 func validateCopyrightAwareEntries(entries map[string][]byte, report curriculum.CurriculumEvidenceReport) error {

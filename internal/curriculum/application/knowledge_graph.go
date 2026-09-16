@@ -126,7 +126,7 @@ func (KnowledgeGraphCompilerV1) Compile(ctx context.Context, request KnowledgeGr
 		}
 	}
 
-	paths := longestGraphPaths(order, dependents)
+	paths := longestGraphPathIndex(order, dependents)
 	components := graphComponents(concepts, roots, undirected, paths)
 	criticalPath := curriculum.KnowledgeGraphCriticalPath{}
 	for _, component := range components {
@@ -183,23 +183,66 @@ func graphTopologicalOrder(ctx context.Context, concepts map[curriculum.ConceptI
 	return order, nil
 }
 
-func longestGraphPaths(order []curriculum.ConceptID, dependents map[curriculum.ConceptID]map[curriculum.ConceptID]struct{}) map[curriculum.ConceptID][]curriculum.ConceptID {
-	paths := make(map[curriculum.ConceptID][]curriculum.ConceptID, len(order))
+type graphPathState struct {
+	length      int
+	predecessor curriculum.ConceptID
+	hasPrevious bool
+}
+
+type graphPathIndex map[curriculum.ConceptID]graphPathState
+
+// longestGraphPathIndex stores one predecessor and one length per concept.
+// Keeping a complete path for every node makes a linear chain consume O(V²)
+// memory; the compact index reconstructs only final/tied candidates.
+func longestGraphPathIndex(order []curriculum.ConceptID, dependents map[curriculum.ConceptID]map[curriculum.ConceptID]struct{}) graphPathIndex {
+	paths := make(graphPathIndex, len(order))
 	for _, id := range order {
-		if len(paths[id]) == 0 {
-			paths[id] = []curriculum.ConceptID{id}
+		state := paths[id]
+		if state.length == 0 {
+			state.length = 1
+			paths[id] = state
 		}
 		for _, dependent := range sortedIDSet(dependents[id]) {
-			candidate := append(append([]curriculum.ConceptID(nil), paths[id]...), dependent)
-			if betterConceptPath(candidate, paths[dependent]) {
-				paths[dependent] = candidate
+			current := paths[dependent]
+			candidateLength := state.length + 1
+			if candidateLength > current.length ||
+				(candidateLength == current.length && graphPathBefore(paths, id, current.predecessor)) {
+				paths[dependent] = graphPathState{length: candidateLength, predecessor: id, hasPrevious: true}
 			}
 		}
 	}
 	return paths
 }
 
-func graphComponents(concepts map[curriculum.ConceptID]curriculum.Concept, roots []curriculum.ConceptID, undirected map[curriculum.ConceptID]map[curriculum.ConceptID]struct{}, paths map[curriculum.ConceptID][]curriculum.ConceptID) []curriculum.KnowledgeGraphComponent {
+func graphPathBefore(paths graphPathIndex, left, right curriculum.ConceptID) bool {
+	if right.String() == "" {
+		return true
+	}
+	return betterConceptPath(reconstructGraphPath(paths, left), reconstructGraphPath(paths, right))
+}
+
+func reconstructGraphPath(paths graphPathIndex, terminal curriculum.ConceptID) []curriculum.ConceptID {
+	state, exists := paths[terminal]
+	if !exists || state.length == 0 {
+		return nil
+	}
+	result := make([]curriculum.ConceptID, 0, state.length)
+	current := terminal
+	for {
+		result = append(result, current)
+		currentState := paths[current]
+		if !currentState.hasPrevious {
+			break
+		}
+		current = currentState.predecessor
+	}
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+	return result
+}
+
+func graphComponents(concepts map[curriculum.ConceptID]curriculum.Concept, roots []curriculum.ConceptID, undirected map[curriculum.ConceptID]map[curriculum.ConceptID]struct{}, paths graphPathIndex) []curriculum.KnowledgeGraphComponent {
 	seen := make(map[curriculum.ConceptID]struct{}, len(concepts))
 	rootSet := make(map[curriculum.ConceptID]struct{}, len(roots))
 	for _, id := range roots {
@@ -211,6 +254,7 @@ func graphComponents(concepts map[curriculum.ConceptID]curriculum.Concept, roots
 			continue
 		}
 		component := curriculum.KnowledgeGraphComponent{}
+		bestTerminal := curriculum.ConceptID{}
 		queue := []curriculum.ConceptID{start}
 		seen[start] = struct{}{}
 		for len(queue) > 0 {
@@ -223,9 +267,10 @@ func graphComponents(concepts map[curriculum.ConceptID]curriculum.Concept, roots
 					component.FoundationalRootIDs = append(component.FoundationalRootIDs, current)
 				}
 			}
-			if betterConceptPath(paths[current], component.CriticalPath.ConceptIDs) {
-				component.CriticalPath.ConceptIDs = append([]curriculum.ConceptID(nil), paths[current]...)
-				component.CriticalPath.EdgeCount = len(paths[current]) - 1
+			currentPath, bestPath := paths[current], paths[bestTerminal]
+			if currentPath.length > bestPath.length ||
+				(currentPath.length == bestPath.length && graphPathBefore(paths, current, bestTerminal)) {
+				bestTerminal = current
 			}
 			for _, adjacent := range sortedIDSet(undirected[current]) {
 				if _, exists := seen[adjacent]; exists {
@@ -235,6 +280,8 @@ func graphComponents(concepts map[curriculum.ConceptID]curriculum.Concept, roots
 				queue = append(queue, adjacent)
 			}
 		}
+		component.CriticalPath.ConceptIDs = reconstructGraphPath(paths, bestTerminal)
+		component.CriticalPath.EdgeCount = len(component.CriticalPath.ConceptIDs) - 1
 		sort.Slice(component.ConceptIDs, func(i, j int) bool { return component.ConceptIDs[i].String() < component.ConceptIDs[j].String() })
 		sort.Slice(component.RootConceptIDs, func(i, j int) bool {
 			return component.RootConceptIDs[i].String() < component.RootConceptIDs[j].String()

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"container/heap"
 	"context"
 	"fmt"
 	"sort"
@@ -94,38 +95,55 @@ func (PrerequisiteExpansionV1) Expand(ctx context.Context, request PrerequisiteE
 		if _, exists := edges[key]; exists {
 			return curriculum.PrerequisiteExpansionResult{}, Invalid(operation, fmt.Errorf("duplicate existing prerequisite from %q to %q", prerequisite.ConceptID, prerequisite.RequiredConceptID))
 		}
-		if pathExists(adjacency, prerequisite.RequiredConceptID, prerequisite.ConceptID) {
-			return curriculum.PrerequisiteExpansionResult{}, Invalid(operation, fmt.Errorf("existing prerequisites contain a cycle at %q", prerequisite.ConceptID))
-		}
 		edges[key] = prerequisite
 		addAdjacency(adjacency, prerequisite.ConceptID, prerequisite.RequiredConceptID)
+	}
+	if cyclic, exists := adjacencyCycleConcept(universe, adjacency); exists {
+		return curriculum.PrerequisiteExpansionResult{}, Invalid(operation, fmt.Errorf("existing prerequisites contain a cycle at %q", cyclic))
 	}
 
 	added := make(map[curriculum.ConceptID]curriculum.Concept)
 	visited := make(map[curriculum.ConceptID]bool)
-	var visit func(curriculum.ConceptID) error
-	visit = func(conceptID curriculum.ConceptID) error {
-		if visited[conceptID] {
-			return nil
-		}
-		visited[conceptID] = true
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		semanticsForConcept := semanticsByConcept[conceptID]
-		if len(semanticsForConcept) == 0 && len(adjacency[conceptID]) == 0 && !universe[conceptID].Foundational {
-			result.UnresolvedGaps = append(result.UnresolvedGaps, curriculum.PrerequisiteExpansionGap{
-				ConceptID: conceptID, Code: curriculum.PrerequisiteGapMissingRoot,
-				Reason:       "non-foundational concept has no declared prerequisite boundary",
-				EvidenceRefs: append([]curriculum.EvidenceRef(nil), universe[conceptID].EvidenceRefs...),
-			})
-			result.Reasons = append(result.Reasons, "unresolved:missing_root_boundary:"+conceptID.String())
-		}
-		for _, semantic := range semanticsForConcept {
+	type visitFrame struct {
+		conceptID curriculum.ConceptID
+		next      int
+		entered   bool
+	}
+	visit := func(root curriculum.ConceptID) error {
+		stack := []visitFrame{{conceptID: root}}
+		for len(stack) > 0 {
+			frame := &stack[len(stack)-1]
+			conceptID := frame.conceptID
+			if !frame.entered {
+				if visited[conceptID] {
+					stack = stack[:len(stack)-1]
+					continue
+				}
+				visited[conceptID] = true
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if len(semanticsByConcept[conceptID]) == 0 && len(adjacency[conceptID]) == 0 && !universe[conceptID].Foundational {
+					result.UnresolvedGaps = append(result.UnresolvedGaps, curriculum.PrerequisiteExpansionGap{
+						ConceptID: conceptID, Code: curriculum.PrerequisiteGapMissingRoot,
+						Reason:       "non-foundational concept has no declared prerequisite boundary",
+						EvidenceRefs: append([]curriculum.EvidenceRef(nil), universe[conceptID].EvidenceRefs...),
+					})
+					result.Reasons = append(result.Reasons, "unresolved:missing_root_boundary:"+conceptID.String())
+				}
+				frame.entered = true
+			}
+			semanticsForConcept := semanticsByConcept[conceptID]
+			if frame.next >= len(semanticsForConcept) {
+				stack = stack[:len(stack)-1]
+				continue
+			}
+			semantic := semanticsForConcept[frame.next]
+			frame.next++
 			key := prerequisiteEdgeKey{concept: semantic.ConceptID, required: semantic.RequiredConceptID, kind: semantic.Kind}
 			if _, exists := edges[key]; exists {
-				if err := visit(semantic.RequiredConceptID); err != nil {
-					return err
+				if !visited[semantic.RequiredConceptID] {
+					stack = append(stack, visitFrame{conceptID: semantic.RequiredConceptID})
 				}
 				continue
 			}
@@ -153,8 +171,8 @@ func (PrerequisiteExpansionV1) Expand(ctx context.Context, request PrerequisiteE
 			edges[key] = edge
 			addAdjacency(adjacency, semantic.ConceptID, semantic.RequiredConceptID)
 			result.Reasons = append(result.Reasons, "edge_added:"+semantic.ConceptID.String()+":"+semantic.RequiredConceptID.String()+":"+string(semantic.Kind)+":"+semantic.Reason)
-			if err := visit(semantic.RequiredConceptID); err != nil {
-				return err
+			if !visited[semantic.RequiredConceptID] {
+				stack = append(stack, visitFrame{conceptID: semantic.RequiredConceptID})
 			}
 		}
 		return nil
@@ -272,6 +290,50 @@ func pathExists(graph map[curriculum.ConceptID]map[curriculum.ConceptID]struct{}
 		}
 	}
 	return false
+}
+
+// adjacencyCycleConcept validates the complete extracted graph in O(V+E).
+// Checking reachability before inserting every already-extracted edge makes a
+// long valid chain quadratic even though no expansion decision is involved.
+func adjacencyCycleConcept(concepts map[curriculum.ConceptID]curriculum.Concept, graph map[curriculum.ConceptID]map[curriculum.ConceptID]struct{}) (curriculum.ConceptID, bool) {
+	indegree := make(map[curriculum.ConceptID]int, len(concepts))
+	for id := range concepts {
+		indegree[id] = 0
+	}
+	for _, required := range graph {
+		for id := range required {
+			indegree[id]++
+		}
+	}
+	ready := &conceptIDHeap{}
+	heap.Init(ready)
+	for id, count := range indegree {
+		if count == 0 {
+			heap.Push(ready, id)
+		}
+	}
+	visited := 0
+	for ready.Len() > 0 {
+		current := heap.Pop(ready).(curriculum.ConceptID)
+		visited++
+		for next := range graph[current] {
+			indegree[next]--
+			if indegree[next] == 0 {
+				heap.Push(ready, next)
+			}
+		}
+	}
+	if visited == len(indegree) {
+		return curriculum.ConceptID{}, false
+	}
+	cyclic := make([]curriculum.ConceptID, 0)
+	for id, count := range indegree {
+		if count > 0 {
+			cyclic = append(cyclic, id)
+		}
+	}
+	sort.Slice(cyclic, func(i, j int) bool { return cyclic[i].String() < cyclic[j].String() })
+	return cyclic[0], true
 }
 
 func prerequisiteGap(semantic curriculum.ConceptPrerequisiteSemantic, code curriculum.PrerequisiteExpansionGapCode, reason string) curriculum.PrerequisiteExpansionGap {
