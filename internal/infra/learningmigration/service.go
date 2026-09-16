@@ -29,6 +29,117 @@ func New(stores learningapp.ProfileStoreFactory, validator backup.Validator) *Se
 	return &Service{stores: stores, validator: validator}
 }
 
+func (service *Service) Preflight(ctx context.Context, request curriculumapp.StudentCurriculumActivationRequest) error {
+	store, _, _, err := service.activationContext(ctx, request)
+	if err != nil {
+		return err
+	}
+	return store.Close()
+}
+
+func (service *Service) CurrentConcept(ctx context.Context, workspaceRoot string) (result curriculum.ConceptID, err error) {
+	if service == nil || service.stores == nil {
+		return result, fmt.Errorf("Student Core position store is not configured")
+	}
+	store, err := service.stores.Open(ctx, workspaceRoot)
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	dashboard, err := store.Dashboard().Show(ctx)
+	if err != nil {
+		return result, err
+	}
+	if dashboard.Current == nil {
+		return result, fmt.Errorf("active curriculum has no current concept")
+	}
+	result, err = curriculum.NewConceptID(dashboard.Current.Concept.ID.String())
+	return result, err
+}
+
+func (service *Service) ActivateCurriculum(ctx context.Context, request curriculumapp.StudentCurriculumActivationRequest) (result curriculumapp.StudentCurriculumActivationResult, err error) {
+	store, goal, definition, err := service.activationContext(ctx, request)
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	instances, err := store.CurriculumInstances().List(ctx)
+	if err != nil {
+		return result, err
+	}
+	for _, instance := range instances {
+		if instance.GoalID == goal.ID && instance.Status == learning.CurriculumInstanceActive && instance.Curriculum == definition.Reference {
+			return curriculumapp.StudentCurriculumActivationResult{CurriculumInstanceID: instance.ID.String(), Created: false}, nil
+		}
+	}
+	instance, err := store.CurriculumInstances().Create(ctx, goal.ID, definition, learning.CurriculumSourcePack)
+	if err != nil {
+		return result, err
+	}
+	return curriculumapp.StudentCurriculumActivationResult{CurriculumInstanceID: instance.ID.String(), Created: true}, nil
+}
+
+func (service *Service) activationContext(ctx context.Context, request curriculumapp.StudentCurriculumActivationRequest) (_ learningapp.ProfileStore, _ learning.LearningGoal, _ learning.Curriculum, err error) {
+	if service == nil || service.stores == nil {
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, fmt.Errorf("Student Core activation store is not configured")
+	}
+	if strings.TrimSpace(request.WorkspaceRoot) == "" {
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, fmt.Errorf("workspace root is required")
+	}
+	definition, err := ProjectCurriculum(request.Curriculum)
+	if err != nil {
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, err
+	}
+	store, err := service.stores.Open(ctx, request.WorkspaceRoot)
+	if err != nil {
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, err
+	}
+	keepOpen := false
+	defer func() {
+		if !keepOpen {
+			err = errors.Join(err, store.Close())
+		}
+	}()
+	goals, err := store.Goals().Show(ctx)
+	if err != nil {
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, err
+	}
+	var active *learning.LearningGoal
+	for index := range goals {
+		if goals[index].Status != learning.GoalActive {
+			continue
+		}
+		if active != nil {
+			return nil, learning.LearningGoal{}, learning.Curriculum{}, fmt.Errorf("multiple active learning goals prevent pack activation")
+		}
+		candidate := goals[index]
+		active = &candidate
+	}
+	if active == nil {
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, fmt.Errorf("an active learning goal is required before activating a Learning Pack")
+	}
+	instances, err := store.CurriculumInstances().List(ctx)
+	if err != nil {
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, err
+	}
+	for _, instance := range instances {
+		if instance.GoalID != active.ID || instance.Status != learning.CurriculumInstanceActive || instance.Curriculum == definition.Reference {
+			continue
+		}
+		return nil, learning.LearningGoal{}, learning.Curriculum{}, fmt.Errorf("learning goal already has active curriculum %s@%s; use a classified migration instead of direct activation", instance.Curriculum.ID, instance.Curriculum.Version)
+	}
+	keepOpen = true
+	return store, *active, definition, nil
+}
+
 func (service *Service) Apply(ctx context.Context, request curriculumapp.StudentCurriculumMigrationRequest) (result curriculumapp.StudentCurriculumMigrationResult, err error) {
 	if service == nil || service.stores == nil {
 		return result, fmt.Errorf("Student Core migration store is not configured")
@@ -222,3 +333,5 @@ func migrationConceptIDs(plan curriculum.CurriculumMigrationPlan) (preserve, ini
 }
 
 var _ curriculumapp.StudentCurriculumMigrationService = (*Service)(nil)
+var _ curriculumapp.StudentCurriculumActivationService = (*Service)(nil)
+var _ curriculumapp.StudentCurriculumPositionService = (*Service)(nil)

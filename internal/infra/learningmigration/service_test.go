@@ -1,11 +1,17 @@
 package learningmigration
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/mishaaac/kelyro/internal/curriculum"
+	curriculumapp "github.com/mishaaac/kelyro/internal/curriculum/application"
+	"github.com/mishaaac/kelyro/internal/infra/learningdb"
+	"github.com/mishaaac/kelyro/internal/infra/workspacefs"
 	"github.com/mishaaac/kelyro/internal/learning"
+	learningapp "github.com/mishaaac/kelyro/internal/learning/application"
+	"github.com/mishaaac/kelyro/internal/workspace"
 )
 
 func TestProjectCurriculumProducesDeterministicStudentCoreContract(t *testing.T) {
@@ -26,6 +32,59 @@ func TestProjectCurriculumProducesDeterministicStudentCoreContract(t *testing.T)
 	if !exists || use.Status.State != learning.CurriculumNodeDeprecated || len(use.Concept.Prerequisites) != 1 ||
 		use.Concept.Prerequisites[0].ConceptID != root.ID || use.Concept.Prerequisites[0].Requirement != learning.PrerequisiteMastered {
 		t.Fatalf("dependent projection = %+v", use)
+	}
+}
+
+func TestServiceActivatesPackCurriculumForActiveGoalIdempotently(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	if _, err := workspacefs.New("test").Init(root, workspace.InitOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	stores := learningdb.NewFactory("test")
+	store, err := stores.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Profiles().Show(ctx); err != nil {
+		t.Fatal(err)
+	}
+	threshold, _ := learning.NewMasteryThreshold(.8)
+	if _, err := store.Goals().Set(ctx, learningapp.SetGoalInput{
+		Title: "Projection", Domain: "general", TargetOutcome: "Apply the concepts.",
+		StartingLevel: learning.ExperienceBeginner, MasteryThreshold: threshold,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	service := New(stores, nil)
+	request := curriculumapp.StudentCurriculumActivationRequest{WorkspaceRoot: root, Curriculum: projectionFixture(t)}
+	if err := service.Preflight(ctx, request); err != nil {
+		t.Fatalf("Preflight() error = %v", err)
+	}
+	first, err := service.ActivateCurriculum(ctx, request)
+	if err != nil || !first.Created || first.CurriculumInstanceID == "" {
+		t.Fatalf("first activation = %+v, %v", first, err)
+	}
+	second, err := service.ActivateCurriculum(ctx, request)
+	if err != nil || second.Created || second.CurriculumInstanceID != first.CurriculumInstanceID {
+		t.Fatalf("repeated activation = %+v, %v", second, err)
+	}
+	current, err := service.CurrentConcept(ctx, root)
+	if err != nil || current.String() != "concept.root" {
+		t.Fatalf("current concept = %q, %v", current, err)
+	}
+	store, err = stores.Open(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	dashboard, err := store.Dashboard().Show(ctx)
+	if err != nil || dashboard.Curriculum == nil || dashboard.Curriculum.Instance.Source != learning.CurriculumSourcePack {
+		t.Fatalf("roadmap curriculum = %+v, %v", dashboard.Curriculum, err)
 	}
 }
 

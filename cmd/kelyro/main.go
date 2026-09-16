@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/mishaaac/kelyro/internal/app"
 	"github.com/mishaaac/kelyro/internal/backup"
@@ -114,6 +115,9 @@ func main() {
 	packUpgradePreview := curriculumapp.NewPackUpgradePlannerV1(packManager, curriculumapp.NewCurriculumChangeClassifierV1(), curriculumapp.NewCurriculumMigrationPlannerV1(), curriculumapp.NewPackVersioningPolicyV1())
 	curriculumInspector := curriculumapp.NewCurriculumInspectorV1()
 	curriculumView := curriculumapp.NewCurriculumWorkspaceViewV1(packManager, curriculumInspector, packUpgradePreview)
+	studentCurricula := learningmigration.New(profileStores, sqlite.SnapshotValidator{})
+	packActivation := curriculumapp.NewPackActivationCoordinatorV1(packManager, studentCurricula)
+	environmentDoctor := curriculumapp.NewWorkspaceEnvironmentDoctorV1(packManager, studentCurricula, curriculumapp.NewEnvironmentDoctorPlannerV1(), runtime.GOOS)
 	packBackupRetention := func(_ context.Context, root string) (int, error) {
 		global, err := configs.LoadGlobal()
 		if err != nil {
@@ -134,15 +138,17 @@ func main() {
 		return int(retention), nil
 	}
 	packUpgrade := curriculumapp.NewPackUpgradeExecutorV1(packUpgradePreview, packManager, backups,
-		learningmigration.New(profileStores, sqlite.SnapshotValidator{}), auditStores, packBackupRetention, version.Version)
+		studentCurricula, auditStores, packBackupRetention, version.Version)
 	runner := cli.NewRunner(service, os.Stdout, os.Stderr).
 		WithSecretReader(cli.NewTerminalSecretReader(os.Stdin, os.Stderr)).
 		WithConfirmer(cli.NewTextConfirmer(os.Stdin, os.Stderr)).
 		WithInteractive(tui.NewRunner(service, os.Stdin, os.Stdout).WithPlatform(platformos.New()).WithCurriculum(curriculumView, workspaces, os.Getwd)).
 		WithPackValidator(packValidator).
 		WithPackManager(packManager, workspaces, os.Getwd).
+		WithPackActivator(packActivation).
 		WithPackCatalog(packCatalog).
 		WithPackUpgrade(packUpgrade).
-		WithCurriculumInspector(curriculumInspector)
+		WithCurriculumInspector(curriculumInspector).
+		WithEnvironmentDoctor(environmentDoctor)
 	os.Exit(runner.Run(context.Background(), os.Args[1:]))
 }

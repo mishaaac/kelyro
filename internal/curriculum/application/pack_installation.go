@@ -109,6 +109,15 @@ func (service *PackInstallerV1) Activate(ctx context.Context, request PackActiva
 	if err := service.requireResolvedDependencies(ctx, operation, installed.Pack.Manifest, available); err != nil {
 		return PackActivation{}, err
 	}
+	active, activeErr := service.repository.Active(ctx, request.WorkspaceRoot)
+	if activeErr == nil {
+		sameVersion := active.Pack.Manifest.ID == request.PackID && active.Pack.Manifest.Version == request.Version
+		if !sameVersion && !request.MigrationAuthorized {
+			return PackActivation{}, Invalid(operation, fmt.Errorf("workspace already uses %s@%s; use the pack upgrade workflow so curriculum changes are classified and learner state is migrated", active.Pack.Manifest.ID, active.Pack.Manifest.Version.String()))
+		}
+	} else if !errors.Is(activeErr, ErrNotFound) {
+		return PackActivation{}, RepositoryError(operation, activeErr)
+	}
 	activation := PackActivation{PackID: request.PackID, Version: request.Version, ActivatedAt: service.clock.Now()}
 	if err := activation.Validate(); err != nil {
 		return PackActivation{}, Invalid(operation, err)

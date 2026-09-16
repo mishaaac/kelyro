@@ -78,7 +78,7 @@ func (service *PackUpgradeExecutorV1) Upgrade(ctx context.Context, request PackU
 		return PackUpgradeResult{}, service.recover(ctx, request, result, backupInfo.ID, "student_migration", fmt.Errorf("migration adapter returned no projection version"))
 	}
 	_, err = service.packs.Activate(ctx, PackActivateRequest{
-		WorkspaceRoot: request.WorkspaceRoot, PackID: request.PackID, Version: result.Candidate.Manifest.Version,
+		WorkspaceRoot: request.WorkspaceRoot, PackID: request.PackID, Version: result.Candidate.Manifest.Version, MigrationAuthorized: true,
 	})
 	if err != nil {
 		return PackUpgradeResult{}, service.recover(ctx, request, result, backupInfo.ID, "activation", err)

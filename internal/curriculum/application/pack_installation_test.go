@@ -75,6 +75,12 @@ func TestPackInstallerV1ActivatesPerWorkspaceAndListsDeterministically(t *testin
 	if _, err := service.Active(context.Background(), "/workspace/two"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("other workspace Active() error = %v", err)
 	}
+	if _, err := service.Activate(context.Background(), PackActivateRequest{WorkspaceRoot: "/workspace/one", PackID: second.Manifest.ID, Version: second.Manifest.Version}); !errors.Is(err, ErrInvalidState) {
+		t.Fatalf("direct version transition error = %v, want invalid state", err)
+	}
+	if _, err := service.Activate(context.Background(), PackActivateRequest{WorkspaceRoot: "/workspace/one", PackID: second.Manifest.ID, Version: second.Manifest.Version, MigrationAuthorized: true}); err != nil {
+		t.Fatalf("migration-authorized transition error = %v", err)
+	}
 }
 
 type validationFake struct {

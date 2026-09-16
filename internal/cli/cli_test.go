@@ -1157,6 +1157,26 @@ func TestRunnerExplainsDoctorToolFromMaintainedGuidance(t *testing.T) {
 	}
 }
 
+func TestRunnerAttachesActivePackEnvironmentPlanToDoctor(t *testing.T) {
+	t.Parallel()
+	conceptID, _ := curriculum.NewConceptID("concept.current")
+	plan := curriculum.EnvironmentDoctorPlan{CurrentConceptID: conceptID}
+	service := &fakeService{result: app.Result{Diagnostics: &doctor.Report{}}}
+	workspaces := &fakePackWorkspaces{found: workspace.Workspace{Root: "/workspace"}}
+	environment := &fakeWorkspaceEnvironmentDoctor{plan: &plan}
+	var stdout, stderr bytes.Buffer
+	runner := NewRunner(service, &stdout, &stderr).
+		WithPackManager(&fakePackManager{}, workspaces, func() (string, error) { return "/workspace", nil }).
+		WithEnvironmentDoctor(environment)
+
+	if code := runner.Run(context.Background(), []string{"doctor"}); code != ExitOK {
+		t.Fatalf("doctor exit=%d stderr=%q", code, stderr.String())
+	}
+	if environment.workspace != "/workspace" || len(service.commands) != 1 || service.commands[0].DoctorEnvironmentPlan != &plan {
+		t.Fatalf("workspace=%q command=%+v", environment.workspace, service.commands)
+	}
+}
+
 func TestRunnerLaunchesInteractiveAdapterForDefaultCommand(t *testing.T) {
 	t.Parallel()
 
@@ -1996,6 +2016,17 @@ type fakePackUpgrade struct {
 type fakeCurriculumInspector struct {
 	inspection curriculumapp.CurriculumInspection
 	err        error
+}
+
+type fakeWorkspaceEnvironmentDoctor struct {
+	plan      *curriculum.EnvironmentDoctorPlan
+	workspace string
+	err       error
+}
+
+func (fake *fakeWorkspaceEnvironmentDoctor) PlanForWorkspace(_ context.Context, workspace string) (*curriculum.EnvironmentDoctorPlan, error) {
+	fake.workspace = workspace
+	return fake.plan, fake.err
 }
 
 func (fake *fakeCurriculumInspector) Inspect(context.Context, curriculum.LearningPack) (curriculumapp.CurriculumInspection, error) {

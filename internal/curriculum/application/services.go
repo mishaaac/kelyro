@@ -361,9 +361,10 @@ type PackInstallResult struct {
 }
 
 type PackActivateRequest struct {
-	WorkspaceRoot string
-	PackID        curriculum.ID
-	Version       curriculum.PackVersion
+	WorkspaceRoot       string
+	PackID              curriculum.ID
+	Version             curriculum.PackVersion
+	MigrationAuthorized bool
 }
 
 type PackInstallService interface {
@@ -372,6 +373,28 @@ type PackInstallService interface {
 	List(context.Context) ([]InstalledPack, error)
 	Find(context.Context, curriculum.ID) ([]InstalledPack, error)
 	Active(context.Context, string) (InstalledPack, error)
+}
+
+type PackActivationService interface {
+	Activate(context.Context, PackActivateRequest) (PackActivation, error)
+}
+
+type StudentCurriculumActivationRequest struct {
+	WorkspaceRoot string
+	Curriculum    curriculum.CurriculumDefinition
+}
+
+type StudentCurriculumActivationResult struct {
+	CurriculumInstanceID string
+	Created              bool
+}
+
+// StudentCurriculumActivationService is the explicit I-04 to I-02 hand-off.
+// Implementations must delegate learner writes to Student Core application
+// services rather than mutating mastery or persistence directly.
+type StudentCurriculumActivationService interface {
+	Preflight(context.Context, StudentCurriculumActivationRequest) error
+	ActivateCurriculum(context.Context, StudentCurriculumActivationRequest) (StudentCurriculumActivationResult, error)
 }
 
 type PackCatalogView struct {
@@ -521,6 +544,14 @@ type EnvironmentDoctorPlanRequest struct {
 
 type EnvironmentDoctorPlanService interface {
 	Plan(context.Context, EnvironmentDoctorPlanRequest) (curriculum.EnvironmentDoctorPlan, error)
+}
+
+type StudentCurriculumPositionService interface {
+	CurrentConcept(context.Context, string) (curriculum.ConceptID, error)
+}
+
+type WorkspaceEnvironmentDoctorService interface {
+	PlanForWorkspace(context.Context, string) (*curriculum.EnvironmentDoctorPlan, error)
 }
 
 type SecurityCoverageRequest struct {

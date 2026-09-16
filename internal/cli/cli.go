@@ -254,19 +254,21 @@ var actions = map[string]app.Action{
 // Runner owns CLI parsing and rendering while delegating operations to an
 // application service.
 type Runner struct {
-	service          app.FoundationService
-	stdout           io.Writer
-	stderr           io.Writer
-	secrets          SecretReader
-	interactive      InteractiveRunner
-	confirmer        Confirmer
-	packValidator    curriculumapp.PackValidationService
-	packManager      curriculumapp.PackInstallService
-	packCatalog      curriculumapp.PackCatalogService
-	packUpgrade      curriculumapp.PackUpgradeService
-	curriculum       curriculumapp.CurriculumInspectionService
-	packWorkspaces   workspace.Service
-	currentDirectory func() (string, error)
+	service           app.FoundationService
+	stdout            io.Writer
+	stderr            io.Writer
+	secrets           SecretReader
+	interactive       InteractiveRunner
+	confirmer         Confirmer
+	packValidator     curriculumapp.PackValidationService
+	packManager       curriculumapp.PackInstallService
+	packActivator     curriculumapp.PackActivationService
+	packCatalog       curriculumapp.PackCatalogService
+	packUpgrade       curriculumapp.PackUpgradeService
+	curriculum        curriculumapp.CurriculumInspectionService
+	environmentDoctor curriculumapp.WorkspaceEnvironmentDoctorService
+	packWorkspaces    workspace.Service
+	currentDirectory  func() (string, error)
 }
 
 // Confirmer obtains explicit consent before destructive operations.
@@ -315,8 +317,16 @@ func (r Runner) WithPackValidator(validator curriculumapp.PackValidationService)
 // activation. Workspace discovery remains a presentation concern.
 func (r Runner) WithPackManager(manager curriculumapp.PackInstallService, workspaces workspace.Service, currentDirectory func() (string, error)) Runner {
 	r.packManager = manager
+	r.packActivator = manager
 	r.packWorkspaces = workspaces
 	r.currentDirectory = currentDirectory
+	return r
+}
+
+// WithPackActivator replaces direct pointer activation with the application
+// coordinator that performs the Student Core hand-off.
+func (r Runner) WithPackActivator(activator curriculumapp.PackActivationService) Runner {
+	r.packActivator = activator
 	return r
 }
 
@@ -335,6 +345,11 @@ func (r Runner) WithPackUpgrade(upgrade curriculumapp.PackUpgradeService) Runner
 // compiled artifact contained by an active Learning Pack.
 func (r Runner) WithCurriculumInspector(inspector curriculumapp.CurriculumInspectionService) Runner {
 	r.curriculum = inspector
+	return r
+}
+
+func (r Runner) WithEnvironmentDoctor(service curriculumapp.WorkspaceEnvironmentDoctorService) Runner {
+	r.environmentDoctor = service
 	return r
 }
 
@@ -421,6 +436,19 @@ func (r Runner) Run(ctx context.Context, args []string) int {
 	}
 	if invocation.noColor {
 		command.ConfigOverrides = config.Settings{config.KeyUIColor: config.StringValue("never")}
+	}
+	if action == app.ActionDoctor && invocation.doctorExplain == "" && r.environmentDoctor != nil {
+		root, resolveErr := r.resolvePackWorkspace(invocation.workspace)
+		if resolveErr != nil {
+			fmt.Fprintf(r.stderr, "kelyro doctor: %v\n", resolveErr)
+			return ExitFailure
+		}
+		plan, planErr := r.environmentDoctor.PlanForWorkspace(ctx, root)
+		if planErr != nil {
+			fmt.Fprintf(r.stderr, "kelyro doctor: %v\n", planErr)
+			return ExitFailure
+		}
+		command.DoctorEnvironmentPlan = plan
 	}
 	if action == app.ActionTUI && r.interactive != nil {
 		if err := r.interactive.Run(ctx, command); err != nil {
@@ -705,6 +733,10 @@ func (r Runner) runPacks(ctx context.Context, invocation invocation) int {
 			fmt.Fprintln(r.stderr, "kelyro packs: pack manager is unavailable")
 			return ExitFailure
 		}
+		if invocation.packOperation == "activate" && r.packActivator == nil {
+			fmt.Fprintln(r.stderr, "kelyro packs: pack activation service is unavailable")
+			return ExitFailure
+		}
 	}
 	if invocation.packOperation == "upgrade" {
 		if r.packUpgrade == nil {
@@ -813,7 +845,7 @@ func (r Runner) runPacks(ctx context.Context, invocation invocation) int {
 			fmt.Fprintf(r.stderr, "kelyro packs activate: %v\n", err)
 			return ExitFailure
 		}
-		activation, err := r.packManager.Activate(ctx, curriculumapp.PackActivateRequest{WorkspaceRoot: root, PackID: invocation.packID, Version: invocation.packVersion})
+		activation, err := r.packActivator.Activate(ctx, curriculumapp.PackActivateRequest{WorkspaceRoot: root, PackID: invocation.packID, Version: invocation.packVersion})
 		if err != nil {
 			fmt.Fprintf(r.stderr, "kelyro packs activate: %v\n", err)
 			return ExitFailure

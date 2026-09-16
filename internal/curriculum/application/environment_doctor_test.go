@@ -83,6 +83,56 @@ func TestEnvironmentDoctorPlannerV1RejectsToolNeededBeforeItIsIntroduced(t *test
 	}
 }
 
+func TestWorkspaceEnvironmentDoctorV1UsesActivePackAndStudentPosition(t *testing.T) {
+	t.Parallel()
+	concepts, graph, hierarchy, environment := environmentDoctorFixture(t)
+	pack := curriculum.LearningPack{
+		Curriculum: curriculum.CurriculumDefinition{
+			Concepts: concepts, Prerequisites: graph.Prerequisites,
+			Phases: hierarchy.Phases, Modules: hierarchy.Modules, Lessons: hierarchy.Lessons, Topics: hierarchy.Topics,
+		},
+		Environment: &environment,
+	}
+	packs := workspaceEnvironmentPackFake{active: InstalledPack{Pack: pack}}
+	positions := workspaceEnvironmentPositionFake{conceptID: concepts[0].ID}
+	service := NewWorkspaceEnvironmentDoctorV1(packs, positions, NewEnvironmentDoctorPlannerV1(), curriculum.EnvironmentPlatformLinux)
+
+	plan, err := service.PlanForWorkspace(context.Background(), "/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil || plan.CurrentConceptID != concepts[0].ID || len(plan.Tools) != len(environment.Tools) {
+		t.Fatalf("workspace environment plan = %+v", plan)
+	}
+}
+
+type workspaceEnvironmentPackFake struct {
+	active InstalledPack
+	err    error
+}
+
+func (fake workspaceEnvironmentPackFake) Install(context.Context, PackInstallRequest) (PackInstallResult, error) {
+	return PackInstallResult{}, nil
+}
+func (fake workspaceEnvironmentPackFake) Activate(context.Context, PackActivateRequest) (PackActivation, error) {
+	return PackActivation{}, nil
+}
+func (fake workspaceEnvironmentPackFake) List(context.Context) ([]InstalledPack, error) {
+	return nil, nil
+}
+func (fake workspaceEnvironmentPackFake) Find(context.Context, curriculum.ID) ([]InstalledPack, error) {
+	return nil, nil
+}
+func (fake workspaceEnvironmentPackFake) Active(context.Context, string) (InstalledPack, error) {
+	return fake.active, fake.err
+}
+
+type workspaceEnvironmentPositionFake struct{ conceptID curriculum.ConceptID }
+
+func (fake workspaceEnvironmentPositionFake) CurrentConcept(context.Context, string) (curriculum.ConceptID, error) {
+	return fake.conceptID, nil
+}
+
 func environmentDoctorFixture(t *testing.T) ([]curriculum.Concept, curriculum.KnowledgeGraphCompilation, curriculum.CurriculumHierarchy, curriculum.EnvironmentPack) {
 	t.Helper()
 	root := graphConcept(t, "concept.foundations", true)
