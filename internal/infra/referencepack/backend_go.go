@@ -40,7 +40,7 @@ var backendGoConcepts = []conceptSpec{
 // evidence is a deterministic development fixture, not a production Source
 // Bundle and not a claim that the professional domain is complete.
 func BuildBackendGo(ctx context.Context) (curriculumapp.PackBuildResult, error) {
-	request, environment, err := backendGoCompileRequest(ctx)
+	request, environment, err := BackendGoDevelopmentFixture(ctx)
 	if err != nil {
 		return curriculumapp.PackBuildResult{}, fmt.Errorf("prepare backend Go reference: %w", err)
 	}
@@ -64,6 +64,14 @@ func BuildBackendGo(ctx context.Context) (curriculumapp.PackBuildResult, error) 
 		return curriculumapp.PackBuildResult{}, fmt.Errorf("build backend Go reference: %w", err)
 	}
 	return result, nil
+}
+
+// BackendGoDevelopmentFixture returns the deterministic compiler inputs used
+// by the reference pack. It exists so cross-layer E2E tests can replace the
+// synthetic evidence set with evidence ingested from an I-03 Source Bundle.
+// It is development-only and makes no production-completeness claim.
+func BackendGoDevelopmentFixture(ctx context.Context) (curriculumapp.CurriculumCompileRequest, curriculum.EnvironmentPack, error) {
+	return backendGoCompileRequest(ctx)
 }
 
 func backendGoCompileRequest(ctx context.Context) (curriculumapp.CurriculumCompileRequest, curriculum.EnvironmentPack, error) {

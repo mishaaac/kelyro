@@ -2521,3 +2521,68 @@ Release: unreleased
 - El Paso 50 es el siguiente: E2E desde Source Bundle hasta Curriculum Instance.
 - Reemplazar la fixture por evidencia productiva I-03 será trabajo separado;
   no promover este pack preview a production-complete in-place.
+
+## Step 50 — E2E Curriculum Compiler
+
+Status: completed
+Date: 2026-09-15
+Release: unreleased
+
+### Delivered
+
+- Suite E2E offline que atraviesa el hand-off I-03, ingestión de evidencia,
+  compiler versionado, pack build copyright-aware, validación, instalación,
+  activación, proyección I-02, Curriculum Instance y roadmap.
+- Cobertura explícita de los 16 escenarios del plan: bundle válido, evidencia
+  ausente, conflicto crítico, fuente histórica, concepto experimental,
+  expansión de prerrequisitos, fallos definition-before-use y zero-assumption,
+  gaps production/security, dependencia de pack, Environment Pack, add/split
+  upgrades, preservación de mastery y export seguro.
+- Fixture I-03 construida sólo con records de dominio deterministas; ninguna
+  prueba accede a Internet ni retiene bodies de fuentes.
+- `BackendGoDevelopmentFixture` permite al E2E reutilizar el input de referencia
+  y sustituir exclusivamente su evidencia sintética por el Source Bundle I-03.
+- El gate existente `go run ./tools/quality e2e` incorpora automáticamente la
+  suite en Linux, macOS y Windows; los nombres de CI/release ya incluyen
+  Curriculum Compiler.
+
+### Bug fixed
+
+- El pipeline enviaba todas las semánticas de prerrequisitos al extractor,
+  incluido el caso válido cuyo `RequiredConceptID` sólo estaba disponible en
+  `AvailableConcepts`. El extractor lo rechazaba antes de que el pass de
+  expansión pudiera incorporarlo.
+- El compiler ahora extrae sólo edges entre conceptos ya atomizados y deja las
+  semánticas de conceptos disponibles al pass de expansión. La regresión está
+  cubierta por unit test y por el escenario E2E 6.
+- Commit independiente: `fix(compiler): allow verified prerequisite expansion`
+  (`12831e3`).
+
+### Decisions
+
+- Mantener la suite bajo el build tag `e2e` y el gate multi-OS ya existente, sin
+  introducir dependencias ni un segundo runner.
+- Usar el validator y builder productivos con ZIP real; el repositorio de
+  instalación del test es in-memory para no contaminar el store global del
+  usuario ni depender del sistema operativo.
+- Probar add/split mediante classifier + migration planner productivos y la
+  preservación de mastery mediante el application service I-02; no mutar
+  mastery desde el compiler.
+- Tratar claims, URLs y metadata como inputs; el evidence report exportado no
+  incluye statements, bodies ni campos típicos de contenido íntegro.
+
+### Verification
+
+- `go test ./... -count=1`.
+- `go test -tags=e2e ./tests/e2e -count=1`.
+- `go vet ./...`.
+- `go test -race ./internal/curriculum/... ./internal/infra/referencepack ./internal/infra/learningpack ./internal/infra/learningmigration -count=1`.
+- `go test -race -tags=e2e ./tests/e2e -run TestCurriculumCompilerAndPackLifecycleEndToEnd -count=1`.
+- `git diff --check`.
+
+### Notes for next session
+
+- El Paso 51 es el siguiente: performance y scale hardening con la fixture de
+  10,000 conceptos y 20,000 edges.
+- La fixture E2E continúa siendo deliberadamente offline y no convierte el
+  reference pack preview en contenido productivo.

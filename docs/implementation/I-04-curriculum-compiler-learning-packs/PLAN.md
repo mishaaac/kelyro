@@ -2644,7 +2644,7 @@ feat(pack): add reference Backend Go Learning Pack
 
 ## Paso 50 — E2E Curriculum Compiler
 
-- [ ] Paso 50 completado
+- [x] Paso 50 completado
 
 ### Objetivo
 
