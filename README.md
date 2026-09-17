@@ -10,7 +10,7 @@ persistence needed to build the product incrementally.
 I-04 Curriculum Compiler & Learning Packs is formally complete after full
 local quality gates, deterministic E2E and dogfooding, a 10,000-concept scale
 fixture, security/copyright review, and hosted Linux/macOS/Windows CI with
-Linux race coverage. The `v0.3.0-alpha.1` prerelease adds source-backed,
+Linux race coverage. The published `v0.3.0-alpha.1` prerelease adds source-backed,
 deterministic curriculum compilation; Learning Pack validation, installation,
 activation, catalog and safe upgrade workflows; Environment Doctor integration;
 and CLI/TUI inspection. See the

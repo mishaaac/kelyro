@@ -6,7 +6,7 @@ and reproducible build date. `SHA256SUMS` detects accidental corruption; it is
 not a cryptographic signature or proof of publisher identity.
 
 Release-specific scope and limitations are recorded under [`docs/releases/`](releases/).
-The current prerelease is
+The latest published prerelease is
 [`v0.3.0-alpha.1`](releases/v0.3.0-alpha.1.md), which closes I-04 Curriculum
 Compiler & Learning Packs with deterministic source-backed compilation, secure
 pack lifecycle workflows, student-safe upgrades, Environment Doctor integration

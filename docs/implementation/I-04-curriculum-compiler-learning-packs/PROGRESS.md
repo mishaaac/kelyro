@@ -4,7 +4,7 @@
 
 Current step: complete
 Last completed step: 54
-Current release: v0.3.0-alpha.1
+Current release: v0.3.0-alpha.1 (published prerelease)
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
 
@@ -2907,3 +2907,20 @@ Ready for: I-05 Lesson, Practice & Assessment Engine
 
 - `279231d fix(pack): support native macOS filesystem paths`.
 - `dff0a5d test(pack): make catalog permissions portable`.
+- `e5aed41 docs(roadmap): mark I-04 Curriculum Compiler complete`.
+
+### Published prerelease v0.3.0-alpha.1
+
+- Publicada explícitamente a las `2026-09-17T01:26:54Z`; GitHub confirma
+  `draft=false`, `prerelease=true` y siete assets.
+- El tag anotado apunta al commit limpio
+  `e5aed418e9bfa716b39235fc00e8151c4f2325ca`, alcanzable desde `origin/main`.
+- El [workflow de release 35170125373](https://github.com/mishaaac/kelyro/actions/runs/35170125373)
+  pasó en Ubuntu, macOS y Windows, incluida la carrera Linux, construyó seis
+  archives más `SHA256SUMS` y pasó el packaged Linux smoke.
+- Los seis archives descargados pasaron `sha256sum --check`; el Linux `amd64`
+  aceptado tiene SHA-256
+  `78394e0f0ad272f4cb9a0f4dc010bbc58159709735691d8e70b56f6e19aa4f95`.
+- El binario Linux `amd64` reportó versión, commit y build date exactos:
+  `v0.3.0-alpha.1`, `e5aed418e9bfa716b39235fc00e8151c4f2325ca` y
+  `2026-09-17T01:01:49Z`.
