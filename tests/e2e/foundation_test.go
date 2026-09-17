@@ -20,7 +20,30 @@ import (
 	"time"
 )
 
-const commandTimeout = 30 * time.Second
+const (
+	commandTimeout        = 30 * time.Second
+	initializationTimeout = 60 * time.Second
+)
+
+func TestCommandTimeout(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want time.Duration
+	}{
+		{name: "init", args: []string{"init"}, want: initializationTimeout},
+		{name: "ordinary command", args: []string{"doctor"}, want: commandTimeout},
+		{name: "missing command", want: commandTimeout},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := timeoutForCommand(test.args); got != test.want {
+				t.Fatalf("timeoutForCommand(%q) = %s, want %s", test.args, got, test.want)
+			}
+		})
+	}
+}
 
 func TestFoundationWorkspaceLifecycle(t *testing.T) {
 	root := moduleRoot(t)
@@ -346,7 +369,7 @@ func newScenario(t *testing.T, binary string) scenario {
 
 func (test scenario) run(args ...string) (string, int) {
 	test.testing.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutForCommand(args))
 	defer cancel()
 	command := exec.CommandContext(ctx, test.binary, args...)
 	command.Dir = test.workspace
@@ -363,6 +386,13 @@ func (test scenario) run(args ...string) (string, int) {
 		test.testing.Fatalf("run kelyro %s: %v", strings.Join(args, " "), err)
 	}
 	return string(output), exitError.ExitCode()
+}
+
+func timeoutForCommand(args []string) time.Duration {
+	if len(args) > 0 && args[0] == "init" {
+		return initializationTimeout
+	}
+	return commandTimeout
 }
 
 func (test scenario) mustRun(args ...string) string {
