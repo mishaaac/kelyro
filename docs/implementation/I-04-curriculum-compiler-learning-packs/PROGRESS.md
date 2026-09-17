@@ -2,9 +2,9 @@
 
 ## Estado general
 
-Current step: 54
-Last completed step: 53
-Current release: v0.2.0-alpha.3
+Current step: complete
+Last completed step: 54
+Current release: v0.3.0-alpha.1
 Research baseline: v0.2.0-alpha.2 (`743cafecd383eff64ed325be674ba983f289bfa3`)
 Branch baseline: `8658a7a`
 
@@ -2817,3 +2817,93 @@ Release: unreleased
   gates de release/CI sin abrir I-05.
 - No promover el reference pack preview ni interpretar la fixture como evidencia
   productiva; sustituirla requiere Source Bundles I-03 reales y scope separado.
+
+## Step 54 — Cierre formal de I-04
+
+Status: completed
+Date: 2026-09-16
+Release: v0.3.0-alpha.1
+
+### I-04 Curriculum Compiler & Learning Packs Completion
+
+Status: completed
+Release: v0.3.0-alpha.1
+Completed steps: 0-54
+
+Algorithms/contracts:
+
+- goal-decomposer-v1
+- competency-matrix-v1
+- atomizer-v1
+- prerequisite-expansion-v1
+- coverage-v1
+- zero-assumption-v1
+- curriculum-compiler-v1
+- Learning Pack v1
+- Environment Pack v1
+
+Known limitations:
+
+- Lesson content runtime not implemented.
+- Practice/Assessment runtime not implemented.
+- Projects not implemented.
+- AI Tutor not required.
+
+Ready for: I-05 Lesson, Practice & Assessment Engine
+
+### Delivered
+
+- Los Pasos 0–54, los checklists de capacidades y la Definition of Done de
+  I-04 quedaron reconciliados y marcados completos después de verificar cada
+  criterio contra código, tests, dogfooding y CI alojado.
+- README, instrucciones del repositorio, índice de arquitectura y contratos
+  obligatorios de dominio, atomización, zero-assumption, compiler, Learning
+  Pack, versionado y Environment Pack reflejan el cierre real.
+- La arquitectura confirma que dominio/aplicación curricular no importan
+  Bubble Tea, SQLite, HTTP, adapters de sistema ni Student Core; el compiler
+  consume evidencia congelada I-03 y el hand-off estudiantil usa application
+  services sin mutar mastery directamente.
+- La release de aplicación seleccionada es `v0.3.0-alpha.1`: I-04 incorpora
+  una nueva capa funcional y requiere incremento minor de la línea `0.x`; no
+  es una continuación compatible `alpha.4` de `0.2.0`.
+
+### Bugs fixed during closure
+
+- El loader de directorios comparaba archivos con symlinks resueltos contra
+  una raíz sin resolver. En macOS `/var` resuelve a `/private/var`, por lo que
+  packs válidos se rechazaban como escapes. La raíz y cada entry ahora se
+  comparan en el mismo espacio canónico y una regresión cubre ancestros symlink.
+- El test de `GlobalPackDir` asumía que `XDG_CONFIG_HOME` gobierna macOS; ahora
+  valida el directorio nativo devuelto por `os.UserConfigDir`.
+- El test de permisos del cache de catálogo interpretaba `FileMode.Perm` como
+  POSIX en Windows; conserva la verificación `0600` en POSIX y el roundtrip
+  funcional en Windows.
+
+### Decisions
+
+- No cerrar I-04 con la primera matriz: los fallos macOS/Windows se trataron
+  como bugs de release, se reprodujeron por su semántica de plataforma, se
+  corrigieron y recibieron regresiones/validación cruzada antes de repetir CI.
+- Mantener `backend-go-reference@0.2.0` como fixture `preview` y
+  `optional_for_fixture`; la release de Kelyro no lo convierte en evidencia
+  profesional productiva.
+- Conservar fuera de I-04 toda generación/ejecución final de lessons,
+  exercises, assessments, projects y AI Tutor.
+
+### Verification
+
+- `go run ./tools/quality all`: unit tests, E2E I-01–I-04, vet, full race,
+  build y smoke pasaron localmente; `internal/storage/sqlite` completó bajo
+  race en 510.072 s.
+- Después de las correcciones: `go test ./... -count=1`, `go vet ./...`, race
+  dirigido de loader/platform y compilación `windows/amd64` del catálogo.
+- [CI 35167579774](https://github.com/mishaaac/kelyro/actions/runs/35167579774)
+  pasó en Ubuntu, macOS y Windows sobre `dff0a5d`; Ubuntu incluyó el race gate
+  completo y los tres sistemas ejecutaron unit tests, E2E, vet y smoke build.
+- Auditoría de imports con `go list -deps` para dominio/aplicación curricular.
+- `git diff --check`.
+
+### Commits
+
+- `279231d fix(pack): support native macOS filesystem paths`.
+- `dff0a5d test(pack): make catalog permissions portable`.

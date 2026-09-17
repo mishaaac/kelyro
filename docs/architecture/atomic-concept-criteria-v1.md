@@ -5,6 +5,9 @@ complete enough to become an independently learner-trackable Concept. It is a
 pure domain policy: it has no network, storage, UI, AI or domain-vocabulary
 dependency.
 
+This policy is implemented and release-gated as part of the completed I-04
+compiler in `v0.3.0-alpha.1`.
+
 ## Criteria
 
 Each candidate is assessed with explicit `satisfied`, `unsatisfied` or

@@ -4,12 +4,13 @@ Kelyro is being built as a local-first, cross-platform system whose core stays
 independent from presentation frameworks, storage engines, external services,
 AI providers, and operating-system details.
 
-I-02 Student & Learning Core and I-03 Research & Source Intelligence are
-complete. I-03 closed after hosted Linux/macOS/Windows CI with Linux race
-coverage. I-04 Curriculum Compiler & Learning Packs is now in progress. The
-records below are stable contracts and adapter boundaries; they do not imply
-that later compiler passes, production Learning Packs, generated exercises,
-automatic learner migration, or an AI runtime already exist.
+I-02 Student & Learning Core, I-03 Research & Source Intelligence, and I-04
+Curriculum Compiler & Learning Packs are complete. I-04 closed after full local
+quality gates, dogfooding, and hosted Linux/macOS/Windows CI with Linux race
+coverage. The records below are the stable compiler, pack, migration and
+adapter contracts delivered by I-04. Generated lesson/exercise runtimes,
+projects and an AI tutor remain outside this architecture and belong to a
+separately specified I-05.
 
 The portable container contract is documented in
 [Learning Pack format v1](../specs/learning-pack-v1.md).

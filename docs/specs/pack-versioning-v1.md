@@ -10,6 +10,9 @@ updates a pack, and publishing a pack never moves an application release.
 The policy algorithm is `pack-versioning-policy-v1`. Pack version identities
 use strict SemVer 2.0 syntax without a leading `v`.
 
+The policy, change classifier and safe-upgrade integration are complete in
+Kelyro `v0.3.0-alpha.1`.
+
 ## Immutable publication rule
 
 A published `(pack_id, version)` is immutable. Corrections always produce a
@@ -96,4 +99,4 @@ classified `CurriculumChange` values. It returns:
 Input ordering does not change the decision. The service has no catalog,
 filesystem, Git tag, installer, migration, network, or student-state authority.
 Change detection, migration planning, upgrade execution, and catalog publishing
-belong to later I-04 steps.
+remain separate I-04 services and never become implicit powers of this policy.

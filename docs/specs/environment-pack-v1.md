@@ -7,6 +7,9 @@ conceptual curriculum. It is declarative metadata inside an optional Learning
 Pack entry; it is not an installer, shell script, plugin, credential store, or
 permission to execute pack-authored commands.
 
+The format and its phase-aware Doctor integration are complete in Kelyro
+`v0.3.0-alpha.1`.
+
 ## Document
 
 `environment/environment.yaml` is one strict UTF-8 YAML document:

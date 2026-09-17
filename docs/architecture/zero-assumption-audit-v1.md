@@ -3,6 +3,9 @@
 `zero-assumption-v1` verifies that a curriculum advertised for a declared
 learner profile does not silently depend on missing foundations.
 
+This audit is implemented and release-gated as part of the completed I-04
+compiler in `v0.3.0-alpha.1`.
+
 ## Declared input, never a universal checklist
 
 The audit accepts `zero`, `some_experience`, and `domain_experienced` learner

@@ -5,6 +5,9 @@ that turns frozen I-03 evidence plus pack-authored domain policy into one
 learner-neutral `CurriculumDefinition`. It has no network, filesystem, UI, AI,
 or student-state dependency.
 
+The pipeline and its publication gates are complete in `v0.3.0-alpha.1`; I-05
+content runtimes remain explicitly outside this contract.
+
 ## Input boundary
 
 `CurriculumCompileRequest` separates:

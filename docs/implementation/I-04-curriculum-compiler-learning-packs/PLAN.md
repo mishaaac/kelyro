@@ -2849,7 +2849,7 @@ docs(roadmap): record I-04 dogfooding results
 
 ## Paso 54 — Cierre formal de I-04
 
-- [ ] Paso 54 completado
+- [x] Paso 54 completado
 
 ### Objetivo
 
@@ -2980,12 +2980,12 @@ No asumir número.
 - [x] Paso 1 — Curriculum domain
 - [x] Paso 2 — Service boundaries
 - [x] Paso 3 — Persistence
-- [ ] Paso 4 — Learning Pack v1
-- [ ] Paso 5 — Pack Loader/Validator
-- [ ] Paso 6 — I-03 Source Bundle ingestion
-- [ ] Paso 7 — Goal Decomposition
-- [ ] Paso 8 — Professional Outcomes
-- [ ] Paso 9 — Competency Matrix
+- [x] Paso 4 — Learning Pack v1
+- [x] Paso 5 — Pack Loader/Validator
+- [x] Paso 6 — I-03 Source Bundle ingestion
+- [x] Paso 7 — Goal Decomposition
+- [x] Paso 8 — Professional Outcomes
+- [x] Paso 9 — Competency Matrix
 - [x] Paso 10 — Concept candidates
 - [x] Paso 11 — Atomic Concept Criteria
 - [x] Paso 12 — Atomizer
@@ -2997,15 +2997,15 @@ No asumir número.
 - [x] Paso 18 — Definition-before-use
 - [x] Paso 19 — Coverage Engine
 - [x] Paso 20 — Gap Scanner
-- [ ] Paso 21 — Zero-Assumption Audit
-- [ ] Paso 22 — First-Principles Expansion
-- [ ] Paso 23 — Theory Coverage
-- [ ] Paso 24 — Practice Coverage Contract
-- [ ] Paso 25 — Production Reality
-- [ ] Paso 26 — Toolchain Coverage
-- [ ] Paso 27 — Security Coverage
-- [ ] Paso 28 — Current/Experimental/Legacy
-- [ ] Paso 29 — Best Practice vs Historical
+- [x] Paso 21 — Zero-Assumption Audit
+- [x] Paso 22 — First-Principles Expansion
+- [x] Paso 23 — Theory Coverage
+- [x] Paso 24 — Practice Coverage Contract
+- [x] Paso 25 — Production Reality
+- [x] Paso 26 — Toolchain Coverage
+- [x] Paso 27 — Security Coverage
+- [x] Paso 28 — Current/Experimental/Legacy
+- [x] Paso 29 — Best Practice vs Historical
 - [x] Paso 30 — Hierarchy Builder
 - [x] Paso 31 — Compiler Pipeline
 - [x] Paso 32 — Curriculum Reviewer
@@ -3015,22 +3015,22 @@ No asumir número.
 - [x] Paso 36 — Pack Dependencies
 - [x] Paso 37 — Environment Pack
 - [x] Paso 38 — Doctor integration
-- [ ] Paso 39 — Pack Installation
-- [ ] Paso 40 — Pack Catalog
-- [ ] Paso 41 — Change Classification
-- [ ] Paso 42 — Student-safe Migration Plan
-- [ ] Paso 43 — Pack Upgrade
-- [ ] Paso 44 — Reproducibility
-- [ ] Paso 45 — Evidence Report
-- [ ] Paso 46 — Copyright-aware Pack Builder
-- [ ] Paso 47 — CLI
-- [ ] Paso 48 — TUI
-- [ ] Paso 49 — Reference Pack
-- [ ] Paso 50 — E2E
-- [ ] Paso 51 — Performance
+- [x] Paso 39 — Pack Installation
+- [x] Paso 40 — Pack Catalog
+- [x] Paso 41 — Change Classification
+- [x] Paso 42 — Student-safe Migration Plan
+- [x] Paso 43 — Pack Upgrade
+- [x] Paso 44 — Reproducibility
+- [x] Paso 45 — Evidence Report
+- [x] Paso 46 — Copyright-aware Pack Builder
+- [x] Paso 47 — CLI
+- [x] Paso 48 — TUI
+- [x] Paso 49 — Reference Pack
+- [x] Paso 50 — E2E
+- [x] Paso 51 — Performance
 - [x] Paso 52 — Security
-- [ ] Paso 53 — Dogfooding
-- [ ] Paso 54 — Cierre formal
+- [x] Paso 53 — Dogfooding
+- [x] Paso 54 — Cierre formal
 
 ---
 
@@ -3038,136 +3038,136 @@ No asumir número.
 
 ## Compiler
 
-- [ ] Goal Decomposition
-- [ ] Professional Outcomes
-- [ ] Competency Matrix
-- [ ] Concept Candidate Extraction
-- [ ] Atomizer
-- [ ] Granularity Guard
-- [ ] Prerequisite Extraction
-- [ ] Prerequisite Expansion
-- [ ] Knowledge Graph
-- [ ] Vocabulary Graph
-- [ ] Hierarchy Builder
-- [ ] Deterministic Compiler Pipeline
+- [x] Goal Decomposition
+- [x] Professional Outcomes
+- [x] Competency Matrix
+- [x] Concept Candidate Extraction
+- [x] Atomizer
+- [x] Granularity Guard
+- [x] Prerequisite Extraction
+- [x] Prerequisite Expansion
+- [x] Knowledge Graph
+- [x] Vocabulary Graph
+- [x] Hierarchy Builder
+- [x] Deterministic Compiler Pipeline
 
 ## Audits
 
-- [ ] Definition-before-use
-- [ ] Coverage Engine
-- [ ] Gap Scanner
-- [ ] Zero-Assumption
-- [ ] Beginner Simulation
-- [ ] Expert Coverage
-- [ ] Curriculum Reviewer
+- [x] Definition-before-use
+- [x] Coverage Engine
+- [x] Gap Scanner
+- [x] Zero-Assumption
+- [x] Beginner Simulation
+- [x] Expert Coverage
+- [x] Curriculum Reviewer
 
 ## Professional depth
 
-- [ ] Theory Coverage
-- [ ] Practice Expectations
-- [ ] Production Reality
-- [ ] Toolchain Coverage
-- [ ] Security Coverage
-- [ ] Current Guidance
-- [ ] Experimental flags
-- [ ] Legacy/Historical flags
+- [x] Theory Coverage
+- [x] Practice Expectations
+- [x] Production Reality
+- [x] Toolchain Coverage
+- [x] Security Coverage
+- [x] Current Guidance
+- [x] Experimental flags
+- [x] Legacy/Historical flags
 
 ## Learning Packs
 
-- [ ] Pack Manifest
-- [ ] Pack schema version
-- [ ] Pack versions
-- [ ] Pack validation
-- [ ] Pack checksums
-- [ ] Pack dependencies
-- [ ] Pack install
-- [ ] Pack activate
-- [ ] Pack catalog
-- [ ] Pack upgrade
-- [ ] Environment Pack
+- [x] Pack Manifest
+- [x] Pack schema version
+- [x] Pack versions
+- [x] Pack validation
+- [x] Pack checksums
+- [x] Pack dependencies
+- [x] Pack install
+- [x] Pack activate
+- [x] Pack catalog
+- [x] Pack upgrade
+- [x] Environment Pack
 
 ## Updates
 
-- [ ] Curriculum diff
-- [ ] Change classification
-- [ ] Migration plan
-- [ ] Mastery preservation
-- [ ] Added concept handling
-- [ ] Split concept handling
-- [ ] Removed/deprecated concept handling
-- [ ] Backup before upgrade
+- [x] Curriculum diff
+- [x] Change classification
+- [x] Migration plan
+- [x] Mastery preservation
+- [x] Added concept handling
+- [x] Split concept handling
+- [x] Removed/deprecated concept handling
+- [x] Backup before upgrade
 
 ## Transparency
 
-- [ ] Reproducibility metadata
-- [ ] Evidence Report
-- [ ] Source Bundle refs
-- [ ] Freshness/caveat propagation
-- [ ] Copyright-aware pack build
-- [ ] CLI
-- [ ] TUI
+- [x] Reproducibility metadata
+- [x] Evidence Report
+- [x] Source Bundle refs
+- [x] Freshness/caveat propagation
+- [x] Copyright-aware pack build
+- [x] CLI
+- [x] TUI
 
 ---
 
 # Definition of Done — I-04
 
-- [ ] I-01–I-03 sin regresiones críticas
-- [ ] Compiler no hace live web research
-- [ ] Compiler consume Source Bundles I-03
-- [ ] Curriculum output determinista
-- [ ] Concept IDs estables
-- [ ] No module limit
-- [ ] No lesson limit
-- [ ] No concept limit artificial
-- [ ] Atomizer testeado
-- [ ] Granularity Guard funciona
-- [ ] Knowledge Graph sin ciclos
-- [ ] Prerequisite expansion funciona
-- [ ] Vocabulary Graph funciona
-- [ ] Definition-before-use audit funciona
-- [ ] Coverage multidimensional
-- [ ] Gap Scanner funciona
-- [ ] Zero-Assumption audit funciona
-- [ ] First-principles expansion funciona
-- [ ] Theory Coverage funciona
-- [ ] Practice contracts existen
-- [ ] Production Reality cubierta
-- [ ] Toolchain cubierta
-- [ ] Security cubierta
-- [ ] Experimental/legacy/historical distinguido
-- [ ] Curriculum Reviewer funciona
-- [ ] Beginner Simulation funciona
-- [ ] Expert Coverage Review funciona
-- [ ] Learning Pack v1 documentado
-- [ ] Packs inmutables por versión
-- [ ] Pack dependencies resueltas
-- [ ] Environment Pack funciona con Doctor
-- [ ] Pack install/activate funciona
-- [ ] Pack catalog funciona
-- [ ] Pack upgrade preserva Student State
-- [ ] Curriculum migration nunca inventa mastery
-- [ ] Reproducibility metadata completa
-- [ ] Evidence Report generado
-- [ ] Copyright-aware build pasa
-- [ ] Security review de packs pasa
-- [ ] Large graph performance aceptable
-- [ ] Reference Pack compilable
-- [ ] Reference Pack revisado manualmente
-- [ ] `go test ./...` pasa
-- [ ] `go vet ./...` pasa
-- [ ] race tests aplicables pasan
-- [ ] CI Linux pasa
-- [ ] CI Windows pasa
-- [ ] CI macOS pasa
-- [ ] E2E I-04 pasa
-- [ ] Dogfooding realizado
-- [ ] No bugs críticos conocidos
-- [ ] Todos los pasos completados `[x]`
-- [ ] PROGRESS.md actualizado
-- [ ] Commits Conventional Commit coherentes
-- [ ] Working tree limpio
-- [ ] Release respeta SemVer
-- [ ] Ready for I-05
+- [x] I-01–I-03 sin regresiones críticas
+- [x] Compiler no hace live web research
+- [x] Compiler consume Source Bundles I-03
+- [x] Curriculum output determinista
+- [x] Concept IDs estables
+- [x] No module limit
+- [x] No lesson limit
+- [x] No concept limit artificial
+- [x] Atomizer testeado
+- [x] Granularity Guard funciona
+- [x] Knowledge Graph sin ciclos
+- [x] Prerequisite expansion funciona
+- [x] Vocabulary Graph funciona
+- [x] Definition-before-use audit funciona
+- [x] Coverage multidimensional
+- [x] Gap Scanner funciona
+- [x] Zero-Assumption audit funciona
+- [x] First-principles expansion funciona
+- [x] Theory Coverage funciona
+- [x] Practice contracts existen
+- [x] Production Reality cubierta
+- [x] Toolchain cubierta
+- [x] Security cubierta
+- [x] Experimental/legacy/historical distinguido
+- [x] Curriculum Reviewer funciona
+- [x] Beginner Simulation funciona
+- [x] Expert Coverage Review funciona
+- [x] Learning Pack v1 documentado
+- [x] Packs inmutables por versión
+- [x] Pack dependencies resueltas
+- [x] Environment Pack funciona con Doctor
+- [x] Pack install/activate funciona
+- [x] Pack catalog funciona
+- [x] Pack upgrade preserva Student State
+- [x] Curriculum migration nunca inventa mastery
+- [x] Reproducibility metadata completa
+- [x] Evidence Report generado
+- [x] Copyright-aware build pasa
+- [x] Security review de packs pasa
+- [x] Large graph performance aceptable
+- [x] Reference Pack compilable
+- [x] Reference Pack revisado manualmente
+- [x] `go test ./...` pasa
+- [x] `go vet ./...` pasa
+- [x] race tests aplicables pasan
+- [x] CI Linux pasa
+- [x] CI Windows pasa
+- [x] CI macOS pasa
+- [x] E2E I-04 pasa
+- [x] Dogfooding realizado
+- [x] No bugs críticos conocidos
+- [x] Todos los pasos completados `[x]`
+- [x] PROGRESS.md actualizado
+- [x] Commits Conventional Commit coherentes
+- [x] Working tree limpio
+- [x] Release respeta SemVer
+- [x] Ready for I-05
 
 ---
 

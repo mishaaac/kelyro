@@ -5,8 +5,8 @@
 `internal/curriculum` is Kelyro's persistence- and presentation-neutral
 language for describing source-backed curriculum definitions, compiler inputs
 and outputs, and Learning Pack metadata. It is one cohesive package split into
-files by area. This avoids premature package cycles while future application
-services reveal useful boundaries.
+files by area. This avoids premature package cycles while application services
+provide the versioned compiler and pack workflows around it.
 
 The package depends only on the Go standard library. It does not import Bubble
 Tea, SQLite, YAML, Research adapters, operating-system APIs, AI providers, or
@@ -18,7 +18,7 @@ content.
 CLI / TUI / pack and storage adapters
                  |
                  v
-future curriculum application services
+curriculum application services
                  |
                  v
        internal/curriculum
@@ -41,8 +41,8 @@ instances and progress.
 - `CurriculumVersion` is opaque because the compiled definition policy is not
   required to be SemVer.
 - `PackVersion` accepts strict SemVer 2.0 syntax without a leading `v`. This
-  only validates version identity; Step 35 owns compatibility classification
-  and prerelease policy.
+  only validates version identity; `pack-versioning-policy-v1` owns
+  compatibility classification and prerelease policy.
 
 Zero-value identities, timestamps, and versions are invalid.
 
@@ -154,14 +154,14 @@ edges. Hierarchy is the display structure; prerequisite and vocabulary graphs
 remain separate pedagogical structures.
 
 Cycle detection, topological ordering, atomization decisions, coverage
-algorithms, and compiler-pass hashing are deliberately not implemented here;
-their versioned behavior belongs to later I-04 steps.
+algorithms, and compiler-pass hashing deliberately remain outside the domain
+entities; their versioned behavior lives in curriculum application services.
 
 ## Pack and change boundaries
 
 `LearningPack`, `PackManifest`, `PackDependency`, `EnvironmentPack`, and
 `ToolRequirement` are domain shapes represented by the portable v1 format.
-Dependency resolution belongs to Step 36.
+Dependency resolution is provided by the application-layer v1 resolver.
 
 An environment pack contains declarative tool requirements only. The base
 model has no scripts, installers, or secrets, and tool evidence/introduction
@@ -170,11 +170,12 @@ references must resolve against the containing Learning Pack.
 `CurriculumChange` records old/new definition versions, a closed change kind,
 affected concept IDs, rationale, and a migration class. It does not apply a
 migration or write Student Core state. Change classification and student-safe
-migration planning remain later, separately versioned policies.
+migration planning are separate versioned application policies.
 
-## Explicitly deferred
+## Closure boundary
 
-Step 1 does not implement repositories, application services, SQLite
-migrations, YAML/JSON adapters, pack archives, loaders, dependency resolution,
-compiler passes, audits, CLI/TUI handlers, I-02 conversion, learner migration,
-I-05 lessons/practice/assessments, or AI behavior.
+I-04 application services, adapters, compiler passes, audits and CLI/TUI
+inspection build on this neutral domain without moving infrastructure or UI
+rules into it. The domain still does not implement SQLite, archive I/O, live
+research, learner-state writes, I-05 lessons/practice/assessments, projects or
+AI behavior. I-04 completed this contract in `v0.3.0-alpha.1`.

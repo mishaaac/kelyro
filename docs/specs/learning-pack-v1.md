@@ -7,6 +7,9 @@ contains compiled curriculum structure and exact I-03 evidence references. It
 does not contain executable lessons, arbitrary scripts, plugins, credentials,
 learner state, or live-research instructions.
 
+The format, secure loader, installer, activation, catalog and safe-upgrade
+workflows are complete in Kelyro `v0.3.0-alpha.1`.
+
 The same pack ID may have many immutable SemVer versions. `schema_version`
 versions this file contract independently from `version`, which versions pack
 content. A published `(id, version)` is never changed in place.
@@ -68,7 +71,7 @@ IDs use lowercase ASCII components separated by `.`, `_`, or `-`. `version`
 and `minimum_kelyro_version` use strict SemVer 2.0 without a leading `v`.
 Dependency constraints are a whitespace-separated AND set of exact SemVer
 values with optional `=`, `<`, `<=`, `>`, or `>=` comparators. Resolution and
-installation are specified by later I-04 steps.
+installation are enforced by the I-04 pack application services.
 
 `created_at` is RFC 3339 in UTC `Z`. `authors` and `maintainers` are non-empty.
 `license` is a declared license identifier or expression; validation does not

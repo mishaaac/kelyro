@@ -7,6 +7,16 @@ persistence needed to build the product incrementally.
 
 ## Status
 
+I-04 Curriculum Compiler & Learning Packs is formally complete after full
+local quality gates, deterministic E2E and dogfooding, a 10,000-concept scale
+fixture, security/copyright review, and hosted Linux/macOS/Windows CI with
+Linux race coverage. The `v0.3.0-alpha.1` prerelease adds source-backed,
+deterministic curriculum compilation; Learning Pack validation, installation,
+activation, catalog and safe upgrade workflows; Environment Doctor integration;
+and CLI/TUI inspection. See the
+[`v0.3.0-alpha.1` release notes](docs/releases/v0.3.0-alpha.1.md) and the
+[I-04 completion record](docs/implementation/I-04-curriculum-compiler-learning-packs/PROGRESS.md).
+
 I-03 Research & Source Intelligence and its I-03C Live Research Closure are
 formally complete after deterministic E2E, opt-in public checks, production
 binary dogfooding, and Linux race coverage. The published `v0.2.0-alpha.2`
@@ -27,9 +37,10 @@ bounded snapshots and evidence, provenance and citations, freshness,
 verification and explicit conflicts, release/deprecation intelligence, source
 bundles, offline cache, update/drift/impact reports, audit metadata, and
 Research/Sources CLI and TUI transparency. It intentionally enables no provider
-or network access by default and has no production Curriculum Compiler,
-production Learning Pack, AI Research Reviewer, or automatic
-curriculum/student-state migration. See the
+or network access by default. I-04 consumes only its durable verified bundles;
+the compiler never performs live research and migrations never invent mastery.
+No AI Research Reviewer or automatic unclassified curriculum migration exists.
+See the
 [I-03C progress record](docs/implementation/I-03C-live-research-closure/PROGRESS.md)
 and [live dogfooding report](docs/implementation/I-03C-live-research-closure/DOGFOODING.md).
 

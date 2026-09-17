@@ -25,8 +25,11 @@
   dogfooding, and a hosted Linux/macOS/Windows CI pass with Linux race coverage.
 - Reopen I-03 only for a reproducible regression or an explicitly scoped
   compatibility change.
-- I-04 Curriculum Compiler & Learning Packs is open under its own specification.
-  Do not begin I-05 or any later implementation without its own specification
+- I-04 Curriculum Compiler & Learning Packs is formally closed after
+  implementation, dogfooding, and hosted Linux/macOS/Windows CI with Linux race
+  coverage. Reopen it only for a reproducible regression or an explicitly
+  scoped compatibility change.
+- Do not begin I-05 or any later implementation without its own specification
   and explicit authorization.
 
 ## I-04 compatibility boundaries
