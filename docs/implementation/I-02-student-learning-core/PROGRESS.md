@@ -1739,3 +1739,39 @@ Release: post-v0.3.0-alpha.1 test maintenance
 - `go vet ./internal/infra/learningdb`.
 - Compilación del test package para `windows/amd64`.
 - `git diff --check`.
+
+## Post-closure test regression — Windows E2E fresh-init timeout
+
+Status: completed
+Date: 2026-09-16
+Release: post-v0.3.0-alpha.1 test maintenance
+
+### Reproduction
+
+- Tras serializar los tests de migración, el CI `35170996345` completó el gate
+  unitario de Windows pero `TestResearchEngineEvidencePipelineEndToEnd` terminó
+  `kelyro init` al alcanzar el límite genérico de 30 s del harness.
+- Un `init` nuevo crea el workspace y aplica las 48 migraciones; el mismo flujo
+  había pasado en el workflow de release, por lo que el fallo era una variación
+  de tiempo del runner y no un error funcional ni del artefacto publicado.
+
+### Fix
+
+- El harness E2E concede 60 s únicamente al comando `init`; los demás comandos
+  y esperas interactivas conservan su límite de 30 s.
+- Una regresión verifica la selección del timeout para `init`, comandos
+  ordinarios y argumentos vacíos.
+- No se modificó código productivo, migraciones, persistencia, Student Core,
+  Curriculum Compiler ni los artefactos de `v0.3.0-alpha.1`.
+
+### Verification
+
+- `go test -tags=e2e ./tests/e2e -run '^(TestCommandTimeout|TestResearchEngineEvidencePipelineEndToEnd)$' -count=3`.
+- `go test ./... -count=1`.
+- `go vet ./...`.
+- Compilación del package E2E con tags para `windows/amd64`.
+- `git diff --check`.
+
+### Commit
+
+- `4311a19 test(e2e): allow bounded workspace initialization`.

@@ -2882,6 +2882,10 @@ Ready for: I-05 Lesson, Practice & Assessment Engine
   que migraban cinco workspaces en paralelo sobre Windows. Esos tests
   intensivos quedaron serializados sin cambiar timeouts ni comportamiento
   productivo.
+- La repetición de CI expuso que el E2E usaba el mismo límite de 30 s para un
+  `init` nuevo con 48 migraciones que para comandos ordinarios. Solo `init`
+  dispone ahora de 60 s; el límite general continúa en 30 s y una regresión
+  cubre la selección.
 
 ### Decisions
 
@@ -2912,6 +2916,8 @@ Ready for: I-05 Lesson, Practice & Assessment Engine
 - `279231d fix(pack): support native macOS filesystem paths`.
 - `dff0a5d test(pack): make catalog permissions portable`.
 - `e5aed41 docs(roadmap): mark I-04 Curriculum Compiler complete`.
+- `cb9a639 test(sqlite): stabilize migration lifetime tests`.
+- `4311a19 test(e2e): allow bounded workspace initialization`.
 
 ### Published prerelease v0.3.0-alpha.1
 
