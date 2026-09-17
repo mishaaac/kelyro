@@ -1708,3 +1708,34 @@ Release: v0.2.0-alpha.3 (published prerelease)
   `c977d396e0917baf39d3466d48ed39cca8a34010104d00035ea7a677e0d379a0`.
 - GitHub publication completed at `2026-09-09T18:23:40Z` with
   `draft=false`, `prerelease=true`, and seven uploaded assets.
+
+## Post-closure test regression — Windows migration-test starvation
+
+Status: completed
+Date: 2026-09-16
+Release: post-v0.3.0-alpha.1 test maintenance
+
+### Reproduction
+
+- El CI `35170632502` ejecutó en paralelo cinco tests de lifetime de
+  `internal/infra/learningdb`, cada uno con un workspace nuevo y toda la cadena
+  de migraciones SQLite.
+- Bajo contención del runner Windows, cuatro tests agotaron el timeout real de
+  5 s mientras registraban eventos auditables de las migrations 13/14.
+- El mismo código productivo había pasado las matrices de branch, `main` y
+  release; el fallo era de planificación concurrente del test, no de schema,
+  locking entre workspaces ni del artifact publicado.
+
+### Fix
+
+- Los cinco tests que crean, migran, cierran y reabren stores completos ahora
+  se ejecutan en serie dentro del paquete.
+- No se cambió el timeout productivo, migrations publicadas, SQL, repositorios,
+  Student Core, Curriculum Compiler ni artefactos de `v0.3.0-alpha.1`.
+
+### Verification
+
+- `go test ./internal/infra/learningdb -count=10`.
+- `go vet ./internal/infra/learningdb`.
+- Compilación del test package para `windows/amd64`.
+- `git diff --check`.

@@ -2878,6 +2878,10 @@ Ready for: I-05 Lesson, Practice & Assessment Engine
 - El test de permisos del cache de catálogo interpretaba `FileMode.Perm` como
   POSIX en Windows; conserva la verificación `0600` en POSIX y el roundtrip
   funcional en Windows.
+- El CI documental posterior a la publicación expuso starvation en tests I-02
+  que migraban cinco workspaces en paralelo sobre Windows. Esos tests
+  intensivos quedaron serializados sin cambiar timeouts ni comportamiento
+  productivo.
 
 ### Decisions
 

@@ -17,7 +17,9 @@ import (
 )
 
 func TestFactoryPersistsProfileAcrossStoreLifetimes(t *testing.T) {
-	t.Parallel()
+	// Keep the migration-heavy lifetime tests in this file serial. Running
+	// several complete fresh-workspace migration chains concurrently can starve
+	// their bounded SQLite operation contexts on slower Windows CI runners.
 
 	root := t.TempDir()
 	internal, err := platform.WorkspaceInternalDir(root)
@@ -72,8 +74,6 @@ func TestFactoryRejectsNegativeStudySessionIdleTimeout(t *testing.T) {
 }
 
 func TestFactoryPersistsLearningGoalHistoryAcrossStoreLifetimes(t *testing.T) {
-	t.Parallel()
-
 	root := t.TempDir()
 	internal, err := platform.WorkspaceInternalDir(root)
 	if err != nil {
@@ -118,7 +118,6 @@ func TestFactoryPersistsLearningGoalHistoryAcrossStoreLifetimes(t *testing.T) {
 }
 
 func TestFactoryPersistsOnboardingCheckpointAcrossStoreLifetimes(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	internal, err := platform.WorkspaceInternalDir(root)
 	if err != nil {
@@ -159,7 +158,6 @@ func TestFactoryPersistsOnboardingCheckpointAcrossStoreLifetimes(t *testing.T) {
 }
 
 func TestFactoryPersistsMasteryThresholdAcrossStoreLifetimes(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	internal, err := platform.WorkspaceInternalDir(root)
 	if err != nil {
@@ -430,7 +428,6 @@ func completeIntegratedSetupWithoutDiagnostic(t *testing.T, ctx context.Context,
 }
 
 func TestFactoryReopensCurriculumInstanceAndIsolatedConceptState(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	root := t.TempDir()
 	internal, err := platform.WorkspaceInternalDir(root)
