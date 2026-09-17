@@ -103,6 +103,14 @@ func loadDirectory(ctx context.Context, root string, rootInfo fs.FileInfo) (map[
 	if err != nil {
 		return nil, err
 	}
+	resolvedRoot, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		return nil, err
+	}
+	resolvedRootAbs, err := filepath.Abs(resolvedRoot)
+	if err != nil {
+		return nil, err
+	}
 	entries := make(map[string][]byte)
 	declaredTotal := int64(0)
 	readTotal := int64(0)
@@ -160,7 +168,7 @@ func loadDirectory(ctx context.Context, root string, rootInfo fs.FileInfo) (map[
 		if err != nil {
 			return err
 		}
-		inside, err := filepath.Rel(rootAbs, resolvedAbs)
+		inside, err := filepath.Rel(resolvedRootAbs, resolvedAbs)
 		if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
 			return fmt.Errorf("entry %q escapes pack root", portable)
 		}

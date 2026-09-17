@@ -227,6 +227,23 @@ func TestValidatorProducesDeterministicPortableSnapshot(t *testing.T) {
 	}
 }
 
+func TestValidatorAllowsDirectoryBelowSymlinkedAncestor(t *testing.T) {
+	t.Parallel()
+	pack := writeDirectory(t, validPackEntries())
+	realParent := filepath.Dir(pack)
+
+	aliasParent := t.TempDir()
+	alias := filepath.Join(aliasParent, "alias")
+	if err := os.Symlink(realParent, alias); err != nil {
+		t.Skipf("create directory alias: %v", err)
+	}
+
+	result, err := NewValidator().Validate(context.Background(), curriculumapp.PackSource{Path: filepath.Join(alias, filepath.Base(pack))})
+	if err != nil || len(result.Errors) != 0 || result.Pack == nil {
+		t.Fatalf("Validate() result=%+v error=%v", result, err)
+	}
+}
+
 func TestInMemoryPackValidationAppliesLoaderSizeBounds(t *testing.T) {
 	t.Parallel()
 	entries := validPackEntries()

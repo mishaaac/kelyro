@@ -1,7 +1,6 @@
 package platform
 
 import (
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -171,12 +170,15 @@ func TestGlobalConfigPathUsesNativeConfigDirectory(t *testing.T) {
 }
 
 func TestGlobalPackDirUsesNativeConfigDirectory(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config"))
+	directory, err := UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
 	path, err := GlobalPackDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "kelyro", "packs")
+	want := filepath.Join(directory, "kelyro", "packs")
 	if path != want {
 		t.Fatalf("GlobalPackDir() = %q, want %q", path, want)
 	}
