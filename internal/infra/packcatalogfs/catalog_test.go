@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestCacheRoundTripsValidatedCatalogAndSupportsEmptyOfflineState(t *testing.
 		t.Fatalf("Load() = %+v, %v", loaded, err)
 	}
 	info, err := os.Stat(path)
-	if err != nil || info.Mode().Perm()&0o077 != 0 {
+	if err != nil || runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("cache permissions = %v, %v", info.Mode(), err)
 	}
 }
